@@ -80,6 +80,29 @@ function getFirstImage(html: string, baseUrl: string): string | null {
   return null
 }
 
+/** Build a readable title from URL path segments as a last resort */
+function titleFromPath(parsedUrl: URL): string | null {
+  // Take the last meaningful path segment and clean it up
+  const segments = parsedUrl.pathname.split("/").filter(Boolean)
+  if (segments.length === 0) return null
+
+  // Use the longest segment (often the slug with the most info)
+  const slug = segments.reduce((a, b) => (a.length >= b.length ? a : b))
+
+  // Convert slug to readable text: replace hyphens/underscores, drop IDs
+  const cleaned = slug
+    .replace(/[-_]+/g, " ")
+    .replace(/\b[a-f0-9]{8,}\b/gi, "") // drop hex IDs
+    .replace(/\b\d{5,}\b/g, "") // drop long numeric IDs
+    .replace(/\s{2,}/g, " ")
+    .trim()
+
+  if (cleaned.length < 3) return null
+
+  // Title-case the result
+  return cleaned.replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
 /** Decode basic HTML entities */
 function decodeHtmlEntities(text: string): string {
   return text
@@ -133,14 +156,14 @@ Deno.serve(async (req) => {
     }
 
     // Fetch the page HTML
-    let html: string
+    let html: string | null = null
     try {
       const response = await fetch(parsedUrl.href, {
         headers: {
           "User-Agent":
-            "Mozilla/5.0 (compatible; TravelInbox/1.0; +https://travelinbox.app)",
-          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-          "Accept-Language": "en-US,en;q=0.5",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+          "Accept-Language": "en-US,en;q=0.9",
         },
         redirect: "follow",
         signal: AbortSignal.timeout(10000), // 10 second timeout
@@ -152,25 +175,14 @@ Deno.serve(async (req) => {
 
       html = await response.text()
     } catch (_fetchError) {
-      // Site blocked us or timed out — return nulls gracefully
-      const result: MetadataResult = {
-        title: null,
-        image: null,
-        description: null,
-        site_name: null,
-        url: url,
-      }
-      return new Response(JSON.stringify(result), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      })
+      // Site blocked us or timed out — html stays null, we'll use URL-based fallbacks below
     }
 
     // Extract OG tags, falling back to HTML tags
-    const ogTitle = getMetaContent(html, "og:title")
-    const ogImage = getMetaContent(html, "og:image")
-    const ogDescription = getMetaContent(html, "og:description")
-    const ogSiteName = getMetaContent(html, "og:site_name")
+    const ogTitle = html ? getMetaContent(html, "og:title") : null
+    const ogImage = html ? getMetaContent(html, "og:image") : null
+    const ogDescription = html ? getMetaContent(html, "og:description") : null
+    const ogSiteName = html ? getMetaContent(html, "og:site_name") : null
 
     // Resolve og:image relative URL if needed
     let imageUrl = ogImage
@@ -182,10 +194,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Fallback title from URL path segments when no HTML was returned
+    const fallbackTitle = titleFromPath(parsedUrl)
+
     const result: MetadataResult = {
-      title: ogTitle || getTitleTag(html),
-      image: imageUrl || getFirstImage(html, parsedUrl.href),
-      description: ogDescription || getMetaContent(html, "description"),
+      title: ogTitle || (html ? getTitleTag(html) : null) || fallbackTitle,
+      image: imageUrl || (html ? getFirstImage(html, parsedUrl.href) : null),
+      description: ogDescription || (html ? getMetaContent(html, "description") : null),
       site_name: ogSiteName || parsedUrl.hostname.replace(/^www\./, ""),
       url: url,
     }
