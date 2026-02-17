@@ -25,13 +25,14 @@ export default function SavePage() {
   const navigate = useNavigate()
 
   const [url, setUrl] = useState('')
-  const [status, setStatus] = useState<'idle' | 'loading' | 'preview' | 'saving' | 'saved' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'preview' | 'saving' | 'saved' | 'url_error'>('idle')
   const [metadata, setMetadata] = useState<Metadata | null>(null)
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<Category>('general')
   const [city, setCity] = useState('')
   const [notes, setNotes] = useState('')
-  const [errorMessage, setErrorMessage] = useState('')
+  const [urlError, setUrlError] = useState('')
+  const [saveError, setSaveError] = useState('')
 
   const handleSubmitUrl = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,13 +48,13 @@ export default function SavePage() {
     try {
       new URL(finalUrl)
     } catch {
-      setErrorMessage('Please enter a valid URL')
-      setStatus('error')
+      setUrlError('Please enter a valid URL')
+      setStatus('url_error')
       return
     }
 
     setStatus('loading')
-    setErrorMessage('')
+    setUrlError('')
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -92,6 +93,7 @@ export default function SavePage() {
     const itemTitle = title.trim() || metadata?.url || 'Untitled'
 
     setStatus('saving')
+    setSaveError('')
 
     const { error } = await supabase.from('saved_items').insert({
       user_id: user.id,
@@ -107,8 +109,8 @@ export default function SavePage() {
     })
 
     if (error) {
-      setErrorMessage('Failed to save. Please try again.')
-      setStatus('error')
+      setSaveError('Failed to save. Please try again.')
+      setStatus('preview')
       return
     }
 
@@ -124,7 +126,8 @@ export default function SavePage() {
     setCategory('general')
     setCity('')
     setNotes('')
-    setErrorMessage('')
+    setUrlError('')
+    setSaveError('')
   }
 
   return (
@@ -133,21 +136,21 @@ export default function SavePage() {
       <p className="mt-1 text-sm text-gray-500">Save a new travel find</p>
 
       {/* URL Input */}
-      {status === 'idle' || status === 'error' ? (
+      {(status === 'idle' || status === 'url_error') && (
         <form onSubmit={handleSubmitUrl} className="mt-6">
           <input
             type="text"
             value={url}
             onChange={(e) => {
               setUrl(e.target.value)
-              if (status === 'error') setStatus('idle')
+              if (status === 'url_error') setStatus('idle')
             }}
             placeholder="Paste a link..."
             autoFocus
             className="w-full px-4 py-4 text-base border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
           />
-          {status === 'error' && errorMessage && (
-            <p className="mt-2 text-sm text-red-600">{errorMessage}</p>
+          {status === 'url_error' && urlError && (
+            <p className="mt-2 text-sm text-red-600">{urlError}</p>
           )}
           <button
             type="submit"
@@ -157,7 +160,7 @@ export default function SavePage() {
             Fetch Preview
           </button>
         </form>
-      ) : null}
+      )}
 
       {/* Loading Skeleton */}
       {status === 'loading' && (
@@ -281,8 +284,8 @@ export default function SavePage() {
             </button>
           )}
 
-          {status === 'error' && errorMessage && (
-            <p className="text-sm text-red-600 text-center">{errorMessage}</p>
+          {saveError && (
+            <p className="text-sm text-red-600 text-center">{saveError}</p>
           )}
         </div>
       )}
