@@ -33,6 +33,7 @@ export default function SavePage() {
   const [notes, setNotes] = useState('')
   const [urlError, setUrlError] = useState('')
   const [saveError, setSaveError] = useState('')
+  const [imageFailed, setImageFailed] = useState(false)
 
   const handleSubmitUrl = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,11 +79,13 @@ export default function SavePage() {
       const data: Metadata = await response.json()
       setMetadata({ ...data, url: finalUrl })
       setTitle(data.title || '')
+      setImageFailed(false)
       setStatus('preview')
     } catch {
       // Still show preview with empty metadata so user can fill in manually
       setMetadata({ title: null, image: null, description: null, site_name: null, url: finalUrl })
       setTitle('')
+      setImageFailed(false)
       setStatus('preview')
     }
   }
@@ -128,6 +131,7 @@ export default function SavePage() {
     setNotes('')
     setUrlError('')
     setSaveError('')
+    setImageFailed(false)
   }
 
   return (
@@ -178,24 +182,20 @@ export default function SavePage() {
         <div className="mt-6 space-y-5">
           {/* Preview Card */}
           <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-            {metadata.image ? (
+            {metadata.image && !imageFailed ? (
               <img
                 src={metadata.image}
                 alt={title || 'Preview'}
                 className="w-full h-48 object-cover bg-gray-100"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement
-                  target.style.display = 'none'
-                  target.nextElementSibling?.classList.remove('hidden')
-                }}
+                onError={() => setImageFailed(true)}
               />
-            ) : null}
-            {/* Placeholder shown when no image or image fails to load */}
-            <div className={`w-full h-48 bg-gray-100 flex items-center justify-center ${metadata.image ? 'hidden' : ''}`}>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 text-gray-300">
-                <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
-              </svg>
-            </div>
+            ) : (
+              <div className="w-full h-48 bg-gray-100 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 text-gray-300">
+                  <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
+                </svg>
+              </div>
+            )}
             <div className="p-4">
               <input
                 type="text"
