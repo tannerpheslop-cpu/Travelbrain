@@ -33,6 +33,12 @@ export default function ItemDetailPage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [archiving, setArchiving] = useState(false)
   const [showTripSheet, setShowTripSheet] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const handleAlreadyAdded = (tripTitle: string) => {
+    setToast(`Already in "${tripTitle}"`)
+    setTimeout(() => setToast(null), 2500)
+  }
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initializedRef = useRef(false)
 
@@ -231,7 +237,17 @@ export default function ItemDetailPage() {
       </button>
 
       {showTripSheet && item && (
-        <AddToTripSheet itemId={item.id} onClose={() => setShowTripSheet(false)} />
+        <AddToTripSheet
+          itemId={item.id}
+          onClose={() => setShowTripSheet(false)}
+          onAlreadyAdded={handleAlreadyAdded}
+        />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gray-800 text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
+          {toast}
+        </div>
       )}
 
       <div className="mt-5 space-y-5">

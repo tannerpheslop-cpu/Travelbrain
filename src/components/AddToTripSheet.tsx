@@ -7,11 +7,12 @@ import type { Trip } from '../types'
 interface AddToTripSheetProps {
   itemId: string
   onClose: () => void
+  onAlreadyAdded?: (tripTitle: string) => void
 }
 
-type SheetState = 'list' | 'added' | 'already'
+type SheetState = 'list' | 'added'
 
-export default function AddToTripSheet({ itemId, onClose }: AddToTripSheetProps) {
+export default function AddToTripSheet({ itemId, onClose, onAlreadyAdded }: AddToTripSheetProps) {
   const { user } = useAuth()
   const [trips, setTrips] = useState<Trip[]>([])
   const [loadingTrips, setLoadingTrips] = useState(true)
@@ -43,8 +44,13 @@ export default function AddToTripSheet({ itemId, onClose }: AddToTripSheetProps)
       return
     }
 
+    if (alreadyAdded) {
+      onClose()
+      onAlreadyAdded?.(trip.title)
+      return
+    }
     setConfirmedTrip(trip.title)
-    setState(alreadyAdded ? 'already' : 'added')
+    setState('added')
   }
 
   return (
@@ -89,25 +95,6 @@ export default function AddToTripSheet({ itemId, onClose }: AddToTripSheetProps)
                 className="mt-4 px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition-colors"
               >
                 Done
-              </button>
-            </div>
-          )}
-
-          {state === 'already' && (
-            <div className="flex flex-col items-center py-8 px-5 text-center">
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-3">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-6 h-6 text-blue-600">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <p className="font-semibold text-gray-900">Already in {confirmedTrip}</p>
-              <p className="mt-1 text-sm text-gray-500">This item is already part of that trip.</p>
-              <button
-                type="button"
-                onClick={onClose}
-                className="mt-4 px-5 py-2 bg-gray-100 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 transition-colors"
-              >
-                Close
               </button>
             </div>
           )}
