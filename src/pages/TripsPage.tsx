@@ -172,10 +172,12 @@ function CreateTripModal({ onClose, onCreated, createTrip }: CreateTripModalProp
                 Start date <span className="text-gray-400 font-normal">(optional)</span>
               </label>
               <input
-                type="date"
+                type="text"
+                inputMode="numeric"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
+                placeholder="YYYY-MM-DD"
+                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 text-gray-700"
               />
             </div>
             <div>
@@ -183,11 +185,12 @@ function CreateTripModal({ onClose, onCreated, createTrip }: CreateTripModalProp
                 End date <span className="text-gray-400 font-normal">(optional)</span>
               </label>
               <input
-                type="date"
+                type="text"
+                inputMode="numeric"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                min={startDate || undefined}
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
+                placeholder="YYYY-MM-DD"
+                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 text-gray-700"
               />
             </div>
           </div>
@@ -296,14 +299,7 @@ export default function TripsPage() {
             </svg>
           </div>
           <p className="mt-4 text-gray-500 font-medium">No trips yet</p>
-          <p className="mt-1 text-sm text-gray-400">Tap "New Trip" to plan your first adventure</p>
-          <button
-            type="button"
-            onClick={() => setShowModal(true)}
-            className="mt-5 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
-          >
-            Create a Trip
-          </button>
+          <p className="mt-1 text-sm text-gray-400">Tap <strong className="font-medium text-gray-500">New Trip</strong> above to get started</p>
         </div>
       )}
 
