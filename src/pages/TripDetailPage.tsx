@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -123,6 +123,174 @@ function TripItemCard({
   )
 }
 
+// ── Schedule Trip Modal ───────────────────────────────────────────────────
+
+function ScheduleTripModal({
+  trip,
+  onClose,
+  onScheduled,
+}: {
+  trip: Trip
+  onClose: () => void
+  onScheduled: (updated: Trip) => void
+}) {
+  const isAlreadyScheduled = trip.status === 'scheduled'
+  const [startDate, setStartDate] = useState(trip.start_date ?? '')
+  const [endDate, setEndDate] = useState(trip.end_date ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const startRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    startRef.current?.focus()
+  }, [])
+
+  const handleSave = async () => {
+    const s = startDate.trim()
+    const e = endDate.trim()
+    const dateRe = /^\d{4}-\d{2}-\d{2}$/
+
+    if (!s || !e) {
+      setError('Both dates are required to schedule a trip.')
+      return
+    }
+    if (!dateRe.test(s) || !dateRe.test(e)) {
+      setError('Use the format YYYY-MM-DD (e.g. 2026-06-01).')
+      return
+    }
+    if (s > e) {
+      setError('Start date must be before end date.')
+      return
+    }
+
+    setSaving(true)
+    setError(null)
+
+    const { data, error: dbError } = await supabase
+      .from('trips')
+      .update({ status: 'scheduled', start_date: s, end_date: e })
+      .eq('id', trip.id)
+      .select()
+      .single()
+
+    setSaving(false)
+
+    if (dbError) {
+      setError(dbError.message)
+      return
+    }
+
+    onScheduled(data as Trip)
+    onClose()
+  }
+
+  const handleUnschedule = async () => {
+    setSaving(true)
+    setError(null)
+
+    const { data, error: dbError } = await supabase
+      .from('trips')
+      .update({ status: 'draft', start_date: null, end_date: null })
+      .eq('id', trip.id)
+      .select()
+      .single()
+
+    setSaving(false)
+
+    if (dbError || !data) {
+      setError('Failed to unschedule. Please try again.')
+      return
+    }
+
+    onScheduled(data as Trip)
+    onClose()
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="absolute inset-0 bg-black/40" />
+
+      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
+        {/* Handle */}
+        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">
+            {isAlreadyScheduled ? 'Edit Trip Dates' : 'Schedule Trip'}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label="Close"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-5 py-5 space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Start date</label>
+              <input
+                ref={startRef}
+                type="text"
+                inputMode="numeric"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                placeholder="YYYY-MM-DD"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">End date</label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                placeholder="YYYY-MM-DD"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+              />
+            </div>
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-600">{error}</p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : isAlreadyScheduled ? 'Update Dates' : 'Schedule Trip'}
+          </button>
+
+          {isAlreadyScheduled && (
+            <button
+              type="button"
+              onClick={handleUnschedule}
+              disabled={saving}
+              className="w-full py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50"
+            >
+              Remove dates (back to Draft)
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Trip Detail Page ──────────────────────────────────────────────────────
 
 export default function TripDetailPage() {
@@ -135,6 +303,7 @@ export default function TripDetailPage() {
   const [notFound, setNotFound] = useState(false)
   const [search, setSearch] = useState('')
   const [viewMode, setViewMode] = useState<'list' | 'category'>('list')
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
 
   const { items, loading: itemsLoading, removeItem } = useTripItems(id)
 
@@ -251,17 +420,17 @@ export default function TripDetailPage() {
       <div className="flex gap-2 mb-5">
         <button
           type="button"
-          onClick={() => {/* wired in next step */}}
+          onClick={() => setShowScheduleModal(true)}
           className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
           </svg>
-          Schedule Trip
+          {isScheduled ? 'Edit Dates' : 'Schedule Trip'}
         </button>
         <button
           type="button"
-          onClick={() => {/* wired later */}}
+          onClick={() => { /* wired later */ }}
           className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 active:bg-gray-100 transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -389,6 +558,14 @@ export default function TripDetailPage() {
             )
           })}
         </div>
+      )}
+
+      {showScheduleModal && trip && (
+        <ScheduleTripModal
+          trip={trip}
+          onClose={() => setShowScheduleModal(false)}
+          onScheduled={(updated) => setTrip(updated)}
+        />
       )}
     </div>
   )
