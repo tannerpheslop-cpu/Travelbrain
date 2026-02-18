@@ -71,5 +71,26 @@ export function useTrips() {
     [user]
   )
 
-  return { trips, loading, createTrip, refetch: fetchTrips }
+  const deleteTrip = useCallback(
+    async (id: string): Promise<{ error: string | null }> => {
+      // Optimistically remove from list immediately
+      setTrips((prev) => prev.filter((t) => t.id !== id))
+
+      const { error: deleteError } = await supabase
+        .from('trips')
+        .delete()
+        .eq('id', id)
+
+      if (deleteError) {
+        // Restore on failure by re-fetching
+        fetchTrips()
+        return { error: deleteError.message }
+      }
+
+      return { error: null }
+    },
+    [fetchTrips]
+  )
+
+  return { trips, loading, createTrip, deleteTrip, refetch: fetchTrips }
 }
