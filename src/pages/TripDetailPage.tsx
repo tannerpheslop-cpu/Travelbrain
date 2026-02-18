@@ -14,6 +14,16 @@ const categoryColors: Record<Category, { bg: string; text: string }> = {
   general: { bg: 'bg-gray-100', text: 'text-gray-700' },
 }
 
+const categoryOrder: Category[] = ['restaurant', 'activity', 'hotel', 'transit', 'general']
+
+const categoryLabels: Record<Category, string> = {
+  restaurant: 'Restaurants',
+  activity: 'Activities',
+  hotel: 'Hotels',
+  transit: 'Transit',
+  general: 'General',
+}
+
 function formatDateRange(start: string, end: string): string {
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }
   const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts)
@@ -26,9 +36,11 @@ function formatDateRange(start: string, end: string): string {
 function TripItemCard({
   tripItem,
   onRemove,
+  inCategoryView,
 }: {
   tripItem: TripItemWithSave
   onRemove: () => void
+  inCategoryView?: boolean
 }) {
   const item = tripItem.saved_item
   const colors = categoryColors[item.category]
@@ -59,9 +71,12 @@ function TripItemCard({
         <div className="flex-1 min-w-0 py-0.5">
           <h3 className="text-sm font-semibold text-gray-900 truncate">{item.title}</h3>
           <div className="flex items-center gap-2 mt-1">
-            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
-              {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
-            </span>
+            {/* Only show category badge in list view, not category view */}
+            {!inCategoryView && (
+              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+                {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+              </span>
+            )}
             {item.city && (
               <span className="text-xs text-gray-500 truncate">{item.city}</span>
             )}
@@ -118,6 +133,8 @@ export default function TripDetailPage() {
   const [trip, setTrip] = useState<Trip | null>(null)
   const [tripLoading, setTripLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [search, setSearch] = useState('')
+  const [viewMode, setViewMode] = useState<'list' | 'category'>('list')
 
   const { items, loading: itemsLoading, removeItem } = useTripItems(id)
 
@@ -141,6 +158,7 @@ export default function TripDetailPage() {
 
   const isLoading = tripLoading || itemsLoading
 
+  // ── Not found ──────────────────────────────────────────────────────────
   if (!tripLoading && notFound) {
     return (
       <div className="px-4 pt-6 pb-24">
@@ -161,6 +179,7 @@ export default function TripDetailPage() {
     )
   }
 
+  // ── Loading skeleton ───────────────────────────────────────────────────
   if (isLoading) {
     return (
       <div className="px-4 pt-6 pb-24 animate-pulse">
@@ -173,6 +192,28 @@ export default function TripDetailPage() {
   }
 
   const isScheduled = trip?.status === 'scheduled'
+
+  // Filter items by search query
+  const filtered = items.filter((ti) => {
+    if (!search.trim()) return true
+    const q = search.toLowerCase()
+    const si = ti.saved_item
+    return (
+      si.title.toLowerCase().includes(q) ||
+      si.city?.toLowerCase().includes(q) ||
+      si.notes?.toLowerCase().includes(q) ||
+      si.category.toLowerCase().includes(q)
+    )
+  })
+
+  // Group by category (only categories with items)
+  const grouped = categoryOrder.reduce<Record<Category, TripItemWithSave[]>>(
+    (acc, cat) => {
+      acc[cat] = filtered.filter((ti) => ti.saved_item.category === cat)
+      return acc
+    },
+    { restaurant: [], activity: [], hotel: [], transit: [], general: [] }
+  )
 
   return (
     <div className="px-4 pt-6 pb-24">
@@ -188,7 +229,7 @@ export default function TripDetailPage() {
       </button>
 
       {/* Trip header */}
-      <div className="mb-6">
+      <div className="mb-5">
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-2xl font-bold text-gray-900 leading-tight">{trip?.title}</h1>
           <span
@@ -206,9 +247,78 @@ export default function TripDetailPage() {
         )}
       </div>
 
-      {/* Items */}
-      {!itemsLoading && items.length === 0 ? (
-        <div className="mt-16 text-center">
+      {/* Action buttons: Schedule + Share */}
+      <div className="flex gap-2 mb-5">
+        <button
+          type="button"
+          onClick={() => {/* wired in next step */}}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
+          </svg>
+          Schedule Trip
+        </button>
+        <button
+          type="button"
+          onClick={() => {/* wired later */}}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 active:bg-gray-100 transition-colors"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path d="M13 4.5a2.5 2.5 0 11.702 1.737L6.97 9.604a2.518 2.518 0 010 .792l6.733 3.367a2.5 2.5 0 11-.671 1.341l-6.733-3.367a2.5 2.5 0 110-3.475l6.733-3.366A2.52 2.52 0 0113 4.5z" />
+          </svg>
+          Share Trip
+        </button>
+      </div>
+
+      {/* Only show controls if there are items */}
+      {items.length > 0 && (
+        <>
+          {/* Search bar */}
+          <div className="relative mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2">
+              <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
+            </svg>
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search places in this trip..."
+              className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+            />
+          </div>
+
+          {/* View toggle */}
+          <div className="flex gap-1 mb-4 p-1 bg-gray-100 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              List View
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('category')}
+              className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                viewMode === 'category'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              By Category
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* Empty state */}
+      {!itemsLoading && items.length === 0 && (
+        <div className="mt-12 text-center">
           <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-gray-300">
               <path fillRule="evenodd" d="M6.32 2.577a49.255 49.255 0 0111.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 01-1.085.67L12 18.089l-7.165 3.583A.75.75 0 013.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z" clipRule="evenodd" />
@@ -227,15 +337,57 @@ export default function TripDetailPage() {
             to add some!
           </p>
         </div>
-      ) : (
+      )}
+
+      {/* No search results */}
+      {!itemsLoading && items.length > 0 && filtered.length === 0 && (
+        <div className="mt-8 text-center">
+          <p className="text-gray-500 font-medium">No matching places</p>
+          <p className="mt-1 text-sm text-gray-400">Try a different search term</p>
+        </div>
+      )}
+
+      {/* List view */}
+      {viewMode === 'list' && filtered.length > 0 && (
         <div className="space-y-3">
-          {items.map((tripItem) => (
+          {filtered.map((tripItem) => (
             <TripItemCard
               key={tripItem.id}
               tripItem={tripItem}
               onRemove={() => removeItem(tripItem.id)}
             />
           ))}
+        </div>
+      )}
+
+      {/* Category view */}
+      {viewMode === 'category' && filtered.length > 0 && (
+        <div className="space-y-6">
+          {categoryOrder.map((cat) => {
+            const catItems = grouped[cat]
+            if (catItems.length === 0) return null
+            const colors = categoryColors[cat]
+            return (
+              <div key={cat}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${colors.bg} ${colors.text}`}>
+                    {categoryLabels[cat]}
+                  </span>
+                  <span className="text-xs text-gray-400">{catItems.length}</span>
+                </div>
+                <div className="space-y-3">
+                  {catItems.map((tripItem) => (
+                    <TripItemCard
+                      key={tripItem.id}
+                      tripItem={tripItem}
+                      onRemove={() => removeItem(tripItem.id)}
+                      inCategoryView
+                    />
+                  ))}
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
