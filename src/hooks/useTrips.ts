@@ -10,35 +10,40 @@ interface CreateTripInput {
 }
 
 export function useTrips() {
-  const { user } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [trips, setTrips] = useState<Trip[]>([])
+  // Stay in loading state while auth is resolving, so we never show skeletons
+  // for a user-less fetch that exits early.
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const fetchTrips = useCallback(async () => {
-    if (!user) return
+    if (!user) {
+      setLoading(false)
+      return
+    }
 
+    setLoading(true)
     const { data, error: fetchError } = await supabase
       .from('trips')
       .select('*')
       .eq('owner_id', user.id)
       .order('created_at', { ascending: false })
 
-    if (fetchError) {
-      setError(fetchError.message)
-    } else {
+    if (!fetchError) {
       setTrips((data as Trip[]) ?? [])
     }
     setLoading(false)
   }, [user])
 
   useEffect(() => {
+    // Don't attempt fetch until auth has resolved
+    if (authLoading) return
     fetchTrips()
-  }, [fetchTrips])
+  }, [authLoading, fetchTrips])
 
   const createTrip = useCallback(
-    async (input: CreateTripInput): Promise<Trip | null> => {
-      if (!user) return null
+    async (input: CreateTripInput): Promise<{ trip: Trip | null; error: string | null }> => {
+      if (!user) return { trip: null, error: 'Not authenticated' }
 
       const hasDates = input.start_date && input.end_date
       const status = hasDates ? 'scheduled' : 'draft'
@@ -56,16 +61,15 @@ export function useTrips() {
         .single()
 
       if (insertError) {
-        setError(insertError.message)
-        return null
+        return { trip: null, error: insertError.message }
       }
 
       const newTrip = data as Trip
       setTrips((prev) => [newTrip, ...prev])
-      return newTrip
+      return { trip: newTrip, error: null }
     },
     [user]
   )
 
-  return { trips, loading, error, createTrip, refetch: fetchTrips }
+  return { trips, loading, createTrip, refetch: fetchTrips }
 }

@@ -1,1 +1,7 @@
 @import "tailwindcss";
+
+/* Always reserve scrollbar space to prevent layout shift when page content
+   changes height (e.g. loading skeletons appearing/disappearing). */
+html {
+  overflow-y: scroll;
+}
