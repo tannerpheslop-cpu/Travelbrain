@@ -35,8 +35,8 @@ export default function ItemDetailPage() {
   const [showTripSheet, setShowTripSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
 
-  const handleAlreadyAdded = (tripTitle: string) => {
-    setToast(`Already in "${tripTitle}"`)
+  const handleToast = (msg: string) => {
+    setToast(msg)
     setTimeout(() => setToast(null), 2500)
   }
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -240,7 +240,8 @@ export default function ItemDetailPage() {
         <AddToTripSheet
           itemId={item.id}
           onClose={() => setShowTripSheet(false)}
-          onAlreadyAdded={handleAlreadyAdded}
+          onAdded={(tripTitle) => handleToast(`Added to "${tripTitle}"`)}
+          onAlreadyAdded={(tripTitle) => handleToast(`Already in "${tripTitle}"`)}
         />
       )}
 

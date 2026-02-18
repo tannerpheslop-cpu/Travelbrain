@@ -174,8 +174,8 @@ function ItemCard({ item }: { item: SavedItem }) {
   const [toast, setToast] = useState<string | null>(null)
   const showImage = item.image_url && !imgFailed
 
-  const handleAlreadyAdded = (tripTitle: string) => {
-    setToast(`Already in "${tripTitle}"`)
+  const handleToast = (msg: string) => {
+    setToast(msg)
     setTimeout(() => setToast(null), 2500)
   }
 
@@ -245,11 +245,11 @@ function ItemCard({ item }: { item: SavedItem }) {
         <AddToTripSheet
           itemId={item.id}
           onClose={() => setShowSheet(false)}
-          onAlreadyAdded={handleAlreadyAdded}
+          onAdded={(tripTitle) => handleToast(`Added to "${tripTitle}"`)}
+          onAlreadyAdded={(tripTitle) => handleToast(`Already in "${tripTitle}"`)}
         />
       )}
 
-      {/* Already-added toast */}
       {toast && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gray-800 text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
           {toast}
