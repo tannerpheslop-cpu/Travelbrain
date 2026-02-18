@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
+import AddToTripSheet from '../components/AddToTripSheet'
 import type { SavedItem, Category } from '../types'
 
 const categories: { value: Category; label: string }[] = [
@@ -31,6 +32,7 @@ export default function ItemDetailPage() {
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [archiving, setArchiving] = useState(false)
+  const [showTripSheet, setShowTripSheet] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initializedRef = useRef(false)
 
@@ -214,6 +216,22 @@ export default function ItemDetailPage() {
             <path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 007 4H4.75A2.75 2.75 0 002 6.75v4.5A2.75 2.75 0 004.75 14h4.5A2.75 2.75 0 0012 11.25V9a.75.75 0 00-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5z" />
           </svg>
         </a>
+      )}
+
+      {/* Add to Trip */}
+      <button
+        type="button"
+        onClick={() => setShowTripSheet(true)}
+        className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-blue-500">
+          <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+        </svg>
+        Add to Trip
+      </button>
+
+      {showTripSheet && item && (
+        <AddToTripSheet itemId={item.id} onClose={() => setShowTripSheet(false)} />
       )}
 
       <div className="mt-5 space-y-5">
