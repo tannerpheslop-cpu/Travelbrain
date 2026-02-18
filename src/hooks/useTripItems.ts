@@ -50,7 +50,54 @@ export function useTripItems(tripId: string | undefined) {
     [fetchItems]
   )
 
-  return { items, loading, removeItem, refetch: fetchItems }
+  const assignToDay = useCallback(
+    async (tripItemId: string, dayIndex: number | null): Promise<{ error: string | null }> => {
+      setItems((prev) =>
+        prev.map((i) => (i.id === tripItemId ? { ...i, day_index: dayIndex } : i))
+      )
+
+      const { error } = await supabase
+        .from('trip_items')
+        .update({ day_index: dayIndex })
+        .eq('id', tripItemId)
+
+      if (error) {
+        fetchItems()
+        return { error: error.message }
+      }
+      return { error: null }
+    },
+    [fetchItems]
+  )
+
+  const reorderWithinDay = useCallback(
+    async (orderedTripItemIds: string[]): Promise<{ error: string | null }> => {
+      setItems((prev) => {
+        const updated = [...prev]
+        orderedTripItemIds.forEach((id, idx) => {
+          const pos = updated.findIndex((i) => i.id === id)
+          if (pos !== -1) updated[pos] = { ...updated[pos], sort_order: idx }
+        })
+        return updated
+      })
+
+      const results = await Promise.all(
+        orderedTripItemIds.map((id, idx) =>
+          supabase.from('trip_items').update({ sort_order: idx }).eq('id', id)
+        )
+      )
+
+      const failed = results.find((r) => r.error)
+      if (failed?.error) {
+        fetchItems()
+        return { error: failed.error.message }
+      }
+      return { error: null }
+    },
+    [fetchItems]
+  )
+
+  return { items, loading, removeItem, assignToDay, reorderWithinDay, refetch: fetchItems }
 }
 
 // Standalone helpers used by InboxPage and ItemDetailPage
