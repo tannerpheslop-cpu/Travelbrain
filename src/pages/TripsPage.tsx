@@ -74,7 +74,7 @@ function TripCard({ trip, index }: { trip: Trip; index: number }) {
 interface CreateTripModalProps {
   onClose: () => void
   onCreated: (trip: Trip) => void
-  createTrip: (input: { title: string; start_date?: string | null; end_date?: string | null }) => Promise<Trip | null>
+  createTrip: (input: { title: string; start_date?: string | null; end_date?: string | null }) => Promise<{ trip: Trip | null; error: string | null }>
 }
 
 function CreateTripModal({ onClose, onCreated, createTrip }: CreateTripModalProps) {
@@ -104,12 +104,17 @@ function CreateTripModal({ onClose, onCreated, createTrip }: CreateTripModalProp
     }
 
     setSaving(true)
-    const trip = await createTrip({
+    const { trip, error } = await createTrip({
       title,
       start_date: startDate || null,
       end_date: endDate || null,
     })
     setSaving(false)
+
+    if (error) {
+      setValidationError(error)
+      return
+    }
 
     if (trip) {
       onCreated(trip)
@@ -170,7 +175,7 @@ function CreateTripModal({ onClose, onCreated, createTrip }: CreateTripModalProp
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
+                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
               />
             </div>
             <div>
@@ -182,7 +187,7 @@ function CreateTripModal({ onClose, onCreated, createTrip }: CreateTripModalProp
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 min={startDate || undefined}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
+                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
               />
             </div>
           </div>
@@ -261,7 +266,7 @@ export default function TripsPage() {
       {/* Loading Skeletons */}
       {loading && (
         <div className="mt-5 space-y-4">
-          {[1, 2, 3].map((i) => (
+          {[1, 2].map((i) => (
             <div key={i} className="animate-pulse bg-white rounded-2xl border border-gray-200 overflow-hidden">
               <div className="h-32 bg-gray-200" />
               <div className="px-4 py-3 space-y-2">
