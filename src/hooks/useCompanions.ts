@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
+const SUPABASE_URL = 'https://jauohzeyvmitsclnmxwg.supabase.co'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImphdW9oemV5dm1pdHNjbG5teHdnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyNjg0NzYsImV4cCI6MjA4Njg0NDQ3Nn0.LXuEcSJrxT0-3FhLQ6_yVoD7L5TIPtkj2MKScZCHqWg'
+
 export interface CompanionWithUser {
   id: string
   trip_id: string
@@ -68,23 +71,28 @@ export function useCompanions(tripId: string | undefined) {
   async function inviteByEmail(email: string): Promise<InviteResult> {
     if (!tripId) return { ok: false, error: 'No trip selected.' }
 
+    const { data: { user }, error: userError } = await supabase.auth.getUser()
+    if (!user || userError) return { ok: false, error: 'Not authenticated.' }
+
+    // getSession gives us the access token; it's valid if getUser succeeded
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) return { ok: false, error: 'Not authenticated.' }
 
-    const supabaseUrl = (supabase as unknown as { supabaseUrl: string }).supabaseUrl
-    const res = await fetch(`${supabaseUrl}/functions/v1/invite-companion`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/invite-companion`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
         'Authorization': `Bearer ${session.access_token}`,
       },
       body: JSON.stringify({ email: email.trim().toLowerCase(), trip_id: tripId }),
     })
 
     const json = await res.json() as { result?: string; user_id?: string; error?: string }
+    console.log('[invite-companion] status:', res.status, 'body:', json)
 
     if (!res.ok) {
-      return { ok: false, error: json.error ?? 'Something went wrong.' }
+      return { ok: false, error: json.error ?? `HTTP ${res.status}` }
     }
 
     // Refresh so the UI reflects whatever the function did
