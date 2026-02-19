@@ -1,5 +1,24 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
+import { decode as base64Decode } from "jsr:@std/encoding/base64"
+
+/** Extract the user id from a Bearer JWT without a network round-trip. */
+function getUserIdFromJwt(authHeader: string): string | null {
+  try {
+    const token = authHeader.replace(/^Bearer\s+/i, "")
+    const parts = token.split(".")
+    if (parts.length !== 3) return null
+    // Base64url → base64 → bytes → string
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+    const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4)
+    const bytes = base64Decode(padded)
+    const json = new TextDecoder().decode(bytes)
+    const { sub } = JSON.parse(json) as { sub?: string }
+    return sub ?? null
+  } catch {
+    return null
+  }
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -60,10 +79,10 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Get the current user's id
-    const { data: { user: caller }, error: callerError } = await userClient.auth.getUser()
-    if (!caller) {
-      console.error("Caller lookup error:", callerError?.message)
+    // Get the current user's id from the JWT directly (avoids a second network hop
+    // that can fail inside the Edge Function runtime).
+    const callerId = getUserIdFromJwt(authHeader)
+    if (!callerId) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -149,7 +168,7 @@ Deno.serve(async (req) => {
     const { error: pendingError } = await userClient
       .from("pending_invites")
       .upsert(
-        { trip_id, invited_by: caller.id, email: normalizedEmail },
+        { trip_id, invited_by: callerId, email: normalizedEmail },
         { onConflict: "trip_id,email" }
       )
 
