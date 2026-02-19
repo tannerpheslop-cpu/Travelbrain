@@ -1,6 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
 import { createClient } from "jsr:@supabase/supabase-js@2"
-import { decode as base64Decode } from "jsr:@std/encoding/base64"
 
 /** Extract the user id from a Bearer JWT without a network round-trip. */
 function getUserIdFromJwt(authHeader: string): string | null {
@@ -8,11 +7,9 @@ function getUserIdFromJwt(authHeader: string): string | null {
     const token = authHeader.replace(/^Bearer\s+/i, "")
     const parts = token.split(".")
     if (parts.length !== 3) return null
-    // Base64url → base64 → bytes → string
+    // Base64url → standard base64 then decode via atob (available in all runtimes)
     const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/")
-    const padded = payload + "=".repeat((4 - (payload.length % 4)) % 4)
-    const bytes = base64Decode(padded)
-    const json = new TextDecoder().decode(bytes)
+    const json = atob(payload)
     const { sub } = JSON.parse(json) as { sub?: string }
     return sub ?? null
   } catch {
