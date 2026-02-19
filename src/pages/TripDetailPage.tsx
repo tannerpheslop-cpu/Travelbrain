@@ -156,23 +156,16 @@ function ScheduleTripModal({
   const [endDate, setEndDate] = useState(trip.end_date ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const startRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => { startRef.current?.focus() }, [])
 
   const handleSave = async () => {
-    const s = startDate.trim()
-    const e = endDate.trim()
-    const dateRe = /^\d{4}-\d{2}-\d{2}$/
-    if (!s || !e) { setError('Both dates are required to schedule a trip.'); return }
-    if (!dateRe.test(s) || !dateRe.test(e)) { setError('Use the format YYYY-MM-DD (e.g. 2026-06-01).'); return }
-    if (s > e) { setError('Start date must be before end date.'); return }
+    if (!startDate || !endDate) { setError('Both dates are required to schedule a trip.'); return }
+    if (startDate > endDate) { setError('Start date must be before end date.'); return }
 
     setSaving(true)
     setError(null)
     const { data, error: dbError } = await supabase
       .from('trips')
-      .update({ status: 'scheduled', start_date: s, end_date: e })
+      .update({ status: 'scheduled', start_date: startDate, end_date: endDate })
       .eq('id', trip.id)
       .select()
       .single()
@@ -214,11 +207,23 @@ function ScheduleTripModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Start date</label>
-              <input ref={startRef} type="text" inputMode="numeric" value={startDate} onChange={(e) => setStartDate(e.target.value)} placeholder="YYYY-MM-DD" className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => { setStartDate(e.target.value); setError(null) }}
+                max={endDate || undefined}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">End date</label>
-              <input type="text" inputMode="numeric" value={endDate} onChange={(e) => setEndDate(e.target.value)} placeholder="YYYY-MM-DD" className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400" />
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => { setEndDate(e.target.value); setError(null) }}
+                min={startDate || undefined}
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
             </div>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
