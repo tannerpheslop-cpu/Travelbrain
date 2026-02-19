@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
+import { trackEvent } from '../lib/analytics'
 import AddToTripSheet from '../components/AddToTripSheet'
 import type { SavedItem, Category } from '../types'
 
@@ -86,9 +87,10 @@ export default function ItemDetailPage() {
 
     setSaveStatus(error ? 'idle' : 'saved')
     if (!error) {
+      trackEvent('save_edited', user?.id ?? null, { item_id: id, fields_changed: Object.keys(updates) })
       setTimeout(() => setSaveStatus('idle'), 1500)
     }
-  }, [id])
+  }, [id, user?.id])
 
   const debouncedSave = useCallback((updates: Partial<SavedItem>) => {
     if (!initializedRef.current) return

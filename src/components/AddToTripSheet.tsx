@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
+import { trackEvent } from '../lib/analytics'
 import { addItemToTrip } from '../hooks/useTripItems'
 import type { Trip } from '../types'
 
@@ -47,6 +48,7 @@ export default function AddToTripSheet({ itemId, onClose, onAdded, onAlreadyAdde
       return
     }
 
+    trackEvent('item_added_to_trip', user?.id ?? null, { trip_id: trip.id, item_id: itemId })
     onClose()
     onAdded?.(trip.title)
   }

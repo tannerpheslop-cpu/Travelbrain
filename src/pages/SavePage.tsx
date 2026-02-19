@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
+import { trackEvent } from '../lib/analytics'
 import type { Category } from '../types'
 
 interface Metadata {
@@ -158,6 +159,7 @@ export default function SavePage() {
       return
     }
 
+    trackEvent('save_created', user.id, { source_type: 'url', category, city: city.trim() || null })
     setLinkStatus('saved')
     setTimeout(() => navigate('/inbox'), 800)
   }
@@ -229,6 +231,7 @@ export default function SavePage() {
       return
     }
 
+    trackEvent('save_created', user.id, { source_type: 'screenshot', category, city: city.trim() || null })
     setScreenshotStatus('saved')
     setTimeout(() => navigate('/inbox'), 800)
   }
@@ -259,6 +262,7 @@ export default function SavePage() {
       return
     }
 
+    trackEvent('save_created', user.id, { source_type: 'manual', category, city: city.trim() || null })
     setManualStatus('saved')
     setTimeout(() => navigate('/inbox'), 800)
   }

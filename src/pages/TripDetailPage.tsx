@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
+import { trackEvent } from '../lib/analytics'
 import { useTripItems } from '../hooks/useTripItems'
 import type { TripItemWithSave } from '../hooks/useTripItems'
 import { useCompanions } from '../hooks/useCompanions'
@@ -1101,11 +1102,17 @@ export default function TripDetailPage() {
   // Event handlers
   const handleAssignToDay = (tripItemId: string, dayIndex: number) => {
     assignToDay(tripItemId, dayIndex)
+    if (dayIndex !== null) {
+      trackEvent('item_assigned_to_day', user?.id ?? null, { trip_id: id, trip_item_id: tripItemId, day_index: dayIndex })
+    }
     setShowAddItemsSheet(false)
   }
 
   const handleMoveToDay = (tripItemId: string, targetDay: number | null) => {
     assignToDay(tripItemId, targetDay)
+    if (targetDay !== null) {
+      trackEvent('item_assigned_to_day', user?.id ?? null, { trip_id: id, trip_item_id: tripItemId, day_index: targetDay })
+    }
   }
 
   const handleReorder = (orderedIds: string[]) => {
@@ -1352,7 +1359,12 @@ export default function TripDetailPage() {
         <ScheduleTripModal
           trip={trip}
           onClose={() => setShowScheduleModal(false)}
-          onScheduled={(updated) => setTrip(updated)}
+          onScheduled={(updated) => {
+            if (updated.status === 'scheduled' && trip.status !== 'scheduled') {
+              trackEvent('trip_scheduled', user?.id ?? null, { trip_id: updated.id, start_date: updated.start_date, end_date: updated.end_date })
+            }
+            setTrip(updated)
+          }}
         />
       )}
 
@@ -1361,7 +1373,12 @@ export default function TripDetailPage() {
         <ShareTripModal
           trip={trip}
           onClose={() => setShowShareModal(false)}
-          onUpdated={(updated) => setTrip(updated)}
+          onUpdated={(updated) => {
+            if (updated.share_token && !trip.share_token) {
+              trackEvent('trip_shared', user?.id ?? null, { trip_id: updated.id, share_privacy: updated.share_privacy })
+            }
+            setTrip(updated)
+          }}
         />
       )}
 
@@ -1371,7 +1388,13 @@ export default function TripDetailPage() {
           companions={companions}
           pendingInvites={pendingInvites}
           onClose={() => setShowInviteModal(false)}
-          onInviteByEmail={inviteByEmail}
+          onInviteByEmail={async (email) => {
+            const result = await inviteByEmail(email)
+            if (result.ok && result.type === 'added') {
+              trackEvent('companion_invited', user?.id ?? null, { trip_id: id })
+            }
+            return result
+          }}
           onRemove={removeCompanion}
           onRemovePending={removePendingInvite}
         />
