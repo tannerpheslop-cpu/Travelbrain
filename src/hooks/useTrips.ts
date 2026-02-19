@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
+import { trackEvent } from '../lib/analytics'
 import type { Trip } from '../types'
 
 interface CreateTripInput {
@@ -65,6 +66,7 @@ export function useTrips() {
       }
 
       const newTrip = data as Trip
+      trackEvent('trip_created', user.id, { trip_id: newTrip.id, status: newTrip.status })
       setTrips((prev) => [newTrip, ...prev])
       return { trip: newTrip, error: null }
     },

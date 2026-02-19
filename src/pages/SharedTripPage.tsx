@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
+import { trackEvent } from '../lib/analytics'
 import type { Trip, SavedItem, Category } from '../types'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -106,10 +107,10 @@ function AdoptButton({
       className="flex items-center gap-2 px-5 py-3 bg-white text-blue-700 rounded-2xl text-sm font-semibold shadow-lg hover:bg-blue-50 active:bg-blue-100 transition-colors border border-white/30"
     >
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-        <path d="M7.75 2.75a.75.75 0 00-1.5 0v1.258a32.987 32.987 0 00-3.599.278.75.75 0 10.198 1.487A31.545 31.545 0 018.7 5.545 19.381 19.381 0 017 9.56a19.418 19.418 0 01-1.002-2.05.75.75 0 00-1.384.577 20.935 20.935 0 001.492 3.111 19.42 19.42 0 01-3.828 4.154.75.75 0 10.945 1.164 20.92 20.92 0 004.184-4.542 19.507 19.507 0 002.512 3.096.75.75 0 001.054-1.068 18.01 18.01 0 01-2.835-3.518c.606-1.066 1.12-2.19 1.528-3.365z" />
-        <path d="M10.5 2.75a.75.75 0 01.75-.75h5a.75.75 0 01.75.75v5a.75.75 0 01-1.5 0V4.56l-6.22 6.22a.75.75 0 11-1.06-1.06l6.22-6.22H11.25a.75.75 0 01-.75-.75z" />
+        <path d="M7 3.5A1.5 1.5 0 0 1 8.5 2h3.879a1.5 1.5 0 0 1 1.06.44l3.122 3.12A1.5 1.5 0 0 1 17 6.622V12.5a1.5 1.5 0 0 1-1.5 1.5h-1v-3.379a3 3 0 0 0-.879-2.121L10.5 5.379A3 3 0 0 0 8.379 4.5H7v-1Z" />
+        <path d="M4.5 6A1.5 1.5 0 0 0 3 7.5v9A1.5 1.5 0 0 0 4.5 18h7a1.5 1.5 0 0 0 1.5-1.5v-5.879a1.5 1.5 0 0 0-.44-1.06L9.44 6.439A1.5 1.5 0 0 0 8.378 6H4.5Z" />
       </svg>
-      Adopt This Trip
+      Copy to My Trips
     </button>
   )
 }
@@ -380,6 +381,7 @@ export default function SharedTripPage() {
 
       const fetchedTrip = tripData as Trip
       setTrip(fetchedTrip)
+      trackEvent('share_link_opened', null, { trip_id: fetchedTrip.id, share_privacy: fetchedTrip.share_privacy, share_token: shareToken })
 
       // Fetch items only for full privacy mode
       if (fetchedTrip.share_privacy === 'full') {
@@ -415,6 +417,7 @@ export default function SharedTripPage() {
       navigate(`/login?redirect=/s/${shareToken}`)
       return
     }
+    trackEvent('trip_adopted', user.id, { trip_id: trip?.id, share_token: shareToken })
     // Stub — adoption wired in next step
     setAdoptToast(true)
     setTimeout(() => setAdoptToast(false), 3000)
@@ -489,7 +492,7 @@ export default function SharedTripPage() {
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-blue-400">
               <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v4.59L7.3 9.24a.75.75 0 00-1.1 1.02l3.25 3.5a.75.75 0 001.1 0l3.25-3.5a.75.75 0 10-1.1-1.02l-1.95 2.1V6.75z" clipRule="evenodd" />
             </svg>
-            Trip adoption coming soon!
+            Copy to My Trips coming soon!
           </div>
         </div>
       )}
