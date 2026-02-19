@@ -1,17 +1,19 @@
 import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 
 export default function LoginPage() {
   const { user, loading } = useAuth()
+  const [searchParams] = useSearchParams()
+  const redirect = searchParams.get('redirect') || '/inbox'
   const [email, setEmail] = useState('')
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
-  // If already logged in, redirect to inbox
+  // If already logged in, redirect to destination
   if (!loading && user) {
-    return <Navigate to="/inbox" replace />
+    return <Navigate to={redirect} replace />
   }
 
   const handleMagicLink = async (e: React.FormEvent) => {
@@ -24,7 +26,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
-        emailRedirectTo: `${window.location.origin}/inbox`,
+        emailRedirectTo: `${window.location.origin}${redirect}`,
       },
     })
 
@@ -40,7 +42,7 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/inbox`,
+        redirectTo: `${window.location.origin}${redirect}`,
       },
     })
 
