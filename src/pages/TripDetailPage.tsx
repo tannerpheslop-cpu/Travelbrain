@@ -4,6 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useTripItems } from '../hooks/useTripItems'
 import type { TripItemWithSave } from '../hooks/useTripItems'
+import { useCompanions } from '../hooks/useCompanions'
+import type { CompanionWithUser } from '../hooks/useCompanions'
 import type { Trip, Category, SharePrivacy } from '../types'
 import {
   DndContext,
@@ -397,6 +399,202 @@ function ShareTripModal({
   )
 }
 
+// ── CompanionChip ─────────────────────────────────────────────────────────────
+
+function CompanionChip({
+  companion,
+  onRemove,
+}: {
+  companion: CompanionWithUser
+  onRemove: () => void
+}) {
+  const name = companion.user.display_name ?? companion.user.email
+  const initials = name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((s) => s[0]?.toUpperCase() ?? '')
+    .join('')
+
+  return (
+    <div className="flex items-center gap-1.5 bg-gray-100 rounded-full pl-1 pr-2 py-0.5 group">
+      <div className="w-6 h-6 rounded-full bg-blue-200 text-blue-800 flex items-center justify-center text-xs font-semibold shrink-0">
+        {initials || '?'}
+      </div>
+      <span className="text-xs text-gray-700 font-medium max-w-[80px] truncate">{name}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        className="text-gray-300 hover:text-red-400 transition-colors shrink-0"
+        aria-label={`Remove ${name}`}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+          <path d="M5.28 4.22a.75.75 0 00-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 101.06 1.06L8 9.06l2.72 2.72a.75.75 0 101.06-1.06L9.06 8l2.72-2.72a.75.75 0 00-1.06-1.06L8 6.94 5.28 4.22z" />
+        </svg>
+      </button>
+    </div>
+  )
+}
+
+// ── InviteCompanionModal ───────────────────────────────────────────────────────
+
+function InviteCompanionModal({
+  trip,
+  companions,
+  onClose,
+  onInvite,
+  onRemove,
+  lookupUserByEmail,
+}: {
+  trip: Trip
+  companions: CompanionWithUser[]
+  onClose: () => void
+  onInvite: (userId: string) => Promise<string | null>
+  onRemove: (companionId: string) => void
+  lookupUserByEmail: (email: string) => Promise<{ id: string; email: string; display_name: string | null } | null>
+}) {
+  const [email, setEmail] = useState('')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'not_found' | 'success' | 'error'>('idle')
+  const [errorMsg, setErrorMsg] = useState('')
+  const emailRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { emailRef.current?.focus() }, [])
+
+  const handleInvite = async () => {
+    const trimmed = email.trim().toLowerCase()
+    if (!trimmed) return
+
+    setStatus('loading')
+    setErrorMsg('')
+
+    const foundUser = await lookupUserByEmail(trimmed)
+    if (!foundUser) {
+      setStatus('not_found')
+      return
+    }
+
+    const err = await onInvite(foundUser.id)
+    if (err) {
+      setStatus('error')
+      setErrorMsg(err)
+    } else {
+      setEmail('')
+      setStatus('success')
+      setTimeout(() => setStatus('idle'), 2000)
+    }
+  }
+
+  const shareUrl = trip.share_token ? `${window.location.origin}/s/${trip.share_token}` : null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
+        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Invite Companions</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label="Close"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-5 py-5 space-y-4">
+          {/* Email input */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Invite by email
+            </label>
+            <div className="flex gap-2">
+              <input
+                ref={emailRef}
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setStatus('idle') }}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleInvite() }}
+                placeholder="friend@example.com"
+                className="flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+              />
+              <button
+                type="button"
+                onClick={handleInvite}
+                disabled={status === 'loading' || !email.trim()}
+                className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50 shrink-0"
+              >
+                {status === 'loading' ? '…' : 'Invite'}
+              </button>
+            </div>
+          </div>
+
+          {/* Feedback messages */}
+          {status === 'not_found' && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <p className="text-sm font-medium text-amber-800">No account found for that email.</p>
+              <p className="mt-0.5 text-sm text-amber-700">
+                They'll need to sign up first.{shareUrl ? ' Share the trip link with them!' : ''}
+              </p>
+              {shareUrl && (
+                <p className="mt-1.5 text-xs text-amber-600 font-mono break-all">{shareUrl}</p>
+              )}
+            </div>
+          )}
+          {status === 'success' && (
+            <p className="text-sm text-green-700 font-medium">Companion added!</p>
+          )}
+          {status === 'error' && (
+            <p className="text-sm text-red-600">{errorMsg}</p>
+          )}
+
+          {/* Current companions */}
+          {companions.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Current companions</p>
+              <div className="space-y-2">
+                {companions.map((c) => {
+                  const name = c.user.display_name ?? c.user.email
+                  const initials = name.split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('')
+                  return (
+                    <div key={c.id} className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-semibold shrink-0">
+                        {initials || '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{name}</p>
+                        {c.user.display_name && (
+                          <p className="text-xs text-gray-400 truncate">{c.user.email}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => onRemove(c.id)}
+                        className="text-xs text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {companions.length === 0 && (
+            <p className="text-sm text-gray-400">No companions yet. Invite someone above!</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── MoveToDayPicker ────────────────────────────────────────────────────────────
 
 function MoveToDayPicker({
@@ -776,8 +974,10 @@ export default function TripDetailPage() {
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [showAddItemsSheet, setShowAddItemsSheet] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
 
   const { items, loading: itemsLoading, removeItem, assignToDay, reorderWithinDay } = useTripItems(id)
+  const { companions, lookupUserByEmail, inviteCompanion, removeCompanion } = useCompanions(id)
 
   useEffect(() => {
     if (!user || !id) return
@@ -909,7 +1109,20 @@ export default function TripDetailPage() {
         )}
       </div>
 
-      {/* Action buttons: Schedule + Share */}
+      {/* Companion chips — shown when companions exist */}
+      {companions.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          {companions.map((c) => (
+            <CompanionChip
+              key={c.id}
+              companion={c}
+              onRemove={() => removeCompanion(c.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Action buttons: Schedule + Share + Invite */}
       <div className="flex gap-2 mb-5">
         <button
           type="button"
@@ -934,6 +1147,22 @@ export default function TripDetailPage() {
             <path d="M13 4.5a2.5 2.5 0 11.702 1.737L6.97 9.604a2.518 2.518 0 010 .792l6.733 3.367a2.5 2.5 0 11-.671 1.341l-6.733-3.367a2.5 2.5 0 110-3.475l6.733-3.366A2.52 2.52 0 0113 4.5z" />
           </svg>
           {trip?.share_token ? 'Shared ✓' : 'Share Trip'}
+        </button>
+        {/* Invite Companion button */}
+        <button
+          type="button"
+          onClick={() => setShowInviteModal(true)}
+          className={`flex items-center justify-center gap-1.5 px-3 py-2.5 border rounded-xl text-sm font-semibold transition-colors ${
+            companions.length > 0
+              ? 'border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100 active:bg-violet-200'
+              : 'border-gray-300 text-gray-700 hover:bg-gray-50 active:bg-gray-100'
+          }`}
+          aria-label="Invite companions"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path d="M11 5a3 3 0 11-6 0 3 3 0 016 0zM2.615 16.428a1.224 1.224 0 01-.569-1.175 6.002 6.002 0 0111.908 0c.058.467-.172.92-.57 1.174A9.953 9.953 0 018 18a9.953 9.953 0 01-5.385-1.572zM16.25 5.75a.75.75 0 00-1.5 0v2h-2a.75.75 0 000 1.5h2v2a.75.75 0 001.5 0v-2h2a.75.75 0 000-1.5h-2v-2z" />
+          </svg>
+          {companions.length > 0 ? companions.length.toString() : '+'}
         </button>
       </div>
 
@@ -1107,6 +1336,18 @@ export default function TripDetailPage() {
           trip={trip}
           onClose={() => setShowShareModal(false)}
           onUpdated={(updated) => setTrip(updated)}
+        />
+      )}
+
+      {/* Invite companion modal */}
+      {showInviteModal && trip && (
+        <InviteCompanionModal
+          trip={trip}
+          companions={companions}
+          onClose={() => setShowInviteModal(false)}
+          onInvite={inviteCompanion}
+          onRemove={removeCompanion}
+          lookupUserByEmail={lookupUserByEmail}
         />
       )}
     </div>
