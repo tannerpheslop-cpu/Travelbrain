@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useTripItems } from '../hooks/useTripItems'
 import type { TripItemWithSave } from '../hooks/useTripItems'
-import type { Trip, Category } from '../types'
+import type { Trip, Category, SharePrivacy } from '../types'
 import {
   DndContext,
   closestCenter,
@@ -228,6 +228,169 @@ function ScheduleTripModal({
               Remove dates (back to Draft)
             </button>
           )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Share Trip Modal ───────────────────────────────────────────────────────────
+
+const privacyOptions: { value: SharePrivacy; label: string; emoji: string; description: string }[] = [
+  { value: 'city_only',  label: 'City Only',       emoji: '🏙️', description: 'Trip name and cities only — no dates or items' },
+  { value: 'city_dates', label: 'City + Dates',    emoji: '📅', description: 'Trip name, cities, and date range' },
+  { value: 'full',       label: 'Full Itinerary',  emoji: '✈️', description: 'Everything — all items and the day-by-day plan' },
+]
+
+function ShareTripModal({
+  trip,
+  onClose,
+  onUpdated,
+}: {
+  trip: Trip
+  onClose: () => void
+  onUpdated: (updated: Trip) => void
+}) {
+  const [privacy, setPrivacy] = useState<SharePrivacy>(trip.share_privacy ?? 'full')
+  const [generating, setGenerating] = useState(false)
+  const [shareUrl, setShareUrl] = useState<string | null>(
+    trip.share_token ? `${window.location.origin}/s/${trip.share_token}` : null
+  )
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const handleGenerate = async () => {
+    setGenerating(true)
+    setError(null)
+    const token = trip.share_token ?? crypto.randomUUID()
+    const { data, error: dbError } = await supabase
+      .from('trips')
+      .update({ share_token: token, share_privacy: privacy })
+      .eq('id', trip.id)
+      .select()
+      .single()
+    setGenerating(false)
+    if (dbError || !data) { setError('Failed to generate link. Please try again.'); return }
+    onUpdated(data as Trip)
+    setShareUrl(`${window.location.origin}/s/${token}`)
+  }
+
+  const handleCopy = async () => {
+    if (!shareUrl) return
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setError('Could not copy to clipboard.')
+    }
+  }
+
+  const selectedOption = privacyOptions.find((o) => o.value === privacy)!
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="absolute inset-0 bg-black/40" />
+      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
+        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Share Trip</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label="Close"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-5 py-5 space-y-4">
+          {/* Privacy selector */}
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-2">Who can see what?</p>
+            <div className="flex gap-2">
+              {privacyOptions.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => { setPrivacy(opt.value); setShareUrl(null) }}
+                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border text-xs font-medium transition-colors ${
+                    privacy === opt.value
+                      ? 'border-blue-500 bg-blue-50 text-blue-700'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-base">{opt.emoji}</span>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-gray-400">{selectedOption.description}</p>
+          </div>
+
+          {/* Generate button */}
+          {!shareUrl && (
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={generating}
+              className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50"
+            >
+              {generating ? 'Generating…' : 'Generate Link'}
+            </button>
+          )}
+
+          {/* Share URL + Copy */}
+          {shareUrl && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
+                <p className="flex-1 text-xs text-gray-600 font-mono truncate">{shareUrl}</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    copied
+                      ? 'bg-green-600 text-white'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                  }`}
+                >
+                  {copied ? (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                      </svg>
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                        <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z" />
+                        <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z" />
+                      </svg>
+                      Copy Link
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShareUrl(null)}
+                  className="px-4 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Change
+                </button>
+              </div>
+            </div>
+          )}
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
       </div>
     </div>
@@ -611,6 +774,7 @@ export default function TripDetailPage() {
   const [viewMode, setViewMode] = useState<'list' | 'category' | 'schedule'>('list')
   const [activeDay, setActiveDay] = useState<number | 'unassigned'>(1)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
   const [showAddItemsSheet, setShowAddItemsSheet] = useState(false)
 
   const { items, loading: itemsLoading, removeItem, assignToDay, reorderWithinDay } = useTripItems(id)
@@ -759,13 +923,17 @@ export default function TripDetailPage() {
         </button>
         <button
           type="button"
-          onClick={() => { /* wired later */ }}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 border border-gray-300 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          onClick={() => setShowShareModal(true)}
+          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 border rounded-xl text-sm font-semibold transition-colors ${
+            trip?.share_token
+              ? 'border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 active:bg-blue-200'
+              : 'border-gray-300 text-gray-700 hover:bg-gray-50 active:bg-gray-100'
+          }`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
             <path d="M13 4.5a2.5 2.5 0 11.702 1.737L6.97 9.604a2.518 2.518 0 010 .792l6.733 3.367a2.5 2.5 0 11-.671 1.341l-6.733-3.367a2.5 2.5 0 110-3.475l6.733-3.366A2.52 2.52 0 0113 4.5z" />
           </svg>
-          Share Trip
+          {trip?.share_token ? 'Shared ✓' : 'Share Trip'}
         </button>
       </div>
 
@@ -930,6 +1098,15 @@ export default function TripDetailPage() {
           trip={trip}
           onClose={() => setShowScheduleModal(false)}
           onScheduled={(updated) => setTrip(updated)}
+        />
+      )}
+
+      {/* Share modal */}
+      {showShareModal && trip && (
+        <ShareTripModal
+          trip={trip}
+          onClose={() => setShowShareModal(false)}
+          onUpdated={(updated) => setTrip(updated)}
         />
       )}
     </div>
