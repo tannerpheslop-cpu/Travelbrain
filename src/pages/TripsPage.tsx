@@ -269,12 +269,11 @@ function CreateTripModal({ onClose, onCreated, createTrip }: CreateTripModalProp
                 Start date <span className="text-gray-400 font-normal">(optional)</span>
               </label>
               <input
-                type="text"
-                inputMode="numeric"
+                type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                placeholder="YYYY-MM-DD"
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 text-gray-700"
+                max={endDate || undefined}
+                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
               />
             </div>
             <div>
@@ -282,12 +281,11 @@ function CreateTripModal({ onClose, onCreated, createTrip }: CreateTripModalProp
                 End date <span className="text-gray-400 font-normal">(optional)</span>
               </label>
               <input
-                type="text"
-                inputMode="numeric"
+                type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                placeholder="YYYY-MM-DD"
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 text-gray-700"
+                min={startDate || undefined}
+                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
               />
             </div>
           </div>
