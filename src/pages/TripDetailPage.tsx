@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth'
 import { useTripItems } from '../hooks/useTripItems'
 import type { TripItemWithSave } from '../hooks/useTripItems'
 import { useCompanions } from '../hooks/useCompanions'
-import type { CompanionWithUser } from '../hooks/useCompanions'
+import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
 import type { Trip, Category, SharePrivacy } from '../types'
 import {
   DndContext,
@@ -443,52 +443,46 @@ function CompanionChip({
 // ── InviteCompanionModal ───────────────────────────────────────────────────────
 
 function InviteCompanionModal({
-  trip,
   companions,
+  pendingInvites,
   onClose,
-  onInvite,
+  onInviteByEmail,
   onRemove,
-  lookupUserByEmail,
+  onRemovePending,
 }: {
-  trip: Trip
   companions: CompanionWithUser[]
+  pendingInvites: PendingInvite[]
   onClose: () => void
-  onInvite: (userId: string) => Promise<string | null>
+  onInviteByEmail: (email: string) => Promise<{ ok: boolean; type?: string; error?: string }>
   onRemove: (companionId: string) => void
-  lookupUserByEmail: (email: string) => Promise<{ id: string; email: string; display_name: string | null } | null>
+  onRemovePending: (inviteId: string) => void
 }) {
   const [email, setEmail] = useState('')
-  const [status, setStatus] = useState<'idle' | 'loading' | 'not_found' | 'success' | 'error'>('idle')
+  const [status, setStatus] = useState<'idle' | 'loading' | 'added' | 'invited' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
   const emailRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { emailRef.current?.focus() }, [])
 
   const handleInvite = async () => {
-    const trimmed = email.trim().toLowerCase()
+    const trimmed = email.trim()
     if (!trimmed) return
 
     setStatus('loading')
     setErrorMsg('')
 
-    const foundUser = await lookupUserByEmail(trimmed)
-    if (!foundUser) {
-      setStatus('not_found')
-      return
-    }
-
-    const err = await onInvite(foundUser.id)
-    if (err) {
+    const result = await onInviteByEmail(trimmed)
+    if (!result.ok) {
       setStatus('error')
-      setErrorMsg(err)
+      setErrorMsg(result.error ?? 'Something went wrong.')
     } else {
       setEmail('')
-      setStatus('success')
-      setTimeout(() => setStatus('idle'), 2000)
+      setStatus(result.type === 'added' ? 'added' : 'invited')
+      setTimeout(() => setStatus('idle'), 3000)
     }
   }
 
-  const shareUrl = trip.share_token ? `${window.location.origin}/s/${trip.share_token}` : null
+  const hasAny = companions.length > 0 || pendingInvites.length > 0
 
   return (
     <div
@@ -496,9 +490,9 @@ function InviteCompanionModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
-        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden max-h-[85vh] flex flex-col">
+        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <h2 className="text-base font-semibold text-gray-900">Invite Companions</h2>
           <button
             type="button"
@@ -512,7 +506,7 @@ function InviteCompanionModal({
           </button>
         </div>
 
-        <div className="px-5 py-5 space-y-4">
+        <div className="overflow-y-auto flex-1 px-5 py-5 space-y-4">
           {/* Email input */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -539,29 +533,26 @@ function InviteCompanionModal({
             </div>
           </div>
 
-          {/* Feedback messages */}
-          {status === 'not_found' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-              <p className="text-sm font-medium text-amber-800">No account found for that email.</p>
-              <p className="mt-0.5 text-sm text-amber-700">
-                They'll need to sign up first.{shareUrl ? ' Share the trip link with them!' : ''}
-              </p>
-              {shareUrl && (
-                <p className="mt-1.5 text-xs text-amber-600 font-mono break-all">{shareUrl}</p>
-              )}
-            </div>
-          )}
-          {status === 'success' && (
+          {/* Feedback */}
+          {status === 'added' && (
             <p className="text-sm text-green-700 font-medium">Companion added!</p>
+          )}
+          {status === 'invited' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+              <p className="text-sm font-medium text-blue-800">Invitation sent!</p>
+              <p className="mt-0.5 text-sm text-blue-700">
+                They'll get an email with a link to join the app and land directly on this trip.
+              </p>
+            </div>
           )}
           {status === 'error' && (
             <p className="text-sm text-red-600">{errorMsg}</p>
           )}
 
-          {/* Current companions */}
+          {/* Confirmed companions */}
           {companions.length > 0 && (
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Current companions</p>
+              <p className="text-sm font-medium text-gray-700 mb-2">Companions</p>
               <div className="space-y-2">
                 {companions.map((c) => {
                   const name = c.user.display_name ?? c.user.email
@@ -591,7 +582,37 @@ function InviteCompanionModal({
             </div>
           )}
 
-          {companions.length === 0 && (
+          {/* Pending invites */}
+          {pendingInvites.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Pending invitations</p>
+              <div className="space-y-2">
+                {pendingInvites.map((p) => (
+                  <div key={p.id} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400">
+                        <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z" />
+                        <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-700 truncate">{p.email}</p>
+                      <p className="text-xs text-gray-400">Invitation sent</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onRemovePending(p.id)}
+                      className="text-xs text-gray-400 hover:text-red-500 transition-colors shrink-0"
+                    >
+                      Revoke
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!hasAny && (
             <p className="text-sm text-gray-400">No companions yet. Invite someone above!</p>
           )}
         </div>
@@ -982,7 +1003,7 @@ export default function TripDetailPage() {
   const [showInviteModal, setShowInviteModal] = useState(false)
 
   const { items, loading: itemsLoading, removeItem, assignToDay, reorderWithinDay } = useTripItems(id)
-  const { companions, lookupUserByEmail, inviteCompanion, removeCompanion } = useCompanions(id)
+  const { companions, pendingInvites, inviteByEmail, removeCompanion, removePendingInvite } = useCompanions(id)
 
   useEffect(() => {
     if (!user || !id) return
@@ -1345,14 +1366,14 @@ export default function TripDetailPage() {
       )}
 
       {/* Invite companion modal */}
-      {showInviteModal && trip && (
+      {showInviteModal && (
         <InviteCompanionModal
-          trip={trip}
           companions={companions}
+          pendingInvites={pendingInvites}
           onClose={() => setShowInviteModal(false)}
-          onInvite={inviteCompanion}
+          onInviteByEmail={inviteByEmail}
           onRemove={removeCompanion}
-          lookupUserByEmail={lookupUserByEmail}
+          onRemovePending={removePendingInvite}
         />
       )}
     </div>
