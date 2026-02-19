@@ -538,10 +538,10 @@ function InviteCompanionModal({
             <p className="text-sm text-green-700 font-medium">Companion added!</p>
           )}
           {status === 'invited' && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-              <p className="text-sm font-medium text-blue-800">Invitation sent!</p>
-              <p className="mt-0.5 text-sm text-blue-700">
-                They'll get an email with a link to join the app and land directly on this trip.
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+              <p className="text-sm font-medium text-amber-800">No account found</p>
+              <p className="mt-0.5 text-sm text-amber-700">
+                They'll need to sign up first. Share the trip link with them!
               </p>
             </div>
           )}

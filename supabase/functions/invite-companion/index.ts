@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
       .single()
 
     if (tripError || !trip) {
+      console.error("Trip lookup error:", tripError?.message)
       return new Response(JSON.stringify({ error: "Trip not found or access denied" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -60,8 +61,9 @@ Deno.serve(async (req) => {
     }
 
     // Get the current user's id
-    const { data: { user: caller } } = await userClient.auth.getUser()
+    const { data: { user: caller }, error: callerError } = await userClient.auth.getUser()
     if (!caller) {
+      console.error("Caller lookup error:", callerError?.message)
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -70,19 +72,38 @@ Deno.serve(async (req) => {
 
     const normalizedEmail = email.trim().toLowerCase()
 
-    // Check if this email already has an account
-    const { data: existingUsers } = await adminClient.auth.admin.listUsers()
-    const existingUser = existingUsers?.users.find(
+    // Check if this email already has an account — use filtered lookup, not full list
+    const { data: listData, error: listError } = await adminClient.auth.admin.listUsers({
+      page: 1,
+      perPage: 1000,
+    })
+
+    if (listError) {
+      console.error("listUsers error:", listError.message)
+    }
+
+    // Also query the public users table as a fallback (more reliable for large user bases)
+    const { data: publicUser } = await adminClient
+      .from("users")
+      .select("id, email")
+      .eq("email", normalizedEmail)
+      .maybeSingle()
+
+    const existingAuthUser = listData?.users.find(
       (u) => u.email?.toLowerCase() === normalizedEmail
     )
 
-    if (existingUser) {
+    // Use whichever lookup found the user
+    const existingUserId = existingAuthUser?.id ?? publicUser?.id ?? null
+
+    if (existingUserId) {
       // User exists — add them as a companion directly
       const { error: companionError } = await userClient
         .from("companions")
-        .insert({ trip_id, user_id: existingUser.id, role: "companion" })
+        .insert({ trip_id, user_id: existingUserId, role: "companion" })
 
       if (companionError) {
+        console.error("Companion insert error:", companionError.message, companionError.code)
         if (companionError.code === "23505") {
           return new Response(
             JSON.stringify({ error: "This person is already a companion on this trip." }),
@@ -96,7 +117,7 @@ Deno.serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ result: "added", user_id: existingUser.id }),
+        JSON.stringify({ result: "added", user_id: existingUserId }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
@@ -107,17 +128,22 @@ Deno.serve(async (req) => {
     const siteUrl = Deno.env.get("SITE_URL") ?? "https://travel-brain.vercel.app"
     const redirectTo = `${siteUrl}/trip/${trip_id}`
 
-    const { error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
+    console.log("Inviting new user:", normalizedEmail, "redirect:", redirectTo)
+
+    const { data: inviteData, error: inviteError } = await adminClient.auth.admin.inviteUserByEmail(
       normalizedEmail,
       { redirectTo, data: { invited_to_trip_id: trip_id } }
     )
 
     if (inviteError) {
+      console.error("inviteUserByEmail error:", inviteError.message)
       return new Response(
         JSON.stringify({ error: inviteError.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       )
     }
+
+    console.log("Invite sent successfully, user id:", inviteData?.user?.id)
 
     // Store the pending invite so we can show it in the UI
     const { error: pendingError } = await userClient
@@ -139,7 +165,7 @@ Deno.serve(async (req) => {
   } catch (err) {
     console.error("invite-companion error:", err)
     return new Response(
-      JSON.stringify({ error: "Internal server error" }),
+      JSON.stringify({ error: String(err) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )
   }
