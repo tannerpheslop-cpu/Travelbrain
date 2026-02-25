@@ -1,79 +1,140 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import AddToTripSheet from '../components/AddToTripSheet'
-import type { SavedItem, Category } from '../types'
+import type { SavedItem, Trip, Category } from '../types'
 
-const categoryFilters: { value: Category | 'all'; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'restaurant', label: 'Restaurant' },
-  { value: 'activity', label: 'Activity' },
-  { value: 'hotel', label: 'Hotel' },
-  { value: 'transit', label: 'Transit' },
-  { value: 'general', label: 'General' },
-]
-
-const categoryColors: Record<Category, { bg: string; text: string }> = {
-  restaurant: { bg: 'bg-orange-100', text: 'text-orange-700' },
-  activity: { bg: 'bg-purple-100', text: 'text-purple-700' },
-  hotel: { bg: 'bg-blue-100', text: 'text-blue-700' },
-  transit: { bg: 'bg-amber-100', text: 'text-amber-700' },
-  general: { bg: 'bg-slate-100', text: 'text-slate-600' },
+const categoryBgColors: Record<Category, string> = {
+  restaurant: 'bg-orange-500',
+  activity: 'bg-blue-500',
+  hotel: 'bg-emerald-600',
+  transit: 'bg-gray-500',
+  general: 'bg-violet-500',
 }
 
-// Lighter bg + softer icon color for placeholder cards
-const categoryPlaceholderColors: Record<Category, { bg: string; icon: string }> = {
-  restaurant: { bg: 'bg-orange-50', icon: 'text-orange-300' },
-  activity:   { bg: 'bg-purple-50', icon: 'text-purple-300' },
-  hotel:      { bg: 'bg-sky-50',    icon: 'text-sky-300'    },
-  transit:    { bg: 'bg-amber-50',  icon: 'text-amber-300'  },
-  general:    { bg: 'bg-slate-50',  icon: 'text-slate-300'  },
+const categoryPillColors: Record<Category, string> = {
+  restaurant: 'bg-orange-500 text-white',
+  activity: 'bg-blue-500 text-white',
+  hotel: 'bg-emerald-600 text-white',
+  transit: 'bg-gray-500 text-white',
+  general: 'bg-violet-500 text-white',
 }
+
+const categoryLabel: Record<Category, string> = {
+  restaurant: 'Restaurant',
+  activity: 'Activity',
+  hotel: 'Hotel',
+  transit: 'Transit',
+  general: 'General',
+}
+
+// Heights for skeleton placeholders — visual variety mimics masonry
+const SKELETON_HEIGHTS = [160, 220, 180, 200, 150, 230, 170, 210]
 
 export default function InboxPage() {
   const { user } = useAuth()
   const [items, setItems] = useState<SavedItem[]>([])
+  const [trips, setTrips] = useState<Trip[]>([])
+  const [allTripItems, setAllTripItems] = useState<{ trip_id: string; item_id: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [activeCategory, setActiveCategory] = useState<Category | 'all'>('all')
+  const [unassignedOnly, setUnassignedOnly] = useState(false)
+  const [selectedTripId, setSelectedTripId] = useState('')
+  const [selectedCity, setSelectedCity] = useState('')
 
-  const fetchItems = async () => {
+  const fetchAll = async () => {
     if (!user) return
     setError(null)
-    const { data, error: fetchError } = await supabase
-      .from('saved_items')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('is_archived', false)
-      .order('created_at', { ascending: false })
 
-    if (fetchError) {
+    const [itemsResult, tripsResult] = await Promise.all([
+      supabase
+        .from('saved_items')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_archived', false)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('trips')
+        .select('*')
+        .eq('owner_id', user.id)
+        .order('created_at', { ascending: false }),
+    ])
+
+    if (itemsResult.error) {
       setError('Could not load your saves. Tap to retry.')
-    } else if (data) {
-      setItems(data as SavedItem[])
+      setLoading(false)
+      return
     }
+
+    const fetchedItems = (itemsResult.data ?? []) as SavedItem[]
+    const fetchedTrips = (tripsResult.data ?? []) as Trip[]
+    setItems(fetchedItems)
+    setTrips(fetchedTrips)
+
+    setAllTripItems([])
+    if (fetchedTrips.length > 0) {
+      const { data: tripItemsData } = await supabase
+        .from('trip_items')
+        .select('trip_id, item_id')
+        .in('trip_id', fetchedTrips.map((t) => t.id))
+      setAllTripItems((tripItemsData as { trip_id: string; item_id: string }[]) ?? [])
+    }
+
     setLoading(false)
   }
 
+  const refreshTripItems = async () => {
+    if (!user || trips.length === 0) return
+    const { data } = await supabase
+      .from('trip_items')
+      .select('trip_id, item_id')
+      .in('trip_id', trips.map((t) => t.id))
+    setAllTripItems((data as { trip_id: string; item_id: string }[]) ?? [])
+  }
+
   useEffect(() => {
-    if (!user) return
-    fetchItems()
+    if (user) fetchAll()
   }, [user])
 
-  const filtered = items.filter((item) => {
-    if (activeCategory !== 'all' && item.category !== activeCategory) return false
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      return (
-        item.title.toLowerCase().includes(q) ||
-        item.city?.toLowerCase().includes(q) ||
-        item.notes?.toLowerCase().includes(q)
-      )
-    }
-    return true
-  })
+  const assignedItemIds = useMemo(
+    () => new Set(allTripItems.map((ti) => ti.item_id)),
+    [allTripItems],
+  )
+
+  const selectedTripItemIds = useMemo(() => {
+    if (!selectedTripId) return null
+    return new Set(
+      allTripItems.filter((ti) => ti.trip_id === selectedTripId).map((ti) => ti.item_id),
+    )
+  }, [allTripItems, selectedTripId])
+
+  const cities = useMemo(() => {
+    const set = new Set<string>()
+    items.forEach((item) => { if (item.city) set.add(item.city) })
+    return Array.from(set).sort()
+  }, [items])
+
+  const filtered = useMemo(
+    () =>
+      items.filter((item) => {
+        if (search.trim()) {
+          const q = search.toLowerCase()
+          if (
+            !item.title.toLowerCase().includes(q) &&
+            !item.city?.toLowerCase().includes(q) &&
+            !item.notes?.toLowerCase().includes(q)
+          )
+            return false
+        }
+        if (unassignedOnly && assignedItemIds.has(item.id)) return false
+        if (selectedTripId && selectedTripItemIds && !selectedTripItemIds.has(item.id)) return false
+        if (selectedCity && item.city !== selectedCity) return false
+        return true
+      }),
+    [items, search, unassignedOnly, assignedItemIds, selectedTripId, selectedTripItemIds, selectedCity],
+  )
 
   return (
     <div className="px-4 pt-6 pb-28">
@@ -103,40 +164,100 @@ export default function InboxPage() {
         />
       </div>
 
-      {/* Category Filter Chips */}
-      <div className="mt-3 flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide">
-        {categoryFilters.map((cat) => (
-          <button
-            key={cat.value}
-            type="button"
-            onClick={() => setActiveCategory(cat.value)}
-            className={`px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all ${
-              activeCategory === cat.value
-                ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-                : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+      {/* Filter Bar */}
+      <div className="mt-3 flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide items-center">
+        {/* Unassigned toggle */}
+        <button
+          type="button"
+          onClick={() => setUnassignedOnly(!unassignedOnly)}
+          className={`px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0 ${
+            unassignedOnly
+              ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
+              : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          Unassigned
+        </button>
+
+        {/* Trip dropdown */}
+        <div className="relative shrink-0">
+          <select
+            value={selectedTripId}
+            onChange={(e) => setSelectedTripId(e.target.value)}
+            className={`appearance-none pl-3.5 pr-8 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer ${
+              selectedTripId
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
             }`}
           >
-            {cat.label}
-          </button>
-        ))}
+            <option value="">Trip</option>
+            {trips.map((trip) => (
+              <option key={trip.id} value={trip.id}>
+                {trip.title}
+              </option>
+            ))}
+          </select>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            className={`w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${
+              selectedTripId ? 'text-white' : 'text-gray-400'
+            }`}
+          >
+            <path
+              fillRule="evenodd"
+              d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </div>
+
+        {/* City dropdown */}
+        <div className="relative shrink-0">
+          <select
+            value={selectedCity}
+            onChange={(e) => setSelectedCity(e.target.value)}
+            className={`appearance-none pl-3.5 pr-8 py-1.5 rounded-full text-sm font-medium border transition-all cursor-pointer ${
+              selectedCity
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            <option value="">City</option>
+            {cities.map((city) => (
+              <option key={city} value={city}>
+                {city}
+              </option>
+            ))}
+          </select>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            className={`w-3.5 h-3.5 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${
+              selectedCity ? 'text-white' : 'text-gray-400'
+            }`}
+          >
+            <path
+              fillRule="evenodd"
+              d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </div>
       </div>
 
       {/* Loading Skeletons */}
       {loading && (
-        <div className="mt-5 space-y-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="animate-pulse bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="flex gap-3 p-4">
-                <div className="w-20 h-20 bg-gray-100 rounded-xl shrink-0" />
-                <div className="flex-1 space-y-2 py-1">
-                  <div className="bg-gray-100 rounded-lg h-4 w-3/4" />
-                  <div className="flex gap-2">
-                    <div className="bg-gray-100 rounded-full h-5 w-20" />
-                    <div className="bg-gray-100 rounded h-5 w-16" />
-                  </div>
-                  <div className="bg-gray-100 rounded h-3 w-1/3" />
-                </div>
-              </div>
+        <div className="mt-4 columns-2 md:columns-3 gap-2">
+          {SKELETON_HEIGHTS.map((h, i) => (
+            <div
+              key={i}
+              className="break-inside-avoid mb-2 rounded-2xl overflow-hidden animate-pulse bg-gray-100 border border-gray-100"
+            >
+              <div style={{ height: `${h}px` }} />
+              <div className="bg-gray-200 h-14" />
             </div>
           ))}
         </div>
@@ -146,14 +267,23 @@ export default function InboxPage() {
       {!loading && error && (
         <div className="mt-12 text-center">
           <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-red-400">
-              <path fillRule="evenodd" d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z" clipRule="evenodd" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="w-7 h-7 text-red-400"
+            >
+              <path
+                fillRule="evenodd"
+                d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z"
+                clipRule="evenodd"
+              />
             </svg>
           </div>
           <p className="mt-3 text-gray-600 font-medium">Couldn't load your saves</p>
           <button
             type="button"
-            onClick={fetchItems}
+            onClick={fetchAll}
             className="mt-3 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
           >
             Retry
@@ -165,8 +295,17 @@ export default function InboxPage() {
       {!loading && !error && items.length === 0 && (
         <div className="mt-20 text-center">
           <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 text-blue-400">
-              <path fillRule="evenodd" d="M6.32 2.577a49.255 49.255 0 0111.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 01-1.085.67L12 18.089l-7.165 3.583A.75.75 0 013.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z" clipRule="evenodd" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="w-10 h-10 text-blue-400"
+            >
+              <path
+                fillRule="evenodd"
+                d="M6.32 2.577a49.255 49.255 0 0111.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 01-1.085.67L12 18.089l-7.165 3.583A.75.75 0 013.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z"
+                clipRule="evenodd"
+              />
             </svg>
           </div>
           <p className="mt-4 text-gray-800 font-semibold text-lg">Your inbox is empty</p>
@@ -177,7 +316,12 @@ export default function InboxPage() {
             to="/save"
             className="inline-flex mt-5 items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="w-4 h-4"
+            >
               <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
             </svg>
             Save your first place
@@ -189,8 +333,17 @@ export default function InboxPage() {
       {!loading && !error && items.length > 0 && filtered.length === 0 && (
         <div className="mt-16 text-center">
           <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-gray-300">
-              <path fillRule="evenodd" d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z" clipRule="evenodd" />
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="w-7 h-7 text-gray-300"
+            >
+              <path
+                fillRule="evenodd"
+                d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z"
+                clipRule="evenodd"
+              />
             </svg>
           </div>
           <p className="mt-3 text-gray-600 font-medium">No matching items</p>
@@ -198,11 +351,11 @@ export default function InboxPage() {
         </div>
       )}
 
-      {/* Item Cards */}
+      {/* Masonry Grid */}
       {!loading && !error && filtered.length > 0 && (
-        <div className="mt-4 space-y-3">
+        <div className="mt-4 columns-2 md:columns-3 gap-2">
           {filtered.map((item) => (
-            <ItemCard key={item.id} item={item} />
+            <MasonryTile key={item.id} item={item} onTripAdded={refreshTripItems} />
           ))}
         </div>
       )}
@@ -210,13 +363,37 @@ export default function InboxPage() {
   )
 }
 
-function ItemCard({ item }: { item: SavedItem }) {
-  const colors = categoryColors[item.category]
-  const placeholder = categoryPlaceholderColors[item.category]
+function InfoStrip({ item }: { item: SavedItem }) {
+  return (
+    <div className="px-3 py-2.5 bg-black/85">
+      <p className="text-white text-xs font-semibold truncate leading-snug">{item.title}</p>
+      <div className="flex items-center justify-between mt-1 gap-1.5">
+        {item.city ? (
+          <span className="text-white/55 text-xs truncate min-w-0 flex-1">{item.city}</span>
+        ) : (
+          <span className="flex-1" />
+        )}
+        <span
+          className={`shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${categoryPillColors[item.category]}`}
+        >
+          {categoryLabel[item.category]}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+function MasonryTile({
+  item,
+  onTripAdded,
+}: {
+  item: SavedItem
+  onTripAdded: () => void
+}) {
   const [imgFailed, setImgFailed] = useState(false)
   const [showSheet, setShowSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
-  const showImage = item.image_url && !imgFailed
+  const hasImage = !!item.image_url && !imgFailed
 
   const handleToast = (msg: string) => {
     setToast(msg)
@@ -224,68 +401,65 @@ function ItemCard({ item }: { item: SavedItem }) {
   }
 
   return (
-    <div className="relative">
+    <div className="relative break-inside-avoid mb-2">
       <Link
         to={`/item/${item.id}`}
-        className="block bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
+        className="block rounded-2xl overflow-hidden shadow-sm hover:shadow-md active:scale-[0.99] transition-all bg-black"
       >
-        <div className="flex gap-3 p-4">
-          {/* Thumbnail */}
-          {showImage ? (
+        {hasImage ? (
+          /* URL / Screenshot tile — image fills top, info strip overlays bottom */
+          <div className="relative">
             <img
               src={item.image_url!}
               alt={item.title}
-              className="w-20 h-20 object-cover rounded-xl bg-gray-100 shrink-0"
+              className="w-full block"
               onError={() => setImgFailed(true)}
             />
-          ) : (
-            <div className={`w-20 h-20 ${placeholder.bg} rounded-xl shrink-0 flex items-center justify-center`}>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-                className={`w-8 h-8 ${placeholder.icon}`}
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z"
-                  clipRule="evenodd"
-                />
-              </svg>
+            <div className="absolute bottom-0 left-0 right-0">
+              <InfoStrip item={item} />
             </div>
-          )}
-
-          {/* Content */}
-          <div className="flex-1 min-w-0 py-0.5 pr-7">
-            <h3 className="text-sm font-semibold text-gray-900 leading-snug line-clamp-2">{item.title}</h3>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
-                {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
-              </span>
-              {item.city && (
-                <span className="text-xs text-gray-500 flex items-center gap-0.5">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-gray-400">
-                    <path fillRule="evenodd" d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 3.09 4.16 7.89 4.34 8.1a.22.22 0 0 0 .32 0C8.34 13.89 12.5 9.09 12.5 6A4.5 4.5 0 0 0 8 1.5Zm0 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" clipRule="evenodd" />
-                  </svg>
-                  {item.city}
-                </span>
-              )}
-            </div>
-            {item.site_name && (
-              <p className="mt-1 text-xs text-gray-400 truncate">{item.site_name}</p>
-            )}
           </div>
-        </div>
+        ) : (
+          /* Manual / no-image tile — category-colored background + info strip below */
+          <div>
+            <div
+              className={`${categoryBgColors[item.category]} px-4 py-8 flex items-center justify-center min-h-[130px]`}
+            >
+              <p className="text-white text-base font-bold text-center leading-snug drop-shadow-sm">
+                {item.title}
+              </p>
+            </div>
+            <div className="px-3 py-2.5 bg-black/85">
+              <div className="flex items-center justify-between gap-1.5">
+                {item.city ? (
+                  <span className="text-white/55 text-xs truncate min-w-0 flex-1">{item.city}</span>
+                ) : (
+                  <span className="flex-1" />
+                )}
+                <span
+                  className={`shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${categoryPillColors[item.category]}`}
+                >
+                  {categoryLabel[item.category]}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </Link>
 
-      {/* Add to Trip button */}
+      {/* Add to Trip button — floats over the visual area */}
       <button
         type="button"
         onClick={() => setShowSheet(true)}
-        className="absolute bottom-3.5 right-3.5 p-1.5 rounded-full text-gray-300 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+        className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/40 flex items-center justify-center hover:bg-black/60 transition-colors"
         aria-label="Add to trip"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className="w-3.5 h-3.5 text-white"
+        >
           <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
         </svg>
       </button>
@@ -294,7 +468,10 @@ function ItemCard({ item }: { item: SavedItem }) {
         <AddToTripSheet
           itemId={item.id}
           onClose={() => setShowSheet(false)}
-          onAdded={(tripTitle) => handleToast(`Added to "${tripTitle}"`)}
+          onAdded={(tripTitle) => {
+            handleToast(`Added to "${tripTitle}"`)
+            onTripAdded()
+          }}
           onAlreadyAdded={(tripTitle) => handleToast(`Already in "${tripTitle}"`)}
         />
       )}
