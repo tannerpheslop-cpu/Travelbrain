@@ -13,10 +13,37 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verify the caller is authenticated
     const authHeader = req.headers.get("Authorization")
+    console.log("Authorization header present:", !!authHeader)
+
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
+
+    // Decode the JWT payload to extract caller's user ID.
+    // JWT tokens use URL-safe base64 (- instead of +, _ instead of /),
+    // so we must replace those before calling atob(), and add padding.
+    let callerId: string | null = null
+    try {
+      const token = authHeader.replace(/^Bearer\s+/i, "")
+      const payloadB64Url = token.split(".")[1]
+      // Add base64 padding if needed
+      const padding = "=".repeat((4 - (payloadB64Url.length % 4)) % 4)
+      const payloadB64 = (payloadB64Url + padding)
+        .replace(/-/g, "+")
+        .replace(/_/g, "/")
+      const payload = JSON.parse(atob(payloadB64))
+      callerId = payload.sub ?? null
+      console.log("Decoded callerId:", callerId)
+    } catch (jwtErr) {
+      console.error("JWT decode error:", jwtErr)
+    }
+
+    if (!callerId) {
+      return new Response(JSON.stringify({ error: "Could not identify caller from JWT" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
@@ -31,22 +58,15 @@ Deno.serve(async (req) => {
       })
     }
 
-    // User-scoped client — used to verify ownership and write pending_invite
-    const userClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } }
-    )
-
-    // Admin client — used for inviteUserByEmail and to look up existing users
+    // Admin client — bypasses RLS entirely. We enforce ownership manually below.
     const adminClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Verify the caller owns this trip
-    const { data: trip, error: tripError } = await userClient
+    // Look up trip via adminClient, then manually verify the caller owns it.
+    const { data: trip, error: tripError } = await adminClient
       .from("trips")
       .select("id, owner_id, title, share_token")
       .eq("id", trip_id)
@@ -54,19 +74,23 @@ Deno.serve(async (req) => {
 
     if (tripError || !trip) {
       console.error("Trip lookup error:", tripError?.message)
-      return new Response(JSON.stringify({ error: "Trip not found or access denied" }), {
+      return new Response(JSON.stringify({ error: "Trip not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
+
+    if (trip.owner_id !== callerId) {
+      console.error("Ownership check failed: owner", trip.owner_id, "caller", callerId)
+      return new Response(JSON.stringify({ error: "Access denied: you don't own this trip" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
     }
 
-    // The trip row already contains owner_id, which is the caller's user id.
-    // RLS already proved they own it, so no extra auth call needed.
-    const callerId = trip.owner_id
-
     const normalizedEmail = email.trim().toLowerCase()
 
-    // Check if this email already has an account — use filtered lookup, not full list
+    // Check if this email already has an account
     const { data: listData, error: listError } = await adminClient.auth.admin.listUsers({
       page: 1,
       perPage: 1000,
@@ -76,7 +100,7 @@ Deno.serve(async (req) => {
       console.error("listUsers error:", listError.message)
     }
 
-    // Also query the public users table as a fallback (more reliable for large user bases)
+    // Also query the public users table as a fallback
     const { data: publicUser } = await adminClient
       .from("users")
       .select("id, email")
@@ -87,12 +111,11 @@ Deno.serve(async (req) => {
       (u) => u.email?.toLowerCase() === normalizedEmail
     )
 
-    // Use whichever lookup found the user
     const existingUserId = existingAuthUser?.id ?? publicUser?.id ?? null
 
     if (existingUserId) {
-      // User exists — add them as a companion directly
-      const { error: companionError } = await userClient
+      // User exists — add them as a companion using adminClient (bypasses RLS)
+      const { error: companionError } = await adminClient
         .from("companions")
         .insert({ trip_id, user_id: existingUserId, role: "companion" })
 
@@ -117,8 +140,6 @@ Deno.serve(async (req) => {
     }
 
     // User doesn't exist — send invite email and store pending invite
-
-    // Build the redirect URL: after signup they land on the trip page
     const siteUrl = Deno.env.get("SITE_URL") ?? "https://travel-brain.vercel.app"
     const redirectTo = `${siteUrl}/trip/${trip_id}`
 
@@ -139,8 +160,8 @@ Deno.serve(async (req) => {
 
     console.log("Invite sent successfully, user id:", inviteData?.user?.id)
 
-    // Store the pending invite so we can show it in the UI
-    const { error: pendingError } = await userClient
+    // Store the pending invite via adminClient (non-fatal if it fails)
+    const { error: pendingError } = await adminClient
       .from("pending_invites")
       .upsert(
         { trip_id, invited_by: callerId, email: normalizedEmail },
@@ -148,7 +169,6 @@ Deno.serve(async (req) => {
       )
 
     if (pendingError) {
-      // Non-fatal — email was sent, just couldn't record it
       console.error("Failed to store pending invite:", pendingError.message)
     }
 
