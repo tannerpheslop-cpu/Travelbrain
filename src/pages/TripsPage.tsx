@@ -68,7 +68,7 @@ function TripCard({
     <div className="relative">
       <Link
         to={`/trip/${trip.id}`}
-        className="block bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-md active:opacity-90 transition-all"
+        className="block bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
       >
         {/* Cover image / gradient */}
         <div className={`h-32 bg-gradient-to-br ${gradient} relative`}>
@@ -364,12 +364,15 @@ export default function TripsPage() {
       {/* Loading Skeletons */}
       {loading && (
         <div className="mt-5 space-y-4">
-          {[1, 2].map((i) => (
-            <div key={i} className="animate-pulse bg-white rounded-2xl border border-gray-200 overflow-hidden">
-              <div className="h-32 bg-gray-200" />
+          {[
+            'from-blue-300 to-indigo-400',
+            'from-rose-300 to-pink-400',
+          ].map((g, i) => (
+            <div key={i} className="animate-pulse bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+              <div className={`h-32 bg-gradient-to-br ${g} opacity-60`} />
               <div className="px-4 py-3 space-y-2">
-                <div className="h-4 bg-gray-200 rounded w-1/2" />
-                <div className="h-3 bg-gray-200 rounded w-1/3" />
+                <div className="h-4 bg-gray-200 rounded-full w-2/5" />
+                <div className="h-3 bg-gray-100 rounded-full w-1/3" />
               </div>
             </div>
           ))}
@@ -378,13 +381,13 @@ export default function TripsPage() {
 
       {/* Empty State */}
       {!loading && trips.length === 0 && (
-        <div className="mt-20 text-center">
-          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto">
+        <div className="mt-20 text-center px-6">
+          <div className="w-16 h-16 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="currentColor"
-              className="w-8 h-8 text-gray-300"
+              className="w-8 h-8 text-blue-300"
             >
               <path
                 fillRule="evenodd"
@@ -393,8 +396,8 @@ export default function TripsPage() {
               />
             </svg>
           </div>
-          <p className="mt-4 text-gray-500 font-medium">No trips yet</p>
-          <p className="mt-1 text-sm text-gray-400">Tap <strong className="font-medium text-gray-500">New Trip</strong> above to get started</p>
+          <p className="mt-4 text-gray-800 font-semibold">No trips yet</p>
+          <p className="mt-1.5 text-sm text-gray-400 leading-relaxed">Start planning your next adventure — tap <strong className="font-medium text-gray-500">New Trip</strong> to create one.</p>
         </div>
       )}
 

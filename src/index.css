@@ -4,6 +4,8 @@
    changes height (e.g. loading skeletons appearing/disappearing). */
 html {
   overflow-y: scroll;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }

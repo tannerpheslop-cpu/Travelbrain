@@ -14,6 +14,14 @@ const categories: { value: Category; label: string }[] = [
   { value: 'general', label: 'General' },
 ]
 
+const categoryPlaceholderColors: Record<Category, { bg: string; icon: string }> = {
+  restaurant: { bg: 'bg-orange-50', icon: 'text-orange-300' },
+  activity:   { bg: 'bg-purple-50', icon: 'text-purple-300' },
+  hotel:      { bg: 'bg-sky-50',    icon: 'text-sky-300'    },
+  transit:    { bg: 'bg-amber-50',  icon: 'text-amber-300'  },
+  general:    { bg: 'bg-slate-50',  icon: 'text-slate-300'  },
+}
+
 export default function ItemDetailPage() {
   const { id } = useParams()
   const { user } = useAuth()
@@ -130,13 +138,13 @@ export default function ItemDetailPage() {
     return (
       <div className="px-4 pt-6 pb-24">
         <div className="animate-pulse">
-          <div className="h-6 w-16 bg-gray-200 rounded mb-6" />
-          <div className="h-56 bg-gray-200 rounded-2xl" />
-          <div className="mt-4 space-y-3">
-            <div className="h-6 bg-gray-200 rounded w-3/4" />
-            <div className="h-4 bg-gray-200 rounded w-1/3" />
-            <div className="h-10 bg-gray-200 rounded-xl mt-4" />
-            <div className="h-24 bg-gray-200 rounded-xl" />
+          <div className="h-5 w-14 bg-gray-200 rounded-full mb-6" />
+          <div className="h-56 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl" />
+          <div className="mt-5 space-y-3">
+            <div className="h-6 bg-gray-200 rounded-full w-3/4" />
+            <div className="h-4 bg-gray-100 rounded-full w-1/3" />
+            <div className="h-11 bg-gray-100 rounded-xl mt-4" />
+            <div className="h-24 bg-gray-100 rounded-xl" />
           </div>
         </div>
       </div>
@@ -194,8 +202,8 @@ export default function ItemDetailPage() {
           onError={() => setImgFailed(true)}
         />
       ) : (
-        <div className="w-full h-56 bg-gray-100 rounded-2xl flex items-center justify-center">
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 text-gray-300">
+        <div className={`w-full h-56 ${categoryPlaceholderColors[category].bg} rounded-2xl flex items-center justify-center`}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-12 h-12 ${categoryPlaceholderColors[category].icon}`}>
             <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
           </svg>
         </div>
