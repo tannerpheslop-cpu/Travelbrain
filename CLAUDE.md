@@ -155,7 +155,7 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | Page | Route | Purpose |
 |------|-------|---------|
 | Login / Signup | /login | Supabase Auth (email + Google) |
-| Travel Inbox | /inbox | All saved items. Search + filter. Default home screen. |
+| Travel Inbox | /inbox | Masonry grid of all saved items. Search + dynamic filters (Unassigned, by Trip, by City). Default home screen. |
 | Save Flow | /save (or modal) | Paste URL or upload screenshot |
 | Item Detail | /item/:id | View/edit a saved item |
 | Trip Library | /trips | List of all trips with status |
@@ -200,6 +200,7 @@ These are non-negotiable and must guide every UI decision:
 5. **Sharing must be beautiful.** The public trip page is the viral surface — it must look polished enough that people want to share it.
 6. **The app must feel fun, not like project management.** No Gantt charts, no heavy admin UI, no complexity.
 7. **Mobile-first always.** Every component is designed for phone screens first, desktop second.
+8. **The inbox should feel like a travel inspiration brain, not a task list.** Visual-first layout with images driving the experience.
 
 ---
 
@@ -219,6 +220,10 @@ These are non-negotiable and must guide every UI decision:
 4. Card saves to inbox
 
 **There is NO screenshot OCR or ML classification.** Users tag manually. This is a deliberate design decision — it's faster, more accurate, and avoids the frustration of wrong AI guesses.
+
+### Inbox Tile Design
+
+The inbox uses a masonry/Pinterest-style grid (2 columns mobile, 3 columns desktop). Every tile has a top visual section and a bottom info strip. The info strip is a dark semi-transparent bar spanning the full width showing: title (one line, truncated with ellipsis), city in smaller text (hidden if none), and a small category pill badge. URL and screenshot saves show their image at natural aspect ratio. Manual entries use a category-colored background (warm orange for Restaurant, blue for Activity, green for Hotel, gray for Transit, muted purple for General) with the title displayed larger. Inbox filters are: Unassigned (items not in any trip), Trip dropdown, and City dropdown. Category filter chips have been removed.
 
 ---
 
