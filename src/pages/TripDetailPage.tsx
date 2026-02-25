@@ -32,8 +32,16 @@ const categoryColors: Record<Category, { bg: string; text: string }> = {
   restaurant: { bg: 'bg-orange-100', text: 'text-orange-700' },
   activity:   { bg: 'bg-purple-100', text: 'text-purple-700' },
   hotel:      { bg: 'bg-blue-100',   text: 'text-blue-700'   },
-  transit:    { bg: 'bg-yellow-100', text: 'text-yellow-700' },
-  general:    { bg: 'bg-gray-100',   text: 'text-gray-700'   },
+  transit:    { bg: 'bg-amber-100',  text: 'text-amber-700'  },
+  general:    { bg: 'bg-slate-100',  text: 'text-slate-600'  },
+}
+
+const categoryPlaceholderColors: Record<Category, { bg: string; icon: string }> = {
+  restaurant: { bg: 'bg-orange-50', icon: 'text-orange-300' },
+  activity:   { bg: 'bg-purple-50', icon: 'text-purple-300' },
+  hotel:      { bg: 'bg-sky-50',    icon: 'text-sky-300'    },
+  transit:    { bg: 'bg-amber-50',  icon: 'text-amber-300'  },
+  general:    { bg: 'bg-slate-50',  icon: 'text-slate-300'  },
 }
 
 const categoryOrder: Category[] = ['restaurant', 'activity', 'hotel', 'transit', 'general']
@@ -82,13 +90,14 @@ function TripItemCard({
 }) {
   const item = tripItem.saved_item
   const colors = categoryColors[item.category]
+  const placeholder = categoryPlaceholderColors[item.category]
   const [imgFailed, setImgFailed] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const showImage = item.image_url && !imgFailed
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-      <div className="flex gap-3 p-3">
+    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
+      <div className="flex gap-3 p-4">
         {showImage ? (
           <img
             src={item.image_url!}
@@ -97,8 +106,8 @@ function TripItemCard({
             onError={() => setImgFailed(true)}
           />
         ) : (
-          <div className="w-20 h-20 bg-gray-100 rounded-xl shrink-0 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-gray-300">
+          <div className={`w-20 h-20 ${placeholder.bg} rounded-xl shrink-0 flex items-center justify-center`}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-8 h-8 ${placeholder.icon}`}>
               <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
             </svg>
           </div>
@@ -681,6 +690,7 @@ function ScheduledItemCard({
 }) {
   const item = tripItem.saved_item
   const colors = categoryColors[item.category]
+  const placeholder = categoryPlaceholderColors[item.category]
   const [imgFailed, setImgFailed] = useState(false)
   const [showMovePicker, setShowMovePicker] = useState(false)
   const showImage = item.image_url && !imgFailed
@@ -704,9 +714,9 @@ function ScheduledItemCard({
     <div
       ref={setNodeRef}
       style={style}
-      className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${isDragging ? 'border-blue-200 shadow-lg' : 'border-gray-200'}`}
+      className={`bg-white rounded-2xl border overflow-hidden shadow-sm ${isDragging ? 'border-blue-200 shadow-lg' : 'border-gray-100'}`}
     >
-      <div className="flex gap-2 p-3">
+      <div className="flex gap-2 p-3.5">
         {/* Drag handle */}
         <button
           type="button"
@@ -724,8 +734,8 @@ function ScheduledItemCard({
         {showImage ? (
           <img src={item.image_url!} alt={item.title} className="w-16 h-16 object-cover rounded-xl bg-gray-100 shrink-0" onError={() => setImgFailed(true)} />
         ) : (
-          <div className="w-16 h-16 bg-gray-100 rounded-xl shrink-0 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-gray-300">
+          <div className={`w-16 h-16 ${placeholder.bg} rounded-xl shrink-0 flex items-center justify-center`}>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-7 h-7 ${placeholder.icon}`}>
               <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
             </svg>
           </div>
@@ -1049,10 +1059,28 @@ export default function TripDetailPage() {
   if (isLoading) {
     return (
       <div className="px-4 pt-6 pb-24 animate-pulse">
-        <div className="h-4 w-12 bg-gray-200 rounded mb-6" />
-        <div className="h-7 w-2/3 bg-gray-200 rounded mb-2" />
-        <div className="h-4 w-1/3 bg-gray-200 rounded mb-8" />
-        <div className="h-1 bg-gray-100 rounded-full" />
+        <div className="h-4 w-12 bg-gray-100 rounded-lg mb-6" />
+        <div className="h-7 w-2/3 bg-gray-100 rounded-lg mb-2" />
+        <div className="h-4 w-1/3 bg-gray-100 rounded-lg mb-6" />
+        <div className="flex gap-2 mb-5">
+          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
+          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
+          <div className="h-10 w-12 bg-gray-100 rounded-xl" />
+        </div>
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div className="flex gap-3 p-4">
+                <div className="w-20 h-20 bg-gray-100 rounded-xl shrink-0" />
+                <div className="flex-1 space-y-2 py-1">
+                  <div className="h-4 bg-gray-100 rounded-lg w-3/4" />
+                  <div className="h-5 bg-gray-100 rounded-full w-20" />
+                  <div className="h-3 bg-gray-100 rounded w-1/3" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )
   }
@@ -1291,22 +1319,22 @@ export default function TripDetailPage() {
       {viewMode === 'list' && (
         <>
           {!itemsLoading && items.length === 0 && (
-            <div className="mt-12 text-center">
-              <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-gray-300">
+            <div className="mt-16 text-center">
+              <div className="w-16 h-16 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-blue-300">
                   <path fillRule="evenodd" d="M6.32 2.577a49.255 49.255 0 0111.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 01-1.085.67L12 18.089l-7.165 3.583A.75.75 0 013.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z" clipRule="evenodd" />
                 </svg>
               </div>
-              <p className="mt-4 text-gray-500 font-medium">No places added yet</p>
-              <p className="mt-1 text-sm text-gray-400">
-                Head to your{' '}
-                <button type="button" onClick={() => navigate('/inbox')} className="text-blue-600 hover:underline">Inbox</button>
-                {' '}to add some!
+              <p className="mt-4 text-gray-700 font-semibold">No places added yet</p>
+              <p className="mt-1.5 text-sm text-gray-400">
+                Find something in your{' '}
+                <button type="button" onClick={() => navigate('/inbox')} className="text-blue-600 font-medium hover:underline">Inbox</button>
+                {' '}and add it here.
               </p>
             </div>
           )}
           {!itemsLoading && items.length > 0 && filtered.length === 0 && (
-            <div className="mt-8 text-center">
+            <div className="mt-10 text-center">
               <p className="text-gray-500 font-medium">No matching places</p>
               <p className="mt-1 text-sm text-gray-400">Try a different search term</p>
             </div>
@@ -1325,8 +1353,9 @@ export default function TripDetailPage() {
       {viewMode === 'category' && (
         <>
           {!itemsLoading && items.length === 0 && (
-            <div className="mt-12 text-center">
-              <p className="text-gray-500 font-medium">No places added yet</p>
+            <div className="mt-16 text-center">
+              <p className="text-gray-600 font-semibold">No places added yet</p>
+              <p className="mt-1 text-sm text-gray-400">Head to your Inbox to add some!</p>
             </div>
           )}
           {filtered.length > 0 && (
