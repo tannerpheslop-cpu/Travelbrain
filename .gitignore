@@ -22,3 +22,12 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code
+.claude/
+
+# Supabase temp
+supabase/.temp/
+
+# Windows artifacts
+nul
