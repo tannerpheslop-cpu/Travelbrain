@@ -272,7 +272,10 @@ export default function InboxPage() {
 
       {/* Loading Skeletons */}
       {loading && (
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 inbox-grid">
+        <div
+          className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
+          style={{ gridAutoRows: 'var(--inbox-row-height)' }}
+        >
           {SKELETON_PATTERN.map((type, i) => (
             <div
               key={i}
@@ -372,7 +375,10 @@ export default function InboxPage() {
 
       {/* Fixed CSS Grid */}
       {!loading && !error && filtered.length > 0 && (
-        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 inbox-grid">
+        <div
+          className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
+          style={{ gridAutoRows: 'var(--inbox-row-height)' }}
+        >
           {filtered.map((item) => (
             <GridTile
               key={item.id}
@@ -529,16 +535,21 @@ function ImageTileContent({
   onAspectRatioKnown: (isPortrait: boolean) => void
   onImageError: () => void
 }) {
+  const reportAspect = (img: HTMLImageElement) => {
+    if (img.naturalWidth > 0) {
+      onAspectRatioKnown(img.naturalHeight > img.naturalWidth * 1.2)
+    }
+  }
+
   return (
     <div className="relative w-full h-full bg-gray-200">
       <img
         src={item.image_url!}
         alt={item.title}
         className="absolute inset-0 w-full h-full object-cover"
-        onLoad={(e) => {
-          const img = e.currentTarget
-          onAspectRatioKnown(img.naturalHeight > img.naturalWidth * 1.2)
-        }}
+        // Callback ref handles cached images that are already complete before onLoad fires
+        ref={(img) => { if (img?.complete) reportAspect(img) }}
+        onLoad={(e) => reportAspect(e.currentTarget)}
         onError={onImageError}
       />
       <div className="absolute bottom-0 left-0 right-0">

@@ -11,7 +11,7 @@ html {
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { scrollbar-width: none; }
 
-/* Inbox fixed-size grid — row height responsive to viewport */
-.inbox-grid { grid-auto-rows: 160px; }
-@media (min-width: 768px)  { .inbox-grid { grid-auto-rows: 200px; } }
-@media (min-width: 1024px) { .inbox-grid { grid-auto-rows: 220px; } }
+/* Inbox grid row height — consumed via style={{ gridAutoRows: 'var(--inbox-row-height)' }} */
+:root { --inbox-row-height: 160px; }
+@media (min-width: 768px)  { :root { --inbox-row-height: 180px; } }
+@media (min-width: 1024px) { :root { --inbox-row-height: 200px; } }
