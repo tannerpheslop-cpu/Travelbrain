@@ -223,7 +223,7 @@ These are non-negotiable and must guide every UI decision:
 
 ### Inbox Tile Design
 
-The inbox uses a masonry/Pinterest-style grid (2 columns mobile, 3 columns desktop). Every tile has a top visual section and a bottom info strip. The info strip is a dark semi-transparent bar spanning the full width showing: title (one line, truncated with ellipsis), city in smaller text (hidden if none), and a small category pill badge. URL and screenshot saves show their image at natural aspect ratio. Manual entries use a category-colored background (warm orange for Restaurant, blue for Activity, green for Hotel, gray for Transit, muted purple for General) with the title displayed larger. Inbox filters are: Unassigned (items not in any trip), Trip dropdown, and City dropdown. Category filter chips have been removed.
+The inbox uses a fixed CSS grid (2 columns mobile, 3-4 columns desktop). Three tile sizes: Standard (1x1, square cropped image), Wide (2x1, full row — used for text-only entries with category-colored background), and Tall (1x2, two rows — used for portrait images like screenshots). Tile size is assigned automatically based on content: no image = wide, portrait image = tall, everything else = standard. All tiles share a consistent dark info strip at the bottom showing title, city, and category pill.
 
 ---
 

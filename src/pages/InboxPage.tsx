@@ -5,6 +5,9 @@ import { useAuth } from '../lib/auth'
 import AddToTripSheet from '../components/AddToTripSheet'
 import type { SavedItem, Trip, Category } from '../types'
 
+type TileType = 'standard' | 'wide' | 'tall'
+type ImageState = 'portrait' | 'landscape' | 'failed'
+
 const categoryBgColors: Record<Category, string> = {
   restaurant: 'bg-orange-500',
   activity: 'bg-blue-500',
@@ -29,8 +32,26 @@ const categoryLabel: Record<Category, string> = {
   general: 'General',
 }
 
-// Heights for skeleton placeholders — visual variety mimics masonry
-const SKELETON_HEIGHTS = [160, 220, 180, 200, 150, 230, 170, 210]
+const tileGridClasses: Record<TileType, string> = {
+  standard: 'col-span-1 row-span-1',
+  wide:     'col-span-2 row-span-1',
+  tall:     'col-span-1 row-span-2',
+}
+
+// Skeleton placeholder pattern
+const SKELETON_PATTERN: TileType[] = [
+  'standard', 'wide', 'tall', 'standard', 'standard', 'standard', 'wide', 'standard',
+]
+
+function getTileType(item: SavedItem, imgState: ImageState | undefined): TileType {
+  if (!item.image_url) return 'wide'
+  if (imgState === 'failed') return 'wide'
+  if (imgState === 'portrait') return 'tall'
+  if (imgState === 'landscape') return 'standard'
+  // Not yet probed — use source_type as heuristic to minimise reflow
+  if (item.source_type === 'screenshot') return 'tall'
+  return 'standard'
+}
 
 export default function InboxPage() {
   const { user } = useAuth()
@@ -43,6 +64,10 @@ export default function InboxPage() {
   const [unassignedOnly, setUnassignedOnly] = useState(false)
   const [selectedTripId, setSelectedTripId] = useState('')
   const [selectedCity, setSelectedCity] = useState('')
+  const [imageStates, setImageStates] = useState<Record<string, ImageState>>({})
+
+  const setImageState = (id: string, state: ImageState) =>
+    setImageStates((prev) => ({ ...prev, [id]: state }))
 
   const fetchAll = async () => {
     if (!user) return
@@ -166,7 +191,6 @@ export default function InboxPage() {
 
       {/* Filter Bar */}
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide items-center">
-        {/* Unassigned toggle */}
         <button
           type="button"
           onClick={() => setUnassignedOnly(!unassignedOnly)}
@@ -179,7 +203,6 @@ export default function InboxPage() {
           Unassigned
         </button>
 
-        {/* Trip dropdown */}
         <div className="relative shrink-0">
           <select
             value={selectedTripId}
@@ -213,7 +236,6 @@ export default function InboxPage() {
           </svg>
         </div>
 
-        {/* City dropdown */}
         <div className="relative shrink-0">
           <select
             value={selectedCity}
@@ -250,15 +272,12 @@ export default function InboxPage() {
 
       {/* Loading Skeletons */}
       {loading && (
-        <div className="mt-4 columns-2 md:columns-3 gap-2">
-          {SKELETON_HEIGHTS.map((h, i) => (
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 inbox-grid">
+          {SKELETON_PATTERN.map((type, i) => (
             <div
               key={i}
-              className="break-inside-avoid mb-2 rounded-2xl overflow-hidden animate-pulse bg-gray-100 border border-gray-100"
-            >
-              <div style={{ height: `${h}px` }} />
-              <div className="bg-gray-200 h-14" />
-            </div>
+              className={`${tileGridClasses[type]} rounded-2xl animate-pulse bg-gray-100`}
+            />
           ))}
         </div>
       )}
@@ -291,7 +310,7 @@ export default function InboxPage() {
         </div>
       )}
 
-      {/* Empty State — no saves at all */}
+      {/* Empty State */}
       {!loading && !error && items.length === 0 && (
         <div className="mt-20 text-center">
           <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto">
@@ -351,17 +370,28 @@ export default function InboxPage() {
         </div>
       )}
 
-      {/* Masonry Grid */}
+      {/* Fixed CSS Grid */}
       {!loading && !error && filtered.length > 0 && (
-        <div className="mt-4 columns-2 md:columns-3 gap-2">
+        <div className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 inbox-grid">
           {filtered.map((item) => (
-            <MasonryTile key={item.id} item={item} onTripAdded={refreshTripItems} />
+            <GridTile
+              key={item.id}
+              item={item}
+              tileType={getTileType(item, imageStates[item.id])}
+              onTripAdded={refreshTripItems}
+              onAspectRatioKnown={(isPortrait) =>
+                setImageState(item.id, isPortrait ? 'portrait' : 'landscape')
+              }
+              onImageError={() => setImageState(item.id, 'failed')}
+            />
           ))}
         </div>
       )}
     </div>
   )
 }
+
+// ─── Info Strip ───────────────────────────────────────────────────────────────
 
 function InfoStrip({ item }: { item: SavedItem }) {
   return (
@@ -383,17 +413,23 @@ function InfoStrip({ item }: { item: SavedItem }) {
   )
 }
 
-function MasonryTile({
+// ─── Grid Tile ────────────────────────────────────────────────────────────────
+
+function GridTile({
   item,
+  tileType,
   onTripAdded,
+  onAspectRatioKnown,
+  onImageError,
 }: {
   item: SavedItem
+  tileType: TileType
   onTripAdded: () => void
+  onAspectRatioKnown: (isPortrait: boolean) => void
+  onImageError: () => void
 }) {
-  const [imgFailed, setImgFailed] = useState(false)
   const [showSheet, setShowSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
-  const hasImage = !!item.image_url && !imgFailed
 
   const handleToast = (msg: string) => {
     setToast(msg)
@@ -401,53 +437,23 @@ function MasonryTile({
   }
 
   return (
-    <div className="relative break-inside-avoid mb-2">
+    <div className={`relative ${tileGridClasses[tileType]}`}>
       <Link
         to={`/item/${item.id}`}
-        className="block rounded-2xl overflow-hidden shadow-sm hover:shadow-md active:scale-[0.99] transition-all bg-black"
+        className="absolute inset-0 rounded-2xl overflow-hidden shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
       >
-        {hasImage ? (
-          /* URL / Screenshot tile — image fills top, info strip overlays bottom */
-          <div className="relative">
-            <img
-              src={item.image_url!}
-              alt={item.title}
-              className="w-full block"
-              onError={() => setImgFailed(true)}
-            />
-            <div className="absolute bottom-0 left-0 right-0">
-              <InfoStrip item={item} />
-            </div>
-          </div>
+        {tileType === 'wide' ? (
+          <WideTileContent item={item} />
         ) : (
-          /* Manual / no-image tile — category-colored background + info strip below */
-          <div>
-            <div
-              className={`${categoryBgColors[item.category]} px-4 py-8 flex items-center justify-center min-h-[130px]`}
-            >
-              <p className="text-white text-base font-bold text-center leading-snug drop-shadow-sm">
-                {item.title}
-              </p>
-            </div>
-            <div className="px-3 py-2.5 bg-black/85">
-              <div className="flex items-center justify-between gap-1.5">
-                {item.city ? (
-                  <span className="text-white/55 text-xs truncate min-w-0 flex-1">{item.city}</span>
-                ) : (
-                  <span className="flex-1" />
-                )}
-                <span
-                  className={`shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${categoryPillColors[item.category]}`}
-                >
-                  {categoryLabel[item.category]}
-                </span>
-              </div>
-            </div>
-          </div>
+          <ImageTileContent
+            item={item}
+            onAspectRatioKnown={onAspectRatioKnown}
+            onImageError={onImageError}
+          />
         )}
       </Link>
 
-      {/* Add to Trip button — floats over the visual area */}
+      {/* Add to Trip button */}
       <button
         type="button"
         onClick={() => setShowSheet(true)}
@@ -481,6 +487,63 @@ function MasonryTile({
           {toast}
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Wide Tile (no image) ─────────────────────────────────────────────────────
+
+function WideTileContent({ item }: { item: SavedItem }) {
+  return (
+    <div
+      className={`w-full h-full ${categoryBgColors[item.category]} flex items-center px-5 gap-4`}
+    >
+      {/* Title — left side, fills available space */}
+      <p className="flex-1 text-white text-base font-bold leading-snug line-clamp-3 min-w-0">
+        {item.title}
+      </p>
+
+      {/* City + pill — right side, fixed width */}
+      <div className="flex flex-col items-end gap-1.5 shrink-0">
+        <span
+          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/25 text-white whitespace-nowrap`}
+        >
+          {categoryLabel[item.category]}
+        </span>
+        {item.city && (
+          <span className="text-white/70 text-xs text-right leading-tight">{item.city}</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Standard / Tall Tile (has image) ────────────────────────────────────────
+
+function ImageTileContent({
+  item,
+  onAspectRatioKnown,
+  onImageError,
+}: {
+  item: SavedItem
+  onAspectRatioKnown: (isPortrait: boolean) => void
+  onImageError: () => void
+}) {
+  return (
+    <div className="relative w-full h-full bg-gray-200">
+      <img
+        src={item.image_url!}
+        alt={item.title}
+        className="absolute inset-0 w-full h-full object-cover"
+        onLoad={(e) => {
+          const img = e.currentTarget
+          onAspectRatioKnown(img.naturalHeight > img.naturalWidth * 1.2)
+        }}
+        onError={onImageError}
+      />
+      <div className="absolute bottom-0 left-0 right-0">
+        <InfoStrip item={item} />
+      </div>
     </div>
   )
 }

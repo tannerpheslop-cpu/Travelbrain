@@ -10,3 +10,8 @@ html {
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { scrollbar-width: none; }
+
+/* Inbox fixed-size grid — row height responsive to viewport */
+.inbox-grid { grid-auto-rows: 160px; }
+@media (min-width: 768px)  { .inbox-grid { grid-auto-rows: 200px; } }
+@media (min-width: 1024px) { .inbox-grid { grid-auto-rows: 220px; } }
