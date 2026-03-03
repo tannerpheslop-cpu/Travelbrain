@@ -146,6 +146,57 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&#x2F;/g, "/")
 }
 
+/**
+ * Microlink.io fallback — handles JS-rendered pages and sites that block
+ * direct server-side fetches (Viator, TripAdvisor, etc.).
+ * Free tier: 100 req/day, no API key required.
+ */
+async function fetchFromMicrolink(url: string): Promise<Partial<MetadataResult> | null> {
+  try {
+    const endpoint = `https://api.microlink.io/?url=${encodeURIComponent(url)}`
+    console.log(`[extract-metadata] Microlink fallback START url=${url}`)
+
+    const res = await fetch(endpoint, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(10000),
+    })
+
+    console.log(`[extract-metadata] Microlink HTTP status=${res.status}`)
+    if (!res.ok) return null
+
+    const body = await res.json() as {
+      status: string
+      data?: {
+        title?: string | null
+        description?: string | null
+        image?: { url?: string | null } | null
+        publisher?: string | null
+      }
+    }
+
+    if (body.status !== "success" || !body.data) {
+      // EPROXYNEEDED = site uses enterprise bot protection (Viator, TripAdvisor).
+      // Requires Microlink PRO plan with residential proxies ($38/month).
+      const code = (body as Record<string, unknown>).code ?? "unknown"
+      console.log(`[extract-metadata] Microlink non-success status=${body.status} code=${code}`)
+      return null
+    }
+
+    const result: Partial<MetadataResult> = {
+      title:       body.data.title       ?? null,
+      description: body.data.description ?? null,
+      image:       body.data.image?.url  ?? null,
+      site_name:   body.data.publisher   ?? null,
+    }
+
+    console.log(`[extract-metadata] Microlink result=${JSON.stringify(result)}`)
+    return result
+  } catch (err) {
+    console.log(`[extract-metadata] Microlink error: ${err}`)
+    return null
+  }
+}
+
 /** Resolve a potentially relative URL against a base */
 function resolveUrl(url: string, base: string): string {
   if (!url) return url
@@ -252,13 +303,22 @@ Deno.serve(async (req) => {
 
     console.log(`[extract-metadata] finalImage=${finalImage}`)
 
+    // ── Microlink fallback ─────────────────────────────────────────────────────
+    // Fire whenever direct fetch failed to produce an image — covers both the
+    // "site returned 403" case and the "200 OK but no og:image" case.
+    let ml: Partial<MetadataResult> | null = null
+    if (!finalImage) {
+      ml = await fetchFromMicrolink(url)
+    }
+
     const fallbackTitle = titleFromPath(parsedUrl)
 
     const result: MetadataResult = {
-      title: ogTitle || (html ? getTitleTag(html) : null) || fallbackTitle,
-      image: finalImage,
-      description: ogDescription || (html ? getMetaContent(html, "description") : null),
-      site_name: ogSiteName || parsedUrl.hostname.replace(/^www\./, ""),
+      // Prefer direct-fetch fields; supplement with Microlink where missing
+      title:       ogTitle || (html ? getTitleTag(html) : null) || ml?.title || fallbackTitle,
+      image:       finalImage || ml?.image || null,
+      description: ogDescription || (html ? getMetaContent(html, "description") : null) || ml?.description || null,
+      site_name:   ogSiteName || ml?.site_name || parsedUrl.hostname.replace(/^www\./, ""),
       url: url,
     }
 
