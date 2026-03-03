@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -67,7 +67,12 @@ export default function InboxPage() {
   const [imageStates, setImageStates] = useState<Record<string, ImageState>>({})
 
   const setImageState = (id: string, state: ImageState) =>
-    setImageStates((prev) => ({ ...prev, [id]: state }))
+    setImageStates((prev) => {
+      // Return the same reference if unchanged — prevents infinite re-render loops
+      // triggered by the callback ref in ImageTileContent firing on every render.
+      if (prev[id] === state) return prev
+      return { ...prev, [id]: state }
+    })
 
   const fetchAll = async () => {
     if (!user) return
@@ -535,10 +540,13 @@ function ImageTileContent({
   onAspectRatioKnown: (isPortrait: boolean) => void
   onImageError: () => void
 }) {
+  // Prevent the callback ref from re-firing on every re-render
+  const reported = useRef(false)
+
   const reportAspect = (img: HTMLImageElement) => {
-    if (img.naturalWidth > 0) {
-      onAspectRatioKnown(img.naturalHeight > img.naturalWidth * 1.2)
-    }
+    if (reported.current || img.naturalWidth === 0) return
+    reported.current = true
+    onAspectRatioKnown(img.naturalHeight > img.naturalWidth * 1.2)
   }
 
   return (
@@ -547,7 +555,7 @@ function ImageTileContent({
         src={item.image_url!}
         alt={item.title}
         className="absolute inset-0 w-full h-full object-cover"
-        // Callback ref handles cached images that are already complete before onLoad fires
+        // Callback ref handles cached images already complete before onLoad fires
         ref={(img) => { if (img?.complete) reportAspect(img) }}
         onLoad={(e) => reportAspect(e.currentTarget)}
         onError={onImageError}
