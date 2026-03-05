@@ -3,10 +3,20 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import AddToTripSheet from '../components/AddToTripSheet'
+import SaveSheet from '../components/SaveSheet'
 import type { SavedItem, Trip, Category } from '../types'
 
 type TileType = 'standard' | 'wide' | 'tall'
 type ImageState = 'portrait' | 'landscape' | 'failed'
+
+/** Shorten a Google Places formatted_address to "City, Province, Country".
+ *  Only collapses when there are 4+ parts (e.g. strips a prefecture level).
+ *  ≤3 parts are returned unchanged. */
+function formatCityCountry(locationName: string): string {
+  const parts = locationName.split(',').map((s) => s.trim()).filter(Boolean)
+  if (parts.length <= 3) return locationName
+  return `${parts[0]}, ${parts[parts.length - 2]}, ${parts[parts.length - 1]}`
+}
 
 const categoryBgColors: Record<Category, string> = {
   restaurant: 'bg-orange-500',
@@ -65,6 +75,7 @@ export default function InboxPage() {
   const [selectedTripId, setSelectedTripId] = useState('')
   const [selectedCity, setSelectedCity] = useState('')
   const [imageStates, setImageStates] = useState<Record<string, ImageState>>({})
+  const [showSaveSheet, setShowSaveSheet] = useState(false)
 
   const setImageState = (id: string, state: ImageState) =>
     setImageStates((prev) => {
@@ -142,7 +153,7 @@ export default function InboxPage() {
 
   const cities = useMemo(() => {
     const set = new Set<string>()
-    items.forEach((item) => { if (item.city) set.add(item.city) })
+    items.forEach((item) => { if (item.location_name) set.add(item.location_name) })
     return Array.from(set).sort()
   }, [items])
 
@@ -153,20 +164,21 @@ export default function InboxPage() {
           const q = search.toLowerCase()
           if (
             !item.title.toLowerCase().includes(q) &&
-            !item.city?.toLowerCase().includes(q) &&
+            !item.location_name?.toLowerCase().includes(q) &&
             !item.notes?.toLowerCase().includes(q)
           )
             return false
         }
         if (unassignedOnly && assignedItemIds.has(item.id)) return false
         if (selectedTripId && selectedTripItemIds && !selectedTripItemIds.has(item.id)) return false
-        if (selectedCity && item.city !== selectedCity) return false
+        if (selectedCity && item.location_name !== selectedCity) return false
         return true
       }),
     [items, search, unassignedOnly, assignedItemIds, selectedTripId, selectedTripItemIds, selectedCity],
   )
 
   return (
+    <>
     <div className="px-4 pt-6 pb-28">
       <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Inbox</h1>
       <p className="mt-1 text-sm text-gray-500">Your saved travel inspiration</p>
@@ -189,7 +201,7 @@ export default function InboxPage() {
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by title, city, or notes..."
+          placeholder="Search by title, location, or notes..."
           className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 shadow-sm"
         />
       </div>
@@ -251,7 +263,7 @@ export default function InboxPage() {
                 : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300 hover:bg-gray-50'
             }`}
           >
-            <option value="">City</option>
+            <option value="">Location</option>
             {cities.map((city) => (
               <option key={city} value={city}>
                 {city}
@@ -279,7 +291,7 @@ export default function InboxPage() {
       {loading && (
         <div
           className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
-          style={{ gridAutoRows: 'var(--inbox-row-height)' }}
+          style={{ gridAutoRows: 'var(--inbox-row-height)', gridAutoFlow: 'dense' }}
         >
           {SKELETON_PATTERN.map((type, i) => (
             <div
@@ -382,7 +394,7 @@ export default function InboxPage() {
       {!loading && !error && filtered.length > 0 && (
         <div
           className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
-          style={{ gridAutoRows: 'var(--inbox-row-height)' }}
+          style={{ gridAutoRows: 'var(--inbox-row-height)', gridAutoFlow: 'dense' }}
         >
           {filtered.map((item) => (
             <GridTile
@@ -399,6 +411,27 @@ export default function InboxPage() {
         </div>
       )}
     </div>
+
+    {/* Floating Action Button */}
+    <button
+      type="button"
+      onClick={() => setShowSaveSheet(true)}
+      className="fixed bottom-24 right-4 z-30 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 active:bg-blue-800 active:scale-95 transition-all"
+      aria-label="Save a place"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-white">
+        <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
+      </svg>
+    </button>
+
+    {/* Save Sheet */}
+    {showSaveSheet && (
+      <SaveSheet
+        onClose={() => setShowSaveSheet(false)}
+        onSaved={(newItem) => setItems((prev) => [newItem, ...prev])}
+      />
+    )}
+    </>
   )
 }
 
@@ -409,8 +442,8 @@ function InfoStrip({ item }: { item: SavedItem }) {
     <div className="px-3 py-2.5 bg-black/85">
       <p className="text-white text-xs font-semibold truncate leading-snug">{item.title}</p>
       <div className="flex items-center justify-between mt-1 gap-1.5">
-        {item.city ? (
-          <span className="text-white/55 text-xs truncate min-w-0 flex-1">{item.city}</span>
+        {item.location_name ? (
+          <span className="text-white/55 text-xs truncate min-w-0 flex-1">{formatCityCountry(item.location_name)}</span>
         ) : (
           <span className="flex-1" />
         )}
@@ -521,8 +554,8 @@ function WideTileContent({ item }: { item: SavedItem }) {
         >
           {categoryLabel[item.category]}
         </span>
-        {item.city && (
-          <span className="text-white/70 text-xs text-right leading-tight">{item.city}</span>
+        {item.location_name && (
+          <span className="text-white/70 text-xs text-right leading-tight">{formatCityCountry(item.location_name)}</span>
         )}
       </div>
     </div>

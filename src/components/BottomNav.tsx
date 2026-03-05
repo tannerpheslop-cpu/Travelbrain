@@ -12,15 +12,6 @@ const navItems = [
     ),
   },
   {
-    to: '/save',
-    label: 'Save',
-    icon: (active: boolean) => (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-6 h-6 transition-transform ${active ? 'scale-110' : ''}`}>
-        <path fillRule="evenodd" d="M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25zM12.75 9a.75.75 0 00-1.5 0v2.25H9a.75.75 0 000 1.5h2.25V15a.75.75 0 001.5 0v-2.25H15a.75.75 0 000-1.5h-2.25V9z" clipRule="evenodd" />
-      </svg>
-    ),
-  },
-  {
     to: '/trips',
     label: 'Trips',
     icon: (active: boolean) => (
@@ -34,14 +25,14 @@ const navItems = [
 
 export default function BottomNav() {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-sm border-t border-gray-100 pb-[env(safe-area-inset-bottom)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-sm border-t border-gray-100 pb-[env(safe-area-inset-bottom)]">
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto px-2">
         {navItems.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 px-5 py-2 rounded-2xl text-xs font-semibold transition-all ${
+              `flex flex-col items-center gap-0.5 px-12 py-2 rounded-2xl text-xs font-semibold transition-all ${
                 isActive
                   ? 'text-blue-600 bg-blue-50'
                   : 'text-gray-400 hover:text-gray-500 hover:bg-gray-50'

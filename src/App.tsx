@@ -5,7 +5,6 @@ import UserHeader from './components/UserHeader'
 import BottomNav from './components/BottomNav'
 import LoginPage from './pages/LoginPage'
 import InboxPage from './pages/InboxPage'
-import SavePage from './pages/SavePage'
 import TripsPage from './pages/TripsPage'
 import ItemDetailPage from './pages/ItemDetailPage'
 import TripDetailPage from './pages/TripDetailPage'
@@ -19,7 +18,6 @@ function AppLayout() {
         <main className="max-w-lg mx-auto">
           <Routes>
             <Route path="/inbox" element={<InboxPage />} />
-            <Route path="/save" element={<SavePage />} />
             <Route path="/trips" element={<TripsPage />} />
             <Route path="/item/:id" element={<ItemDetailPage />} />
             <Route path="/trip/:id" element={<TripDetailPage />} />
