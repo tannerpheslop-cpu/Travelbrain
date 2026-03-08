@@ -24,7 +24,11 @@ export interface SavedItem {
   title: string
   description: string | null
   site_name: string | null
-  city: string | null
+  /** Structured location fields — replaced the old free-text `city` column */
+  location_name: string | null     // e.g. "Tokyo, Japan"
+  location_lat: number | null
+  location_lng: number | null
+  location_place_id: string | null // Google Place ID
   category: Category
   notes: string | null
   tags: string[] | null

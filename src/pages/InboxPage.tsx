@@ -497,7 +497,7 @@ function GridTile({
         )}
       </Link>
 
-      {/* Add to Trip button */}
+      {/* Options button */}
       <button
         type="button"
         onClick={() => setShowSheet(true)}
@@ -510,7 +510,7 @@ function GridTile({
           fill="currentColor"
           className="w-3.5 h-3.5 text-white"
         >
-          <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+          <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
         </svg>
       </button>
 

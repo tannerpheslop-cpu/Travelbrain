@@ -1,9 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import AddToTripSheet from '../components/AddToTripSheet'
+import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import type { SavedItem, Category } from '../types'
 
 const categories: { value: Category; label: string }[] = [
@@ -35,7 +36,7 @@ export default function ItemDetailPage() {
   // Editable fields
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<Category>('general')
-  const [city, setCity] = useState('')
+  const [location, setLocation] = useState<LocationSelection | null>(null)
   const [notes, setNotes] = useState('')
   const [tags, setTags] = useState('')
 
@@ -43,6 +44,7 @@ export default function ItemDetailPage() {
   const [archiving, setArchiving] = useState(false)
   const [showTripSheet, setShowTripSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
+  const [refreshingImage, setRefreshingImage] = useState(false)
 
   const handleToast = (msg: string) => {
     setToast(msg)
@@ -73,7 +75,12 @@ export default function ItemDetailPage() {
       setItem(saved)
       setTitle(saved.title)
       setCategory(saved.category)
-      setCity(saved.city || '')
+      setLocation(saved.location_name ? {
+        name: saved.location_name,
+        lat: saved.location_lat ?? 0,
+        lng: saved.location_lng ?? 0,
+        place_id: saved.location_place_id ?? '',
+      } : null)
       setNotes(saved.notes || '')
       setTags(saved.tags?.join(', ') || '')
       setLoading(false)
@@ -111,11 +118,14 @@ export default function ItemDetailPage() {
     if (!initializedRef.current) return
     debouncedSave({
       title: title.trim() || 'Untitled',
-      city: city.trim() || null,
+      location_name: location?.name ?? null,
+      location_lat: location?.lat ?? null,
+      location_lng: location?.lng ?? null,
+      location_place_id: location?.place_id ?? null,
       notes: notes.trim() || null,
       tags: tags.trim() ? tags.split(',').map((t) => t.trim()).filter(Boolean) : null,
     })
-  }, [title, city, notes, tags, debouncedSave])
+  }, [title, location, notes, tags, debouncedSave])
 
   // Save category immediately (no need to debounce a tap)
   const handleCategoryChange = (newCategory: Category) => {
@@ -132,6 +142,30 @@ export default function ItemDetailPage() {
       .update({ is_archived: true })
       .eq('id', id)
     navigate('/inbox')
+  }
+
+  const handleRefreshImage = async () => {
+    if (!item?.source_url || !user) return
+    setRefreshingImage(true)
+    try {
+      const data = await invokeEdgeFunction<{ image?: string | null }>('extract-metadata', { url: item.source_url })
+      console.log('[item-detail] extract-metadata result:', data)
+      if (data?.image) {
+        await supabase
+          .from('saved_items')
+          .update({ image_url: data.image })
+          .eq('id', item.id)
+        setItem((prev) => prev ? { ...prev, image_url: data.image } : prev)
+        setImgFailed(false)
+      } else {
+        handleToast('No image found for this link')
+      }
+    } catch (err) {
+      console.error('[item-detail] handleRefreshImage threw:', err)
+      handleToast('Could not fetch image — try again')
+    } finally {
+      setRefreshingImage(false)
+    }
   }
 
   if (loading) {
@@ -202,10 +236,35 @@ export default function ItemDetailPage() {
           onError={() => setImgFailed(true)}
         />
       ) : (
-        <div className={`w-full h-56 ${categoryPlaceholderColors[category].bg} rounded-2xl flex items-center justify-center`}>
+        <div className={`relative w-full h-56 ${categoryPlaceholderColors[category].bg} rounded-2xl flex flex-col items-center justify-center gap-3`}>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-12 h-12 ${categoryPlaceholderColors[category].icon}`}>
             <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
           </svg>
+          {item.source_url && (
+            <button
+              type="button"
+              onClick={handleRefreshImage}
+              disabled={refreshingImage}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-white/80 hover:bg-white text-gray-700 text-xs font-medium rounded-full shadow-sm transition-colors disabled:opacity-50"
+            >
+              {refreshingImage ? (
+                <>
+                  <svg className="animate-spin w-3.5 h-3.5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Fetching…
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                    <path fillRule="evenodd" d="M13.836 2.477a.75.75 0 0 1 .75.75v3.182a.75.75 0 0 1-.75.75h-3.182a.75.75 0 0 1 0-1.5h1.37l-.84-.841a4.5 4.5 0 0 0-7.08.932.75.75 0 0 1-1.3-.75 6 6 0 0 1 9.44-1.242l.842.84V3.227a.75.75 0 0 1 .75-.75Zm-.911 7.5A.75.75 0 0 1 13.199 11a6 6 0 0 1-9.44 1.241l-.84-.84v1.371a.75.75 0 0 1-1.5 0V9.591a.75.75 0 0 1 .75-.75H5.35a.75.75 0 0 1 0 1.5H3.98l.841.841a4.5 4.5 0 0 0 7.08-.932.75.75 0 0 1 1.024-.273Z" clipRule="evenodd" />
+                  </svg>
+                  Fetch Image
+                </>
+              )}
+            </button>
+          )}
         </div>
       )}
 
@@ -283,20 +342,13 @@ export default function ItemDetailPage() {
           </div>
         </div>
 
-        {/* City */}
-        <div>
-          <label htmlFor="detail-city" className="block text-sm font-medium text-gray-700 mb-1.5">
-            City
-          </label>
-          <input
-            id="detail-city"
-            type="text"
-            value={city}
-            onChange={(e) => setCity(e.target.value)}
-            placeholder="e.g. Tokyo, Paris, New York"
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
-          />
-        </div>
+        {/* Location */}
+        <LocationAutocomplete
+          value={location?.name ?? ''}
+          onSelect={setLocation}
+          label="Location"
+          optional
+        />
 
         {/* Notes */}
         <div>

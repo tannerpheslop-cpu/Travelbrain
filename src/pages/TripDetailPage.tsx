@@ -121,7 +121,7 @@ function TripItemCard({
                 {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
               </span>
             )}
-            {item.city && <span className="text-xs text-gray-500 truncate">{item.city}</span>}
+            {item.location_name && <span className="text-xs text-gray-500 truncate">{item.location_name}</span>}
           </div>
           {item.site_name && <p className="mt-1 text-xs text-gray-400 truncate">{item.site_name}</p>}
         </div>
@@ -748,7 +748,7 @@ function ScheduledItemCard({
             <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
               {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
             </span>
-            {item.city && <span className="text-xs text-gray-500 truncate">{item.city}</span>}
+            {item.location_name && <span className="text-xs text-gray-500 truncate">{item.location_name}</span>}
           </div>
           <div className="flex items-center gap-3 mt-1.5">
             <button type="button" onClick={() => setShowMovePicker((v) => !v)} className="text-xs text-blue-600 font-medium hover:text-blue-700">
@@ -823,7 +823,7 @@ function AddItemsSheet({
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-gray-900 truncate">{si.title}</p>
-                        <p className="text-xs text-gray-400 truncate">{si.city ?? si.category}</p>
+                        <p className="text-xs text-gray-400 truncate">{si.location_name ?? si.category}</p>
                       </div>
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-blue-500 shrink-0">
                         <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
@@ -1113,7 +1113,7 @@ export default function TripDetailPage() {
     const si = ti.saved_item
     return (
       si.title.toLowerCase().includes(q) ||
-      si.city?.toLowerCase().includes(q) ||
+      si.location_name?.toLowerCase().includes(q) ||
       si.notes?.toLowerCase().includes(q) ||
       si.category.toLowerCase().includes(q)
     )

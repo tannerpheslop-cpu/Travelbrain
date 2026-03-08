@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import type { Category } from '../types'
 
 interface Metadata {
@@ -38,7 +39,7 @@ export default function SavePage() {
   // Shared fields
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<Category>('general')
-  const [city, setCity] = useState('')
+  const [location, setLocation] = useState<LocationSelection | null>(null)
   const [notes, setNotes] = useState('')
   const [saveError, setSaveError] = useState('')
 
@@ -62,7 +63,7 @@ export default function SavePage() {
   const resetAll = () => {
     setTitle('')
     setCategory('general')
-    setCity('')
+    setLocation(null)
     setNotes('')
     setSaveError('')
     setUrl('')
@@ -104,31 +105,19 @@ export default function SavePage() {
     setUrlError('')
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-
-      const response = await fetch(
-        `https://jauohzeyvmitsclnmxwg.supabase.co/functions/v1/extract-metadata`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({ url: finalUrl }),
-        }
-      )
-
-      if (!response.ok) throw new Error('Failed to fetch metadata')
-
-      const data: Metadata = await response.json()
-      setMetadata({ ...data, url: finalUrl })
-      setTitle(data.title || '')
+      const fetched = await invokeEdgeFunction<Metadata>('extract-metadata', { url: finalUrl })
+      console.log('[save] extract-metadata result:', fetched)
+      setMetadata({ ...fetched, url: finalUrl })
+      setTitle(fetched.title || '')
       setImageFailed(false)
       setLinkStatus('preview')
-    } catch {
+    } catch (err) {
+      console.warn('[save] extract-metadata failed:', err)
+      // Still show preview so user can fill in details manually
       setMetadata({ title: null, image: null, description: null, site_name: null, url: finalUrl })
       setTitle('')
       setImageFailed(false)
+      setUrlError('Could not fetch link preview — you can still save it manually below.')
       setLinkStatus('preview')
     }
   }
@@ -140,6 +129,7 @@ export default function SavePage() {
     setLinkStatus('saving')
     setSaveError('')
 
+    console.log('[save] saving item image_url:', metadata?.image ?? null, 'location:', location)
     const { error } = await supabase.from('saved_items').insert({
       user_id: user.id,
       source_type: 'url',
@@ -148,7 +138,10 @@ export default function SavePage() {
       title: itemTitle,
       description: metadata?.description || null,
       site_name: metadata?.site_name || null,
-      city: city.trim() || null,
+      location_name: location?.name ?? null,
+      location_lat: location?.lat ?? null,
+      location_lng: location?.lng ?? null,
+      location_place_id: location?.place_id ?? null,
       category,
       notes: notes.trim() || null,
     })
@@ -159,7 +152,7 @@ export default function SavePage() {
       return
     }
 
-    trackEvent('save_created', user.id, { source_type: 'url', category, city: city.trim() || null })
+    trackEvent('save_created', user.id, { source_type: 'url', category, location_name: location?.name ?? null })
     setLinkStatus('saved')
     setTimeout(() => navigate('/inbox'), 800)
   }
@@ -220,7 +213,10 @@ export default function SavePage() {
       source_type: 'screenshot',
       image_url: screenshotUrl,
       title: title.trim(),
-      city: city.trim() || null,
+      location_name: location?.name ?? null,
+      location_lat: location?.lat ?? null,
+      location_lng: location?.lng ?? null,
+      location_place_id: location?.place_id ?? null,
       category,
       notes: notes.trim() || null,
     })
@@ -231,7 +227,7 @@ export default function SavePage() {
       return
     }
 
-    trackEvent('save_created', user.id, { source_type: 'screenshot', category, city: city.trim() || null })
+    trackEvent('save_created', user.id, { source_type: 'screenshot', category, location_name: location?.name ?? null })
     setScreenshotStatus('saved')
     setTimeout(() => navigate('/inbox'), 800)
   }
@@ -251,7 +247,10 @@ export default function SavePage() {
       user_id: user.id,
       source_type: 'manual',
       title: title.trim(),
-      city: city.trim() || null,
+      location_name: location?.name ?? null,
+      location_lat: location?.lat ?? null,
+      location_lng: location?.lng ?? null,
+      location_place_id: location?.place_id ?? null,
       category,
       notes: notes.trim() || null,
     })
@@ -262,7 +261,7 @@ export default function SavePage() {
       return
     }
 
-    trackEvent('save_created', user.id, { source_type: 'manual', category, city: city.trim() || null })
+    trackEvent('save_created', user.id, { source_type: 'manual', category, location_name: location?.name ?? null })
     setManualStatus('saved')
     setTimeout(() => navigate('/inbox'), 800)
   }
@@ -338,6 +337,11 @@ export default function SavePage() {
           {/* Preview + Tag Form */}
           {(linkStatus === 'preview' || linkStatus === 'saving' || linkStatus === 'saved') && metadata && (
             <div className="mt-5 space-y-5">
+              {urlError && (
+                <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                  {urlError}
+                </p>
+              )}
               <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
                 {metadata.image && !imageFailed ? (
                   <img
@@ -364,7 +368,12 @@ export default function SavePage() {
               </div>
 
               <CategoryButtons category={category} onChange={setCategory} />
-              <CityInput city={city} onChange={setCity} />
+              <LocationAutocomplete
+                value={location?.name ?? ''}
+                onSelect={setLocation}
+                label="Location"
+                optional
+              />
               <NotesInput notes={notes} onChange={setNotes} />
 
               <SaveButton
@@ -449,7 +458,12 @@ export default function SavePage() {
               </div>
 
               <CategoryButtons category={category} onChange={setCategory} />
-              <CityInput city={city} onChange={setCity} />
+              <LocationAutocomplete
+                value={location?.name ?? ''}
+                onSelect={setLocation}
+                label="Location"
+                optional
+              />
               <NotesInput notes={notes} onChange={setNotes} />
 
               <SaveButton
@@ -494,7 +508,12 @@ export default function SavePage() {
           </div>
 
           <CategoryButtons category={category} onChange={setCategory} />
-          <CityInput city={city} onChange={setCity} />
+          <LocationAutocomplete
+            value={location?.name ?? ''}
+            onSelect={setLocation}
+            label="Location"
+            optional
+          />
           <NotesInput notes={notes} onChange={setNotes} />
 
           <SaveButton
@@ -543,24 +562,6 @@ function CategoryButtons({ category, onChange }: { category: Category; onChange:
           </button>
         ))}
       </div>
-    </div>
-  )
-}
-
-function CityInput({ city, onChange }: { city: string; onChange: (v: string) => void }) {
-  return (
-    <div>
-      <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1.5">
-        City <span className="text-gray-400 font-normal">(optional)</span>
-      </label>
-      <input
-        id="city"
-        type="text"
-        value={city}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="e.g. Tokyo, Paris, New York"
-        className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
-      />
     </div>
   )
 }

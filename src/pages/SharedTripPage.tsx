@@ -51,7 +51,7 @@ function getUniqueCities(items: TripItemRow[]): string[] {
   const seen = new Set<string>()
   const cities: string[] = []
   for (const ti of items) {
-    const city = ti.saved_item.city?.trim()
+    const city = ti.saved_item.location_name?.trim()
     if (city && !seen.has(city)) {
       seen.add(city)
       cities.push(city)
@@ -90,12 +90,12 @@ function SharedItemCard({ item }: { item: SavedItem }) {
           <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
             {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
           </span>
-          {item.city && (
+          {item.location_name && (
             <span className="text-xs text-gray-500 flex items-center gap-0.5">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3 text-gray-400">
                 <path fillRule="evenodd" d="M8 1.5A4.5 4.5 0 0 0 3.5 6c0 3.09 4.16 7.89 4.34 8.1a.22.22 0 0 0 .32 0C8.34 13.89 12.5 9.09 12.5 6A4.5 4.5 0 0 0 8 1.5Zm0 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2Z" clipRule="evenodd" />
               </svg>
-              {item.city}
+              {item.location_name}
             </span>
           )}
         </div>
@@ -411,7 +411,7 @@ export default function SharedTripPage() {
       } else if (fetchedTrip.share_privacy === 'city_only' || fetchedTrip.share_privacy === 'city_dates') {
         const { data: itemData } = await supabase
           .from('trip_items')
-          .select('id, day_index, sort_order, saved_item:saved_items(id, city, category, title, image_url, notes, user_id, source_type, source_url, description, site_name, tags, is_archived, created_at)')
+          .select('id, day_index, sort_order, saved_item:saved_items(id, location_name, location_lat, location_lng, location_place_id, category, title, image_url, notes, user_id, source_type, source_url, description, site_name, tags, is_archived, created_at)')
           .eq('trip_id', fetchedTrip.id)
         if (itemData) setItems(itemData as unknown as TripItemRow[])
       }
