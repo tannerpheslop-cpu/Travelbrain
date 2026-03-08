@@ -4,6 +4,23 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import type { TripDestination, SavedItem, Category } from '../types'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 // ── Local types ───────────────────────────────────────────────────────────────
 
@@ -45,6 +62,20 @@ function formatDateRange(start: string, end: string): string {
   const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts)
   const e = new Date(end + 'T00:00:00').toLocaleDateString('en-US', opts)
   return `${s} – ${e}`
+}
+
+/** Number of days inclusive between two date strings. */
+function getDayCount(startDate: string, endDate: string): number {
+  const s = new Date(startDate + 'T00:00:00')
+  const e = new Date(endDate + 'T00:00:00')
+  return Math.max(1, Math.round((e.getTime() - s.getTime()) / 86400000) + 1)
+}
+
+/** "Mar 5" label for a given 1-based dayIndex. */
+function formatDayTabDate(startDate: string, dayIndex: number): string {
+  const d = new Date(startDate + 'T00:00:00')
+  d.setDate(d.getDate() + dayIndex - 1)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 // ── Shared icon fragments ─────────────────────────────────────────────────────
@@ -180,7 +211,219 @@ function AddDatesModal({
   )
 }
 
-// ── Linked Item Card ──────────────────────────────────────────────────────────
+// ── Day Tab Row ────────────────────────────────────────────────────────────────
+
+function DayTabRow({
+  startDate,
+  dayCount,
+  activeDay,
+  unassignedCount,
+  itemCountByDay,
+  onChange,
+}: {
+  startDate: string
+  dayCount: number
+  activeDay: number | null
+  unassignedCount: number
+  itemCountByDay: Record<number, number>
+  onChange: (day: number | null) => void
+}) {
+  return (
+    <div className="overflow-x-auto -mx-4 px-4 pb-1">
+      <div className="flex gap-2" style={{ width: 'max-content' }}>
+        {/* Unassigned tab */}
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className={`flex flex-col items-center px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+            activeDay === null
+              ? 'bg-gray-900 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
+          }`}
+        >
+          <span>Unassigned</span>
+          <span className={`text-xs mt-0.5 tabular-nums ${activeDay === null ? 'text-white/60' : 'text-gray-400'}`}>
+            {unassignedCount} item{unassignedCount !== 1 ? 's' : ''}
+          </span>
+        </button>
+
+        {/* Day N tabs */}
+        {Array.from({ length: dayCount }, (_, i) => i + 1).map((dayNum) => {
+          const count = itemCountByDay[dayNum] ?? 0
+          return (
+            <button
+              key={dayNum}
+              type="button"
+              onClick={() => onChange(dayNum)}
+              className={`flex flex-col items-center px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
+                activeDay === dayNum
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300'
+              }`}
+            >
+              <span>Day {dayNum}</span>
+              <span className={`text-xs mt-0.5 ${activeDay === dayNum ? 'text-white/70' : 'text-gray-400'}`}>
+                {formatDayTabDate(startDate, dayNum)}{count > 0 ? ` · ${count}` : ''}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ── Day Item Card (itinerary view, with drag handle + move menu) ───────────────
+
+function DayItemCard({
+  linkedItem,
+  activeDayIndex,
+  dayCount,
+  startDate,
+  onRemove,
+  onMove,
+  dragHandleAttributes,
+  dragHandleListeners,
+  isDragging,
+}: {
+  linkedItem: LinkedItem
+  activeDayIndex: number | null
+  dayCount: number
+  startDate: string
+  onRemove: (linkId: string) => void
+  onMove: (linkId: string, dayIndex: number | null) => void
+  dragHandleAttributes?: Record<string, unknown>
+  dragHandleListeners?: Record<string, unknown>
+  isDragging?: boolean
+}) {
+  const [showMoveMenu, setShowMoveMenu] = useState(false)
+  const item = linkedItem.saved_item
+  const colors = categoryColors[item.category]
+
+  // Build list of "move to" options — every day except the current one
+  const moveOptions: Array<{ label: string; dayIndex: number | null }> = []
+  if (activeDayIndex !== null) {
+    moveOptions.push({ label: 'Unassigned', dayIndex: null })
+  }
+  for (let i = 1; i <= dayCount; i++) {
+    if (i !== activeDayIndex) {
+      moveOptions.push({ label: `Day ${i} · ${formatDayTabDate(startDate, i)}`, dayIndex: i })
+    }
+  }
+
+  return (
+    <div
+      className={`flex items-center bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible relative transition-opacity ${
+        isDragging ? 'opacity-40' : ''
+      }`}
+    >
+      {/* Drag handle */}
+      <button
+        type="button"
+        onClick={(e) => e.preventDefault()}
+        {...(dragHandleAttributes as React.HTMLAttributes<HTMLButtonElement>)}
+        {...(dragHandleListeners as React.HTMLAttributes<HTMLButtonElement>)}
+        className="pl-2.5 pr-1 self-stretch flex items-center text-gray-300 hover:text-gray-400 touch-none cursor-grab active:cursor-grabbing shrink-0"
+        aria-label="Drag to reorder"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+          <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 6zm0 6a2 2 0 10.001 4.001A2 2 0 007 12zm6-12a2 2 0 10.001 4.001A2 2 0 0013 2zm0 6a2 2 0 10.001 4.001A2 2 0 0013 6zm0 6a2 2 0 10.001 4.001A2 2 0 0013 12z" />
+        </svg>
+      </button>
+
+      {/* Thumbnail */}
+      <Link to={`/item/${item.id}`} className="shrink-0">
+        {item.image_url ? (
+          <img src={item.image_url} alt={item.title} className="w-14 h-14 object-cover bg-gray-100" />
+        ) : (
+          <div className={`w-14 h-14 flex items-center justify-center ${colors.bg}`}>
+            <PlaceholderIcon className="w-5 h-5 text-gray-300" />
+          </div>
+        )}
+      </Link>
+
+      {/* Content */}
+      <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-2.5">
+        <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
+        {item.location_name && (
+          <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>
+        )}
+        <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+          {categoryLabel[item.category]}
+        </span>
+      </Link>
+
+      {/* Actions */}
+      <div className="flex items-center shrink-0 pr-1">
+        {/* Move to... */}
+        {moveOptions.length > 0 && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowMoveMenu((o) => !o)}
+              className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
+              aria-label="Move to day"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path fillRule="evenodd" d="M5 10a.75.75 0 01.75-.75h6.638L10.23 7.29a.75.75 0 111.04-1.08l3.5 3.25a.75.75 0 010 1.08l-3.5 3.25a.75.75 0 11-1.04-1.08l2.158-1.96H5.75A.75.75 0 015 10z" clipRule="evenodd" />
+              </svg>
+            </button>
+            {showMoveMenu && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowMoveMenu(false)} />
+                <div className="absolute right-0 bottom-full mb-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-[170px]">
+                  <p className="px-3 pt-2.5 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                    Move to
+                  </p>
+                  {moveOptions.map((opt) => (
+                    <button
+                      key={opt.dayIndex ?? 'unassigned'}
+                      type="button"
+                      onClick={() => { setShowMoveMenu(false); onMove(linkedItem.id, opt.dayIndex) }}
+                      className="w-full flex items-center px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left transition-colors"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Remove */}
+        <button
+          type="button"
+          onClick={() => onRemove(linkedItem.id)}
+          className="p-2 text-gray-300 hover:text-red-400 transition-colors"
+          aria-label="Remove from destination"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ── Sortable Day Item (wraps DayItemCard with dnd-kit) ────────────────────────
+
+function SortableDayItem(
+  props: Omit<React.ComponentProps<typeof DayItemCard>, 'dragHandleAttributes' | 'dragHandleListeners' | 'isDragging'>,
+) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.linkedItem.id,
+  })
+  const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition }
+  return (
+    <div ref={setNodeRef} style={style}>
+      <DayItemCard {...props} dragHandleAttributes={attributes} dragHandleListeners={listeners} isDragging={isDragging} />
+    </div>
+  )
+}
+
+// ── Linked Item Card (simple list view, no scheduling) ────────────────────────
 
 function LinkedItemCard({
   item,
@@ -304,28 +547,19 @@ function InboxPickerRow({
       disabled={adding}
       className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-60 text-left"
     >
-      {/* Thumbnail */}
       {item.image_url ? (
-        <img
-          src={item.image_url}
-          alt={item.title}
-          className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0"
-        />
+        <img src={item.image_url} alt={item.title} className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0" />
       ) : (
         <div className={`w-12 h-12 rounded-xl shrink-0 flex items-center justify-center ${colors.bg}`}>
           <PlaceholderIcon className="w-5 h-5 text-gray-300" />
         </div>
       )}
-
-      {/* Content */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
         {item.location_name && (
           <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>
         )}
       </div>
-
-      {/* Spinner while adding */}
       {adding && (
         <div className="shrink-0 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
       )}
@@ -351,20 +585,19 @@ function AddFromInboxSheet({
   const [search, setSearch] = useState('')
   const searchRef = useRef<HTMLInputElement>(null)
 
-  // Focus search bar after mount (slight delay allows the sheet animation to start)
   useEffect(() => {
     const t = setTimeout(() => searchRef.current?.focus(), 120)
     return () => clearTimeout(t)
   }, [])
 
   const q = search.trim().toLowerCase()
-
   const visible = items
     .filter((item) => !linkedItemIds.has(item.id))
-    .filter((item) =>
-      !q ||
-      item.title.toLowerCase().includes(q) ||
-      (item.location_name?.toLowerCase().includes(q) ?? false),
+    .filter(
+      (item) =>
+        !q ||
+        item.title.toLowerCase().includes(q) ||
+        (item.location_name?.toLowerCase().includes(q) ?? false),
     )
 
   return (
@@ -374,11 +607,7 @@ function AddFromInboxSheet({
     >
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="relative w-full max-w-lg bg-white rounded-t-3xl shadow-xl flex flex-col max-h-[82vh]">
-
-        {/* Drag handle */}
         <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 shrink-0" />
-
-        {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <h2 className="text-base font-semibold text-gray-900">Add from Inbox</h2>
           <button
@@ -390,16 +619,10 @@ function AddFromInboxSheet({
             <CloseIcon />
           </button>
         </div>
-
-        {/* Search bar (sticky below header) */}
         <div className="px-4 py-3 border-b border-gray-100 shrink-0">
           <div className="relative">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
-            >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none">
               <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
             </svg>
             <input
@@ -408,7 +631,7 @@ function AddFromInboxSheet({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search your inbox…"
-              className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+              className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
             />
             {search && (
               <button
@@ -424,8 +647,6 @@ function AddFromInboxSheet({
             )}
           </div>
         </div>
-
-        {/* Scrollable list */}
         <div className="overflow-y-auto flex-1 px-4 py-2 pb-6">
           {loading ? (
             <div className="space-y-1 animate-pulse py-2">
@@ -445,11 +666,8 @@ function AddFromInboxSheet({
                 {q ? 'No items match your search' : 'All inbox items are already added'}
               </p>
               {q && (
-                <button
-                  type="button"
-                  onClick={() => setSearch('')}
-                  className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
-                >
+                <button type="button" onClick={() => setSearch('')}
+                  className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors">
                   Clear search
                 </button>
               )}
@@ -482,6 +700,9 @@ export default function DestinationPage() {
   const [suggestions, setSuggestions] = useState<SavedItem[]>([])
   const [itemsLoading, setItemsLoading] = useState(true)
 
+  // Day view state — null = Unassigned tab
+  const [activeDay, setActiveDay] = useState<number | null>(null)
+
   // Inbox sheet state
   const [showInboxSheet, setShowInboxSheet] = useState(false)
   const [inboxItems, setInboxItems] = useState<SavedItem[]>([])
@@ -489,6 +710,12 @@ export default function DestinationPage() {
   const inboxFetched = useRef(false)
 
   const [showAddDates, setShowAddDates] = useState(false)
+
+  // dnd-kit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
 
   // ── Fetch destination + items + suggestions ─────────────────────────────────
 
@@ -540,17 +767,14 @@ export default function DestinationPage() {
         setSuggestions(filtered)
 
         if (filtered.length > 0) {
-          trackEvent('nearby_suggestion_shown', user.id, {
-            destination_id: destId,
-            count: filtered.length,
-          })
+          trackEvent('nearby_suggestion_shown', user.id, { destination_id: destId, count: filtered.length })
         }
 
         setItemsLoading(false)
       })
   }, [destId, user])
 
-  // ── Open inbox sheet (lazy-fetch on first open) ─────────────────────────────
+  // ── Inbox sheet (lazy-fetch once) ───────────────────────────────────────────
 
   const handleOpenInboxSheet = async () => {
     setShowInboxSheet(true)
@@ -567,38 +791,23 @@ export default function DestinationPage() {
     setInboxLoading(false)
   }
 
-  // ── Shared link-item core (insert + state update + status progression) ───────
+  // ── Core: link an item to this destination ──────────────────────────────────
 
   const handleLinkItem = async (item: SavedItem): Promise<boolean> => {
     if (!destId) return false
 
     const { data, error } = await supabase
       .from('destination_items')
-      .insert({
-        destination_id: destId,
-        item_id: item.id,
-        day_index: null,
-        sort_order: linkedItems.length,
-      })
+      .insert({ destination_id: destId, item_id: item.id, day_index: null, sort_order: linkedItems.length })
       .select()
       .single()
 
     if (error || !data) return false
 
-    const row = data as {
-      id: string
-      destination_id: string
-      item_id: string
-      day_index: number | null
-      sort_order: number
-    }
-    const newLinked: LinkedItem = { ...row, saved_item: item }
-
-    setLinkedItems((prev) => [...prev, newLinked])
-    // Remove from nearby suggestions if present
+    const row = data as { id: string; destination_id: string; item_id: string; day_index: number | null; sort_order: number }
+    setLinkedItems((prev) => [...prev, { ...row, saved_item: item }])
     setSuggestions((prev) => prev.filter((s) => s.id !== item.id))
 
-    // Status progression: aspirational → planning (belt-and-suspenders alongside DB trigger)
     if (tripId) {
       supabase
         .from('trips')
@@ -612,28 +821,14 @@ export default function DestinationPage() {
     return true
   }
 
-  // ── Accept a nearby suggestion ──────────────────────────────────────────────
-
   const handleAddSuggestion = async (item: SavedItem) => {
     const ok = await handleLinkItem(item)
-    if (ok) {
-      trackEvent('nearby_suggestion_accepted', user?.id ?? null, {
-        destination_id: destId,
-        item_id: item.id,
-      })
-    }
+    if (ok) trackEvent('nearby_suggestion_accepted', user?.id ?? null, { destination_id: destId, item_id: item.id })
   }
-
-  // ── Add an item from the inbox sheet ───────────────────────────────────────
 
   const handleAddFromInbox = async (item: SavedItem) => {
     const ok = await handleLinkItem(item)
-    if (ok) {
-      trackEvent('item_added_to_destination', user?.id ?? null, {
-        destination_id: destId,
-        item_id: item.id,
-      })
-    }
+    if (ok) trackEvent('item_added_to_destination', user?.id ?? null, { destination_id: destId, item_id: item.id })
   }
 
   // ── Remove a linked item ────────────────────────────────────────────────────
@@ -642,7 +837,6 @@ export default function DestinationPage() {
     const removed = linkedItems.find((li) => li.id === linkId)
     setLinkedItems((prev) => prev.filter((li) => li.id !== linkId))
 
-    // If nearby, put back in suggestions
     if (removed && removed.saved_item.location_lat != null && destination) {
       const lat = removed.saved_item.location_lat
       const lng = removed.saved_item.location_lng!
@@ -655,6 +849,60 @@ export default function DestinationPage() {
     }
 
     await supabase.from('destination_items').delete().eq('id', linkId)
+  }
+
+  // ── Move item to a different day ────────────────────────────────────────────
+
+  const handleMoveItem = async (linkId: string, newDayIndex: number | null) => {
+    const item = linkedItems.find((li) => li.id === linkId)
+    if (!item) return
+    // Place at end of target day
+    const targetCount = linkedItems.filter((li) => li.day_index === newDayIndex && li.id !== linkId).length
+
+    setLinkedItems((prev) =>
+      prev.map((li) => li.id === linkId ? { ...li, day_index: newDayIndex, sort_order: targetCount } : li),
+    )
+
+    await supabase
+      .from('destination_items')
+      .update({ day_index: newDayIndex, sort_order: targetCount })
+      .eq('id', linkId)
+
+    if (newDayIndex !== null) {
+      trackEvent('item_assigned_to_day', user?.id ?? null, {
+        destination_id: destId,
+        item_id: item.item_id,
+        day_index: newDayIndex,
+      })
+    }
+  }
+
+  // ── Drag-to-reorder within active day ───────────────────────────────────────
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const dayItems = linkedItems
+      .filter((li) => li.day_index === activeDay)
+      .sort((a, b) => a.sort_order - b.sort_order)
+
+    const oldIdx = dayItems.findIndex((li) => li.id === active.id)
+    const newIdx = dayItems.findIndex((li) => li.id === over.id)
+    if (oldIdx === -1 || newIdx === -1) return
+
+    const reordered = arrayMove(dayItems, oldIdx, newIdx)
+
+    setLinkedItems((prev) => [
+      ...prev.filter((li) => li.day_index !== activeDay),
+      ...reordered.map((li, i) => ({ ...li, sort_order: i })),
+    ])
+
+    await Promise.all(
+      reordered.map((li, idx) =>
+        supabase.from('destination_items').update({ sort_order: idx }).eq('id', li.id),
+      ),
+    )
   }
 
   // ── Loading / not-found states ──────────────────────────────────────────────
@@ -707,7 +955,24 @@ export default function DestinationPage() {
   const cityName = shortName(dest.location_name)
   const fullName = dest.location_name !== cityName ? dest.location_name : null
 
-  // Derived set for the inbox sheet filter — reactive to linkedItems changes
+  const hasSchedule = !!(dest.start_date && dest.end_date)
+  const dayCount = hasSchedule ? getDayCount(dest.start_date!, dest.end_date!) : 0
+
+  // Items for the currently-active tab, sorted
+  const activeItems = linkedItems
+    .filter((li) => li.day_index === activeDay)
+    .sort((a, b) => a.sort_order - b.sort_order)
+
+  // Counts per day for tab labels
+  const itemCountByDay: Record<number, number> = {}
+  for (const li of linkedItems) {
+    if (li.day_index !== null) {
+      itemCountByDay[li.day_index] = (itemCountByDay[li.day_index] ?? 0) + 1
+    }
+  }
+  const unassignedCount = linkedItems.filter((li) => li.day_index === null).length
+
+  // Reactive set for inbox sheet filter
   const linkedItemIds = new Set(linkedItems.map((li) => li.item_id))
 
   return (
@@ -753,7 +1018,11 @@ export default function DestinationPage() {
                 {formatDateRange(dest.start_date, dest.end_date)}
               </span>
             </div>
-            <button type="button" onClick={() => setShowAddDates(true)} className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors">
+            <button
+              type="button"
+              onClick={() => setShowAddDates(true)}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+            >
               Edit
             </button>
           </div>
@@ -774,52 +1043,142 @@ export default function DestinationPage() {
         </span>
       </div>
 
-      {/* ── Items list ────────────────────────────────────────────────────────── */}
+      {/* ── Content area ──────────────────────────────────────────────────────── */}
       <div className="px-4 pt-4">
 
-        {/* Skeleton */}
-        {itemsLoading && (
-          <div className="space-y-2 animate-pulse">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center bg-white rounded-2xl border border-gray-100 overflow-hidden">
-                <div className="w-16 h-16 bg-gray-100 shrink-0" />
-                <div className="flex-1 space-y-2 py-2.5 px-3">
-                  <div className="h-4 bg-gray-100 rounded w-3/4" />
-                  <div className="h-3 bg-gray-100 rounded w-1/2" />
+        {hasSchedule ? (
+          /* ── Day-by-day itinerary view ──────────────────────────────────── */
+          <>
+            {/* Day tabs */}
+            <DayTabRow
+              startDate={dest.start_date!}
+              dayCount={dayCount}
+              activeDay={activeDay}
+              unassignedCount={unassignedCount}
+              itemCountByDay={itemCountByDay}
+              onChange={setActiveDay}
+            />
+
+            {/* Active day items */}
+            <div className="mt-3">
+              {itemsLoading ? (
+                <div className="space-y-2 animate-pulse mt-2">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                      <div className="w-5 h-14 bg-gray-50 shrink-0" />
+                      <div className="w-14 h-14 bg-gray-100 shrink-0" />
+                      <div className="flex-1 space-y-2 py-2.5 px-3">
+                        <div className="h-4 bg-gray-100 rounded w-3/4" />
+                        <div className="h-3 bg-gray-100 rounded w-1/2" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : activeItems.length === 0 ? (
+                <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200 mt-2">
+                  <p className="text-sm text-gray-500 font-medium">
+                    {activeDay === null
+                      ? 'All items are assigned to days'
+                      : `Nothing planned for Day ${activeDay} yet`}
+                  </p>
+                  <p className="mt-1 text-xs text-gray-400">
+                    {activeDay === null
+                      ? 'Add items from your inbox or nearby suggestions'
+                      : 'Move items here from Unassigned or another day'}
+                  </p>
+                </div>
+              ) : (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                  <SortableContext
+                    items={activeItems.map((li) => li.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-2">
+                      {activeItems.map((li) => (
+                        <SortableDayItem
+                          key={li.id}
+                          linkedItem={li}
+                          activeDayIndex={activeDay}
+                          dayCount={dayCount}
+                          startDate={dest.start_date!}
+                          onRemove={handleRemoveItem}
+                          onMove={handleMoveItem}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              )}
+            </div>
+          </>
+        ) : (
+          /* ── Simple list view (no dates set) ───────────────────────────── */
+          <>
+            {/* Unlock prompt — only shown once items exist */}
+            {!itemsLoading && linkedItems.length > 0 && (
+              <div className="mb-4 flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
+                <span className="text-xl shrink-0">📅</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-blue-900">Add dates to unlock day-by-day planning</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddDates(true)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium mt-0.5 transition-colors"
+                  >
+                    Add dates →
+                  </button>
                 </div>
               </div>
-            ))}
-          </div>
+            )}
+
+            {/* Skeleton */}
+            {itemsLoading && (
+              <div className="space-y-2 animate-pulse">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="flex items-center bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                    <div className="w-16 h-16 bg-gray-100 shrink-0" />
+                    <div className="flex-1 space-y-2 py-2.5 px-3">
+                      <div className="h-4 bg-gray-100 rounded w-3/4" />
+                      <div className="h-3 bg-gray-100 rounded w-1/2" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Empty state */}
+            {!itemsLoading && linkedItems.length === 0 && (
+              <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-gray-300 mx-auto mb-3">
+                  <path fillRule="evenodd" d="M6.32 2.577a49.255 49.255 0 0111.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 01-1.085.67L12 18.089l-7.165 3.583A.75.75 0 013.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z" clipRule="evenodd" />
+                </svg>
+                <p className="text-sm text-gray-500 font-medium">No places saved here yet</p>
+                <p className="mt-1 text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
+                  Add from your inbox below, or save nearby items and they'll appear as suggestions
+                </p>
+              </div>
+            )}
+
+            {/* Items */}
+            {!itemsLoading && linkedItems.length > 0 && (
+              <div className="space-y-2">
+                {linkedItems
+                  .slice()
+                  .sort((a, b) => a.sort_order - b.sort_order)
+                  .map((li) => (
+                    <LinkedItemCard
+                      key={li.id}
+                      item={li.saved_item}
+                      linkId={li.id}
+                      onRemove={handleRemoveItem}
+                    />
+                  ))}
+              </div>
+            )}
+          </>
         )}
 
-        {/* Empty state */}
-        {!itemsLoading && linkedItems.length === 0 && (
-          <div className="text-center py-10 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 text-gray-300 mx-auto mb-3">
-              <path fillRule="evenodd" d="M6.32 2.577a49.255 49.255 0 0111.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 01-1.085.67L12 18.089l-7.165 3.583A.75.75 0 013.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z" clipRule="evenodd" />
-            </svg>
-            <p className="text-sm text-gray-500 font-medium">No places saved here yet</p>
-            <p className="mt-1 text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
-              Add from your inbox below, or save items nearby and they'll appear as suggestions
-            </p>
-          </div>
-        )}
-
-        {/* Items */}
-        {!itemsLoading && linkedItems.length > 0 && (
-          <div className="space-y-2">
-            {linkedItems.map((li) => (
-              <LinkedItemCard
-                key={li.id}
-                item={li.saved_item}
-                linkId={li.id}
-                onRemove={handleRemoveItem}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* ── Add from Inbox button ────────────────────────────────────────────── */}
+        {/* ── Add from Inbox button (always shown when not loading) ─────────── */}
         {!itemsLoading && (
           <div className="mt-4">
             <button
@@ -835,7 +1194,7 @@ export default function DestinationPage() {
           </div>
         )}
 
-        {/* ── Nearby Suggestions ──────────────────────────────────────────────── */}
+        {/* ── Nearby Suggestions ────────────────────────────────────────────── */}
         {!itemsLoading && suggestions.length > 0 && (
           <div className="mt-8 mb-4">
             <div className="flex items-center gap-2 mb-3">
@@ -845,18 +1204,14 @@ export default function DestinationPage() {
             </div>
             <div className="space-y-2">
               {suggestions.map((item) => (
-                <SuggestionCard
-                  key={item.id}
-                  item={item}
-                  onAdd={handleAddSuggestion}
-                />
+                <SuggestionCard key={item.id} item={item} onAdd={handleAddSuggestion} />
               ))}
             </div>
           </div>
         )}
       </div>
 
-      {/* ── Add from Inbox Sheet ───────────────────────────────────────────────── */}
+      {/* ── Add from Inbox Sheet ──────────────────────────────────────────────── */}
       {showInboxSheet && (
         <AddFromInboxSheet
           items={inboxItems}
@@ -867,7 +1222,7 @@ export default function DestinationPage() {
         />
       )}
 
-      {/* ── Add / Edit Dates Modal ────────────────────────────────────────────── */}
+      {/* ── Add / Edit Dates Modal ─────────────────────────────────────────────── */}
       {showAddDates && destination && (
         <AddDatesModal
           destination={destination}

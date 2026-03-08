@@ -103,35 +103,68 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 
 function ScheduleTripModal({
   trip,
+  destinations,
   onClose,
   onScheduled,
 }: {
   trip: Trip
+  destinations: TripDestination[]
   onClose: () => void
-  onScheduled: (updated: Trip) => void
+  onScheduled: (updatedTrip: Trip, updatedDests: TripDestination[]) => void
 }) {
   const isAlreadyScheduled = trip.status === 'scheduled'
   const [startDate, setStartDate] = useState(trip.start_date ?? '')
   const [endDate, setEndDate] = useState(trip.end_date ?? '')
+
+  // Per-destination dates, keyed by destination id
+  const [destDates, setDestDates] = useState<Record<string, { start: string; end: string }>>(() => {
+    const init: Record<string, { start: string; end: string }> = {}
+    for (const d of destinations) {
+      init[d.id] = { start: d.start_date ?? '', end: d.end_date ?? '' }
+    }
+    return init
+  })
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const setDestDate = (destId: string, field: 'start' | 'end', val: string) => {
+    setDestDates((prev) => ({ ...prev, [destId]: { ...prev[destId], [field]: val } }))
+  }
+
   const handleSave = async () => {
-    if (!startDate || !endDate) { setError('Both dates are required to schedule a trip.'); return }
+    if (!startDate || !endDate) { setError('Both trip dates are required.'); return }
     if (startDate > endDate) { setError('Start date must be before end date.'); return }
 
     setSaving(true)
     setError(null)
-    const { data, error: dbError } = await supabase
+
+    const { data: tripData, error: tripError } = await supabase
       .from('trips')
       .update({ status: 'scheduled', start_date: startDate, end_date: endDate })
       .eq('id', trip.id)
       .select()
       .single()
-    setSaving(false)
 
-    if (dbError) { setError(dbError.message); return }
-    onScheduled(data as Trip)
+    if (tripError || !tripData) { setSaving(false); setError(tripError?.message ?? 'Failed to save.'); return }
+
+    // Update each destination's dates (skip if either field is empty)
+    const updatedDests = await Promise.all(
+      destinations.map(async (d) => {
+        const dates = destDates[d.id]
+        if (!dates?.start || !dates?.end) return d
+        const { data } = await supabase
+          .from('trip_destinations')
+          .update({ start_date: dates.start, end_date: dates.end })
+          .eq('id', d.id)
+          .select()
+          .single()
+        return (data as TripDestination) ?? d
+      }),
+    )
+
+    setSaving(false)
+    onScheduled(tripData as Trip, updatedDests)
     onClose()
   }
 
@@ -145,40 +178,89 @@ function ScheduleTripModal({
       .select()
       .single()
     setSaving(false)
-
     if (dbError || !data) { setError('Failed to unschedule. Please try again.'); return }
-    onScheduled(data as Trip)
+    onScheduled(data as Trip, destinations)
     onClose()
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
-        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
+        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
           <h2 className="text-base font-semibold text-gray-900">{isAlreadyScheduled ? 'Edit Trip Dates' : 'Schedule Trip'}</h2>
           <button type="button" onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" /></svg>
           </button>
         </div>
-        <div className="px-5 py-5 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Start date</label>
-              <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setError(null) }} max={endDate || undefined} className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">End date</label>
-              <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setError(null) }} min={startDate || undefined} className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+
+        <div className="overflow-y-auto flex-1 px-5 py-5 space-y-6">
+          {/* ── Trip-level dates ── */}
+          <div>
+            <p className="text-sm font-semibold text-gray-800 mb-3">Trip dates</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Start</label>
+                <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setError(null) }} max={endDate || undefined}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">End</label>
+                <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setError(null) }} min={startDate || undefined}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+              </div>
             </div>
           </div>
+
+          {/* ── Per-destination dates ── */}
+          {destinations.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-gray-800">Destination dates</p>
+                <span className="text-xs text-gray-400">Optional</span>
+              </div>
+              <div className="space-y-4">
+                {destinations.map((d, i) => (
+                  <div key={d.id} className="bg-gray-50 rounded-xl p-3">
+                    <p className="text-xs font-semibold text-gray-600 mb-2">
+                      {i + 1}. {d.location_name.split(',')[0]}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Arrival</label>
+                        <input
+                          type="date"
+                          value={destDates[d.id]?.start ?? ''}
+                          onChange={(e) => setDestDate(d.id, 'start', e.target.value)}
+                          className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">Departure</label>
+                        <input
+                          type="date"
+                          value={destDates[d.id]?.end ?? ''}
+                          onChange={(e) => setDestDate(d.id, 'end', e.target.value)}
+                          className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <button type="button" onClick={handleSave} disabled={saving} className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50">
+
+          <button type="button" onClick={handleSave} disabled={saving}
+            className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50">
             {saving ? 'Saving…' : isAlreadyScheduled ? 'Update Dates' : 'Schedule Trip'}
           </button>
           {isAlreadyScheduled && (
-            <button type="button" onClick={handleUnschedule} disabled={saving} className="w-full py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50">
+            <button type="button" onClick={handleUnschedule} disabled={saving}
+              className="w-full py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50">
               Remove dates
             </button>
           )}
@@ -956,23 +1038,31 @@ export default function TripDetailPage() {
             {trip?.status === 'scheduled' ? 'Scheduled' : trip?.status === 'planning' ? 'Planning' : 'Aspirational'}
           </span>
           {isScheduled && trip?.start_date && trip?.end_date && (
-            <span className="text-sm text-gray-500">{formatDateRange(trip.start_date, trip.end_date)}</span>
+            <button
+              type="button"
+              onClick={() => setShowScheduleModal(true)}
+              className="text-sm text-gray-500 hover:text-gray-700 hover:underline underline-offset-2 transition-colors"
+            >
+              {formatDateRange(trip.start_date, trip.end_date)}
+            </button>
           )}
         </div>
       </div>
 
       {/* Action buttons */}
       <div className="flex gap-2 mb-6">
-        <button
-          type="button"
-          onClick={() => setShowScheduleModal(true)}
-          className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
-          </svg>
-          {isScheduled ? 'Edit Dates' : 'Schedule'}
-        </button>
+        {!isScheduled && (
+          <button
+            type="button"
+            onClick={() => setShowScheduleModal(true)}
+            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
+            </svg>
+            Schedule Trip
+          </button>
+        )}
         <button
           type="button"
           onClick={() => setShowShareModal(true)}
@@ -1084,12 +1174,19 @@ export default function TripDetailPage() {
       {showScheduleModal && trip && (
         <ScheduleTripModal
           trip={trip}
+          destinations={destinations}
           onClose={() => setShowScheduleModal(false)}
-          onScheduled={(updated) => {
+          onScheduled={(updated, updatedDests) => {
             if (updated.status === 'scheduled' && trip.status !== 'scheduled') {
               trackEvent('trip_scheduled', user?.id ?? null, { trip_id: updated.id, start_date: updated.start_date, end_date: updated.end_date })
             }
             setTrip(updated)
+            setDestinations((prev) =>
+              prev.map((d) => {
+                const ud = updatedDests.find((u) => u.id === d.id)
+                return ud ? { ...d, start_date: ud.start_date, end_date: ud.end_date } : d
+              }),
+            )
           }}
         />
       )}
