@@ -2,19 +2,16 @@ import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
-import type { Trip } from '../types'
+import type { Trip, TripDestination } from '../types'
+import type { LocationSelection } from '../components/LocationAutocomplete'
 
-interface CreateTripInput {
-  title: string
-  start_date?: string | null
-  end_date?: string | null
+export interface TripWithDestinations extends Trip {
+  trip_destinations: TripDestination[]
 }
 
 export function useTrips() {
   const { user, loading: authLoading } = useAuth()
-  const [trips, setTrips] = useState<Trip[]>([])
-  // Stay in loading state while auth is resolving, so we never show skeletons
-  // for a user-less fetch that exits early.
+  const [trips, setTrips] = useState<TripWithDestinations[]>([])
   const [loading, setLoading] = useState(true)
 
   const fetchTrips = useCallback(async () => {
@@ -26,73 +23,102 @@ export function useTrips() {
     setLoading(true)
     const { data, error: fetchError } = await supabase
       .from('trips')
-      .select('*')
+      .select('*, trip_destinations(*)')
       .eq('owner_id', user.id)
       .order('created_at', { ascending: false })
 
     if (!fetchError) {
-      setTrips((data as Trip[]) ?? [])
+      const sorted = ((data as TripWithDestinations[]) ?? []).map((t) => ({
+        ...t,
+        trip_destinations: (t.trip_destinations ?? []).sort((a, b) => a.sort_order - b.sort_order),
+      }))
+      setTrips(sorted)
     }
     setLoading(false)
   }, [user])
 
   useEffect(() => {
-    // Don't attempt fetch until auth has resolved
     if (authLoading) return
     fetchTrips()
   }, [authLoading, fetchTrips])
 
   const createTrip = useCallback(
-    async (input: CreateTripInput): Promise<{ trip: Trip | null; error: string | null }> => {
+    async (input: { title: string }): Promise<{ trip: TripWithDestinations | null; error: string | null }> => {
       if (!user) return { trip: null, error: 'Not authenticated' }
-
-      const hasDates = input.start_date && input.end_date
-      const status = hasDates ? 'scheduled' : 'draft'
 
       const { data, error: insertError } = await supabase
         .from('trips')
         .insert({
           owner_id: user.id,
           title: input.title.trim(),
-          status,
-          start_date: input.start_date ?? null,
-          end_date: input.end_date ?? null,
+          status: 'aspirational',
         })
         .select()
         .single()
 
-      if (insertError) {
-        return { trip: null, error: insertError.message }
-      }
+      if (insertError) return { trip: null, error: insertError.message }
 
-      const newTrip = data as Trip
+      const newTrip: TripWithDestinations = { ...(data as Trip), trip_destinations: [] }
       trackEvent('trip_created', user.id, { trip_id: newTrip.id, status: newTrip.status })
       setTrips((prev) => [newTrip, ...prev])
       return { trip: newTrip, error: null }
     },
-    [user]
+    [user],
+  )
+
+  const createDestination = useCallback(
+    async (
+      tripId: string,
+      location: LocationSelection,
+      sortOrder: number,
+    ): Promise<{ destination: TripDestination | null; error: string | null }> => {
+      if (!user) return { destination: null, error: 'Not authenticated' }
+
+      const { data, error: insertError } = await supabase
+        .from('trip_destinations')
+        .insert({
+          trip_id: tripId,
+          location_name: location.name,
+          location_lat: location.lat,
+          location_lng: location.lng,
+          location_place_id: location.place_id,
+          sort_order: sortOrder,
+        })
+        .select()
+        .single()
+
+      if (insertError) return { destination: null, error: insertError.message }
+
+      const dest = data as TripDestination
+      trackEvent('destination_added', user.id, { trip_id: tripId, location_name: location.name })
+      setTrips((prev) =>
+        prev.map((t) =>
+          t.id === tripId
+            ? {
+                ...t,
+                trip_destinations: [...t.trip_destinations, dest].sort((a, b) => a.sort_order - b.sort_order),
+              }
+            : t,
+        ),
+      )
+      return { destination: dest, error: null }
+    },
+    [user],
   )
 
   const deleteTrip = useCallback(
     async (id: string): Promise<{ error: string | null }> => {
-      // Optimistically remove from list immediately
       setTrips((prev) => prev.filter((t) => t.id !== id))
 
-      const { error: deleteError } = await supabase
-        .from('trips')
-        .delete()
-        .eq('id', id)
-
+      const { error: deleteError } = await supabase.from('trips').delete().eq('id', id)
       if (deleteError) {
-        // Restore on failure by re-fetching
         fetchTrips()
         return { error: deleteError.message }
       }
-
       return { error: null }
     },
-    [fetchTrips]
+    [fetchTrips],
   )
 
-  return { trips, loading, createTrip, deleteTrip, refetch: fetchTrips }
+  return { trips, loading, createTrip, createDestination, deleteTrip, refetch: fetchTrips }
 }

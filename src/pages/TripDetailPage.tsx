@@ -191,7 +191,7 @@ function ScheduleTripModal({
     setError(null)
     const { data, error: dbError } = await supabase
       .from('trips')
-      .update({ status: 'draft', start_date: null, end_date: null })
+      .update({ status: 'aspirational', start_date: null, end_date: null })
       .eq('id', trip.id)
       .select()
       .single()
@@ -242,7 +242,7 @@ function ScheduleTripModal({
           </button>
           {isAlreadyScheduled && (
             <button type="button" onClick={handleUnschedule} disabled={saving} className="w-full py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50">
-              Remove dates (back to Draft)
+              Remove dates
             </button>
           )}
         </div>
@@ -1034,7 +1034,7 @@ export default function TripDetailPage() {
   // Auto-switch view mode when trip status changes
   useEffect(() => {
     if (trip?.status === 'scheduled') setViewMode('schedule')
-    else if (trip?.status === 'draft') setViewMode('list')
+    else setViewMode('list')
   }, [trip?.status])
 
   const isLoading = tripLoading || itemsLoading
@@ -1159,8 +1159,12 @@ export default function TripDetailPage() {
       <div className="mb-5">
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-2xl font-bold text-gray-900 leading-tight">{trip?.title}</h1>
-          <span className={`shrink-0 mt-1 px-2.5 py-1 rounded-full text-xs font-semibold ${isScheduled ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-            {isScheduled ? 'Scheduled' : 'Draft'}
+          <span className={`shrink-0 mt-1 px-2.5 py-1 rounded-full text-xs font-semibold ${
+            trip?.status === 'scheduled' ? 'bg-emerald-100 text-emerald-700' :
+            trip?.status === 'planning'  ? 'bg-blue-100 text-blue-700' :
+                                           'bg-gray-100 text-gray-500'
+          }`}>
+            {trip?.status === 'scheduled' ? 'Scheduled' : trip?.status === 'planning' ? 'Planning' : 'Aspirational'}
           </span>
         </div>
         {isScheduled && trip?.start_date && trip?.end_date ? (

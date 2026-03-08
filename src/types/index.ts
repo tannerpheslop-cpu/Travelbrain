@@ -2,7 +2,7 @@ export type SourceType = 'url' | 'screenshot' | 'manual'
 
 export type Category = 'restaurant' | 'activity' | 'hotel' | 'transit' | 'general'
 
-export type TripStatus = 'draft' | 'scheduled'
+export type TripStatus = 'aspirational' | 'planning' | 'scheduled'
 
 export type SharePrivacy = 'city_only' | 'city_dates' | 'full'
 
@@ -47,6 +47,20 @@ export interface Trip {
   share_token: string | null
   share_privacy: SharePrivacy | null
   forked_from_trip_id: string | null
+  created_at: string
+}
+
+export interface TripDestination {
+  id: string
+  trip_id: string
+  location_name: string
+  location_lat: number
+  location_lng: number
+  location_place_id: string
+  image_url: string | null
+  start_date: string | null
+  end_date: string | null
+  sort_order: number
   created_at: string
 }
 

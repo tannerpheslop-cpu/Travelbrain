@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { useTrips } from '../hooks/useTrips'
-import type { Trip } from '../types'
+import { useTrips, type TripWithDestinations } from '../hooks/useTrips'
+import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
+import type { TripStatus } from '../types'
 
-// Gradient options for cover image placeholders, cycled by trip index
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 const gradients = [
   'from-blue-400 to-indigo-600',
   'from-rose-400 to-pink-600',
@@ -13,6 +15,17 @@ const gradients = [
   'from-cyan-400 to-sky-600',
 ]
 
+const statusConfig: Record<TripStatus, { label: string; classes: string }> = {
+  aspirational: { label: 'Aspirational', classes: 'bg-white/90 text-gray-600' },
+  planning:     { label: 'Planning',     classes: 'bg-blue-500 text-white' },
+  scheduled:    { label: 'Scheduled',    classes: 'bg-emerald-500 text-white' },
+}
+
+/** Keep only the first segment of a Google Places name, e.g. "Chengdu, Sichuan, China" → "Chengdu" */
+function shortDestName(locationName: string): string {
+  return locationName.split(',')[0].trim()
+}
+
 function formatDateRange(start: string, end: string): string {
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }
   const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts)
@@ -20,48 +33,44 @@ function formatDateRange(start: string, end: string): string {
   return `${s} – ${e}`
 }
 
-// ─── Trip Card ───────────────────────────────────────────────────────────────
+// ── Trip Card ─────────────────────────────────────────────────────────────────
 
 function TripCard({
   trip,
   index,
   onDelete,
 }: {
-  trip: Trip
+  trip: TripWithDestinations
   index: number
   onDelete: (id: string) => void
 }) {
-  const gradient = gradients[index % gradients.length]
-  const isScheduled = trip.status === 'scheduled'
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
+  const [coverImgFailed, setCoverImgFailed] = useState(false)
+
+  const gradient = gradients[index % gradients.length]
+  const status = statusConfig[trip.status]
+  const dests = trip.trip_destinations ?? []
+
+  // Cover: first destination image → trip cover_image_url → gradient
+  const coverImage = !coverImgFailed
+    ? (dests.find((d) => d.image_url)?.image_url ?? trip.cover_image_url ?? null)
+    : null
 
   const handleMenuClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setMenuOpen((o) => !o)
-    setConfirming(false)
+    e.preventDefault(); e.stopPropagation()
+    setMenuOpen((o) => !o); setConfirming(false)
   }
-
   const handleDeleteClick = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setConfirming(true)
+    e.preventDefault(); e.stopPropagation(); setConfirming(true)
   }
-
   const handleConfirmDelete = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setMenuOpen(false)
-    setConfirming(false)
-    onDelete(trip.id)
+    e.preventDefault(); e.stopPropagation()
+    setMenuOpen(false); setConfirming(false); onDelete(trip.id)
   }
-
   const handleCancelDelete = (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setConfirming(false)
-    setMenuOpen(false)
+    e.preventDefault(); e.stopPropagation()
+    setConfirming(false); setMenuOpen(false)
   }
 
   return (
@@ -71,42 +80,58 @@ function TripCard({
         className="block bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
       >
         {/* Cover image / gradient */}
-        <div className={`h-32 bg-gradient-to-br ${gradient} relative`}>
-          {trip.cover_image_url && (
+        <div className={`h-36 bg-gradient-to-br ${gradient} relative overflow-hidden`}>
+          {coverImage && (
             <img
-              src={trip.cover_image_url}
+              src={coverImage}
               alt={trip.title}
               className="absolute inset-0 w-full h-full object-cover"
+              onError={() => setCoverImgFailed(true)}
             />
           )}
+          {/* Subtle bottom scrim for legibility */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
           {/* Status badge */}
           <div className="absolute top-3 right-3">
-            <span
-              className={`px-2.5 py-1 rounded-full text-xs font-semibold ${
-                isScheduled
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white/80 text-gray-600'
-              }`}
-            >
-              {isScheduled ? 'Scheduled' : 'Draft'}
+            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${status.classes}`}>
+              {status.label}
             </span>
           </div>
         </div>
 
         {/* Card body */}
-        <div className="px-4 py-3 pr-12">
+        <div className="px-4 pt-3 pb-3 pr-12">
           <h3 className="text-base font-semibold text-gray-900 truncate">{trip.title}</h3>
-          {isScheduled && trip.start_date && trip.end_date ? (
-            <p className="mt-0.5 text-sm text-gray-500">
-              {formatDateRange(trip.start_date, trip.end_date)}
-            </p>
+
+          {/* Destination chips */}
+          {dests.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {dests.slice(0, 5).map((d) => (
+                <span
+                  key={d.id}
+                  className="px-2.5 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium"
+                >
+                  {shortDestName(d.location_name)}
+                </span>
+              ))}
+              {dests.length > 5 && (
+                <span className="px-2.5 py-0.5 bg-gray-100 text-gray-400 rounded-full text-xs">
+                  +{dests.length - 5}
+                </span>
+              )}
+            </div>
           ) : (
-            <p className="mt-0.5 text-sm text-gray-400">No dates yet</p>
+            <p className="mt-1.5 text-xs text-gray-400">No destinations yet</p>
+          )}
+
+          {/* Date range (scheduled only) */}
+          {trip.status === 'scheduled' && trip.start_date && trip.end_date && (
+            <p className="mt-1.5 text-xs text-gray-500">{formatDateRange(trip.start_date, trip.end_date)}</p>
           )}
         </div>
       </Link>
 
-      {/* ··· menu button — sits outside the Link so clicks don't navigate */}
+      {/* ··· menu button */}
       <button
         type="button"
         onClick={handleMenuClick}
@@ -121,7 +146,6 @@ function TripCard({
       {/* Dropdown */}
       {menuOpen && (
         <>
-          {/* Click-away backdrop */}
           <div
             className="fixed inset-0 z-10"
             onClick={(e) => { e.stopPropagation(); setMenuOpen(false); setConfirming(false) }}
@@ -166,74 +190,87 @@ function TripCard({
   )
 }
 
-// ─── Create Trip Modal ────────────────────────────────────────────────────────
+// ── Create Trip Modal (2-step) ────────────────────────────────────────────────
+
+type CreateStep = 'name' | 'destinations'
 
 interface CreateTripModalProps {
   onClose: () => void
-  onCreated: (trip: Trip) => void
-  createTrip: (input: { title: string; start_date?: string | null; end_date?: string | null }) => Promise<{ trip: Trip | null; error: string | null }>
+  onCreated: () => void
+  createTrip: (input: { title: string }) => Promise<{ trip: TripWithDestinations | null; error: string | null }>
+  createDestination: (tripId: string, location: LocationSelection, sortOrder: number) => Promise<{ destination: unknown; error: string | null }>
 }
 
-function CreateTripModal({ onClose, onCreated, createTrip }: CreateTripModalProps) {
+function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: CreateTripModalProps) {
+  const [step, setStep] = useState<CreateStep>('name')
   const [title, setTitle] = useState('')
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [destinations, setDestinations] = useState<LocationSelection[]>([])
   const [saving, setSaving] = useState(false)
-  const [validationError, setValidationError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  // Incrementing key forces LocationAutocomplete to remount (and clear) after each selection
+  const [autocompleteKey, setAutocompleteKey] = useState(0)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleNextStep = (e: React.FormEvent) => {
     e.preventDefault()
-    setValidationError(null)
+    if (!title.trim()) { setError('Trip name is required.'); return }
+    setError(null)
+    setStep('destinations')
+  }
 
-    if (!title.trim()) {
-      setValidationError('Trip name is required.')
-      return
-    }
+  const handleLocationSelect = (loc: LocationSelection | null) => {
+    if (!loc) return
+    if (destinations.some((d) => d.place_id === loc.place_id)) return
+    setDestinations((prev) => [...prev, loc])
+    setAutocompleteKey((k) => k + 1)
+  }
 
-    if ((startDate && !endDate) || (!startDate && endDate)) {
-      setValidationError('Please provide both a start and end date, or leave both empty.')
-      return
-    }
+  const removeDestination = (placeId: string) => {
+    setDestinations((prev) => prev.filter((d) => d.place_id !== placeId))
+  }
 
-    if (startDate && endDate && endDate < startDate) {
-      setValidationError('End date must be after start date.')
-      return
-    }
-
+  const handleCreate = async () => {
     setSaving(true)
-    const { trip, error } = await createTrip({
-      title,
-      start_date: startDate || null,
-      end_date: endDate || null,
-    })
-    setSaving(false)
-
-    if (error) {
-      setValidationError(error)
+    setError(null)
+    const { trip, error: tripError } = await createTrip({ title })
+    if (tripError || !trip) {
+      setError(tripError ?? 'Failed to create trip.')
+      setSaving(false)
       return
     }
-
-    if (trip) {
-      onCreated(trip)
+    for (let i = 0; i < destinations.length; i++) {
+      await createDestination(trip.id, destinations[i], i)
     }
+    onCreated()
   }
 
   return (
-    /* Backdrop */
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      {/* Dim */}
       <div className="absolute inset-0 bg-black/40" />
+      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
+        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden" />
 
-      {/* Sheet */}
-      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl px-5 pt-6 pb-8 shadow-xl">
-        {/* Handle (mobile) */}
-        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mb-5 sm:hidden" />
-
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-gray-900">New Trip</h2>
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2.5">
+            {step === 'destinations' && (
+              <button
+                type="button"
+                onClick={() => setStep('name')}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Back"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                  <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
+                </svg>
+              </button>
+            )}
+            <h2 className="text-base font-semibold text-gray-900">
+              {step === 'name' ? 'New Trip' : title}
+            </h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -246,100 +283,109 @@ function CreateTripModal({ onClose, onCreated, createTrip }: CreateTripModalProp
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Trip name */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Trip name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="e.g. Japan 2026"
-              autoFocus
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
-            />
-          </div>
+        <div className="px-5 py-5">
+          {/* ── Step 1: Name ── */}
+          {step === 'name' && (
+            <form onSubmit={handleNextStep} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Trip name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => { setTitle(e.target.value); setError(null) }}
+                  placeholder="e.g. China 2026"
+                  autoFocus
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+                />
+              </div>
+              {error && <p className="text-sm text-red-600">{error}</p>}
+              <button
+                type="submit"
+                disabled={!title.trim()}
+                className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next: Add Destinations
+              </button>
+            </form>
+          )}
 
-          {/* Dates row */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Start date <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                max={endDate || undefined}
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
+          {/* ── Step 2: Destinations ── */}
+          {step === 'destinations' && (
+            <div className="space-y-4">
+              <LocationAutocomplete
+                key={autocompleteKey}
+                value=""
+                onSelect={handleLocationSelect}
+                label="Add a destination"
+                optional={false}
+                placeholder="e.g. Beijing, Tokyo, Paris"
               />
+
+              {/* Added destinations list */}
+              {destinations.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">
+                    {destinations.length} destination{destinations.length !== 1 ? 's' : ''} added
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {destinations.map((d) => (
+                      <div
+                        key={d.place_id}
+                        className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-blue-50 border border-blue-200 rounded-full"
+                      >
+                        <span className="text-sm font-medium text-blue-800">{shortDestName(d.name)}</span>
+                        <button
+                          type="button"
+                          onClick={() => removeDestination(d.place_id)}
+                          className="text-blue-400 hover:text-blue-700 transition-colors"
+                          aria-label={`Remove ${d.name}`}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                            <path d="M5.28 4.22a.75.75 0 00-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 101.06 1.06L8 9.06l2.72 2.72a.75.75 0 101.06-1.06L9.06 8l2.72-2.72a.75.75 0 00-1.06-1.06L8 6.94 5.28 4.22z" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {error && <p className="text-sm text-red-600">{error}</p>}
+
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleCreate}
+                  disabled={saving}
+                  className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {saving
+                    ? 'Creating…'
+                    : destinations.length === 0
+                    ? 'Create Trip'
+                    : `Create Trip with ${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`}
+                </button>
+                {destinations.length === 0 && (
+                  <p className="text-center text-xs text-gray-400">
+                    You can add destinations later from the trip page
+                  </p>
+                )}
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                End date <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                min={startDate || undefined}
-                className="w-full px-4 py-3 bg-white border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
-              />
-            </div>
-          </div>
-
-          {/* Date hint */}
-          {(startDate || endDate) && (
-            <p className="text-xs text-blue-600 -mt-1">
-              Dates set — trip will be created as <strong>Scheduled</strong>.
-            </p>
           )}
-          {!startDate && !endDate && (
-            <p className="text-xs text-gray-400 -mt-1">
-              No dates — trip will be created as <strong>Draft</strong>.
-            </p>
-          )}
-
-          {/* Validation error */}
-          {validationError && (
-            <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{validationError}</p>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={saving || !title.trim()}
-              className="flex-1 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {saving ? 'Creating…' : 'Create Trip'}
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   )
 }
 
-// ─── Trips Page ───────────────────────────────────────────────────────────────
+// ── Trips Page ────────────────────────────────────────────────────────────────
 
 export default function TripsPage() {
-  const { trips, loading, createTrip, deleteTrip } = useTrips()
+  const { trips, loading, createTrip, createDestination, deleteTrip } = useTrips()
   const [showModal, setShowModal] = useState(false)
-
-  const handleCreated = () => {
-    setShowModal(false)
-    // trips list is updated optimistically inside the hook
-  }
 
   return (
     <div className="px-4 pt-6 pb-24">
@@ -364,15 +410,15 @@ export default function TripsPage() {
       {/* Loading Skeletons */}
       {loading && (
         <div className="mt-5 space-y-4">
-          {[
-            'from-blue-300 to-indigo-400',
-            'from-rose-300 to-pink-400',
-          ].map((g, i) => (
+          {['from-blue-300 to-indigo-400', 'from-rose-300 to-pink-400'].map((g, i) => (
             <div key={i} className="animate-pulse bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-              <div className={`h-32 bg-gradient-to-br ${g} opacity-60`} />
-              <div className="px-4 py-3 space-y-2">
+              <div className={`h-36 bg-gradient-to-br ${g} opacity-60`} />
+              <div className="px-4 py-3 space-y-2.5">
                 <div className="h-4 bg-gray-200 rounded-full w-2/5" />
-                <div className="h-3 bg-gray-100 rounded-full w-1/3" />
+                <div className="flex gap-2">
+                  <div className="h-5 bg-gray-100 rounded-full w-16" />
+                  <div className="h-5 bg-gray-100 rounded-full w-14" />
+                </div>
               </div>
             </div>
           ))}
@@ -397,11 +443,13 @@ export default function TripsPage() {
             </svg>
           </div>
           <p className="mt-4 text-gray-800 font-semibold">No trips yet</p>
-          <p className="mt-1.5 text-sm text-gray-400 leading-relaxed">Start planning your next adventure — tap <strong className="font-medium text-gray-500">New Trip</strong> to create one.</p>
+          <p className="mt-1.5 text-sm text-gray-400 leading-relaxed">
+            Start planning your next adventure — tap <strong className="font-medium text-gray-500">New Trip</strong> to create one.
+          </p>
         </div>
       )}
 
-      {/* Trip Cards Grid */}
+      {/* Trip Cards */}
       {!loading && trips.length > 0 && (
         <div className="mt-5 space-y-4">
           {trips.map((trip, index) => (
@@ -414,8 +462,9 @@ export default function TripsPage() {
       {showModal && (
         <CreateTripModal
           onClose={() => setShowModal(false)}
-          onCreated={handleCreated}
+          onCreated={() => setShowModal(false)}
           createTrip={createTrip}
+          createDestination={createDestination}
         />
       )}
     </div>
