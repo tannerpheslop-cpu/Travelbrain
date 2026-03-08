@@ -116,11 +116,45 @@ export default function InboxPage() {
 
     setAllTripItems([])
     if (fetchedTrips.length > 0) {
-      const { data: tripItemsData } = await supabase
-        .from('trip_items')
-        .select('trip_id, item_id')
-        .in('trip_id', fetchedTrips.map((t) => t.id))
-      setAllTripItems((tripItemsData as { trip_id: string; item_id: string }[]) ?? [])
+      const tripIds = fetchedTrips.map((t) => t.id)
+
+      const { data: destRows } = await supabase
+        .from('trip_destinations')
+        .select('id, trip_id')
+        .in('trip_id', tripIds)
+
+      const destMap = new Map(
+        (destRows ?? []).map((d: { id: string; trip_id: string }) => [d.id, d.trip_id]),
+      )
+      const destIds = [...destMap.keys()]
+
+      const [diRes, giRes] = await Promise.all([
+        destIds.length > 0
+          ? supabase
+              .from('destination_items')
+              .select('item_id, destination_id')
+              .in('destination_id', destIds)
+          : Promise.resolve({ data: [] as { item_id: string; destination_id: string }[], error: null }),
+        supabase
+          .from('trip_general_items')
+          .select('item_id, trip_id')
+          .in('trip_id', tripIds),
+      ])
+
+      const combined: { trip_id: string; item_id: string }[] = [
+        ...(diRes.data ?? [])
+          .map((di: { item_id: string; destination_id: string }) => ({
+            item_id: di.item_id,
+            trip_id: destMap.get(di.destination_id) ?? '',
+          }))
+          .filter((x: { trip_id: string; item_id: string }) => x.trip_id !== ''),
+        ...(giRes.data ?? []).map((gi: { item_id: string; trip_id: string }) => ({
+          item_id: gi.item_id,
+          trip_id: gi.trip_id,
+        })),
+      ]
+
+      setAllTripItems(combined)
     }
 
     setLoading(false)
@@ -128,11 +162,45 @@ export default function InboxPage() {
 
   const refreshTripItems = async () => {
     if (!user || trips.length === 0) return
-    const { data } = await supabase
-      .from('trip_items')
-      .select('trip_id, item_id')
-      .in('trip_id', trips.map((t) => t.id))
-    setAllTripItems((data as { trip_id: string; item_id: string }[]) ?? [])
+    const tripIds = trips.map((t) => t.id)
+
+    const { data: destRows } = await supabase
+      .from('trip_destinations')
+      .select('id, trip_id')
+      .in('trip_id', tripIds)
+
+    const destMap = new Map(
+      (destRows ?? []).map((d: { id: string; trip_id: string }) => [d.id, d.trip_id]),
+    )
+    const destIds = [...destMap.keys()]
+
+    const [diRes, giRes] = await Promise.all([
+      destIds.length > 0
+        ? supabase
+            .from('destination_items')
+            .select('item_id, destination_id')
+            .in('destination_id', destIds)
+        : Promise.resolve({ data: [] as { item_id: string; destination_id: string }[], error: null }),
+      supabase
+        .from('trip_general_items')
+        .select('item_id, trip_id')
+        .in('trip_id', tripIds),
+    ])
+
+    const combined: { trip_id: string; item_id: string }[] = [
+      ...(diRes.data ?? [])
+        .map((di: { item_id: string; destination_id: string }) => ({
+          item_id: di.item_id,
+          trip_id: destMap.get(di.destination_id) ?? '',
+        }))
+        .filter((x: { trip_id: string; item_id: string }) => x.trip_id !== ''),
+      ...(giRes.data ?? []).map((gi: { item_id: string; trip_id: string }) => ({
+        item_id: gi.item_id,
+        trip_id: gi.trip_id,
+      })),
+    ]
+
+    setAllTripItems(combined)
   }
 
   useEffect(() => {
