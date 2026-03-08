@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -45,6 +45,24 @@ function formatDateRange(start: string, end: string): string {
   const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts)
   const e = new Date(end + 'T00:00:00').toLocaleDateString('en-US', opts)
   return `${s} – ${e}`
+}
+
+// ── Shared icon fragments ─────────────────────────────────────────────────────
+
+function PlaceholderIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
+      <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6z" clipRule="evenodd" />
+    </svg>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+      <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+    </svg>
+  )
 }
 
 // ── Add / Edit Dates Modal ────────────────────────────────────────────────────
@@ -111,9 +129,7 @@ function AddDatesModal({
             className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
             aria-label="Close"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-            </svg>
+            <CloseIcon />
           </button>
         </div>
         <div className="px-5 py-5 space-y-4">
@@ -164,7 +180,7 @@ function AddDatesModal({
   )
 }
 
-// ── Item Card ─────────────────────────────────────────────────────────────────
+// ── Linked Item Card ──────────────────────────────────────────────────────────
 
 function LinkedItemCard({
   item,
@@ -179,24 +195,15 @@ function LinkedItemCard({
 
   return (
     <div className="flex items-center gap-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      {/* Thumbnail — taps through to item detail */}
       <Link to={`/item/${item.id}`} className="shrink-0">
         {item.image_url ? (
-          <img
-            src={item.image_url}
-            alt={item.title}
-            className="w-16 h-16 object-cover bg-gray-100"
-          />
+          <img src={item.image_url} alt={item.title} className="w-16 h-16 object-cover bg-gray-100" />
         ) : (
           <div className={`w-16 h-16 flex items-center justify-center ${colors.bg}`}>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-gray-300">
-              <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6z" clipRule="evenodd" />
-            </svg>
+            <PlaceholderIcon className="w-6 h-6 text-gray-300" />
           </div>
         )}
       </Link>
-
-      {/* Text content — taps through to item detail */}
       <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-2.5">
         <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
         {item.location_name && (
@@ -206,8 +213,6 @@ function LinkedItemCard({
           {categoryLabel[item.category]}
         </span>
       </Link>
-
-      {/* Remove button */}
       <button
         type="button"
         onClick={() => onRemove(linkId)}
@@ -229,7 +234,7 @@ function SuggestionCard({
   onAdd,
 }: {
   item: SavedItem
-  onAdd: (item: SavedItem) => void
+  onAdd: (item: SavedItem) => Promise<void>
 }) {
   const colors = categoryColors[item.category]
   const [adding, setAdding] = useState(false)
@@ -237,28 +242,18 @@ function SuggestionCard({
   const handleAdd = async () => {
     setAdding(true)
     await onAdd(item)
-    // Note: if onAdd removes this card, the component unmounts — that's fine
     setAdding(false)
   }
 
   return (
     <div className="flex items-center gap-0 bg-blue-50 border border-blue-100 rounded-2xl overflow-hidden">
-      {/* Thumbnail */}
       {item.image_url ? (
-        <img
-          src={item.image_url}
-          alt={item.title}
-          className="w-14 h-14 object-cover bg-gray-100 shrink-0"
-        />
+        <img src={item.image_url} alt={item.title} className="w-14 h-14 object-cover bg-gray-100 shrink-0" />
       ) : (
         <div className={`w-14 h-14 shrink-0 flex items-center justify-center ${colors.bg}`}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-gray-300">
-            <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6z" clipRule="evenodd" />
-          </svg>
+          <PlaceholderIcon className="w-5 h-5 text-gray-300" />
         </div>
       )}
-
-      {/* Content */}
       <div className="flex-1 min-w-0 px-3 py-2.5">
         <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
         {item.location_name && (
@@ -268,8 +263,6 @@ function SuggestionCard({
           {categoryLabel[item.category]}
         </span>
       </div>
-
-      {/* Add button */}
       <button
         type="button"
         onClick={handleAdd}
@@ -281,6 +274,195 @@ function SuggestionCard({
         </svg>
         {adding ? '…' : 'Add'}
       </button>
+    </div>
+  )
+}
+
+// ── Inbox Picker Row ──────────────────────────────────────────────────────────
+
+function InboxPickerRow({
+  item,
+  onAdd,
+}: {
+  item: SavedItem
+  onAdd: (item: SavedItem) => Promise<void>
+}) {
+  const colors = categoryColors[item.category]
+  const [adding, setAdding] = useState(false)
+
+  const handleTap = async () => {
+    if (adding) return
+    setAdding(true)
+    await onAdd(item)
+    setAdding(false)
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleTap}
+      disabled={adding}
+      className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-60 text-left"
+    >
+      {/* Thumbnail */}
+      {item.image_url ? (
+        <img
+          src={item.image_url}
+          alt={item.title}
+          className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0"
+        />
+      ) : (
+        <div className={`w-12 h-12 rounded-xl shrink-0 flex items-center justify-center ${colors.bg}`}>
+          <PlaceholderIcon className="w-5 h-5 text-gray-300" />
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
+        {item.location_name && (
+          <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>
+        )}
+      </div>
+
+      {/* Spinner while adding */}
+      {adding && (
+        <div className="shrink-0 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+      )}
+    </button>
+  )
+}
+
+// ── Add from Inbox Sheet ──────────────────────────────────────────────────────
+
+function AddFromInboxSheet({
+  items,
+  linkedItemIds,
+  loading,
+  onAdd,
+  onClose,
+}: {
+  items: SavedItem[]
+  linkedItemIds: Set<string>
+  loading: boolean
+  onAdd: (item: SavedItem) => Promise<void>
+  onClose: () => void
+}) {
+  const [search, setSearch] = useState('')
+  const searchRef = useRef<HTMLInputElement>(null)
+
+  // Focus search bar after mount (slight delay allows the sheet animation to start)
+  useEffect(() => {
+    const t = setTimeout(() => searchRef.current?.focus(), 120)
+    return () => clearTimeout(t)
+  }, [])
+
+  const q = search.trim().toLowerCase()
+
+  const visible = items
+    .filter((item) => !linkedItemIds.has(item.id))
+    .filter((item) =>
+      !q ||
+      item.title.toLowerCase().includes(q) ||
+      (item.location_name?.toLowerCase().includes(q) ?? false),
+    )
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative w-full max-w-lg bg-white rounded-t-3xl shadow-xl flex flex-col max-h-[82vh]">
+
+        {/* Drag handle */}
+        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 shrink-0" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
+          <h2 className="text-base font-semibold text-gray-900">Add from Inbox</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label="Close"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+
+        {/* Search bar (sticky below header) */}
+        <div className="px-4 py-3 border-b border-gray-100 shrink-0">
+          <div className="relative">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+            >
+              <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
+            </svg>
+            <input
+              ref={searchRef}
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search your inbox…"
+              className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                aria-label="Clear search"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
+                  <path d="M5.28 4.22a.75.75 0 00-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 101.06 1.06L8 9.06l2.72 2.72a.75.75 0 101.06-1.06L9.06 8l2.72-2.72a.75.75 0 00-1.06-1.06L8 6.94 5.28 4.22z" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Scrollable list */}
+        <div className="overflow-y-auto flex-1 px-4 py-2 pb-6">
+          {loading ? (
+            <div className="space-y-1 animate-pulse py-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="flex items-center gap-3 px-2 py-2">
+                  <div className="w-12 h-12 rounded-xl bg-gray-100 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-100 rounded w-3/4" />
+                    <div className="h-3 bg-gray-100 rounded w-1/2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : visible.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-sm text-gray-500 font-medium">
+                {q ? 'No items match your search' : 'All inbox items are already added'}
+              </p>
+              {q && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+                >
+                  Clear search
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-0.5">
+              {visible.map((item) => (
+                <InboxPickerRow key={item.id} item={item} onAdd={onAdd} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -299,6 +481,12 @@ export default function DestinationPage() {
   const [linkedItems, setLinkedItems] = useState<LinkedItem[]>([])
   const [suggestions, setSuggestions] = useState<SavedItem[]>([])
   const [itemsLoading, setItemsLoading] = useState(true)
+
+  // Inbox sheet state
+  const [showInboxSheet, setShowInboxSheet] = useState(false)
+  const [inboxItems, setInboxItems] = useState<SavedItem[]>([])
+  const [inboxLoading, setInboxLoading] = useState(false)
+  const inboxFetched = useRef(false)
 
   const [showAddDates, setShowAddDates] = useState(false)
 
@@ -324,7 +512,6 @@ export default function DestinationPage() {
         setDestination(dest)
         setDestLoading(false)
 
-        // Fetch linked items and bounding-box suggestions in parallel
         const [linkedResult, suggestResult] = await Promise.all([
           supabase
             .from('destination_items')
@@ -338,7 +525,6 @@ export default function DestinationPage() {
             .eq('is_archived', false)
             .not('location_lat', 'is', null)
             .not('location_lng', 'is', null)
-            // ±0.45 degrees ≈ 50 km bounding box
             .gte('location_lat', dest.location_lat - 0.45)
             .lte('location_lat', dest.location_lat + 0.45)
             .gte('location_lng', dest.location_lng - 0.45)
@@ -364,16 +550,99 @@ export default function DestinationPage() {
       })
   }, [destId, user])
 
+  // ── Open inbox sheet (lazy-fetch on first open) ─────────────────────────────
+
+  const handleOpenInboxSheet = async () => {
+    setShowInboxSheet(true)
+    if (inboxFetched.current || !user) return
+    setInboxLoading(true)
+    const { data } = await supabase
+      .from('saved_items')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('is_archived', false)
+      .order('created_at', { ascending: false })
+    inboxFetched.current = true
+    setInboxItems((data ?? []) as SavedItem[])
+    setInboxLoading(false)
+  }
+
+  // ── Shared link-item core (insert + state update + status progression) ───────
+
+  const handleLinkItem = async (item: SavedItem): Promise<boolean> => {
+    if (!destId) return false
+
+    const { data, error } = await supabase
+      .from('destination_items')
+      .insert({
+        destination_id: destId,
+        item_id: item.id,
+        day_index: null,
+        sort_order: linkedItems.length,
+      })
+      .select()
+      .single()
+
+    if (error || !data) return false
+
+    const row = data as {
+      id: string
+      destination_id: string
+      item_id: string
+      day_index: number | null
+      sort_order: number
+    }
+    const newLinked: LinkedItem = { ...row, saved_item: item }
+
+    setLinkedItems((prev) => [...prev, newLinked])
+    // Remove from nearby suggestions if present
+    setSuggestions((prev) => prev.filter((s) => s.id !== item.id))
+
+    // Status progression: aspirational → planning (belt-and-suspenders alongside DB trigger)
+    if (tripId) {
+      supabase
+        .from('trips')
+        .update({ status: 'planning' })
+        .eq('id', tripId)
+        .eq('status', 'aspirational')
+        .then(() => {/* no-op */})
+        .catch(() => {/* DB trigger is authoritative */})
+    }
+
+    return true
+  }
+
+  // ── Accept a nearby suggestion ──────────────────────────────────────────────
+
+  const handleAddSuggestion = async (item: SavedItem) => {
+    const ok = await handleLinkItem(item)
+    if (ok) {
+      trackEvent('nearby_suggestion_accepted', user?.id ?? null, {
+        destination_id: destId,
+        item_id: item.id,
+      })
+    }
+  }
+
+  // ── Add an item from the inbox sheet ───────────────────────────────────────
+
+  const handleAddFromInbox = async (item: SavedItem) => {
+    const ok = await handleLinkItem(item)
+    if (ok) {
+      trackEvent('item_added_to_destination', user?.id ?? null, {
+        destination_id: destId,
+        item_id: item.id,
+      })
+    }
+  }
+
   // ── Remove a linked item ────────────────────────────────────────────────────
 
   const handleRemoveItem = async (linkId: string) => {
-    // Capture the removed item before mutating state
     const removed = linkedItems.find((li) => li.id === linkId)
-
-    // Optimistically remove from UI
     setLinkedItems((prev) => prev.filter((li) => li.id !== linkId))
 
-    // If it has nearby location data, put it back in suggestions
+    // If nearby, put back in suggestions
     if (removed && removed.saved_item.location_lat != null && destination) {
       const lat = removed.saved_item.location_lat
       const lng = removed.saved_item.location_lng!
@@ -386,54 +655,6 @@ export default function DestinationPage() {
     }
 
     await supabase.from('destination_items').delete().eq('id', linkId)
-  }
-
-  // ── Accept a nearby suggestion ──────────────────────────────────────────────
-
-  const handleAddSuggestion = async (item: SavedItem) => {
-    if (!destId) return
-
-    const sortOrder = linkedItems.length
-    const { data, error } = await supabase
-      .from('destination_items')
-      .insert({
-        destination_id: destId,
-        item_id: item.id,
-        day_index: null,
-        sort_order: sortOrder,
-      })
-      .select()
-      .single()
-
-    if (!error && data) {
-      const row = data as {
-        id: string
-        destination_id: string
-        item_id: string
-        day_index: number | null
-        sort_order: number
-      }
-      const newLinked: LinkedItem = { ...row, saved_item: item }
-      setLinkedItems((prev) => [...prev, newLinked])
-      setSuggestions((prev) => prev.filter((s) => s.id !== item.id))
-      trackEvent('nearby_suggestion_accepted', user?.id ?? null, {
-        destination_id: destId,
-        item_id: item.id,
-      })
-
-      // Status progression: advance trip aspirational → planning.
-      // Belt-and-suspenders alongside the DB trigger in the migration.
-      // The conditional update is always a no-op if already planning/scheduled.
-      if (tripId) {
-        supabase
-          .from('trips')
-          .update({ status: 'planning' })
-          .eq('id', tripId)
-          .eq('status', 'aspirational')
-          .then(() => {/* trip status updated */})
-          .catch(() => {/* non-critical — DB trigger is authoritative */})
-      }
-    }
   }
 
   // ── Loading / not-found states ──────────────────────────────────────────────
@@ -486,6 +707,9 @@ export default function DestinationPage() {
   const cityName = shortName(dest.location_name)
   const fullName = dest.location_name !== cityName ? dest.location_name : null
 
+  // Derived set for the inbox sheet filter — reactive to linkedItems changes
+  const linkedItemIds = new Set(linkedItems.map((li) => li.item_id))
+
   return (
     <div className="pb-24">
 
@@ -493,18 +717,13 @@ export default function DestinationPage() {
       <div className="h-52 relative overflow-hidden">
         {dest.image_url ? (
           <>
-            <img
-              src={dest.image_url}
-              alt={cityName}
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            <img src={dest.image_url} alt={cityName} className="absolute inset-0 w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/65 to-black/5" />
           </>
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${HERO_GRADIENT}`} />
         )}
 
-        {/* Back button */}
         <button
           type="button"
           onClick={() => navigate(`/trip/${tripId}`)}
@@ -516,12 +735,9 @@ export default function DestinationPage() {
           Back
         </button>
 
-        {/* City name overlay */}
         <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 z-10">
           <h1 className="text-3xl font-bold text-white drop-shadow leading-tight">{cityName}</h1>
-          {fullName && (
-            <p className="text-white/75 text-sm mt-0.5">{fullName}</p>
-          )}
+          {fullName && <p className="text-white/75 text-sm mt-0.5">{fullName}</p>}
         </div>
       </div>
 
@@ -537,11 +753,7 @@ export default function DestinationPage() {
                 {formatDateRange(dest.start_date, dest.end_date)}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowAddDates(true)}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
-            >
+            <button type="button" onClick={() => setShowAddDates(true)} className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors">
               Edit
             </button>
           </div>
@@ -565,13 +777,13 @@ export default function DestinationPage() {
       {/* ── Items list ────────────────────────────────────────────────────────── */}
       <div className="px-4 pt-4">
 
-        {/* Loading skeleton */}
+        {/* Skeleton */}
         {itemsLoading && (
           <div className="space-y-2 animate-pulse">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 overflow-hidden">
+              <div key={i} className="flex items-center bg-white rounded-2xl border border-gray-100 overflow-hidden">
                 <div className="w-16 h-16 bg-gray-100 shrink-0" />
-                <div className="flex-1 space-y-2 py-2.5 pr-3">
+                <div className="flex-1 space-y-2 py-2.5 px-3">
                   <div className="h-4 bg-gray-100 rounded w-3/4" />
                   <div className="h-3 bg-gray-100 rounded w-1/2" />
                 </div>
@@ -588,7 +800,7 @@ export default function DestinationPage() {
             </svg>
             <p className="text-sm text-gray-500 font-medium">No places saved here yet</p>
             <p className="mt-1 text-xs text-gray-400 leading-relaxed max-w-xs mx-auto">
-              Save items from your inbox nearby and they'll appear as suggestions below
+              Add from your inbox below, or save items nearby and they'll appear as suggestions
             </p>
           </div>
         )}
@@ -604,6 +816,22 @@ export default function DestinationPage() {
                 onRemove={handleRemoveItem}
               />
             ))}
+          </div>
+        )}
+
+        {/* ── Add from Inbox button ────────────────────────────────────────────── */}
+        {!itemsLoading && (
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={handleOpenInboxSheet}
+              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+              </svg>
+              Add from Inbox
+            </button>
           </div>
         )}
 
@@ -627,6 +855,17 @@ export default function DestinationPage() {
           </div>
         )}
       </div>
+
+      {/* ── Add from Inbox Sheet ───────────────────────────────────────────────── */}
+      {showInboxSheet && (
+        <AddFromInboxSheet
+          items={inboxItems}
+          linkedItemIds={linkedItemIds}
+          loading={inboxLoading}
+          onAdd={handleAddFromInbox}
+          onClose={() => setShowInboxSheet(false)}
+        />
+      )}
 
       {/* ── Add / Edit Dates Modal ────────────────────────────────────────────── */}
       {showAddDates && destination && (
