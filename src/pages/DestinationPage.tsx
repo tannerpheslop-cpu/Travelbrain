@@ -420,6 +420,19 @@ export default function DestinationPage() {
         destination_id: destId,
         item_id: item.id,
       })
+
+      // Status progression: advance trip aspirational → planning.
+      // Belt-and-suspenders alongside the DB trigger in the migration.
+      // The conditional update is always a no-op if already planning/scheduled.
+      if (tripId) {
+        supabase
+          .from('trips')
+          .update({ status: 'planning' })
+          .eq('id', tripId)
+          .eq('status', 'aspirational')
+          .then(() => {/* trip status updated */})
+          .catch(() => {/* non-critical — DB trigger is authoritative */})
+      }
     }
   }
 
