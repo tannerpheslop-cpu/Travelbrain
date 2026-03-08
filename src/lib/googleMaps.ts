@@ -38,3 +38,39 @@ export function loadGoogleMapsScript(): Promise<void> {
 
   return _promise
 }
+
+/**
+ * Fetches a representative photo URL for a Google Place using the Places JS API.
+ * Uses PlacesService.getDetails with fields: ['photos'].
+ * Returns null if no photo is available, the API is unavailable, or any error occurs.
+ */
+export async function fetchPlacePhoto(placeId: string): Promise<string | null> {
+  try {
+    await loadGoogleMapsScript()
+    if (!window.google?.maps?.places) return null
+
+    return new Promise<string | null>((resolve) => {
+      const service = new window.google.maps.places.PlacesService(
+        document.createElement('div'),
+      )
+      service.getDetails(
+        { placeId, fields: ['photos'] },
+        (
+          result: google.maps.places.PlaceResult | null,
+          status: google.maps.places.PlacesServiceStatus,
+        ) => {
+          if (
+            status === window.google.maps.places.PlacesServiceStatus.OK &&
+            result?.photos?.length
+          ) {
+            resolve(result.photos[0].getUrl({ maxWidth: 800, maxHeight: 600 }))
+          } else {
+            resolve(null)
+          }
+        },
+      )
+    })
+  } catch {
+    return null
+  }
+}

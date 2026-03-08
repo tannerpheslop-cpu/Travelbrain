@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTrips, type TripWithDestinations } from '../hooks/useTrips'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
+import { fetchPlacePhoto } from '../lib/googleMaps'
 import type { TripStatus } from '../types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -198,7 +199,7 @@ interface CreateTripModalProps {
   onClose: () => void
   onCreated: () => void
   createTrip: (input: { title: string }) => Promise<{ trip: TripWithDestinations | null; error: string | null }>
-  createDestination: (tripId: string, location: LocationSelection, sortOrder: number) => Promise<{ destination: unknown; error: string | null }>
+  createDestination: (tripId: string, location: LocationSelection, sortOrder: number, imageUrl?: string) => Promise<{ destination: unknown; error: string | null }>
 }
 
 function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: CreateTripModalProps) {
@@ -231,15 +232,26 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
   const handleCreate = async () => {
     setSaving(true)
     setError(null)
-    const { trip, error: tripError } = await createTrip({ title })
+
+    // Run trip creation and all photo fetches in parallel for speed
+    const [tripResult, photoUrls] = await Promise.all([
+      createTrip({ title }),
+      Promise.all(destinations.map((d) => fetchPlacePhoto(d.place_id).catch(() => null))),
+    ])
+
+    const { trip, error: tripError } = tripResult
     if (tripError || !trip) {
       setError(tripError ?? 'Failed to create trip.')
       setSaving(false)
       return
     }
-    for (let i = 0; i < destinations.length; i++) {
-      await createDestination(trip.id, destinations[i], i)
-    }
+
+    // Insert all destinations in parallel with their photos
+    await Promise.all(
+      destinations.map((d, i) =>
+        createDestination(trip.id, d, i, photoUrls[i] ?? undefined),
+      ),
+    )
     onCreated()
   }
 

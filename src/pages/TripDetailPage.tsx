@@ -7,6 +7,7 @@ import { useCompanions } from '../hooks/useCompanions'
 import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
 import type { Trip, TripDestination, SavedItem, Category, SharePrivacy } from '../types'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
+import { fetchPlacePhoto } from '../lib/googleMaps'
 import {
   DndContext,
   closestCenter,
@@ -462,9 +463,24 @@ function DestinationCard({
       onClick={handleCardClick}
       style={{ cursor: 'pointer' }}
     >
-      {/* Gradient header with city name */}
-      <div className={`h-20 bg-gradient-to-br ${gradient} relative flex items-end px-4 pb-3`}>
-        <span className="text-white text-base font-bold drop-shadow-sm leading-tight">
+      {/* Photo header (or gradient fallback) with city name overlay */}
+      <div className="h-20 relative overflow-hidden flex items-end px-4 pb-3">
+        {/* Background layer: real photo or colour gradient */}
+        {destination.image_url ? (
+          <>
+            <img
+              src={destination.image_url}
+              alt={shortDestName(destination.location_name)}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            {/* Dark scrim so white text stays legible over any photo */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-black/10" />
+          </>
+        ) : (
+          <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
+        )}
+
+        <span className="relative z-10 text-white text-base font-bold drop-shadow-sm leading-tight">
           {shortDestName(destination.location_name)}
         </span>
         {/* Drag handle */}
@@ -473,7 +489,7 @@ function DestinationCard({
           onClick={(e) => e.stopPropagation()}
           {...(dragHandleAttributes as React.HTMLAttributes<HTMLButtonElement>)}
           {...(dragHandleListeners as React.HTMLAttributes<HTMLButtonElement>)}
-          className="absolute top-2.5 right-10 p-1.5 rounded-full bg-white/20 hover:bg-white/35 text-white/80 hover:text-white touch-none cursor-grab active:cursor-grabbing transition-colors"
+          className="absolute top-2.5 right-10 z-10 p-1.5 rounded-full bg-white/20 hover:bg-white/35 text-white/80 hover:text-white touch-none cursor-grab active:cursor-grabbing transition-colors"
           aria-label="Drag to reorder"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -484,7 +500,7 @@ function DestinationCard({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); setConfirming(false) }}
-          className="absolute top-2.5 right-2 p-1.5 rounded-full bg-white/20 hover:bg-white/35 text-white/80 hover:text-white transition-colors"
+          className="absolute top-2.5 right-2 z-10 p-1.5 rounded-full bg-white/20 hover:bg-white/35 text-white/80 hover:text-white transition-colors"
           aria-label="Destination options"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -779,26 +795,46 @@ export default function TripDetailPage() {
   const handleAddDestination = async (loc: LocationSelection | null) => {
     if (!loc || !id) return
     setAddingDest(true)
-    const { data, error } = await supabase
-      .from('trip_destinations')
-      .insert({
-        trip_id: id,
-        location_name: loc.name,
-        location_lat: loc.lat,
-        location_lng: loc.lng,
-        location_place_id: loc.place_id,
-        sort_order: destinations.length,
-      })
-      .select()
-      .single()
+
+    // Run DB insert and Places photo fetch in parallel
+    const [insertResult, photoUrl] = await Promise.all([
+      supabase
+        .from('trip_destinations')
+        .insert({
+          trip_id: id,
+          location_name: loc.name,
+          location_lat: loc.lat,
+          location_lng: loc.lng,
+          location_place_id: loc.place_id,
+          sort_order: destinations.length,
+        })
+        .select()
+        .single(),
+      fetchPlacePhoto(loc.place_id).catch(() => null),
+    ])
+
+    const { data, error } = insertResult
     setAddingDest(false)
-    if (!error && data) {
-      const newDest: DestinationWithItems = { ...(data as TripDestination), destination_items: [] }
-      setDestinations((prev) => [...prev, newDest])
-      trackEvent('destination_added', user?.id ?? null, { trip_id: id, location_name: loc.name })
-    }
     setShowAddDest(false)
     setAddDestKey((k) => k + 1)
+
+    if (!error && data) {
+      // Optimistically set image_url in local state immediately
+      const destData: TripDestination = { ...(data as TripDestination), image_url: photoUrl ?? null }
+      const newDest: DestinationWithItems = { ...destData, destination_items: [] }
+      setDestinations((prev) => [...prev, newDest])
+      trackEvent('destination_added', user?.id ?? null, { trip_id: id, location_name: loc.name })
+
+      // Persist photo URL to DB (fire and forget — local state already has it)
+      if (photoUrl) {
+        supabase
+          .from('trip_destinations')
+          .update({ image_url: photoUrl })
+          .eq('id', data.id)
+          .then(() => {/* no-op */})
+          .catch(() => {/* non-critical */})
+      }
+    }
   }
 
   const handleDeleteDestination = async (destId: string) => {
