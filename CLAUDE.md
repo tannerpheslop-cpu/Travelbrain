@@ -67,7 +67,7 @@ We are building a **web-based MVP** to validate core planning loops before inves
 - Supabase handles auth, database, API, storage, and realtime — minimal custom backend code
 - Tailwind enables fast mobile-first UI iteration
 - Vercel provides free hosting with auto-deploy from Git
-- Google Places provides premium autocomplete UX and structured location data (coordinates, place ID) for proximity features
+- Google Places provides premium autocomplete UX for location input. Configured to accept cities, regions, and countries. Free tier covers MVP usage.
 
 ---
 
@@ -185,8 +185,7 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | Travel Inbox | /inbox | Fixed CSS grid of all saved items. Search + dynamic filters. Floating + button triggers save flow. Default home screen. |
 | Item Detail | /item/:id | View/edit a saved item |
 | Trip Library | /trips | List of all trips with destination previews |
-| Trip Page | /trip/:id | Destination-based trip view |
-| Destination Page | /trip/:tripId/destination/:destId | Items within a destination, itinerary builder |
+| Trip Page | /trip/:id | Destination-based trip view with collapsible destination sections. All destination content (items, suggestions, day-by-day itinerary) lives inline on this page. |
 | Shared Trip (public) | /s/:share_token | Read-only public view. Adopt CTA. |
 
 ---
@@ -264,7 +263,7 @@ The save flow is triggered by a floating + button on the inbox page. It opens as
 **There is NO screenshot OCR or ML classification.** Users tag manually. This is a deliberate design decision — it's faster, more accurate, and avoids the frustration of wrong AI guesses.
 
 ### Location Input
-All location fields use Google Places Autocomplete. User starts typing and selects from dropdown suggestions. Stores structured data: location_name, location_lat, location_lng, location_place_id.
+All location fields use Google Places Autocomplete. User starts typing and selects from dropdown suggestions. Stores structured data: location_name, location_lat, location_lng, location_place_id. The autocomplete must accept cities, regions, and countries (no type restriction, or types set to include '(regions)' and 'country') so that users can select country-level destinations like China or Taiwan.
 
 ### Inbox Tile Design
 
@@ -319,27 +318,16 @@ Trips naturally progress through three states as users add more content:
 
 ### Trip Page Layout
 
-The trip page (/trip/:id) shows:
-- Trip header: name, status badge, overall date range (if scheduled)
-- A list/grid of destination cards, each showing:
-  - City photo (auto-fetched or user-uploaded)
-  - Destination name
-  - Date range (if set)
-  - Item count and small thumbnail previews of saved items
-  - A "nearby suggestions" badge if there are inbox items near this destination that haven't been added yet
-- A "General" section at the bottom for trip-wide items
-- "Add Destination" button (opens Google Places autocomplete)
-- "Share Trip" button
+The trip page (/trip/:id) shows all trip content in a single scrollable page — no separate destination pages.
 
-### Destination Page Layout
-
-Tapping a destination card opens the destination page (/trip/:tripId/destination/:destId), which shows:
-- Destination header: city name, photo, date range if set
-- List of items linked to this destination
-- If scheduled with dates: day-by-day itinerary with drag-and-drop reordering
-- If not scheduled: items shown as a simple list grouped by category
-- "Nearby Suggestions" section: inbox items with location data near this destination that haven't been linked yet, with one-tap "Add" buttons
-- "Add Dates" button if no dates set yet
+- Trip header: name (editable), status badge, overall date range (if scheduled), Share Trip button, Invite Companion button.
+- Below the header, destinations are displayed as collapsible sections in a vertical timeline/itinerary layout. Each destination section shows:
+  - **Collapsed state:** city photo thumbnail, destination name, date range if set, item count badge, expand chevron
+  - **Expanded state:** reveals the full item list, nearby suggestions section, and day-by-day itinerary (if scheduled). Items can be managed (add, remove, reorder, assign to days) directly inline.
+- A "General" section at the bottom for trip-wide items, also collapsible.
+- When a trip has no destinations, show a single combined empty state with an integrated "Add your first destination" prompt — not a separate empty message and add button.
+- When the General section has no items, show a single combined empty state with an integrated "Add a general item" prompt.
+- The "Add Destination" button sits between the last destination and the General section.
 
 ---
 
