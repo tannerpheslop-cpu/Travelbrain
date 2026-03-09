@@ -1311,17 +1311,41 @@ export default function TripDetailPage() {
         <button
           type="button"
           onClick={() => setShowInviteModal(true)}
-          className={`flex items-center justify-center gap-1.5 px-3 py-2.5 border rounded-xl text-sm font-semibold transition-colors ${
+          className={`flex items-center justify-center gap-1.5 px-3 py-2.5 border rounded-xl transition-colors ${
             companions.length > 0
               ? 'border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100'
               : 'border-gray-300 text-gray-700 hover:bg-gray-50'
           }`}
           aria-label="Invite companions"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
-          </svg>
-          {companions.length > 0 ? companions.length.toString() : '+'}
+          {companions.length === 0 ? (
+            <span className="flex items-center gap-1 text-sm font-semibold">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
+              </svg>
+              <span>+</span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5">
+              <span className="flex -space-x-1.5">
+                {companions.slice(0, 3).map((c) => {
+                  const name = c.user.display_name ?? c.user.email
+                  const initials = name.split(/\s+/).slice(0, 2).map((s: string) => s[0]?.toUpperCase() ?? '').join('') || '?'
+                  return (
+                    <span
+                      key={c.id}
+                      className="w-6 h-6 rounded-full bg-violet-200 text-violet-800 text-xs font-bold flex items-center justify-center border-2 border-white shrink-0"
+                    >
+                      {initials}
+                    </span>
+                  )
+                })}
+              </span>
+              {companions.length > 3 && (
+                <span className="text-xs font-semibold text-violet-700">+{companions.length - 3}</span>
+              )}
+            </span>
+          )}
         </button>
       </div>
 

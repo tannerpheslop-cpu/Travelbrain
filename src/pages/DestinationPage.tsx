@@ -33,6 +33,28 @@ interface LinkedItem {
   saved_item: SavedItem
 }
 
+interface VoteState {
+  count: number
+  userVoted: boolean
+}
+
+interface CommentEntry {
+  id: string
+  user_id: string
+  body: string
+  created_at: string
+  authorName: string
+}
+
+interface ItemInteraction {
+  voteCount: number
+  userHasVoted: boolean
+  commentCount: number
+  isExpanded: boolean
+  onToggleVote: () => void
+  onToggleComments: () => void
+}
+
 // ── Constants / helpers ───────────────────────────────────────────────────────
 
 const HERO_GRADIENT = 'from-blue-400 to-indigo-600'
@@ -75,6 +97,18 @@ function getDayCount(startDate: string, endDate: string): number {
 function formatDayTabDate(startDate: string, dayIndex: number): string {
   const d = new Date(startDate + 'T00:00:00')
   d.setDate(d.getDate() + dayIndex - 1)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function formatCommentTime(created_at: string): string {
+  const d = new Date(created_at)
+  const now = new Date()
+  const diffMs = now.getTime() - d.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  if (diffMins < 1) return 'just now'
+  if (diffMins < 60) return `${diffMins}m ago`
+  const diffHours = Math.floor(diffMins / 60)
+  if (diffHours < 24) return `${diffHours}h ago`
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
@@ -273,6 +307,155 @@ function DayTabRow({
   )
 }
 
+// ── Item Interaction Bar ──────────────────────────────────────────────────────
+
+function ItemInteractionBar({
+  voteCount,
+  userHasVoted,
+  commentCount,
+  isExpanded,
+  onToggleVote,
+  onToggleComments,
+}: {
+  voteCount: number
+  userHasVoted: boolean
+  commentCount: number
+  isExpanded: boolean
+  onToggleVote: () => void
+  onToggleComments: () => void
+}) {
+  return (
+    <div className="flex items-center gap-5 px-4 py-2 border-t border-gray-50 bg-white">
+      {/* Vote / heart button */}
+      <button
+        type="button"
+        onClick={onToggleVote}
+        className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${
+          userHasVoted ? 'text-rose-500' : 'text-gray-400 hover:text-rose-400'
+        }`}
+        aria-label={userHasVoted ? 'Remove vote' : 'Vote for this'}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className="w-4 h-4"
+          opacity={userHasVoted ? 1 : 0.35}
+        >
+          <path d="M9.653 16.915l-.005-.003-.019-.01a20.759 20.759 0 01-1.162-.682 22.045 22.045 0 01-2.582-2.184C4.045 12.34 2 9.77 2 6.5a4.5 4.5 0 018-2.826A4.5 4.5 0 0118 6.5c0 3.27-2.045 5.84-3.885 7.536a22.049 22.049 0 01-2.582 2.184 21.86 21.86 0 01-1.162.682l-.019.01-.005.003h-.002a.739.739 0 01-.69 0l-.002-.001z" />
+        </svg>
+        {voteCount > 0 ? <span>{voteCount}</span> : null}
+      </button>
+
+      {/* Comment button */}
+      <button
+        type="button"
+        onClick={onToggleComments}
+        className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${
+          isExpanded ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'
+        }`}
+        aria-label={isExpanded ? 'Hide comments' : 'Show comments'}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className="w-4 h-4"
+          opacity={isExpanded ? 1 : 0.35}
+        >
+          <path fillRule="evenodd" d="M10 2c-2.236 0-4.43.18-6.57.524C1.993 2.755 1 4.014 1 5.426v5.148c0 1.413.993 2.67 2.43 2.902 1.168.188 2.352.327 3.55.414.28.02.521.18.642.413l1.713 3.293a.75.75 0 001.33 0l1.713-3.293a.75.75 0 01.642-.413 47.81 47.81 0 003.55-.414c1.437-.231 2.43-1.49 2.43-2.902V5.426c0-1.413-.993-2.67-2.43-2.902A47.814 47.814 0 0010 2z" clipRule="evenodd" />
+        </svg>
+        {commentCount > 0 ? <span>{commentCount}</span> : null}
+      </button>
+    </div>
+  )
+}
+
+// ── Comment Thread Panel ──────────────────────────────────────────────────────
+
+function CommentThread({
+  comments,
+  loading,
+  draft,
+  posting,
+  onDraftChange,
+  onPost,
+}: {
+  comments: CommentEntry[]
+  loading: boolean
+  draft: string
+  posting: boolean
+  onDraftChange: (val: string) => void
+  onPost: () => void
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const t = setTimeout(() => textareaRef.current?.focus(), 80)
+    return () => clearTimeout(t)
+  }, [])
+
+  return (
+    <div className="bg-white border-x border-b border-gray-100 rounded-b-2xl shadow-sm px-4 pt-1 pb-3">
+      {loading ? (
+        <div className="py-3 text-xs text-gray-400 text-center">Loading comments…</div>
+      ) : comments.length === 0 ? (
+        <p className="text-xs text-gray-400 pt-2 pb-1">No comments yet — be the first!</p>
+      ) : (
+        <div className="space-y-3 pt-2 pb-3">
+          {comments.map((c) => {
+            const initials = c.authorName
+              .split(/\s+/)
+              .slice(0, 2)
+              .map((s) => s[0]?.toUpperCase() ?? '')
+              .join('') || '?'
+            return (
+              <div key={c.id} className="flex items-start gap-2">
+                <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5">
+                  {initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2">
+                    <p className="text-xs font-semibold text-gray-800 truncate">{c.authorName}</p>
+                    <p className="text-xs text-gray-400 shrink-0">{formatCommentTime(c.created_at)}</p>
+                  </div>
+                  <p className="text-xs text-gray-700 mt-0.5 leading-relaxed">{c.body}</p>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="flex items-end gap-2 pt-1">
+        <textarea
+          ref={textareaRef}
+          value={draft}
+          onChange={(e) => onDraftChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault()
+              onPost()
+            }
+          }}
+          placeholder="Add a comment…"
+          rows={1}
+          className="flex-1 text-xs px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none placeholder:text-gray-400"
+        />
+        <button
+          type="button"
+          onClick={onPost}
+          disabled={!draft.trim() || posting}
+          className="px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50 shrink-0"
+        >
+          {posting ? '…' : 'Post'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Day Item Card (itinerary view, with drag handle + move menu) ───────────────
 
 function DayItemCard({
@@ -285,6 +468,7 @@ function DayItemCard({
   dragHandleAttributes,
   dragHandleListeners,
   isDragging,
+  interaction,
 }: {
   linkedItem: LinkedItem
   activeDayIndex: number | null
@@ -295,6 +479,7 @@ function DayItemCard({
   dragHandleAttributes?: Record<string, unknown>
   dragHandleListeners?: Record<string, unknown>
   isDragging?: boolean
+  interaction?: ItemInteraction
 }) {
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const item = linkedItem.saved_item
@@ -313,96 +498,111 @@ function DayItemCard({
 
   return (
     <div
-      className={`flex items-center bg-white rounded-2xl border border-gray-100 shadow-sm overflow-visible relative transition-opacity ${
+      className={`bg-white border border-gray-100 shadow-sm overflow-visible relative transition-opacity ${
         isDragging ? 'opacity-40' : ''
-      }`}
+      } ${interaction?.isExpanded ? 'rounded-t-2xl' : 'rounded-2xl'}`}
     >
-      {/* Drag handle */}
-      <button
-        type="button"
-        onClick={(e) => e.preventDefault()}
-        {...(dragHandleAttributes as React.HTMLAttributes<HTMLButtonElement>)}
-        {...(dragHandleListeners as React.HTMLAttributes<HTMLButtonElement>)}
-        className="pl-2.5 pr-1 self-stretch flex items-center text-gray-300 hover:text-gray-400 touch-none cursor-grab active:cursor-grabbing shrink-0"
-        aria-label="Drag to reorder"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-          <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 6zm0 6a2 2 0 10.001 4.001A2 2 0 007 12zm6-12a2 2 0 10.001 4.001A2 2 0 0013 2zm0 6a2 2 0 10.001 4.001A2 2 0 0013 6zm0 6a2 2 0 10.001 4.001A2 2 0 0013 12z" />
-        </svg>
-      </button>
-
-      {/* Thumbnail */}
-      <Link to={`/item/${item.id}`} className="shrink-0">
-        {item.image_url ? (
-          <img src={item.image_url} alt={item.title} className="w-14 h-14 object-cover bg-gray-100" />
-        ) : (
-          <div className={`w-14 h-14 flex items-center justify-center ${colors.bg}`}>
-            <PlaceholderIcon className="w-5 h-5 text-gray-300" />
-          </div>
-        )}
-      </Link>
-
-      {/* Content */}
-      <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-2.5">
-        <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-        {item.location_name && (
-          <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>
-        )}
-        <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
-          {categoryLabel[item.category]}
-        </span>
-      </Link>
-
-      {/* Actions */}
-      <div className="flex items-center shrink-0 pr-1">
-        {/* Move to... */}
-        {moveOptions.length > 0 && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowMoveMenu((o) => !o)}
-              className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
-              aria-label="Move to day"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                <path fillRule="evenodd" d="M5 10a.75.75 0 01.75-.75h6.638L10.23 7.29a.75.75 0 111.04-1.08l3.5 3.25a.75.75 0 010 1.08l-3.5 3.25a.75.75 0 11-1.04-1.08l2.158-1.96H5.75A.75.75 0 015 10z" clipRule="evenodd" />
-              </svg>
-            </button>
-            {showMoveMenu && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setShowMoveMenu(false)} />
-                <div className="absolute right-0 bottom-full mb-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-[170px]">
-                  <p className="px-3 pt-2.5 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                    Move to
-                  </p>
-                  {moveOptions.map((opt) => (
-                    <button
-                      key={opt.dayIndex ?? 'unassigned'}
-                      type="button"
-                      onClick={() => { setShowMoveMenu(false); onMove(linkedItem.id, opt.dayIndex) }}
-                      className="w-full flex items-center px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left transition-colors"
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* Remove */}
+      {/* Main content row */}
+      <div className="flex items-center">
+        {/* Drag handle */}
         <button
           type="button"
-          onClick={() => onRemove(linkedItem.id)}
-          className="p-2 text-gray-300 hover:text-red-400 transition-colors"
-          aria-label="Remove from destination"
+          onClick={(e) => e.preventDefault()}
+          {...(dragHandleAttributes as React.HTMLAttributes<HTMLButtonElement>)}
+          {...(dragHandleListeners as React.HTMLAttributes<HTMLButtonElement>)}
+          className="pl-2.5 pr-1 self-stretch flex items-center text-gray-300 hover:text-gray-400 touch-none cursor-grab active:cursor-grabbing shrink-0"
+          aria-label="Drag to reorder"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 6zm0 6a2 2 0 10.001 4.001A2 2 0 007 12zm6-12a2 2 0 10.001 4.001A2 2 0 0013 2zm0 6a2 2 0 10.001 4.001A2 2 0 0013 6zm0 6a2 2 0 10.001 4.001A2 2 0 0013 12z" />
           </svg>
         </button>
+
+        {/* Thumbnail */}
+        <Link to={`/item/${item.id}`} className="shrink-0">
+          {item.image_url ? (
+            <img src={item.image_url} alt={item.title} className="w-14 h-14 object-cover bg-gray-100" />
+          ) : (
+            <div className={`w-14 h-14 flex items-center justify-center ${colors.bg}`}>
+              <PlaceholderIcon className="w-5 h-5 text-gray-300" />
+            </div>
+          )}
+        </Link>
+
+        {/* Content */}
+        <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-2.5">
+          <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
+          {item.location_name && (
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>
+          )}
+          <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+            {categoryLabel[item.category]}
+          </span>
+        </Link>
+
+        {/* Actions */}
+        <div className="flex items-center shrink-0 pr-1">
+          {/* Move to... */}
+          {moveOptions.length > 0 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowMoveMenu((o) => !o)}
+                className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
+                aria-label="Move to day"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                  <path fillRule="evenodd" d="M5 10a.75.75 0 01.75-.75h6.638L10.23 7.29a.75.75 0 111.04-1.08l3.5 3.25a.75.75 0 010 1.08l-3.5 3.25a.75.75 0 11-1.04-1.08l2.158-1.96H5.75A.75.75 0 015 10z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {showMoveMenu && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setShowMoveMenu(false)} />
+                  <div className="absolute right-0 bottom-full mb-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-[170px]">
+                    <p className="px-3 pt-2.5 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                      Move to
+                    </p>
+                    {moveOptions.map((opt) => (
+                      <button
+                        key={opt.dayIndex ?? 'unassigned'}
+                        type="button"
+                        onClick={() => { setShowMoveMenu(false); onMove(linkedItem.id, opt.dayIndex) }}
+                        className="w-full flex items-center px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left transition-colors"
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Remove */}
+          <button
+            type="button"
+            onClick={() => onRemove(linkedItem.id)}
+            className="p-2 text-gray-300 hover:text-red-400 transition-colors"
+            aria-label="Remove from destination"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      {/* Interaction bar */}
+      {interaction && (
+        <ItemInteractionBar
+          voteCount={interaction.voteCount}
+          userHasVoted={interaction.userHasVoted}
+          commentCount={interaction.commentCount}
+          isExpanded={interaction.isExpanded}
+          onToggleVote={interaction.onToggleVote}
+          onToggleComments={interaction.onToggleComments}
+        />
+      )}
     </div>
   )
 }
@@ -429,43 +629,61 @@ function LinkedItemCard({
   item,
   linkId,
   onRemove,
+  interaction,
 }: {
   item: SavedItem
   linkId: string
   onRemove: (linkId: string) => void
+  interaction?: ItemInteraction
 }) {
   const colors = categoryColors[item.category]
 
   return (
-    <div className="flex items-center gap-0 bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-      <Link to={`/item/${item.id}`} className="shrink-0">
-        {item.image_url ? (
-          <img src={item.image_url} alt={item.title} className="w-16 h-16 object-cover bg-gray-100" />
-        ) : (
-          <div className={`w-16 h-16 flex items-center justify-center ${colors.bg}`}>
-            <PlaceholderIcon className="w-6 h-6 text-gray-300" />
-          </div>
-        )}
-      </Link>
-      <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-2.5">
-        <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-        {item.location_name && (
-          <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>
-        )}
-        <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
-          {categoryLabel[item.category]}
-        </span>
-      </Link>
-      <button
-        type="button"
-        onClick={() => onRemove(linkId)}
-        className="p-3 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
-        aria-label="Remove from destination"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-          <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-        </svg>
-      </button>
+    <div className={`bg-white border border-gray-100 shadow-sm overflow-hidden ${
+      interaction?.isExpanded ? 'rounded-t-2xl' : 'rounded-2xl'
+    }`}>
+      <div className="flex items-center gap-0">
+        <Link to={`/item/${item.id}`} className="shrink-0">
+          {item.image_url ? (
+            <img src={item.image_url} alt={item.title} className="w-16 h-16 object-cover bg-gray-100" />
+          ) : (
+            <div className={`w-16 h-16 flex items-center justify-center ${colors.bg}`}>
+              <PlaceholderIcon className="w-6 h-6 text-gray-300" />
+            </div>
+          )}
+        </Link>
+        <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-2.5">
+          <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
+          {item.location_name && (
+            <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>
+          )}
+          <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+            {categoryLabel[item.category]}
+          </span>
+        </Link>
+        <button
+          type="button"
+          onClick={() => onRemove(linkId)}
+          className="p-3 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+          aria-label="Remove from destination"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Interaction bar */}
+      {interaction && (
+        <ItemInteractionBar
+          voteCount={interaction.voteCount}
+          userHasVoted={interaction.userHasVoted}
+          commentCount={interaction.commentCount}
+          isExpanded={interaction.isExpanded}
+          onToggleVote={interaction.onToggleVote}
+          onToggleComments={interaction.onToggleComments}
+        />
+      )}
     </div>
   )
 }
@@ -711,6 +929,16 @@ export default function DestinationPage() {
 
   const [showAddDates, setShowAddDates] = useState(false)
 
+  // ── Interaction state (comments + votes) ────────────────────────────────────
+  const [canInteract, setCanInteract] = useState(false)
+  const [votes, setVotes] = useState<Record<string, VoteState>>({})
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
+  const [threadComments, setThreadComments] = useState<CommentEntry[]>([])
+  const [threadLoading, setThreadLoading] = useState(false)
+  const [commentDraft, setCommentDraft] = useState('')
+  const [postingComment, setPostingComment] = useState(false)
+
   // dnd-kit sensors
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -771,6 +999,38 @@ export default function DestinationPage() {
         }
 
         setItemsLoading(false)
+
+        // ── Load interaction data ──────────────────────────────────────────
+        const itemIds = linked.map((li) => li.item_id)
+
+        const [tripRes, compRes] = await Promise.all([
+          supabase.from('trips').select('owner_id').eq('id', dest.trip_id).maybeSingle(),
+          supabase.from('companions').select('id').eq('trip_id', dest.trip_id).eq('user_id', user.id).maybeSingle(),
+        ])
+        const isOwner = tripRes.data?.owner_id === user.id
+        const isCompanion = !!compRes.data
+        setCanInteract(isOwner || isCompanion)
+
+        if (itemIds.length > 0) {
+          const [votesRes, commentsRes] = await Promise.all([
+            supabase.from('votes').select('item_id, user_id').eq('trip_id', dest.trip_id).in('item_id', itemIds),
+            supabase.from('comments').select('item_id').eq('trip_id', dest.trip_id).in('item_id', itemIds),
+          ])
+
+          const voteMap: Record<string, VoteState> = {}
+          for (const v of (votesRes.data ?? []) as { item_id: string; user_id: string }[]) {
+            if (!voteMap[v.item_id]) voteMap[v.item_id] = { count: 0, userVoted: false }
+            voteMap[v.item_id].count++
+            if (v.user_id === user.id) voteMap[v.item_id].userVoted = true
+          }
+          setVotes(voteMap)
+
+          const countMap: Record<string, number> = {}
+          for (const c of (commentsRes.data ?? []) as { item_id: string }[]) {
+            countMap[c.item_id] = (countMap[c.item_id] ?? 0) + 1
+          }
+          setCommentCounts(countMap)
+        }
       })
   }, [destId, user])
 
@@ -807,12 +1067,15 @@ export default function DestinationPage() {
     const row = data as { id: string; destination_id: string; item_id: string; day_index: number | null; sort_order: number }
     setLinkedItems((prev) => [...prev, { ...row, saved_item: item }])
     setSuggestions((prev) => prev.filter((s) => s.id !== item.id))
+    // Init vote/comment state for new item
+    setVotes((prev) => ({ ...prev, [item.id]: prev[item.id] ?? { count: 0, userVoted: false } }))
+    setCommentCounts((prev) => ({ ...prev, [item.id]: prev[item.id] ?? 0 }))
 
-    if (tripId) {
+    if (destination?.trip_id) {
       supabase
         .from('trips')
         .update({ status: 'planning' })
-        .eq('id', tripId)
+        .eq('id', destination.trip_id)
         .eq('status', 'aspirational')
         .then(() => {/* no-op */})
         .catch(() => {/* DB trigger is authoritative */})
@@ -848,6 +1111,8 @@ export default function DestinationPage() {
       }
     }
 
+    if (expandedItemId === removed?.item_id) setExpandedItemId(null)
+
     await supabase.from('destination_items').delete().eq('id', linkId)
   }
 
@@ -856,7 +1121,6 @@ export default function DestinationPage() {
   const handleMoveItem = async (linkId: string, newDayIndex: number | null) => {
     const item = linkedItems.find((li) => li.id === linkId)
     if (!item) return
-    // Place at end of target day
     const targetCount = linkedItems.filter((li) => li.day_index === newDayIndex && li.id !== linkId).length
 
     setLinkedItems((prev) =>
@@ -904,6 +1168,117 @@ export default function DestinationPage() {
       ),
     )
   }
+
+  // ── Interaction: toggle vote ────────────────────────────────────────────────
+
+  const handleToggleVote = async (itemId: string) => {
+    if (!destination?.trip_id || !user) return
+    const tripId_ = destination.trip_id
+    const current = votes[itemId] ?? { count: 0, userVoted: false }
+
+    if (current.userVoted) {
+      setVotes((prev) => ({
+        ...prev,
+        [itemId]: { count: Math.max(0, current.count - 1), userVoted: false },
+      }))
+      await supabase
+        .from('votes')
+        .delete()
+        .eq('trip_id', tripId_)
+        .eq('item_id', itemId)
+        .eq('user_id', user.id)
+      trackEvent('vote_cast', user.id, { trip_id: tripId_, item_id: itemId, action: 'remove' })
+    } else {
+      setVotes((prev) => ({
+        ...prev,
+        [itemId]: { count: current.count + 1, userVoted: true },
+      }))
+      await supabase
+        .from('votes')
+        .insert({ trip_id: tripId_, item_id: itemId, user_id: user.id })
+      trackEvent('vote_cast', user.id, { trip_id: tripId_, item_id: itemId, action: 'add' })
+    }
+  }
+
+  // ── Interaction: toggle comments ────────────────────────────────────────────
+
+  const handleToggleComments = async (itemId: string) => {
+    if (expandedItemId === itemId) {
+      setExpandedItemId(null)
+      setCommentDraft('')
+      return
+    }
+    setExpandedItemId(itemId)
+    setCommentDraft('')
+    setThreadLoading(true)
+    setThreadComments([])
+
+    if (!destination?.trip_id) { setThreadLoading(false); return }
+
+    const { data } = await supabase
+      .from('comments')
+      .select('id, user_id, body, created_at, user:users(display_name, email)')
+      .eq('trip_id', destination.trip_id)
+      .eq('item_id', itemId)
+      .order('created_at', { ascending: true })
+
+    const entries: CommentEntry[] = ((data ?? []) as {
+      id: string; user_id: string; body: string; created_at: string;
+      user: { display_name: string | null; email: string } | null
+    }[]).map((c) => ({
+      id: c.id,
+      user_id: c.user_id,
+      body: c.body,
+      created_at: c.created_at,
+      authorName: c.user?.display_name ?? c.user?.email?.split('@')[0] ?? 'User',
+    }))
+
+    setThreadComments(entries)
+    setThreadLoading(false)
+  }
+
+  // ── Interaction: post comment ───────────────────────────────────────────────
+
+  const handlePostComment = async () => {
+    const body = commentDraft.trim()
+    if (!body || !destination?.trip_id || !user || !expandedItemId || postingComment) return
+
+    setPostingComment(true)
+    const { data } = await supabase
+      .from('comments')
+      .insert({ trip_id: destination.trip_id, item_id: expandedItemId, user_id: user.id, body })
+      .select('id, user_id, body, created_at')
+      .single()
+
+    setPostingComment(false)
+    if (data) {
+      const newEntry: CommentEntry = {
+        id: (data as { id: string }).id,
+        user_id: user.id,
+        body,
+        created_at: (data as { created_at: string }).created_at,
+        authorName: user.email?.split('@')[0] ?? 'Me',
+      }
+      setThreadComments((prev) => [...prev, newEntry])
+      setCommentCounts((prev) => ({
+        ...prev,
+        [expandedItemId]: (prev[expandedItemId] ?? 0) + 1,
+      }))
+      setCommentDraft('')
+      trackEvent('comment_created', user.id, { trip_id: destination.trip_id, item_id: expandedItemId })
+    }
+  }
+
+  // ── Helper: build interaction props for an item ─────────────────────────────
+
+  const buildInteraction = (itemId: string): ItemInteraction => ({
+    voteCount: votes[itemId]?.count ?? 0,
+    userHasVoted: votes[itemId]?.userVoted ?? false,
+    commentCount: commentCounts[itemId] ?? 0,
+    isExpanded: expandedItemId === itemId,
+    onToggleVote: () => handleToggleVote(itemId),
+    onToggleComments: () => handleToggleComments(itemId),
+  })
 
   // ── Loading / not-found states ──────────────────────────────────────────────
 
@@ -1095,15 +1470,27 @@ export default function DestinationPage() {
                   >
                     <div className="space-y-2">
                       {activeItems.map((li) => (
-                        <SortableDayItem
-                          key={li.id}
-                          linkedItem={li}
-                          activeDayIndex={activeDay}
-                          dayCount={dayCount}
-                          startDate={dest.start_date!}
-                          onRemove={handleRemoveItem}
-                          onMove={handleMoveItem}
-                        />
+                        <div key={li.id}>
+                          <SortableDayItem
+                            linkedItem={li}
+                            activeDayIndex={activeDay}
+                            dayCount={dayCount}
+                            startDate={dest.start_date!}
+                            onRemove={handleRemoveItem}
+                            onMove={handleMoveItem}
+                            interaction={canInteract ? buildInteraction(li.item_id) : undefined}
+                          />
+                          {canInteract && expandedItemId === li.item_id && (
+                            <CommentThread
+                              comments={threadComments}
+                              loading={threadLoading}
+                              draft={commentDraft}
+                              posting={postingComment}
+                              onDraftChange={setCommentDraft}
+                              onPost={handlePostComment}
+                            />
+                          )}
+                        </div>
                       ))}
                     </div>
                   </SortableContext>
@@ -1159,19 +1546,31 @@ export default function DestinationPage() {
               </div>
             )}
 
-            {/* Items */}
+            {/* Items with interaction */}
             {!itemsLoading && linkedItems.length > 0 && (
               <div className="space-y-2">
                 {linkedItems
                   .slice()
                   .sort((a, b) => a.sort_order - b.sort_order)
                   .map((li) => (
-                    <LinkedItemCard
-                      key={li.id}
-                      item={li.saved_item}
-                      linkId={li.id}
-                      onRemove={handleRemoveItem}
-                    />
+                    <div key={li.id}>
+                      <LinkedItemCard
+                        item={li.saved_item}
+                        linkId={li.id}
+                        onRemove={handleRemoveItem}
+                        interaction={canInteract ? buildInteraction(li.item_id) : undefined}
+                      />
+                      {canInteract && expandedItemId === li.item_id && (
+                        <CommentThread
+                          comments={threadComments}
+                          loading={threadLoading}
+                          draft={commentDraft}
+                          posting={postingComment}
+                          onDraftChange={setCommentDraft}
+                          onPost={handlePostComment}
+                        />
+                      )}
+                    </div>
                   ))}
               </div>
             )}
