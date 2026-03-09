@@ -468,6 +468,7 @@ function DayItemCard({
   dragHandleAttributes,
   dragHandleListeners,
   isDragging,
+  canEdit,
   interaction,
 }: {
   linkedItem: LinkedItem
@@ -479,6 +480,7 @@ function DayItemCard({
   dragHandleAttributes?: Record<string, unknown>
   dragHandleListeners?: Record<string, unknown>
   isDragging?: boolean
+  canEdit?: boolean
   interaction?: ItemInteraction
 }) {
   const [showMoveMenu, setShowMoveMenu] = useState(false)
@@ -504,19 +506,23 @@ function DayItemCard({
     >
       {/* Main content row */}
       <div className="flex items-center">
-        {/* Drag handle */}
-        <button
-          type="button"
-          onClick={(e) => e.preventDefault()}
-          {...(dragHandleAttributes as React.HTMLAttributes<HTMLButtonElement>)}
-          {...(dragHandleListeners as React.HTMLAttributes<HTMLButtonElement>)}
-          className="pl-2.5 pr-1 self-stretch flex items-center text-gray-300 hover:text-gray-400 touch-none cursor-grab active:cursor-grabbing shrink-0"
-          aria-label="Drag to reorder"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 6zm0 6a2 2 0 10.001 4.001A2 2 0 007 12zm6-12a2 2 0 10.001 4.001A2 2 0 0013 2zm0 6a2 2 0 10.001 4.001A2 2 0 0013 6zm0 6a2 2 0 10.001 4.001A2 2 0 0013 12z" />
-          </svg>
-        </button>
+        {/* Drag handle — owners only */}
+        {canEdit ? (
+          <button
+            type="button"
+            onClick={(e) => e.preventDefault()}
+            {...(dragHandleAttributes as React.HTMLAttributes<HTMLButtonElement>)}
+            {...(dragHandleListeners as React.HTMLAttributes<HTMLButtonElement>)}
+            className="pl-2.5 pr-1 self-stretch flex items-center text-gray-300 hover:text-gray-400 touch-none cursor-grab active:cursor-grabbing shrink-0"
+            aria-label="Drag to reorder"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 6zm0 6a2 2 0 10.001 4.001A2 2 0 007 12zm6-12a2 2 0 10.001 4.001A2 2 0 0013 2zm0 6a2 2 0 10.001 4.001A2 2 0 0013 6zm0 6a2 2 0 10.001 4.001A2 2 0 0013 12z" />
+            </svg>
+          </button>
+        ) : (
+          <div className="w-3" />
+        )}
 
         {/* Thumbnail */}
         <Link to={`/item/${item.id}`} className="shrink-0">
@@ -540,56 +546,58 @@ function DayItemCard({
           </span>
         </Link>
 
-        {/* Actions */}
-        <div className="flex items-center shrink-0 pr-1">
-          {/* Move to... */}
-          {moveOptions.length > 0 && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowMoveMenu((o) => !o)}
-                className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
-                aria-label="Move to day"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                  <path fillRule="evenodd" d="M5 10a.75.75 0 01.75-.75h6.638L10.23 7.29a.75.75 0 111.04-1.08l3.5 3.25a.75.75 0 010 1.08l-3.5 3.25a.75.75 0 11-1.04-1.08l2.158-1.96H5.75A.75.75 0 015 10z" clipRule="evenodd" />
-                </svg>
-              </button>
-              {showMoveMenu && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowMoveMenu(false)} />
-                  <div className="absolute right-0 bottom-full mb-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-[170px]">
-                    <p className="px-3 pt-2.5 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                      Move to
-                    </p>
-                    {moveOptions.map((opt) => (
-                      <button
-                        key={opt.dayIndex ?? 'unassigned'}
-                        type="button"
-                        onClick={() => { setShowMoveMenu(false); onMove(linkedItem.id, opt.dayIndex) }}
-                        className="w-full flex items-center px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left transition-colors"
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+        {/* Actions — owners only */}
+        {canEdit && (
+          <div className="flex items-center shrink-0 pr-1">
+            {/* Move to... */}
+            {moveOptions.length > 0 && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowMoveMenu((o) => !o)}
+                  className="p-2 text-gray-300 hover:text-blue-500 transition-colors"
+                  aria-label="Move to day"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path fillRule="evenodd" d="M5 10a.75.75 0 01.75-.75h6.638L10.23 7.29a.75.75 0 111.04-1.08l3.5 3.25a.75.75 0 010 1.08l-3.5 3.25a.75.75 0 11-1.04-1.08l2.158-1.96H5.75A.75.75 0 015 10z" clipRule="evenodd" />
+                  </svg>
+                </button>
+                {showMoveMenu && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowMoveMenu(false)} />
+                    <div className="absolute right-0 bottom-full mb-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-[170px]">
+                      <p className="px-3 pt-2.5 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">
+                        Move to
+                      </p>
+                      {moveOptions.map((opt) => (
+                        <button
+                          key={opt.dayIndex ?? 'unassigned'}
+                          type="button"
+                          onClick={() => { setShowMoveMenu(false); onMove(linkedItem.id, opt.dayIndex) }}
+                          className="w-full flex items-center px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left transition-colors"
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
 
-          {/* Remove */}
-          <button
-            type="button"
-            onClick={() => onRemove(linkedItem.id)}
-            className="p-2 text-gray-300 hover:text-red-400 transition-colors"
-            aria-label="Remove from destination"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-            </svg>
-          </button>
-        </div>
+            {/* Remove */}
+            <button
+              type="button"
+              onClick={() => onRemove(linkedItem.id)}
+              className="p-2 text-gray-300 hover:text-red-400 transition-colors"
+              aria-label="Remove from destination"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Interaction bar */}
@@ -629,11 +637,13 @@ function LinkedItemCard({
   item,
   linkId,
   onRemove,
+  canEdit,
   interaction,
 }: {
   item: SavedItem
   linkId: string
   onRemove: (linkId: string) => void
+  canEdit?: boolean
   interaction?: ItemInteraction
 }) {
   const colors = categoryColors[item.category]
@@ -661,16 +671,18 @@ function LinkedItemCard({
             {categoryLabel[item.category]}
           </span>
         </Link>
-        <button
-          type="button"
-          onClick={() => onRemove(linkId)}
-          className="p-3 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
-          aria-label="Remove from destination"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-          </svg>
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => onRemove(linkId)}
+            className="p-3 shrink-0 text-gray-300 hover:text-red-400 transition-colors"
+            aria-label="Remove from destination"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Interaction bar */}
@@ -931,6 +943,8 @@ export default function DestinationPage() {
 
   // ── Interaction state (comments + votes) ────────────────────────────────────
   const [canInteract, setCanInteract] = useState(false)
+  // canEdit is true only for trip owners — controls Remove, Move, Add Dates, Add from Inbox
+  const [canEdit, setCanEdit] = useState(false)
   const [votes, setVotes] = useState<Record<string, VoteState>>({})
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({})
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null)
@@ -1010,6 +1024,7 @@ export default function DestinationPage() {
         const isOwner = tripRes.data?.owner_id === user.id
         const isCompanion = !!compRes.data
         setCanInteract(isOwner || isCompanion)
+        setCanEdit(isOwner)
 
         if (itemIds.length > 0) {
           const [votesRes, commentsRes] = await Promise.all([
@@ -1393,15 +1408,17 @@ export default function DestinationPage() {
                 {formatDateRange(dest.start_date, dest.end_date)}
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowAddDates(true)}
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
-            >
-              Edit
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setShowAddDates(true)}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+              >
+                Edit
+              </button>
+            )}
           </div>
-        ) : (
+        ) : canEdit ? (
           <button
             type="button"
             onClick={() => setShowAddDates(true)}
@@ -1412,6 +1429,8 @@ export default function DestinationPage() {
             </svg>
             Add Dates
           </button>
+        ) : (
+          <span className="text-sm text-gray-400">No dates set</span>
         )}
         <span className="text-xs text-gray-400 font-medium">
           {linkedItems.length} place{linkedItems.length !== 1 ? 's' : ''}
@@ -1478,6 +1497,7 @@ export default function DestinationPage() {
                             startDate={dest.start_date!}
                             onRemove={handleRemoveItem}
                             onMove={handleMoveItem}
+                            canEdit={canEdit}
                             interaction={canInteract ? buildInteraction(li.item_id) : undefined}
                           />
                           {canInteract && expandedItemId === li.item_id && (
@@ -1501,8 +1521,8 @@ export default function DestinationPage() {
         ) : (
           /* ── Simple list view (no dates set) ───────────────────────────── */
           <>
-            {/* Unlock prompt — only shown once items exist */}
-            {!itemsLoading && linkedItems.length > 0 && (
+            {/* Unlock prompt — only shown to owners once items exist */}
+            {!itemsLoading && linkedItems.length > 0 && canEdit && (
               <div className="mb-4 flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
                 <span className="text-xl shrink-0">📅</span>
                 <div className="flex-1 min-w-0">
@@ -1558,6 +1578,7 @@ export default function DestinationPage() {
                         item={li.saved_item}
                         linkId={li.id}
                         onRemove={handleRemoveItem}
+                        canEdit={canEdit}
                         interaction={canInteract ? buildInteraction(li.item_id) : undefined}
                       />
                       {canInteract && expandedItemId === li.item_id && (
@@ -1577,8 +1598,8 @@ export default function DestinationPage() {
           </>
         )}
 
-        {/* ── Add from Inbox button (always shown when not loading) ─────────── */}
-        {!itemsLoading && (
+        {/* ── Add from Inbox button (owners only) ───────────────────────────── */}
+        {!itemsLoading && canEdit && (
           <div className="mt-4">
             <button
               type="button"
@@ -1593,8 +1614,8 @@ export default function DestinationPage() {
           </div>
         )}
 
-        {/* ── Nearby Suggestions ────────────────────────────────────────────── */}
-        {!itemsLoading && suggestions.length > 0 && (
+        {/* ── Nearby Suggestions (owners only — they can add items) ─────────── */}
+        {!itemsLoading && suggestions.length > 0 && canEdit && (
           <div className="mt-8 mb-4">
             <div className="flex items-center gap-2 mb-3">
               <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
@@ -1611,7 +1632,7 @@ export default function DestinationPage() {
       </div>
 
       {/* ── Add from Inbox Sheet ──────────────────────────────────────────────── */}
-      {showInboxSheet && (
+      {showInboxSheet && canEdit && (
         <AddFromInboxSheet
           items={inboxItems}
           linkedItemIds={linkedItemIds}
@@ -1622,7 +1643,7 @@ export default function DestinationPage() {
       )}
 
       {/* ── Add / Edit Dates Modal ─────────────────────────────────────────────── */}
-      {showAddDates && destination && (
+      {showAddDates && destination && canEdit && (
         <AddDatesModal
           destination={destination}
           onClose={() => setShowAddDates(false)}
