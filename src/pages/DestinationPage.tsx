@@ -705,9 +705,11 @@ function LinkedItemCard({
 function SuggestionCard({
   item,
   onAdd,
+  onDismiss,
 }: {
   item: SavedItem
   onAdd: (item: SavedItem) => Promise<void>
+  onDismiss?: () => void
 }) {
   const colors = categoryColors[item.category]
   const [adding, setAdding] = useState(false)
@@ -736,17 +738,31 @@ function SuggestionCard({
           {categoryLabel[item.category]}
         </span>
       </div>
-      <button
-        type="button"
-        onClick={handleAdd}
-        disabled={adding}
-        className="mr-3 shrink-0 flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-          <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-        </svg>
-        {adding ? '…' : 'Add'}
-      </button>
+      <div className="flex items-center gap-1 mr-3 shrink-0">
+        <button
+          type="button"
+          onClick={handleAdd}
+          disabled={adding}
+          className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+          </svg>
+          {adding ? '…' : 'Add'}
+        </button>
+        {onDismiss && (
+          <button
+            type="button"
+            onClick={onDismiss}
+            className="p-1.5 text-blue-400 hover:text-blue-600 transition-colors"
+            aria-label="Dismiss suggestion"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+            </svg>
+          </button>
+        )}
+      </div>
     </div>
   )
 }
@@ -1102,6 +1118,11 @@ export default function DestinationPage() {
   const handleAddSuggestion = async (item: SavedItem) => {
     const ok = await handleLinkItem(item)
     if (ok) trackEvent('nearby_suggestion_accepted', user?.id ?? null, { destination_id: destId, item_id: item.id })
+  }
+
+  const handleDismissSuggestion = (itemId: string) => {
+    setSuggestions((prev) => prev.filter((s) => s.id !== itemId))
+    trackEvent('nearby_suggestion_dismissed', user?.id ?? null, { destination_id: destId, item_id: itemId })
   }
 
   const handleAddFromInbox = async (item: SavedItem) => {
@@ -1624,7 +1645,12 @@ export default function DestinationPage() {
             </div>
             <div className="space-y-2">
               {suggestions.map((item) => (
-                <SuggestionCard key={item.id} item={item} onAdd={handleAddSuggestion} />
+                <SuggestionCard
+                  key={item.id}
+                  item={item}
+                  onAdd={handleAddSuggestion}
+                  onDismiss={() => handleDismissSuggestion(item.id)}
+                />
               ))}
             </div>
           </div>
@@ -1647,7 +1673,17 @@ export default function DestinationPage() {
         <AddDatesModal
           destination={destination}
           onClose={() => setShowAddDates(false)}
-          onSaved={(updated) => setDestination(updated)}
+          onSaved={(updated) => {
+            setDestination(updated)
+            if (updated.start_date && updated.end_date) {
+              trackEvent('destination_dates_set', user?.id ?? null, {
+                destination_id: updated.id,
+                trip_id: updated.trip_id,
+                start_date: updated.start_date,
+                end_date: updated.end_date,
+              })
+            }
+          }}
         />
       )}
     </div>
