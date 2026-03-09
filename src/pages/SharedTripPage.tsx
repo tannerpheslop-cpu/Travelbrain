@@ -70,17 +70,17 @@ function SharedItemCard({ item }: { item: SavedItem }) {
   const hasImg = item.image_url && !imgFailed
 
   return (
-    <div className="flex gap-3.5 py-3.5 border-b border-gray-100 last:border-b-0">
+    <div className="flex gap-4 py-4 border-b border-gray-100 last:border-b-0">
       {hasImg ? (
         <img
           src={item.image_url!}
           alt={item.title}
-          className="w-14 h-14 object-cover rounded-xl bg-gray-100 shrink-0"
+          className="w-16 h-16 object-cover rounded-xl bg-gray-100 shrink-0"
           onError={() => setImgFailed(true)}
         />
       ) : (
-        <div className={`w-14 h-14 ${colors.bg} rounded-xl shrink-0 flex items-center justify-center`}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-gray-300">
+        <div className={`w-16 h-16 ${colors.bg} rounded-xl shrink-0 flex items-center justify-center`}>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-gray-300">
             <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6z" clipRule="evenodd" />
           </svg>
         </div>
@@ -88,7 +88,7 @@ function SharedItemCard({ item }: { item: SavedItem }) {
       <div className="flex-1 min-w-0 py-0.5">
         <p className="text-sm font-semibold text-gray-900 leading-snug">{item.title}</p>
         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
             {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
           </span>
           {item.location_name && (
@@ -96,7 +96,7 @@ function SharedItemCard({ item }: { item: SavedItem }) {
           )}
         </div>
         {item.notes && (
-          <p className="mt-1.5 text-xs text-gray-400 line-clamp-2 leading-relaxed">{item.notes}</p>
+          <p className="mt-1.5 text-xs text-gray-500 line-clamp-2 leading-relaxed">{item.notes}</p>
         )}
       </div>
     </div>
@@ -152,19 +152,19 @@ function SharedHero({
   return (
     <div
       className="relative w-full overflow-hidden"
-      style={{ background: 'linear-gradient(160deg, #1e3a8a 0%, #5b21b6 100%)', minHeight: 320 }}
+      style={{ background: 'linear-gradient(160deg, #1e3a8a 0%, #5b21b6 100%)', minHeight: 420 }}
     >
       {trip.cover_image_url && (
         <img src={trip.cover_image_url} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
       )}
       <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
 
-      <div className="relative px-6 pt-14 pb-10 max-w-2xl mx-auto">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/15 border border-white/20 rounded-full text-white/90 text-xs font-semibold mb-5 backdrop-blur-sm tracking-widest uppercase">
+      <div className="relative px-6 pt-16 pb-12 max-w-2xl mx-auto">
+        <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white/15 border border-white/20 rounded-full text-white/90 text-xs font-semibold mb-6 backdrop-blur-sm tracking-widest uppercase">
           ✈ Shared Trip
         </div>
 
-        <h1 className="text-4xl font-bold text-white leading-tight tracking-tight">{trip.title}</h1>
+        <h1 className="text-5xl font-bold text-white leading-tight tracking-tight">{trip.title}</h1>
 
         {showDates && trip.start_date && trip.end_date && (
           <p className="mt-2 text-white/75 text-sm font-medium">
@@ -188,7 +188,7 @@ function SharedHero({
           </div>
         )}
 
-        <div className="mt-8">
+        <div className="mt-10">
           <AdoptBanner onAdopt={onAdopt} loading={adoptLoading} />
         </div>
       </div>
@@ -209,8 +209,8 @@ function DestPhotoCard({
 }) {
   const gradient = DEST_GRADIENTS[index % DEST_GRADIENTS.length]
   return (
-    <div className="rounded-2xl overflow-hidden shadow-sm">
-      <div className="relative h-40">
+    <div className="rounded-2xl overflow-hidden shadow-md">
+      <div className="relative h-52">
         {dest.image_url ? (
           <>
             <img
@@ -218,22 +218,22 @@ function DestPhotoCard({
               alt={shortName(dest.location_name)}
               className="absolute inset-0 w-full h-full object-cover"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/65 to-black/5" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/5" />
           </>
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
         )}
-        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4">
-          <p className="text-white font-bold text-xl drop-shadow leading-tight">
+        <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
+          <p className="text-white font-bold text-2xl drop-shadow-sm leading-tight">
             {shortName(dest.location_name)}
           </p>
           {showDates && dest.start_date && dest.end_date && (
-            <p className="text-white/80 text-xs mt-0.5">
+            <p className="text-white/80 text-sm mt-1">
               {formatDateRange(dest.start_date, dest.end_date)}
             </p>
           )}
           {showDates && (!dest.start_date || !dest.end_date) && (
-            <p className="text-white/60 text-xs mt-0.5">Dates TBD</p>
+            <p className="text-white/60 text-xs mt-1">Dates TBD</p>
           )}
         </div>
       </div>
@@ -269,8 +269,8 @@ function FullDestSection({
   return (
     <section>
       {/* Destination photo header */}
-      <div className="rounded-2xl overflow-hidden shadow-sm mb-5">
-        <div className="relative h-44">
+      <div className="rounded-2xl overflow-hidden shadow-md mb-6">
+        <div className="relative h-56">
           {dest.image_url ? (
             <>
               <img
@@ -278,21 +278,21 @@ function FullDestSection({
                 alt={shortName(dest.location_name)}
                 className="absolute inset-0 w-full h-full object-cover"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/5" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/75 to-black/5" />
             </>
           ) : (
             <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
           )}
-          <div className="absolute bottom-0 left-0 right-0 px-5 pb-4">
-            <p className="text-white font-bold text-2xl drop-shadow leading-tight">
+          <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
+            <p className="text-white font-bold text-3xl drop-shadow-sm leading-tight tracking-tight">
               {shortName(dest.location_name)}
             </p>
             {hasSchedule ? (
-              <p className="text-white/80 text-xs mt-0.5">
+              <p className="text-white/80 text-sm mt-1.5">
                 {formatDateRange(dest.start_date!, dest.end_date!)}
               </p>
             ) : (
-              <p className="text-white/60 text-xs mt-0.5">No dates set</p>
+              <p className="text-white/60 text-xs mt-1">No dates set</p>
             )}
           </div>
         </div>
@@ -301,20 +301,20 @@ function FullDestSection({
       {items.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-4">No places saved for this destination.</p>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-6">
           {assignedDays.map((dayIdx) => {
             const dayItems = byDay.get(dayIdx) ?? []
             return (
               <div key={dayIdx}>
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm shadow-blue-200">
+                  <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-sm font-bold shrink-0 shadow-sm shadow-blue-200">
                     {dayIdx}
                   </div>
                   <div className="leading-none">
-                    <span className="text-xs font-bold text-gray-700">Day {dayIdx}</span>
+                    <span className="text-sm font-bold text-gray-800">Day {dayIdx}</span>
                     {hasSchedule && (
-                      <span className="ml-1.5 text-xs text-gray-400">
-                        · {formatDestDayLabel(dest.start_date!, dayIdx)}
+                      <span className="ml-2 text-xs text-gray-400">
+                        {formatDestDayLabel(dest.start_date!, dayIdx)}
                       </span>
                     )}
                   </div>
@@ -467,7 +467,7 @@ function FullItineraryView({
 function SharedTripSkeleton() {
   return (
     <div className="min-h-screen bg-gray-50 animate-pulse">
-      <div className="bg-gradient-to-br from-blue-900 to-violet-800 w-full" style={{ minHeight: 320 }} />
+      <div className="bg-gradient-to-br from-blue-900 to-violet-800 w-full" style={{ minHeight: 420 }} />
       <div className="px-5 py-8 max-w-2xl mx-auto space-y-3">
         <div className="h-3 bg-gray-200 rounded-full w-28 mb-6" />
         {[1, 2, 3].map((i) => (

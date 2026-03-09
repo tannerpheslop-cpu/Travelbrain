@@ -546,7 +546,7 @@ function DestinationCard({
       style={{ cursor: 'pointer' }}
     >
       {/* Photo header (or gradient fallback) with city name overlay */}
-      <div className="h-20 relative overflow-hidden flex items-end px-4 pb-3">
+      <div className="h-32 relative overflow-hidden flex items-end px-4 pb-3.5">
         {/* Background layer: real photo or colour gradient */}
         {destination.image_url ? (
           <>
@@ -556,13 +556,13 @@ function DestinationCard({
               className="absolute inset-0 w-full h-full object-cover"
             />
             {/* Dark scrim so white text stays legible over any photo */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/55 to-black/10" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-black/5" />
           </>
         ) : (
           <div className={`absolute inset-0 bg-gradient-to-br ${gradient}`} />
         )}
 
-        <span className="relative z-10 text-white text-base font-bold drop-shadow-sm leading-tight">
+        <span className="relative z-10 text-white text-xl font-bold drop-shadow-sm leading-tight">
           {shortDestName(destination.location_name)}
         </span>
         {/* Drag handle */}
@@ -618,18 +618,18 @@ function DestinationCard({
       </div>
 
       {/* Card body */}
-      <div className="px-4 py-3">
+      <div className="px-4 py-3.5">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <h3 className="text-sm font-semibold text-gray-900 truncate">{destination.location_name}</h3>
+            <h3 className="text-sm font-semibold text-gray-800 truncate">{destination.location_name}</h3>
             {destination.start_date && destination.end_date ? (
-              <p className="text-xs text-gray-500 mt-0.5">{formatDateRange(destination.start_date, destination.end_date)}</p>
+              <p className="text-xs text-blue-600 font-medium mt-0.5">{formatDateRange(destination.start_date, destination.end_date)}</p>
             ) : (
-              <p className="text-xs text-gray-400 mt-0.5">No dates yet</p>
+              <p className="text-xs text-gray-400 mt-0.5">No dates set</p>
             )}
           </div>
-          <span className="shrink-0 text-xs text-gray-500 font-medium mt-0.5">
-            {items.length} place{items.length !== 1 ? 's' : ''} saved
+          <span className="shrink-0 text-xs text-gray-400 font-medium mt-0.5">
+            {items.length} {items.length !== 1 ? 'places' : 'place'}
           </span>
         </div>
 
@@ -1206,7 +1206,7 @@ export default function TripDetailPage() {
         <div className="space-y-3">
           {[1, 2].map((i) => (
             <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
-              <div className="h-20 bg-gray-100" />
+              <div className="h-32 bg-gray-100" />
               <div className="px-4 py-3 space-y-2">
                 <div className="h-4 bg-gray-100 rounded w-1/2" />
                 <div className="flex gap-1.5">

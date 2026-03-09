@@ -484,7 +484,7 @@ export default function InboxPage() {
     <button
       type="button"
       onClick={() => setShowSaveSheet(true)}
-      className="fixed bottom-24 right-4 z-30 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 active:bg-blue-800 active:scale-95 transition-all"
+      className="fixed bottom-24 right-4 z-30 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-blue-500/40 hover:bg-blue-700 hover:shadow-blue-500/50 active:bg-blue-800 active:scale-95 transition-all"
       aria-label="Save a place"
     >
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-white">

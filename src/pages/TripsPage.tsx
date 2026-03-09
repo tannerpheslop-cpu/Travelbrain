@@ -81,7 +81,7 @@ function TripCard({
         className="block bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
       >
         {/* Cover image / gradient */}
-        <div className={`h-36 bg-gradient-to-br ${gradient} relative overflow-hidden`}>
+        <div className={`h-44 bg-gradient-to-br ${gradient} relative overflow-hidden`}>
           {coverImage && (
             <img
               src={coverImage}
@@ -101,12 +101,12 @@ function TripCard({
         </div>
 
         {/* Card body */}
-        <div className="px-4 pt-3 pb-3 pr-12">
+        <div className="px-4 pt-3.5 pb-3.5 pr-12">
           <h3 className="text-base font-semibold text-gray-900 truncate">{trip.title}</h3>
 
           {/* Destination chips */}
           {dests.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5 mt-2">
+            <div className="flex flex-wrap gap-1.5 mt-2.5">
               {dests.slice(0, 5).map((d) => (
                 <span
                   key={d.id}
@@ -424,7 +424,7 @@ export default function TripsPage() {
         <div className="mt-5 space-y-4">
           {['from-blue-300 to-indigo-400', 'from-rose-300 to-pink-400'].map((g, i) => (
             <div key={i} className="animate-pulse bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-              <div className={`h-36 bg-gradient-to-br ${g} opacity-60`} />
+              <div className={`h-44 bg-gradient-to-br ${g} opacity-60`} />
               <div className="px-4 py-3 space-y-2.5">
                 <div className="h-4 bg-gray-200 rounded-full w-2/5" />
                 <div className="flex gap-2">

@@ -34,7 +34,7 @@ export default function BottomNav() {
             className={({ isActive }) =>
               `flex flex-col items-center gap-0.5 px-12 py-2 rounded-2xl text-xs font-semibold transition-all ${
                 isActive
-                  ? 'text-blue-600 bg-blue-50'
+                  ? 'text-blue-600 bg-blue-100/80'
                   : 'text-gray-400 hover:text-gray-500 hover:bg-gray-50'
               }`
             }
