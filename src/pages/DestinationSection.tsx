@@ -1072,7 +1072,7 @@ export default function DestinationSection({
   // ── Render ─────────────────────────────────────────────────────────────────────
 
   return (
-    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden transition-opacity ${isDragging ? 'opacity-40 shadow-md' : ''}`}>
+    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm transition-opacity ${isDragging ? 'opacity-40 shadow-md' : ''}`}>
 
       {/* ── Collapsed header row ── */}
       <div
