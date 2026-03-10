@@ -45,7 +45,6 @@ export default function LocationAutocomplete({
       if (cancelled || !inputRef.current || !window.google?.maps?.places) return
 
       const ac = new window.google.maps.places.Autocomplete(inputRef.current, {
-        types: ['(cities)'],
         fields: ['formatted_address', 'geometry', 'name', 'place_id'],
       })
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTrips, type TripWithDestinations } from '../hooks/useTrips'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
@@ -398,6 +398,21 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
 export default function TripsPage() {
   const { trips, loading, createTrip, createDestination, deleteTrip } = useTrips()
   const [showModal, setShowModal] = useState(false)
+
+  // Preload destination cover images so they appear instantly when entering a trip
+  useEffect(() => {
+    if (loading) return
+    for (const trip of trips) {
+      const coverUrl =
+        trip.trip_destinations?.find((d) => d.image_url)?.image_url ??
+        trip.cover_image_url ??
+        null
+      if (coverUrl) {
+        const img = new Image()
+        img.src = coverUrl
+      }
+    }
+  }, [trips, loading])
 
   return (
     <div className="px-4 pt-6 pb-24">
