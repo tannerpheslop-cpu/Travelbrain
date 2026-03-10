@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -46,6 +46,13 @@ const categoryColors: Record<Category, { bg: string; text: string }> = {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
+
+function countryCodeToFlag(code: string): string {
+  if (!code || code.length !== 2) return ''
+  return code.toUpperCase().split('').map(c =>
+    String.fromCodePoint(c.charCodeAt(0) - 0x41 + 0x1F1E6)
+  ).join('')
+}
 
 function formatDateRange(start: string, end: string): string {
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }
@@ -688,6 +695,23 @@ export default function TripDetailPage() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showGeneralPicker, setShowGeneralPicker] = useState(false)
 
+  // Country grouping — derived from destinations, recomputes when order changes
+  const countryGroups = useMemo(() => {
+    const groups: { country: string; countryCode: string; destinations: DestinationWithItems[] }[] = []
+    const seen = new Map<string, number>()
+    for (const dest of destinations) {
+      const key = dest.location_country ?? 'Unknown'
+      if (seen.has(key)) {
+        groups[seen.get(key)!].destinations.push(dest)
+      } else {
+        seen.set(key, groups.length)
+        groups.push({ country: key, countryCode: dest.location_country_code ?? '', destinations: [dest] })
+      }
+    }
+    return groups
+  }, [destinations])
+  const hasMultipleCountries = countryGroups.length > 1
+
   const { companions, pendingInvites, inviteByEmail, removeCompanion, removePendingInvite } = useCompanions(id)
 
   // Fetch trip
@@ -1021,24 +1045,40 @@ export default function TripDetailPage() {
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={destinations.map((d) => d.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2">
-                  {destinations.map((dest, idx) => (
-                    <div key={dest.id} className="relative flex items-start gap-2.5">
-                      {/* Timeline dot */}
-                      <div className={`shrink-0 w-3.5 h-3.5 rounded-full mt-[18px] z-10 ring-2 ring-gray-50 transition-colors flex-none ${expandedDestId === dest.id ? 'bg-blue-500' : 'bg-gray-200'}`} />
-                      {/* Section card */}
-                      <div className="flex-1 min-w-0">
-                        <SortableDestinationSection
-                          destination={dest}
-                          index={idx}
-                          tripId={id!}
-                          userId={user!.id}
-                          isExpanded={expandedDestId === dest.id}
-                          onToggle={() => setExpandedDestId(expandedDestId === dest.id ? null : dest.id)}
-                          onDelete={handleDeleteDestination}
-                          onDatesUpdated={handleDestDatesUpdated}
-                          locatedItems={locatedItems}
-                          canEdit={true}
-                        />
+                  {countryGroups.map((group, groupIdx) => (
+                    <div key={group.country}>
+                      {/* Country group header — shown only when trip spans multiple countries */}
+                      {hasMultipleCountries && (
+                        <div className={`pl-[27px] flex items-center gap-1.5 ${groupIdx > 0 ? 'mt-4 mb-1.5' : 'mb-1.5'}`}>
+                          <span className="text-sm leading-none">{countryCodeToFlag(group.countryCode)}</span>
+                          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{group.country}</span>
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        {group.destinations.map((dest) => {
+                          const destIdx = destinations.findIndex((d) => d.id === dest.id)
+                          return (
+                            <div key={dest.id} className="relative flex items-start gap-2.5">
+                              {/* Timeline dot */}
+                              <div className={`shrink-0 w-3.5 h-3.5 rounded-full mt-[18px] z-10 ring-2 ring-gray-50 transition-colors flex-none ${expandedDestId === dest.id ? 'bg-blue-500' : 'bg-gray-200'}`} />
+                              {/* Section card */}
+                              <div className="flex-1 min-w-0">
+                                <SortableDestinationSection
+                                  destination={dest}
+                                  index={destIdx}
+                                  tripId={id!}
+                                  userId={user!.id}
+                                  isExpanded={expandedDestId === dest.id}
+                                  onToggle={() => setExpandedDestId(expandedDestId === dest.id ? null : dest.id)}
+                                  onDelete={handleDeleteDestination}
+                                  onDatesUpdated={handleDestDatesUpdated}
+                                  locatedItems={locatedItems}
+                                  canEdit={true}
+                                />
+                              </div>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   ))}
