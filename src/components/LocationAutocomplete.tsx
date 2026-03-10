@@ -2,10 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { loadGoogleMapsScript } from '../lib/googleMaps'
 
 export interface LocationSelection {
-  name: string       // formatted display name, e.g. "Tokyo, Japan"
+  name: string              // formatted display name, e.g. "Tokyo, Japan"
   lat: number
   lng: number
   place_id: string
+  country: string | null        // e.g. "China"
+  country_code: string | null   // e.g. "CN"
+  location_type: 'city' | 'country' | 'region'
+  proximity_radius_km: number   // 50 for city, 200 for region, 500 for country
 }
 
 interface Props {
@@ -45,12 +49,32 @@ export default function LocationAutocomplete({
       if (cancelled || !inputRef.current || !window.google?.maps?.places) return
 
       const ac = new window.google.maps.places.Autocomplete(inputRef.current, {
-        fields: ['formatted_address', 'geometry', 'name', 'place_id'],
+        fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components', 'types'],
+        // No 'types' filter — accepts countries, regions, and cities
       })
 
       ac.addListener('place_changed', () => {
         const place = ac.getPlace()
         if (!place?.geometry?.location) return
+
+        // Extract country name + code from address_components
+        const countryComponent = place.address_components?.find(
+          (c: google.maps.GeocoderAddressComponent) => c.types.includes('country')
+        )
+        const country = countryComponent?.long_name ?? null
+        const country_code = countryComponent?.short_name ?? null
+
+        // Determine location_type + proximity radius from the place's own types
+        const placeTypes: string[] = place.types ?? []
+        let location_type: 'city' | 'country' | 'region' = 'city'
+        let proximity_radius_km = 50
+        if (placeTypes.includes('country')) {
+          location_type = 'country'
+          proximity_radius_km = 500
+        } else if (placeTypes.some((t: string) => t.startsWith('administrative_area_level'))) {
+          location_type = 'region'
+          proximity_radius_km = 200
+        }
 
         const name = place.formatted_address || place.name || ''
         setInputValue(name)
@@ -59,6 +83,10 @@ export default function LocationAutocomplete({
           lat: place.geometry.location.lat(),
           lng: place.geometry.location.lng(),
           place_id: place.place_id ?? '',
+          country,
+          country_code,
+          location_type,
+          proximity_radius_km,
         })
       })
 

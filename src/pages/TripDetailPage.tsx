@@ -765,6 +765,10 @@ export default function TripDetailPage() {
         location_lat: loc.lat,
         location_lng: loc.lng,
         location_place_id: loc.place_id,
+        location_country: loc.country ?? 'Unknown',
+        location_country_code: loc.country_code ?? 'XX',
+        location_type: loc.location_type,
+        proximity_radius_km: loc.proximity_radius_km,
         sort_order: destinations.length,
       }).select().single(),
       fetchPlacePhoto(loc.place_id).catch(() => null),
@@ -783,7 +787,7 @@ export default function TripDetailPage() {
       }
       setDestinations((prev) => [...prev, destData])
       setExpandedDestId(data.id) // auto-expand the new destination
-      trackEvent('destination_added', user?.id ?? null, { trip_id: id, location_name: loc.name })
+      trackEvent('destination_added', user?.id ?? null, { trip_id: id, location_name: loc.name, location_type: loc.location_type })
 
       if (photoUrl) {
         supabase.from('trip_destinations').update({ image_url: photoUrl }).eq('id', data.id)

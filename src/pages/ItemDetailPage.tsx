@@ -80,6 +80,10 @@ export default function ItemDetailPage() {
         lat: saved.location_lat ?? 0,
         lng: saved.location_lng ?? 0,
         place_id: saved.location_place_id ?? '',
+        country: saved.location_country ?? null,
+        country_code: saved.location_country_code ?? null,
+        location_type: 'city',
+        proximity_radius_km: 50,
       } : null)
       setNotes(saved.notes || '')
       setTags(saved.tags?.join(', ') || '')
@@ -122,6 +126,8 @@ export default function ItemDetailPage() {
       location_lat: location?.lat ?? null,
       location_lng: location?.lng ?? null,
       location_place_id: location?.place_id ?? null,
+      location_country: location?.country ?? null,
+      location_country_code: location?.country_code ?? null,
       notes: notes.trim() || null,
       tags: tags.trim() ? tags.split(',').map((t) => t.trim()).filter(Boolean) : null,
     })

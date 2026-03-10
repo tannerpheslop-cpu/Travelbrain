@@ -29,6 +29,8 @@ export interface SavedItem {
   location_lat: number | null
   location_lng: number | null
   location_place_id: string | null // Google Place ID
+  location_country: string | null      // e.g. "Japan"
+  location_country_code: string | null // e.g. "JP"
   category: Category
   notes: string | null
   tags: string[] | null
@@ -57,6 +59,10 @@ export interface TripDestination {
   location_lat: number
   location_lng: number
   location_place_id: string
+  location_country: string
+  location_country_code: string
+  location_type: 'city' | 'country' | 'region'
+  proximity_radius_km: number
   image_url: string | null
   start_date: string | null
   end_date: string | null

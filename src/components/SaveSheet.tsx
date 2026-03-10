@@ -130,6 +130,8 @@ export default function SaveSheet({ onClose, onSaved }: Props) {
       location_lat: location?.lat ?? null,
       location_lng: location?.lng ?? null,
       location_place_id: location?.place_id ?? null,
+      location_country: location?.country ?? null,
+      location_country_code: location?.country_code ?? null,
       category,
       notes: notes.trim() || null,
     }).select().single()
@@ -194,6 +196,8 @@ export default function SaveSheet({ onClose, onSaved }: Props) {
       location_lat: location?.lat ?? null,
       location_lng: location?.lng ?? null,
       location_place_id: location?.place_id ?? null,
+      location_country: location?.country ?? null,
+      location_country_code: location?.country_code ?? null,
       category,
       notes: notes.trim() || null,
     }).select().single()
@@ -226,6 +230,8 @@ export default function SaveSheet({ onClose, onSaved }: Props) {
       location_lat: location?.lat ?? null,
       location_lng: location?.lng ?? null,
       location_place_id: location?.place_id ?? null,
+      location_country: location?.country ?? null,
+      location_country_code: location?.country_code ?? null,
       category,
       notes: notes.trim() || null,
     }).select().single()
