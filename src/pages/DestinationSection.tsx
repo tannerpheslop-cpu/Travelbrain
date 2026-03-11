@@ -64,6 +64,15 @@ interface ItemInteraction {
   onToggleComments: () => void
 }
 
+/** A city cluster derived from inbox items within a country destination. */
+interface CitySuggestion {
+  cityName: string
+  lat: number
+  lng: number
+  placeId: string
+  items: SavedItem[]
+}
+
 export interface DestinationSectionProps {
   destination: DestinationWithItems
   index: number
@@ -79,6 +88,9 @@ export interface DestinationSectionProps {
   dragHandleListeners?: Record<string, unknown>
   isDragging?: boolean
   isFlat?: boolean
+  onAddDestination?: () => void
+  /** Add a city as a new trip destination and link items to it (country-level suggestions). */
+  onAddCityWithItems?: (city: { name: string; lat: number; lng: number; placeId: string; country: string; countryCode: string }, itemIds: string[]) => Promise<void>
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -762,6 +774,8 @@ export default function DestinationSection({
   dragHandleListeners,
   isDragging,
   isFlat = false,
+  onAddDestination,
+  onAddCityWithItems,
 }: DestinationSectionProps) {
   // Linked items — initialized from preloaded destination_items, then managed locally
   const [linkedItems, setLinkedItems] = useState<LinkedItem[]>(destination.destination_items ?? [])
@@ -794,6 +808,14 @@ export default function DestinationSection({
   // Delete menu
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
+
+  // Unified add menu (empty state)
+
+
+  // Country-level city suggestions (for empty country destinations)
+  const [citySuggestions, setCitySuggestions] = useState<CitySuggestion[]>([])
+  const [expandedCitySugg, setExpandedCitySugg] = useState<string | null>(null)
+  const [addingCitySugg, setAddingCitySugg] = useState<string | null>(null)
 
   // dnd-kit for items within a day view
   const itemSensors = useSensors(
@@ -834,24 +856,102 @@ export default function DestinationSection({
   }
 
   const loadSuggestions = async () => {
-    const { data } = await supabase
-      .from('saved_items')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_archived', false)
-      .not('location_lat', 'is', null)
-      .not('location_lng', 'is', null)
-      .gte('location_lat', destination.location_lat - 0.45)
-      .lte('location_lat', destination.location_lat + 0.45)
-      .gte('location_lng', destination.location_lng - 0.45)
-      .lte('location_lng', destination.location_lng + 0.45)
-
+    const isCountry = destination.location_type === 'country'
     const linkedIds = new Set(linkedItems.map((li) => li.item_id))
-    const nearby = ((data ?? []) as SavedItem[]).filter((s) => !linkedIds.has(s.id))
-    setSuggestions(nearby)
-    if (nearby.length > 0) {
-      trackEvent('nearby_suggestion_shown', userId, { destination_id: destination.id, count: nearby.length })
+
+    if (isCountry) {
+      // Country-level: fetch all items in this country, group by city
+      const { data } = await supabase
+        .from('saved_items')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_archived', false)
+        .eq('location_country', destination.location_country)
+        .not('location_lat', 'is', null)
+        .not('location_lng', 'is', null)
+        .not('location_name', 'is', null)
+
+      const items = ((data ?? []) as SavedItem[]).filter((s) => !linkedIds.has(s.id))
+      setSuggestions(items) // flat list kept for badge count
+
+      // Cluster items into city groups using simple proximity
+      const clusters: Array<{ sumLat: number; sumLng: number; items: SavedItem[] }> = []
+      for (const item of items) {
+        if (item.location_lat == null || item.location_lng == null) continue
+        let assigned = false
+        for (const c of clusters) {
+          const cx = c.sumLat / c.items.length
+          const cy = c.sumLng / c.items.length
+          if (Math.abs(item.location_lat - cx) <= 0.45 && Math.abs(item.location_lng - cy) <= 0.45) {
+            c.items.push(item)
+            c.sumLat += item.location_lat
+            c.sumLng += item.location_lng
+            assigned = true
+            break
+          }
+        }
+        if (!assigned) {
+          clusters.push({ sumLat: item.location_lat, sumLng: item.location_lng, items: [item] })
+        }
+      }
+
+      const cityGroups: CitySuggestion[] = clusters.map((c) => {
+        const cx = c.sumLat / c.items.length
+        const cy = c.sumLng / c.items.length
+        // Pick most common location_name as city label
+        const nameCounts = new Map<string, number>()
+        for (const it of c.items) {
+          const n = it.location_name ?? ''
+          nameCounts.set(n, (nameCounts.get(n) ?? 0) + 1)
+        }
+        const bestName = [...nameCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''
+        const cityName = bestName.split(',')[0].trim()
+        const rep = c.items[0]
+        const placeId = rep.location_place_id ?? `cluster-${destination.location_country_code}-${Math.round(cx * 100)}-${Math.round(cy * 100)}`
+        return { cityName, lat: cx, lng: cy, placeId, items: c.items }
+      }).sort((a, b) => b.items.length - a.items.length)
+
+      setCitySuggestions(cityGroups)
+      if (items.length > 0) {
+        trackEvent('nearby_suggestion_shown', userId, { destination_id: destination.id, count: items.length })
+      }
+    } else {
+      // City-level: fetch nearby items (existing logic)
+      const { data } = await supabase
+        .from('saved_items')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_archived', false)
+        .not('location_lat', 'is', null)
+        .not('location_lng', 'is', null)
+        .gte('location_lat', destination.location_lat - 0.45)
+        .lte('location_lat', destination.location_lat + 0.45)
+        .gte('location_lng', destination.location_lng - 0.45)
+        .lte('location_lng', destination.location_lng + 0.45)
+
+      const nearby = ((data ?? []) as SavedItem[]).filter((s) => !linkedIds.has(s.id))
+      setSuggestions(nearby)
+      if (nearby.length > 0) {
+        trackEvent('nearby_suggestion_shown', userId, { destination_id: destination.id, count: nearby.length })
+      }
     }
+  }
+
+  // ── Add city from country-level suggestion ───────────────────────────────────
+
+  const handleAddCitySuggestion = async (city: CitySuggestion) => {
+    if (!onAddCityWithItems || addingCitySugg) return
+    setAddingCitySugg(city.placeId)
+    await onAddCityWithItems(
+      { name: city.cityName, lat: city.lat, lng: city.lng, placeId: city.placeId, country: destination.location_country, countryCode: destination.location_country_code },
+      city.items.map((it) => it.id),
+    )
+    setCitySuggestions((prev) => prev.filter((c) => c.placeId !== city.placeId))
+    setSuggestions((prev) => {
+      const removedIds = new Set(city.items.map((it) => it.id))
+      return prev.filter((s) => !removedIds.has(s.id))
+    })
+    setAddingCitySugg(null)
   }
 
   // ── Open inbox sheet (lazy fetch once) ────────────────────────────────────────
@@ -1276,12 +1376,120 @@ export default function DestinationSection({
                 )}
 
                 {linkedItems.length === 0 ? (
-                  <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-gray-300 mx-auto mb-2">
-                      <path fillRule="evenodd" d="M6.32 2.577a49.255 49.255 0 0111.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 01-1.085.67L12 18.089l-7.165 3.583A.75.75 0 013.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z" clipRule="evenodd" />
-                    </svg>
-                    <p className="text-sm text-gray-500 font-medium">No places saved here yet</p>
-                    <p className="mt-1 text-xs text-gray-400 max-w-xs mx-auto">Add from your inbox below, or save nearby items and they'll appear as suggestions</p>
+                  <div className="space-y-3">
+                    <p className="text-sm text-gray-400 py-1">No places saved yet</p>
+
+                    {/* Country-level: city cluster suggestions — ghost destination cards */}
+                    {destination.location_type === 'country' && citySuggestions.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-400 font-medium mb-2">Your saves in {destination.location_name.split(',')[0].trim()}</p>
+                        <div className="space-y-2">
+                          {citySuggestions.map((city) => {
+                            const isCityExpanded = expandedCitySugg === city.placeId
+                            const isAdding = addingCitySugg === city.placeId
+                            const thumbUrl = city.items.find((it) => it.image_url)?.image_url ?? null
+                            return (
+                              <div key={city.placeId} className="bg-white border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden">
+                                {/* Card header — tap to expand/collapse; "+" always visible */}
+                                <div
+                                  className="flex items-center gap-3 px-3 py-3 cursor-pointer select-none"
+                                  onClick={() => setExpandedCitySugg(isCityExpanded ? null : city.placeId)}
+                                >
+                                  {/* Ghost thumbnail — item image (muted) or map pin */}
+                                  <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 flex-none bg-gray-100 flex items-center justify-center">
+                                    {thumbUrl ? (
+                                      <img src={thumbUrl} alt={city.cityName} className="w-full h-full object-cover opacity-50" />
+                                    ) : (
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-gray-300">
+                                        <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                                      </svg>
+                                    )}
+                                  </div>
+                                  {/* City name + save count */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-gray-400 truncate leading-snug">{city.cityName}</p>
+                                    <p className="text-xs text-gray-300">{city.items.length} save{city.items.length !== 1 ? 's' : ''}</p>
+                                  </div>
+                                  {/* Right: expand chevron + add button */}
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                                      className={`w-3.5 h-3.5 text-gray-300 transition-transform ${isCityExpanded ? 'rotate-180' : ''}`}>
+                                      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
+                                    </svg>
+                                    <button type="button" disabled={isAdding}
+                                      onClick={(e) => { e.stopPropagation(); handleAddCitySuggestion(city) }}
+                                      className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors disabled:opacity-50"
+                                      aria-label={`Add ${city.cityName}`}
+                                    >
+                                      {isAdding ? (
+                                        <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                                      ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                                          <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                        </svg>
+                                      )}
+                                    </button>
+                                  </div>
+                                </div>
+                                {/* Expanded: activity list with category pills */}
+                                {isCityExpanded && (
+                                  <div className="px-3 pb-3 pt-1 border-t border-dashed border-gray-100 space-y-1">
+                                    {city.items.map((it) => (
+                                      <div key={it.id} className="flex items-center justify-between gap-2 py-0.5">
+                                        <p className="text-xs text-gray-400 truncate flex-1">{it.title}</p>
+                                        <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full font-medium ${categoryColors[it.category].bg} ${categoryColors[it.category].text}`}>
+                                          {categoryLabel[it.category]}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* City-level: individual activity suggestions — ghost cards */}
+                    {destination.location_type !== 'country' && suggestions.length > 0 && (
+                      <div>
+                        <p className="text-xs text-gray-400 font-medium mb-2">Your saves in {destination.location_name.split(',')[0].trim()}</p>
+                        <div className="space-y-2">
+                          {suggestions.map((item) => (
+                            <div key={item.id} className="bg-white border-2 border-dashed border-gray-200 rounded-2xl flex items-center gap-3 px-3 py-3">
+                              {/* Ghost thumbnail */}
+                              <div className="w-11 h-11 rounded-xl bg-gray-100 shrink-0 flex-none" />
+                              {/* Activity title */}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-semibold text-gray-400 truncate leading-snug">{item.title}</p>
+                              </div>
+                              {/* Add button */}
+                              <button type="button"
+                                onClick={() => handleAddSuggestion(item)}
+                                className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors shrink-0"
+                                aria-label={`Add ${item.title}`}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                                  <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                                </svg>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Add from Inbox — compact inline, part of the empty state */}
+                    {canEdit && (
+                      <button type="button" onClick={handleOpenInboxSheet}
+                        className="flex items-center gap-2 text-sm text-blue-500 hover:text-blue-700 transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
+                          <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
+                        </svg>
+                        Add from Inbox
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1306,8 +1514,8 @@ export default function DestinationSection({
               </>
             )}
 
-            {/* Add from Inbox button */}
-            {canEdit && (
+            {/* Add from Inbox — shown when destination already has items */}
+            {canEdit && linkedItems.length > 0 && (
               <button type="button" onClick={handleOpenInboxSheet}
                 className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -1317,8 +1525,8 @@ export default function DestinationSection({
               </button>
             )}
 
-            {/* Nearby suggestions */}
-            {suggestions.length > 0 && canEdit && (
+            {/* Nearby suggestions — hidden when empty (shown inline in empty state instead) */}
+            {suggestions.length > 0 && canEdit && linkedItems.length > 0 && (
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />

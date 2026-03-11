@@ -24,7 +24,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import DestinationSection, { SortableDestinationSection, type DestinationWithItems, type LocatedItemBasic } from './DestinationSection'
+import DestinationSection, { SortableDestinationSection, type DestinationWithItems, type LocatedItemBasic, type LinkedItem } from './DestinationSection'
 
 // ── Local types ────────────────────────────────────────────────────────────────
 
@@ -607,21 +607,16 @@ function GeneralSection({
       </div>
 
       {items.length === 0 ? (
-        <button type="button" onClick={onOpenPicker}
-          className="w-full flex items-center gap-3 bg-gray-50 rounded-2xl border border-dashed border-gray-200 px-4 py-4 hover:bg-gray-100 transition-colors text-left">
-          <div className="w-9 h-9 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400">
-              <path fillRule="evenodd" d="M6 4.75A.75.75 0 016.75 4h10.5a.75.75 0 010 1.5H6.75A.75.75 0 016 4.75zM6 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H6.75A.75.75 0 016 10zm0 5.25a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H6.75a.75.75 0 01-.75-.75zM1.99 4.75a1 1 0 011-1h.01a1 1 0 010 2h-.01a1 1 0 01-1-1zM1.99 10a1 1 0 011-1h.01a1 1 0 010 2h-.01a1 1 0 01-1-1zm0 5.25a1 1 0 011-1h.01a1 1 0 010 2h-.01a1 1 0 01-1-1z" clipRule="evenodd" />
+        <div className="flex items-center gap-2 py-1">
+          <p className="text-sm text-gray-400 flex-1">Add trip-wide items like packing lists or visa guides</p>
+          <button type="button" onClick={onOpenPicker}
+            className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors shrink-0"
+            aria-label="Add item">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
             </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-700">Add trip-wide items</p>
-            <p className="text-xs text-gray-400 mt-0.5">Packing lists, visa guides, travel insurance…</p>
-          </div>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-gray-300 shrink-0">
-            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-          </svg>
-        </button>
+          </button>
+        </div>
       ) : (
         <div className="space-y-2">
           {items.map((gi) => {
@@ -1170,6 +1165,82 @@ export default function TripDetailPage() {
     void handleAddDestination(loc)
   }
 
+  const handleAddCityWithItems = async (
+    city: { name: string; lat: number; lng: number; placeId: string; country: string; countryCode: string },
+    itemIds: string[],
+  ) => {
+    if (!id) return
+
+    // Create the city destination
+    const [insertResult, photoUrl] = await Promise.all([
+      supabase.from('trip_destinations').insert({
+        trip_id: id,
+        location_name: `${city.name}, ${city.country}`,
+        location_lat: city.lat,
+        location_lng: city.lng,
+        location_place_id: city.placeId,
+        location_country: city.country,
+        location_country_code: city.countryCode,
+        location_type: 'city' as const,
+        proximity_radius_km: 50,
+        sort_order: destinations.length,
+      }).select().single(),
+      fetchPlacePhoto(city.placeId).catch(() => null),
+    ])
+
+    const { data, error } = insertResult
+    if (error || !data) return
+
+    // Link items to the new destination
+    const linkInserts = itemIds.map((itemId, idx) => ({
+      destination_id: data.id,
+      item_id: itemId,
+      day_index: null,
+      sort_order: idx,
+    }))
+    const { data: linkedRows } = await supabase
+      .from('destination_items')
+      .insert(linkInserts)
+      .select('id, destination_id, item_id, day_index, sort_order')
+
+    // Fetch full saved_items for the linked rows
+    const { data: fullItems } = await supabase
+      .from('saved_items')
+      .select('*')
+      .in('id', itemIds)
+    const itemMap = new Map((fullItems ?? []).map((it: SavedItem) => [it.id, it]))
+
+    const destItems: LinkedItem[] = ((linkedRows ?? []) as { id: string; destination_id: string; item_id: string; day_index: number | null; sort_order: number }[]).map((row) => ({
+      ...row,
+      saved_item: itemMap.get(row.item_id) ?? ({} as SavedItem),
+    }))
+
+    const destData: DestinationWithItems = {
+      ...(data as DestinationWithItems),
+      image_url: photoUrl ?? null,
+      destination_items: destItems,
+    }
+    setDestinations((prev) => [...prev, destData])
+    setExpandedDestId(data.id)
+
+    trackEvent('destination_added', user?.id ?? null, {
+      trip_id: id,
+      location_name: city.name,
+      location_type: 'city',
+      source: 'country_suggestion',
+      items_linked: itemIds.length,
+    })
+
+    if (photoUrl) {
+      supabase.from('trip_destinations').update({ image_url: photoUrl }).eq('id', data.id)
+        .then(() => {/* no-op */}).catch(() => {/* non-critical */})
+    }
+
+    // Nudge trip to planning
+    supabase.from('trips').update({ status: 'planning' }).eq('id', id).eq('status', 'aspirational')
+      .then(() => {/* no-op */}).catch(() => {/* non-critical */})
+  }
+
   const handleRefinementMove = async () => {
     if (!refinement) return
     const { countryDest, newCityDest, nearbyItems } = refinement
@@ -1525,16 +1596,14 @@ export default function TripDetailPage() {
 
         /* ── ZERO destinations: combined empty state with integrated autocomplete ── */
         <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-blue-400">
+          <div className="text-center mb-5">
+            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-blue-400">
                 <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
               </svg>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-gray-800">Add your first destination</p>
-              <p className="text-xs text-gray-400">Build your trip around cities, regions, or countries</p>
-            </div>
+            <p className="text-base font-semibold text-gray-800">Where are you headed?</p>
+            <p className="text-sm text-gray-400 mt-1">Add a city, country, or region to get started</p>
           </div>
           {tripPageSuggestions.length > 0 && (
             <div className="mb-4">
@@ -1577,59 +1646,48 @@ export default function TripDetailPage() {
             onDatesUpdated={handleDestDatesUpdated}
             locatedItems={locatedItems}
             canEdit={true}
+            onAddDestination={openAddDest}
+            onAddCityWithItems={handleAddCityWithItems}
           />
 
-          {/* Suggested destinations from inbox — shown when add-dest panel is closed */}
-          {tripPageSuggestions.length > 0 && !showAddDest && (
+          {/* Add Destination — subtle button/form below destination content */}
+          {/* Hidden when destination is empty (accessible via unified + Add dropdown inside section) */}
+          {(showAddDest || (destinations[0].destination_items?.length ?? 0) > 0) && (
             <div className="mt-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
-                Suggested from your saves
-              </p>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <AddDestSuggestionList
-                  suggestions={tripPageSuggestions}
-                  onSelect={handleAddFromSuggestion}
-                  disabled={addingDest}
-                />
-              </div>
+              {showAddDest ? (
+                <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                  <LocationAutocomplete
+                    key={addDestKey}
+                    value=""
+                    onSelect={handleAddDestination}
+                    label="New destination"
+                    optional={false}
+                    placeholder="e.g. Beijing, Tokyo, France…"
+                  />
+                  <AddDestSuggestionList
+                    suggestions={frozenSuggestions}
+                    onSelect={handleAddFromSuggestion}
+                    disabled={addingDest}
+                  />
+                  {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
+                  {!addingDest && (
+                    <button type="button" onClick={() => setShowAddDest(false)}
+                      className="mt-2 w-full text-center text-sm text-gray-400 hover:text-gray-600 transition-colors">
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button type="button" onClick={openAddDest}
+                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                  </svg>
+                  Add Destination
+                </button>
+              )}
             </div>
           )}
-
-          {/* Add Destination — subtle button/form below destination content */}
-          <div className="mt-4">
-            {showAddDest ? (
-              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                <LocationAutocomplete
-                  key={addDestKey}
-                  value=""
-                  onSelect={handleAddDestination}
-                  label="New destination"
-                  optional={false}
-                  placeholder="e.g. Beijing, Tokyo, France…"
-                />
-                <AddDestSuggestionList
-                  suggestions={frozenSuggestions}
-                  onSelect={handleAddFromSuggestion}
-                  disabled={addingDest}
-                />
-                {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
-                {!addingDest && (
-                  <button type="button" onClick={() => setShowAddDest(false)}
-                    className="mt-2 w-full text-center text-sm text-gray-400 hover:text-gray-600 transition-colors">
-                    Cancel
-                  </button>
-                )}
-              </div>
-            ) : (
-              <button type="button" onClick={openAddDest}
-                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                  <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                </svg>
-                Add Destination
-              </button>
-            )}
-          </div>
         </>
 
       ) : (
@@ -1674,6 +1732,8 @@ export default function TripDetailPage() {
                                   onDatesUpdated={handleDestDatesUpdated}
                                   locatedItems={locatedItems}
                                   canEdit={true}
+                                  onAddDestination={openAddDest}
+                                  onAddCityWithItems={handleAddCityWithItems}
                                 />
                               </div>
                             </div>
@@ -1686,22 +1746,6 @@ export default function TripDetailPage() {
               </SortableContext>
             </DndContext>
           </div>
-
-          {/* Suggested destinations from inbox — shown when add-dest panel is closed */}
-          {tripPageSuggestions.length > 0 && !showAddDest && (
-            <div className="mt-3 pl-6">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
-                Suggested from your saves
-              </p>
-              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                <AddDestSuggestionList
-                  suggestions={tripPageSuggestions}
-                  onSelect={handleAddFromSuggestion}
-                  disabled={addingDest}
-                />
-              </div>
-            </div>
-          )}
 
           {/* Add Destination */}
           <div className="mt-3 pl-6">
