@@ -726,6 +726,11 @@ export default function TripDetailPage() {
 
   // Cluster-based destination suggestions
   const [inboxClusters, setInboxClusters] = useState<CountryCluster[]>([])
+  // Snapshot of suggestions frozen at the moment the add-dest panel opens,
+  // so async cluster loading never re-renders the panel while the user is typing.
+  const [frozenSuggestions, setFrozenSuggestions] = useState<Array<{
+    key: string; label: string; flag: string; itemCount: number; loc: LocationSelection
+  }>>([])
 
   // Modals
   const [showScheduleModal, setShowScheduleModal] = useState(false)
@@ -872,11 +877,11 @@ export default function TripDetailPage() {
 
   // Track when add-destination suggestions are shown
   useEffect(() => {
-    if (!showAddDest || !addDestSuggestions.length || !user) return
+    if (!showAddDest || !frozenSuggestions.length || !user) return
     trackEvent('cluster_suggestion_shown', user.id, {
       trip_id: id,
       context: 'add_destination',
-      suggestions: addDestSuggestions.length,
+      suggestions: frozenSuggestions.length,
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAddDest])
@@ -949,6 +954,13 @@ export default function TripDetailPage() {
       context: 'add_destination',
     })
     void handleAddDestination(loc)
+  }
+
+  // Opens the add-destination panel and freezes the current suggestions so that
+  // any subsequent async cluster load cannot mutate the panel's DOM while typing.
+  const openAddDest = () => {
+    setFrozenSuggestions(addDestSuggestions)
+    setShowAddDest(true)
   }
 
   const handleDeleteDestination = async (destId: string) => {
@@ -1220,7 +1232,7 @@ export default function TripDetailPage() {
             {showAddDest ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
                 <AddDestSuggestionPills
-                  suggestions={addDestSuggestions}
+                  suggestions={frozenSuggestions}
                   onSelect={handleAddFromSuggestion}
                   disabled={addingDest}
                 />
@@ -1228,7 +1240,7 @@ export default function TripDetailPage() {
                   key={addDestKey}
                   value=""
                   onSelect={handleAddDestination}
-                  label={addDestSuggestions.length > 0 ? 'Or add manually' : 'New destination'}
+                  label={frozenSuggestions.length > 0 ? 'Or add manually' : 'New destination'}
                   optional={false}
                   placeholder="e.g. Beijing, Tokyo, France…"
                 />
@@ -1241,7 +1253,7 @@ export default function TripDetailPage() {
                 )}
               </div>
             ) : (
-              <button type="button" onClick={() => setShowAddDest(true)}
+              <button type="button" onClick={openAddDest}
                 className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                   <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
@@ -1312,7 +1324,7 @@ export default function TripDetailPage() {
             {showAddDest ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
                 <AddDestSuggestionPills
-                  suggestions={addDestSuggestions}
+                  suggestions={frozenSuggestions}
                   onSelect={handleAddFromSuggestion}
                   disabled={addingDest}
                 />
@@ -1320,7 +1332,7 @@ export default function TripDetailPage() {
                   key={addDestKey}
                   value=""
                   onSelect={handleAddDestination}
-                  label={addDestSuggestions.length > 0 ? 'Or add manually' : 'New destination'}
+                  label={frozenSuggestions.length > 0 ? 'Or add manually' : 'New destination'}
                   optional={false}
                   placeholder="e.g. Beijing, Tokyo, France…"
                 />
@@ -1333,7 +1345,7 @@ export default function TripDetailPage() {
                 )}
               </div>
             ) : (
-              <button type="button" onClick={() => setShowAddDest(true)}
+              <button type="button" onClick={openAddDest}
                 className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                   <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
