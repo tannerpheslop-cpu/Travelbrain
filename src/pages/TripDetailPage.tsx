@@ -945,6 +945,7 @@ export default function TripDetailPage() {
           }
         }
       }
+      console.log('[trip-page] tripPageSuggestions:', suggs.length, suggs.map((s) => s.label))
       return suggs
     },
     [],
@@ -1031,6 +1032,7 @@ export default function TripDetailPage() {
   useEffect(() => {
     if (!user) return
     getInboxClusters(user.id).then((clusters) => {
+      console.log('[trip-page] inbox clusters loaded:', clusters.length, clusters)
       inboxClustersRef.current = clusters
       setClustersLoaded(true)
     })

@@ -142,7 +142,7 @@ function clusterCities(items: LocatedItem[]): CityCluster[] {
  *
  * - Only considers items that have location_lat, location_lng, location_country
  *   and location_name set, and are not archived.
- * - Countries with fewer than 2 saves are excluded (weak signal).
+ * - Countries with no located saves are excluded.
  * - Results are sorted by item_count descending.
  * - Runs on demand — not cached or stored in the database.
  */
@@ -185,7 +185,7 @@ export async function getInboxClusters(userId: string): Promise<CountryCluster[]
   const clusters: CountryCluster[] = []
 
   for (const [country, { country_code, items: countryItems }] of byCountry) {
-    if (countryItems.length < 2) continue // not enough signal
+    if (countryItems.length < 1) continue // must have at least one located save
 
     const cities = clusterCities(countryItems)
     // Country centroid = average of city cluster centroids
