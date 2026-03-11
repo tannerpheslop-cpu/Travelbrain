@@ -700,6 +700,153 @@ function AddDestSuggestionList({
   )
 }
 
+// ── Country-to-City Refinement Types ──────────────────────────────────────────
+
+interface RefinementItem {
+  id: string            // destination_items.id
+  item_id: string
+  saved_item: {
+    id: string
+    title: string
+    location_name: string | null
+    location_lat: number | null
+    location_lng: number | null
+    image_url: string | null
+    category: string
+  }
+}
+
+interface RefinementState {
+  countryDest: DestinationWithItems
+  newCityDest: DestinationWithItems
+  nearbyItems: RefinementItem[]
+}
+
+// ── Refinement Modal ───────────────────────────────────────────────────────────
+
+function RefinementModal({
+  refinement,
+  onMove,
+  onKeep,
+  moving,
+}: {
+  refinement: RefinementState
+  onMove: () => void
+  onKeep: () => void
+  moving: boolean
+}) {
+  const { countryDest, newCityDest, nearbyItems } = refinement
+  const cityName = newCityDest.location_name.split(',')[0].trim()
+  const countryName = countryDest.location_name
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onKeep} />
+      <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5 shadow-xl">
+        <h3 className="text-base font-semibold text-gray-900 mb-1">
+          Move saves to {cityName}?
+        </h3>
+        <p className="text-sm text-gray-500 mb-4">
+          {nearbyItems.length} item{nearbyItems.length !== 1 ? 's' : ''} in your{' '}
+          <span className="font-medium text-gray-700">{countryName}</span> bucket{' '}
+          {nearbyItems.length !== 1 ? 'are' : 'is'} near {cityName}.
+        </p>
+
+        {/* Item list */}
+        <div className="space-y-2 mb-5 max-h-48 overflow-y-auto">
+          {nearbyItems.map((ri) => (
+            <div key={ri.id} className="flex items-center gap-2.5">
+              {ri.saved_item.image_url ? (
+                <img
+                  src={ri.saved_item.image_url}
+                  alt=""
+                  className="w-9 h-9 rounded-lg object-cover shrink-0 bg-gray-100"
+                />
+              ) : (
+                <div className="w-9 h-9 rounded-lg bg-gray-100 shrink-0" />
+              )}
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-800 truncate">{ri.saved_item.title}</p>
+                {ri.saved_item.location_name && (
+                  <p className="text-xs text-gray-400 truncate">{ri.saved_item.location_name}</p>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onMove}
+            disabled={moving}
+            className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50"
+          >
+            {moving ? 'Moving…' : `Move to ${cityName}`}
+          </button>
+          <button
+            type="button"
+            onClick={onKeep}
+            disabled={moving}
+            className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            Keep in {countryName}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Country Remove Prompt ──────────────────────────────────────────────────────
+
+function CountryRemovePrompt({
+  countryDest,
+  onRemove,
+  onKeep,
+  removing,
+}: {
+  countryDest: DestinationWithItems
+  onRemove: () => void
+  onKeep: () => void
+  removing: boolean
+}) {
+  const countryName = countryDest.location_name
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onKeep} />
+      <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5 shadow-xl">
+        <h3 className="text-base font-semibold text-gray-900 mb-1">
+          Remove {countryName}?
+        </h3>
+        <p className="text-sm text-gray-500 mb-5">
+          All your {countryName} saves are now in specific cities. You can remove{' '}
+          {countryName} as a destination or keep it as a placeholder.
+        </p>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onRemove}
+            disabled={removing}
+            className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {removing ? 'Removing…' : `Remove ${countryName}`}
+          </button>
+          <button
+            type="button"
+            onClick={onKeep}
+            disabled={removing}
+            className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            Keep it
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Trip Detail Page ───────────────────────────────────────────────────────────
 
 export default function TripDetailPage() {
@@ -738,6 +885,12 @@ export default function TripDetailPage() {
   const [frozenSuggestions, setFrozenSuggestions] = useState<Array<{
     key: string; label: string; flag: string; itemCount: number; loc: LocationSelection
   }>>([])
+
+  // Country-to-city refinement
+  const [refinement, setRefinement] = useState<RefinementState | null>(null)
+  const [movingItems, setMovingItems] = useState(false)
+  const [countryRemovePrompt, setCountryRemovePrompt] = useState<DestinationWithItems | null>(null)
+  const [removingCountry, setRemovingCountry] = useState(false)
 
   // Modals
   const [showScheduleModal, setShowScheduleModal] = useState(false)
@@ -884,6 +1037,49 @@ export default function TripDetailPage() {
         supabase.from('trip_destinations').update({ image_url: photoUrl }).eq('id', data.id)
           .then(() => {/* no-op */}).catch(() => {/* non-critical */})
       }
+
+      // ── Country-to-city refinement check ──────────────────────────────────
+      // Only applies when the new destination is a city
+      if (loc.location_type === 'city' && loc.country) {
+        const countryDest = destinations.find(
+          (d) => d.location_type === 'country' && d.location_country === loc.country,
+        )
+        if (countryDest && countryDest.destination_items.length > 0) {
+          // Filter for items in the country bucket that are near this city (≈50km = 0.45°)
+          const nearbyItems: RefinementItem[] = countryDest.destination_items
+            .filter((di) => {
+              const { location_lat, location_lng } = di.saved_item
+              if (location_lat == null || location_lng == null) return false
+              return (
+                Math.abs(location_lat - loc.lat) <= 0.45 &&
+                Math.abs(location_lng - loc.lng) <= 0.45
+              )
+            })
+            .map((di) => ({
+              id: di.id,
+              item_id: di.item_id,
+              saved_item: {
+                id: di.saved_item.id,
+                title: di.saved_item.title,
+                location_name: di.saved_item.location_name ?? null,
+                location_lat: di.saved_item.location_lat ?? null,
+                location_lng: di.saved_item.location_lng ?? null,
+                image_url: di.saved_item.image_url ?? null,
+                category: di.saved_item.category,
+              },
+            }))
+
+          if (nearbyItems.length > 0) {
+            trackEvent('country_refinement_prompted', user?.id ?? null, {
+              trip_id: id,
+              country_dest_id: countryDest.id,
+              city_dest_id: data.id,
+              nearby_items: nearbyItems.length,
+            })
+            setRefinement({ countryDest, newCityDest: destData, nearbyItems })
+          }
+        }
+      }
     }
   }
 
@@ -895,6 +1091,76 @@ export default function TripDetailPage() {
       context: 'add_destination',
     })
     void handleAddDestination(loc)
+  }
+
+  const handleRefinementMove = async () => {
+    if (!refinement) return
+    const { countryDest, newCityDest, nearbyItems } = refinement
+    setMovingItems(true)
+
+    // Move all nearby destination_items to the new city destination
+    await Promise.all(
+      nearbyItems.map((ri) =>
+        supabase.from('destination_items').update({ destination_id: newCityDest.id }).eq('id', ri.id),
+      ),
+    )
+
+    setMovingItems(false)
+
+    // Update local state: remove items from country dest, add to city dest
+    const movedIds = new Set(nearbyItems.map((ri) => ri.id))
+    setDestinations((prev) =>
+      prev.map((d) => {
+        if (d.id === countryDest.id) {
+          return { ...d, destination_items: d.destination_items.filter((di) => !movedIds.has(di.id)) }
+        }
+        if (d.id === newCityDest.id) {
+          const addedItems = nearbyItems.map((ri) => ({
+            id: ri.id,
+            destination_id: newCityDest.id,
+            item_id: ri.item_id,
+            day_index: null,
+            sort_order: d.destination_items.length,
+            saved_item: ri.saved_item as SavedItem,
+          }))
+          return { ...d, destination_items: [...d.destination_items, ...addedItems] }
+        }
+        return d
+      }),
+    )
+
+    trackEvent('country_refinement_accepted', user?.id ?? null, {
+      trip_id: id,
+      country_dest_id: countryDest.id,
+      city_dest_id: newCityDest.id,
+      moved_items: nearbyItems.length,
+    })
+
+    const remainingCount = countryDest.destination_items.length - nearbyItems.length
+    setRefinement(null)
+
+    // If country dest is now empty, prompt to remove it
+    if (remainingCount === 0) {
+      setCountryRemovePrompt(countryDest)
+    }
+  }
+
+  const handleRefinementKeep = () => {
+    setRefinement(null)
+  }
+
+  const handleCountryRemove = async () => {
+    if (!countryRemovePrompt) return
+    setRemovingCountry(true)
+    await supabase.from('trip_destinations').delete().eq('id', countryRemovePrompt.id)
+    setDestinations((prev) => prev.filter((d) => d.id !== countryRemovePrompt.id))
+    if (expandedDestId === countryRemovePrompt.id) setExpandedDestId(null)
+    setRemovingCountry(false)
+    setCountryRemovePrompt(null)
+  }
+
+  const handleCountryKeep = () => {
+    setCountryRemovePrompt(null)
   }
 
   // Opens the add-destination panel. Suggestions are computed here from the ref
@@ -1418,6 +1684,24 @@ export default function TripDetailPage() {
           userId={user.id}
           onClose={() => setShowGeneralPicker(false)}
           onAdded={(newItem) => setGeneralItems((prev) => [...prev, newItem])}
+        />
+      )}
+
+      {refinement && (
+        <RefinementModal
+          refinement={refinement}
+          onMove={handleRefinementMove}
+          onKeep={handleRefinementKeep}
+          moving={movingItems}
+        />
+      )}
+
+      {countryRemovePrompt && (
+        <CountryRemovePrompt
+          countryDest={countryRemovePrompt}
+          onRemove={handleCountryRemove}
+          onKeep={handleCountryKeep}
+          removing={removingCountry}
         />
       )}
     </div>
