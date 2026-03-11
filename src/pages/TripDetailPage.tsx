@@ -659,9 +659,9 @@ function GeneralSection({
   )
 }
 
-// ── Add Destination Suggestion Pills ───────────────────────────────────────────
+// ── Add Destination Suggestion List ────────────────────────────────────────────
 
-function AddDestSuggestionPills({
+function AddDestSuggestionList({
   suggestions,
   onSelect,
   disabled = false,
@@ -672,23 +672,30 @@ function AddDestSuggestionPills({
 }) {
   if (!suggestions.length) return null
   return (
-    <div className="mb-3">
-      <p className="text-xs font-medium text-gray-400 mb-2">From your saves</p>
-      <div className="flex flex-wrap gap-1.5">
-        {suggestions.map((s) => (
+    <div className="mt-2 border border-gray-100 rounded-xl overflow-hidden">
+      {suggestions.map((s, i) => (
+        <div
+          key={s.key}
+          className={`flex items-center justify-between px-3 py-2 ${i > 0 ? 'border-t border-gray-100' : ''}`}
+        >
+          <span className="flex items-center gap-1.5 text-sm text-gray-600 min-w-0">
+            <span className="text-base leading-none shrink-0">{s.flag}</span>
+            <span className="truncate">{s.label}</span>
+            <span className="text-xs text-gray-400 shrink-0">· {s.itemCount}</span>
+          </span>
           <button
-            key={s.key}
             type="button"
             onClick={() => onSelect(s.loc)}
             disabled={disabled}
-            className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-full text-xs font-medium text-gray-700 hover:text-blue-700 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ml-2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label={`Add ${s.label}`}
           >
-            <span>{s.flag}</span>
-            <span>{s.label}</span>
-            <span className="text-gray-400 font-normal">· {s.itemCount}</span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+            </svg>
           </button>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -1220,18 +1227,18 @@ export default function TripDetailPage() {
           <div className="mt-4">
             {showAddDest ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                <AddDestSuggestionPills
-                  suggestions={frozenSuggestions}
-                  onSelect={handleAddFromSuggestion}
-                  disabled={addingDest}
-                />
                 <LocationAutocomplete
                   key={addDestKey}
                   value=""
                   onSelect={handleAddDestination}
-                  label={frozenSuggestions.length > 0 ? 'Or add manually' : 'New destination'}
+                  label="New destination"
                   optional={false}
                   placeholder="e.g. Beijing, Tokyo, France…"
+                />
+                <AddDestSuggestionList
+                  suggestions={frozenSuggestions}
+                  onSelect={handleAddFromSuggestion}
+                  disabled={addingDest}
                 />
                 {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
                 {!addingDest && (
@@ -1312,18 +1319,18 @@ export default function TripDetailPage() {
           <div className="mt-3 pl-6">
             {showAddDest ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                <AddDestSuggestionPills
-                  suggestions={frozenSuggestions}
-                  onSelect={handleAddFromSuggestion}
-                  disabled={addingDest}
-                />
                 <LocationAutocomplete
                   key={addDestKey}
                   value=""
                   onSelect={handleAddDestination}
-                  label={frozenSuggestions.length > 0 ? 'Or add manually' : 'New destination'}
+                  label="New destination"
                   optional={false}
                   placeholder="e.g. Beijing, Tokyo, France…"
+                />
+                <AddDestSuggestionList
+                  suggestions={frozenSuggestions}
+                  onSelect={handleAddFromSuggestion}
+                  disabled={addingDest}
                 />
                 {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
                 {!addingDest && (
