@@ -8,6 +8,7 @@ import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
 import type { Trip, TripDestination, SavedItem, Category, SharePrivacy } from '../types'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
+import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import {
   DndContext,
   closestCenter,
@@ -658,6 +659,40 @@ function GeneralSection({
   )
 }
 
+// ── Add Destination Suggestion Pills ───────────────────────────────────────────
+
+function AddDestSuggestionPills({
+  suggestions,
+  onSelect,
+  disabled = false,
+}: {
+  suggestions: Array<{ key: string; label: string; flag: string; itemCount: number; loc: LocationSelection }>
+  onSelect: (loc: LocationSelection) => void
+  disabled?: boolean
+}) {
+  if (!suggestions.length) return null
+  return (
+    <div className="mb-3">
+      <p className="text-xs font-medium text-gray-400 mb-2">From your saves</p>
+      <div className="flex flex-wrap gap-1.5">
+        {suggestions.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => onSelect(s.loc)}
+            disabled={disabled}
+            className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-50 hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-full text-xs font-medium text-gray-700 hover:text-blue-700 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <span>{s.flag}</span>
+            <span>{s.label}</span>
+            <span className="text-gray-400 font-normal">· {s.itemCount}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Trip Detail Page ───────────────────────────────────────────────────────────
 
 export default function TripDetailPage() {
@@ -689,6 +724,9 @@ export default function TripDetailPage() {
   const [addingDest, setAddingDest] = useState(false)
   const [addDestKey, setAddDestKey] = useState(0)
 
+  // Cluster-based destination suggestions
+  const [inboxClusters, setInboxClusters] = useState<CountryCluster[]>([])
+
   // Modals
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
@@ -711,6 +749,72 @@ export default function TripDetailPage() {
     return groups
   }, [destinations])
   const hasMultipleCountries = countryGroups.length > 1
+
+  // Filter inbox clusters against current trip destinations to produce suggestion pills
+  const addDestSuggestions = useMemo((): Array<{
+    key: string
+    label: string
+    flag: string
+    itemCount: number
+    loc: LocationSelection
+  }> => {
+    if (!inboxClusters.length) return []
+    const existingCodes = new Set(destinations.map((d) => d.location_country_code))
+    const results: Array<{ key: string; label: string; flag: string; itemCount: number; loc: LocationSelection }> = []
+
+    for (const cluster of inboxClusters) {
+      const countryInTrip = existingCodes.has(cluster.country_code)
+
+      if (!countryInTrip) {
+        // Country not yet in trip — suggest country level (or its single city directly)
+        const singleCity = cluster.cities.length === 1 ? cluster.cities[0] : null
+        results.push({
+          key: `country-${cluster.country_code}`,
+          label: singleCity ? singleCity.name : cluster.country,
+          flag: countryCodeToFlag(cluster.country_code),
+          itemCount: cluster.item_count,
+          loc: {
+            name: singleCity ? singleCity.name : cluster.country,
+            lat: singleCity ? singleCity.lat : cluster.lat,
+            lng: singleCity ? singleCity.lng : cluster.lng,
+            place_id: singleCity ? singleCity.place_id : `country-${cluster.country_code}`,
+            country: cluster.country,
+            country_code: cluster.country_code,
+            location_type: singleCity ? 'city' : 'country',
+            proximity_radius_km: singleCity ? 50 : 500,
+          },
+        })
+      } else {
+        // Country already in trip — suggest individual cities not yet added
+        for (const city of cluster.cities) {
+          const cityAlreadyAdded = destinations.some(
+            (d) =>
+              Math.abs((d.location_lat ?? 999) - city.lat) < 0.45 &&
+              Math.abs((d.location_lng ?? 999) - city.lng) < 0.45,
+          )
+          if (!cityAlreadyAdded) {
+            results.push({
+              key: `city-${city.place_id}`,
+              label: city.name,
+              flag: countryCodeToFlag(cluster.country_code),
+              itemCount: city.item_count,
+              loc: {
+                name: city.name,
+                lat: city.lat,
+                lng: city.lng,
+                place_id: city.place_id,
+                country: cluster.country,
+                country_code: cluster.country_code,
+                location_type: 'city',
+                proximity_radius_km: 50,
+              },
+            })
+          }
+        }
+      }
+    }
+    return results
+  }, [inboxClusters, destinations])
 
   const { companions, pendingInvites, inviteByEmail, removeCompanion, removePendingInvite } = useCompanions(id)
 
@@ -759,6 +863,23 @@ export default function TripDetailPage() {
         if (data) setLocatedItems(data as LocatedItemBasic[])
       })
   }, [user])
+
+  // Load inbox clusters for add-destination suggestions
+  useEffect(() => {
+    if (!user) return
+    getInboxClusters(user.id).then(setInboxClusters)
+  }, [user])
+
+  // Track when add-destination suggestions are shown
+  useEffect(() => {
+    if (!showAddDest || !addDestSuggestions.length || !user) return
+    trackEvent('cluster_suggestion_shown', user.id, {
+      trip_id: id,
+      context: 'add_destination',
+      suggestions: addDestSuggestions.length,
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAddDest])
 
   // Focus title input when editing starts
   useEffect(() => {
@@ -818,6 +939,16 @@ export default function TripDetailPage() {
           .then(() => {/* no-op */}).catch(() => {/* non-critical */})
       }
     }
+  }
+
+  const handleAddFromSuggestion = (loc: LocationSelection) => {
+    trackEvent('cluster_suggestion_accepted', user?.id ?? null, {
+      trip_id: id,
+      location_name: loc.name,
+      location_type: loc.location_type,
+      context: 'add_destination',
+    })
+    void handleAddDestination(loc)
   }
 
   const handleDeleteDestination = async (destId: string) => {
@@ -1054,11 +1185,16 @@ export default function TripDetailPage() {
               <p className="text-xs text-gray-400">Build your trip around cities, regions, or countries</p>
             </div>
           </div>
+          <AddDestSuggestionPills
+            suggestions={addDestSuggestions}
+            onSelect={handleAddFromSuggestion}
+            disabled={addingDest}
+          />
           <LocationAutocomplete
             key={addDestKey}
             value=""
             onSelect={handleAddDestination}
-            label=""
+            label={addDestSuggestions.length > 0 ? 'Or add manually' : ''}
             optional={false}
             placeholder="e.g. Beijing, Tokyo, France…"
           />
@@ -1088,11 +1224,16 @@ export default function TripDetailPage() {
           <div className="mt-4">
             {showAddDest ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                <AddDestSuggestionPills
+                  suggestions={addDestSuggestions}
+                  onSelect={handleAddFromSuggestion}
+                  disabled={addingDest}
+                />
                 <LocationAutocomplete
                   key={addDestKey}
                   value=""
                   onSelect={handleAddDestination}
-                  label="New destination"
+                  label={addDestSuggestions.length > 0 ? 'Or add manually' : 'New destination'}
                   optional={false}
                   placeholder="e.g. Beijing, Tokyo, France…"
                 />
@@ -1175,11 +1316,16 @@ export default function TripDetailPage() {
           <div className="mt-3 pl-6">
             {showAddDest ? (
               <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                <AddDestSuggestionPills
+                  suggestions={addDestSuggestions}
+                  onSelect={handleAddFromSuggestion}
+                  disabled={addingDest}
+                />
                 <LocationAutocomplete
                   key={addDestKey}
                   value=""
                   onSelect={handleAddDestination}
-                  label="New destination"
+                  label={addDestSuggestions.length > 0 ? 'Or add manually' : 'New destination'}
                   optional={false}
                   placeholder="e.g. Beijing, Tokyo, France…"
                 />
