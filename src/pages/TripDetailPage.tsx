@@ -724,10 +724,10 @@ export default function TripDetailPage() {
   const [addingDest, setAddingDest] = useState(false)
   const [addDestKey, setAddDestKey] = useState(0)
 
-  // Cluster-based destination suggestions
-  const [inboxClusters, setInboxClusters] = useState<CountryCluster[]>([])
-  // Snapshot of suggestions frozen at the moment the add-dest panel opens,
-  // so async cluster loading never re-renders the panel while the user is typing.
+  // Clusters stored in a ref — intentionally NOT state so loading never triggers a re-render.
+  // Any async re-render while a LocationAutocomplete is active disrupts the Google Places widget.
+  const inboxClustersRef = useRef<CountryCluster[]>([])
+  // Suggestions snapshotted into state only at the moment the panel opens (in openAddDest).
   const [frozenSuggestions, setFrozenSuggestions] = useState<Array<{
     key: string; label: string; flag: string; itemCount: number; loc: LocationSelection
   }>>([])
@@ -754,72 +754,6 @@ export default function TripDetailPage() {
     return groups
   }, [destinations])
   const hasMultipleCountries = countryGroups.length > 1
-
-  // Filter inbox clusters against current trip destinations to produce suggestion pills
-  const addDestSuggestions = useMemo((): Array<{
-    key: string
-    label: string
-    flag: string
-    itemCount: number
-    loc: LocationSelection
-  }> => {
-    if (!inboxClusters.length) return []
-    const existingCodes = new Set(destinations.map((d) => d.location_country_code))
-    const results: Array<{ key: string; label: string; flag: string; itemCount: number; loc: LocationSelection }> = []
-
-    for (const cluster of inboxClusters) {
-      const countryInTrip = existingCodes.has(cluster.country_code)
-
-      if (!countryInTrip) {
-        // Country not yet in trip — suggest country level (or its single city directly)
-        const singleCity = cluster.cities.length === 1 ? cluster.cities[0] : null
-        results.push({
-          key: `country-${cluster.country_code}`,
-          label: singleCity ? singleCity.name : cluster.country,
-          flag: countryCodeToFlag(cluster.country_code),
-          itemCount: cluster.item_count,
-          loc: {
-            name: singleCity ? singleCity.name : cluster.country,
-            lat: singleCity ? singleCity.lat : cluster.lat,
-            lng: singleCity ? singleCity.lng : cluster.lng,
-            place_id: singleCity ? singleCity.place_id : `country-${cluster.country_code}`,
-            country: cluster.country,
-            country_code: cluster.country_code,
-            location_type: singleCity ? 'city' : 'country',
-            proximity_radius_km: singleCity ? 50 : 500,
-          },
-        })
-      } else {
-        // Country already in trip — suggest individual cities not yet added
-        for (const city of cluster.cities) {
-          const cityAlreadyAdded = destinations.some(
-            (d) =>
-              Math.abs((d.location_lat ?? 999) - city.lat) < 0.45 &&
-              Math.abs((d.location_lng ?? 999) - city.lng) < 0.45,
-          )
-          if (!cityAlreadyAdded) {
-            results.push({
-              key: `city-${city.place_id}`,
-              label: city.name,
-              flag: countryCodeToFlag(cluster.country_code),
-              itemCount: city.item_count,
-              loc: {
-                name: city.name,
-                lat: city.lat,
-                lng: city.lng,
-                place_id: city.place_id,
-                country: cluster.country,
-                country_code: cluster.country_code,
-                location_type: 'city',
-                proximity_radius_km: 50,
-              },
-            })
-          }
-        }
-      }
-    }
-    return results
-  }, [inboxClusters, destinations])
 
   const { companions, pendingInvites, inviteByEmail, removeCompanion, removePendingInvite } = useCompanions(id)
 
@@ -869,10 +803,10 @@ export default function TripDetailPage() {
       })
   }, [user])
 
-  // Load inbox clusters for add-destination suggestions
+  // Load inbox clusters into a ref — no state update, no re-render
   useEffect(() => {
     if (!user) return
-    getInboxClusters(user.id).then(setInboxClusters)
+    getInboxClusters(user.id).then((clusters) => { inboxClustersRef.current = clusters })
   }, [user])
 
   // Track when add-destination suggestions are shown
@@ -956,10 +890,65 @@ export default function TripDetailPage() {
     void handleAddDestination(loc)
   }
 
-  // Opens the add-destination panel and freezes the current suggestions so that
-  // any subsequent async cluster load cannot mutate the panel's DOM while typing.
+  // Opens the add-destination panel. Suggestions are computed here from the ref
+  // (no state, no re-renders) and frozen for the lifetime of the open panel.
   const openAddDest = () => {
-    setFrozenSuggestions(addDestSuggestions)
+    const clusters = inboxClustersRef.current
+    const suggestions: typeof frozenSuggestions = []
+
+    if (clusters.length) {
+      const existingCodes = new Set(destinations.map((d) => d.location_country_code))
+      for (const cluster of clusters) {
+        const countryInTrip = existingCodes.has(cluster.country_code)
+        if (!countryInTrip) {
+          const singleCity = cluster.cities.length === 1 ? cluster.cities[0] : null
+          suggestions.push({
+            key: `country-${cluster.country_code}`,
+            label: singleCity ? singleCity.name : cluster.country,
+            flag: countryCodeToFlag(cluster.country_code),
+            itemCount: cluster.item_count,
+            loc: {
+              name: singleCity ? singleCity.name : cluster.country,
+              lat: singleCity ? singleCity.lat : cluster.lat,
+              lng: singleCity ? singleCity.lng : cluster.lng,
+              place_id: singleCity ? singleCity.place_id : `country-${cluster.country_code}`,
+              country: cluster.country,
+              country_code: cluster.country_code,
+              location_type: singleCity ? 'city' : 'country',
+              proximity_radius_km: singleCity ? 50 : 500,
+            },
+          })
+        } else {
+          for (const city of cluster.cities) {
+            const cityAlreadyAdded = destinations.some(
+              (d) =>
+                Math.abs((d.location_lat ?? 999) - city.lat) < 0.45 &&
+                Math.abs((d.location_lng ?? 999) - city.lng) < 0.45,
+            )
+            if (!cityAlreadyAdded) {
+              suggestions.push({
+                key: `city-${city.place_id}`,
+                label: city.name,
+                flag: countryCodeToFlag(cluster.country_code),
+                itemCount: city.item_count,
+                loc: {
+                  name: city.name,
+                  lat: city.lat,
+                  lng: city.lng,
+                  place_id: city.place_id,
+                  country: cluster.country,
+                  country_code: cluster.country_code,
+                  location_type: 'city',
+                  proximity_radius_km: 50,
+                },
+              })
+            }
+          }
+        }
+      }
+    }
+
+    setFrozenSuggestions(suggestions)
     setShowAddDest(true)
   }
 
