@@ -83,6 +83,10 @@ export function useTrips() {
           location_lat: location.lat,
           location_lng: location.lng,
           location_place_id: location.place_id,
+          location_country: location.country ?? 'Unknown',
+          location_country_code: location.country_code ?? 'XX',
+          location_type: location.location_type,
+          proximity_radius_km: location.proximity_radius_km,
           sort_order: sortOrder,
           ...(imageUrl ? { image_url: imageUrl } : {}),
         })

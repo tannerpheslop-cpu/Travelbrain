@@ -881,10 +881,74 @@ export default function TripDetailPage() {
   // Clusters stored in a ref — intentionally NOT state so loading never triggers a re-render.
   // Any async re-render while a LocationAutocomplete is active disrupts the Google Places widget.
   const inboxClustersRef = useRef<CountryCluster[]>([])
+  const [clustersLoaded, setClustersLoaded] = useState(false)
   // Suggestions snapshotted into state only at the moment the panel opens (in openAddDest).
   const [frozenSuggestions, setFrozenSuggestions] = useState<Array<{
     key: string; label: string; flag: string; itemCount: number; loc: LocationSelection
   }>>([])
+  // Proactive destination suggestions shown directly on the trip page
+  const [tripPageSuggestions, setTripPageSuggestions] = useState<Array<{
+    key: string; label: string; flag: string; itemCount: number; loc: LocationSelection
+  }>>([])
+
+  /** Build destination suggestions for the trip page from current clusters + destinations. */
+  const buildTripPageSuggestions = useCallback(
+    (currentDests: DestinationWithItems[]) => {
+      const clusters = inboxClustersRef.current
+      if (!clusters.length) return []
+      const existingCodes = new Set(currentDests.map((d) => d.location_country_code))
+      const suggs: Array<{ key: string; label: string; flag: string; itemCount: number; loc: LocationSelection }> = []
+      for (const cluster of clusters) {
+        if (!existingCodes.has(cluster.country_code)) {
+          const singleCity = cluster.cities.length === 1 ? cluster.cities[0] : null
+          suggs.push({
+            key: `country-${cluster.country_code}`,
+            label: singleCity ? singleCity.name : cluster.country,
+            flag: countryCodeToFlag(cluster.country_code),
+            itemCount: cluster.item_count,
+            loc: {
+              name: singleCity ? singleCity.name : cluster.country,
+              lat: singleCity ? singleCity.lat : cluster.lat,
+              lng: singleCity ? singleCity.lng : cluster.lng,
+              place_id: singleCity ? singleCity.place_id : `country-${cluster.country_code}`,
+              country: cluster.country,
+              country_code: cluster.country_code,
+              location_type: singleCity ? 'city' : 'country',
+              proximity_radius_km: singleCity ? 50 : 500,
+            },
+          })
+        } else {
+          for (const city of cluster.cities) {
+            const alreadyAdded = currentDests.some(
+              (d) =>
+                Math.abs((d.location_lat ?? 999) - city.lat) < 0.45 &&
+                Math.abs((d.location_lng ?? 999) - city.lng) < 0.45,
+            )
+            if (!alreadyAdded) {
+              suggs.push({
+                key: `city-${city.place_id}`,
+                label: city.name,
+                flag: countryCodeToFlag(cluster.country_code),
+                itemCount: city.item_count,
+                loc: {
+                  name: city.name,
+                  lat: city.lat,
+                  lng: city.lng,
+                  place_id: city.place_id,
+                  country: cluster.country,
+                  country_code: cluster.country_code,
+                  location_type: 'city',
+                  proximity_radius_km: 50,
+                },
+              })
+            }
+          }
+        }
+      }
+      return suggs
+    },
+    [],
+  )
 
   // Country-to-city refinement
   const [refinement, setRefinement] = useState<RefinementState | null>(null)
@@ -963,11 +1027,22 @@ export default function TripDetailPage() {
       })
   }, [user])
 
-  // Load inbox clusters into a ref — no state update, no re-render
+  // Load inbox clusters into a ref; signal readiness via minimal boolean state
   useEffect(() => {
     if (!user) return
-    getInboxClusters(user.id).then((clusters) => { inboxClustersRef.current = clusters })
+    getInboxClusters(user.id).then((clusters) => {
+      inboxClustersRef.current = clusters
+      setClustersLoaded(true)
+    })
   }, [user])
+
+  // Recompute trip-page destination suggestions whenever clusters arrive or destinations change.
+  // Safe to depend on `destinations`: it only changes after a destination is added/removed,
+  // at which point the LocationAutocomplete key is already incremented (reset) anyway.
+  useEffect(() => {
+    if (!clustersLoaded) return
+    setTripPageSuggestions(buildTripPageSuggestions(destinations))
+  }, [clustersLoaded, destinations, buildTripPageSuggestions])
 
   // Track when add-destination suggestions are shown
   useEffect(() => {
@@ -1459,6 +1534,19 @@ export default function TripDetailPage() {
               <p className="text-xs text-gray-400">Build your trip around cities, regions, or countries</p>
             </div>
           </div>
+          {tripPageSuggestions.length > 0 && (
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                Suggested from your saves
+              </p>
+              <AddDestSuggestionList
+                suggestions={tripPageSuggestions}
+                onSelect={handleAddFromSuggestion}
+                disabled={addingDest}
+              />
+              <p className="mt-3 text-xs text-gray-400 font-medium">Or add a destination manually</p>
+            </div>
+          )}
           <LocationAutocomplete
             key={addDestKey}
             value=""
@@ -1488,6 +1576,22 @@ export default function TripDetailPage() {
             locatedItems={locatedItems}
             canEdit={true}
           />
+
+          {/* Suggested destinations from inbox — shown when add-dest panel is closed */}
+          {tripPageSuggestions.length > 0 && !showAddDest && (
+            <div className="mt-4">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
+                Suggested from your saves
+              </p>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <AddDestSuggestionList
+                  suggestions={tripPageSuggestions}
+                  onSelect={handleAddFromSuggestion}
+                  disabled={addingDest}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Add Destination — subtle button/form below destination content */}
           <div className="mt-4">
@@ -1580,6 +1684,22 @@ export default function TripDetailPage() {
               </SortableContext>
             </DndContext>
           </div>
+
+          {/* Suggested destinations from inbox — shown when add-dest panel is closed */}
+          {tripPageSuggestions.length > 0 && !showAddDest && (
+            <div className="mt-3 pl-6">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 px-1">
+                Suggested from your saves
+              </p>
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <AddDestSuggestionList
+                  suggestions={tripPageSuggestions}
+                  onSelect={handleAddFromSuggestion}
+                  disabled={addingDest}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Add Destination */}
           <div className="mt-3 pl-6">
