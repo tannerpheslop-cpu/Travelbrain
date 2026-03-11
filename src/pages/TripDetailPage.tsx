@@ -1185,16 +1185,11 @@ export default function TripDetailPage() {
               <p className="text-xs text-gray-400">Build your trip around cities, regions, or countries</p>
             </div>
           </div>
-          <AddDestSuggestionPills
-            suggestions={addDestSuggestions}
-            onSelect={handleAddFromSuggestion}
-            disabled={addingDest}
-          />
           <LocationAutocomplete
             key={addDestKey}
             value=""
             onSelect={handleAddDestination}
-            label={addDestSuggestions.length > 0 ? 'Or add manually' : ''}
+            label=""
             optional={false}
             placeholder="e.g. Beijing, Tokyo, France…"
           />
