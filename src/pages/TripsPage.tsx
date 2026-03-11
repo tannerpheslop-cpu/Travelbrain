@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useTrips, type TripWithDestinations } from '../hooks/useTrips'
+import { useAuth } from '../lib/auth'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
+import { getInboxClusters, type CountryCluster } from '../lib/clusters'
+import { trackEvent } from '../lib/analytics'
 import type { TripStatus } from '../types'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -32,6 +35,22 @@ function formatDateRange(start: string, end: string): string {
   const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts)
   const e = new Date(end + 'T00:00:00').toLocaleDateString('en-US', opts)
   return `${s} – ${e}`
+}
+
+function flagEmoji(countryCode: string): string {
+  return [...countryCode.toUpperCase()]
+    .map((c) => String.fromCodePoint(0x1f1e0 + c.charCodeAt(0) - 65))
+    .join('')
+}
+
+function clusterSummary(cluster: CountryCluster): string {
+  const { cities, item_count } = cluster
+  const saves = `${item_count} save${item_count !== 1 ? 's' : ''}`
+  if (cities.length === 0) return saves
+  if (cities.length === 1) return `${saves} in ${cities[0].name}`
+  const top = cities.slice(0, 3).map((c) => c.name)
+  const more = cities.length > 3 ? ` +${cities.length - 3} more` : ''
+  return `${saves} across ${top.join(', ')}${more}`
 }
 
 // ── Trip Card ─────────────────────────────────────────────────────────────────
@@ -203,25 +222,53 @@ interface CreateTripModalProps {
 }
 
 function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: CreateTripModalProps) {
+  const { user } = useAuth()
   const [step, setStep] = useState<CreateStep>('name')
   const [title, setTitle] = useState('')
   const [destinations, setDestinations] = useState<LocationSelection[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  // Incrementing key forces LocationAutocomplete to remount (and clear) after each selection
   const [autocompleteKey, setAutocompleteKey] = useState(0)
 
-  const handleNextStep = (e: React.FormEvent) => {
+  // Cluster suggestion state
+  const [clusters, setClusters] = useState<CountryCluster[]>([])
+  const [clustersLoading, setClustersLoading] = useState(false)
+  const [expandedCountry, setExpandedCountry] = useState<string | null>(null) // country_code
+  const [pendingCities, setPendingCities] = useState<Set<string>>(new Set()) // city place_ids
+
+  const handleNextStep = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) { setError('Trip name is required.'); return }
     setError(null)
     setStep('destinations')
+
+    if (user) {
+      setClustersLoading(true)
+      const results = await getInboxClusters(user.id)
+      setClusters(results)
+      setClustersLoading(false)
+      if (results.length > 0) {
+        trackEvent('cluster_suggestion_shown', user.id, {
+          countries: results.map((c) => c.country),
+          total_items: results.reduce((s, c) => s + c.item_count, 0),
+        })
+      }
+    }
   }
+
+  const addDestination = useCallback(
+    (loc: LocationSelection) => {
+      setDestinations((prev) => {
+        if (prev.some((d) => d.place_id === loc.place_id)) return prev
+        return [...prev, loc]
+      })
+    },
+    [],
+  )
 
   const handleLocationSelect = (loc: LocationSelection | null) => {
     if (!loc) return
-    if (destinations.some((d) => d.place_id === loc.place_id)) return
-    setDestinations((prev) => [...prev, loc])
+    addDestination(loc)
     setAutocompleteKey((k) => k + 1)
   }
 
@@ -229,11 +276,99 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
     setDestinations((prev) => prev.filter((d) => d.place_id !== placeId))
   }
 
+  // ── Cluster suggestion handlers ──────────────────────────────────────────────
+
+  const handleCountryCardTap = (cluster: CountryCluster) => {
+    if (cluster.cities.length === 1) {
+      // Single city — add directly
+      const city = cluster.cities[0]
+      addDestination({
+        name: city.name,
+        lat: city.lat,
+        lng: city.lng,
+        place_id: city.place_id,
+        country: cluster.country,
+        country_code: cluster.country_code,
+        location_type: 'city',
+        proximity_radius_km: 50,
+      })
+      trackEvent('cluster_suggestion_accepted', user?.id ?? null, {
+        country: cluster.country,
+        city: city.name,
+        type: 'city',
+      })
+    } else {
+      // Multi-city — toggle expansion
+      if (expandedCountry === cluster.country_code) {
+        setExpandedCountry(null)
+        setPendingCities(new Set())
+      } else {
+        setExpandedCountry(cluster.country_code)
+        setPendingCities(new Set())
+      }
+    }
+  }
+
+  const togglePendingCity = (placeId: string) => {
+    setPendingCities((prev) => {
+      const next = new Set(prev)
+      if (next.has(placeId)) next.delete(placeId)
+      else next.add(placeId)
+      return next
+    })
+  }
+
+  const handleAddPendingCities = (cluster: CountryCluster) => {
+    const added: string[] = []
+    for (const city of cluster.cities) {
+      if (pendingCities.has(city.place_id)) {
+        addDestination({
+          name: city.name,
+          lat: city.lat,
+          lng: city.lng,
+          place_id: city.place_id,
+          country: cluster.country,
+          country_code: cluster.country_code,
+          location_type: 'city',
+          proximity_radius_km: 50,
+        })
+        added.push(city.name)
+      }
+    }
+    if (added.length > 0) {
+      trackEvent('cluster_suggestion_accepted', user?.id ?? null, {
+        country: cluster.country,
+        cities: added,
+        type: 'cities',
+      })
+    }
+    setExpandedCountry(null)
+    setPendingCities(new Set())
+  }
+
+  const handleAddCountry = (cluster: CountryCluster) => {
+    addDestination({
+      name: cluster.country,
+      lat: cluster.lat,
+      lng: cluster.lng,
+      place_id: `cluster-country-${cluster.country_code}`,
+      country: cluster.country,
+      country_code: cluster.country_code,
+      location_type: 'country',
+      proximity_radius_km: 500,
+    })
+    trackEvent('cluster_suggestion_accepted', user?.id ?? null, {
+      country: cluster.country,
+      type: 'country',
+    })
+    setExpandedCountry(null)
+    setPendingCities(new Set())
+  }
+
   const handleCreate = async () => {
     setSaving(true)
     setError(null)
 
-    // Run trip creation and all photo fetches in parallel for speed
     const [tripResult, photoUrls] = await Promise.all([
       createTrip({ title }),
       Promise.all(destinations.map((d) => fetchPlacePhoto(d.place_id).catch(() => null))),
@@ -246,7 +381,6 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
       return
     }
 
-    // Insert all destinations in parallel with their photos
     await Promise.all(
       destinations.map((d, i) =>
         createDestination(trip.id, d, i, photoUrls[i] ?? undefined),
@@ -295,7 +429,8 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
           </button>
         </div>
 
-        <div className="px-5 py-5">
+        {/* Scrollable body */}
+        <div className="px-5 py-5 max-h-[80vh] overflow-y-auto">
           {/* ── Step 1: Name ── */}
           {step === 'name' && (
             <form onSubmit={handleNextStep} className="space-y-4">
@@ -325,12 +460,133 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
 
           {/* ── Step 2: Destinations ── */}
           {step === 'destinations' && (
-            <div className="space-y-4">
+            <div className="space-y-5">
+
+              {/* Cluster suggestions — loading skeleton */}
+              {clustersLoading && (
+                <div className="space-y-2 animate-pulse">
+                  <div className="h-3.5 bg-gray-100 rounded-full w-44" />
+                  <div className="h-14 bg-gray-50 rounded-xl" />
+                  <div className="h-14 bg-gray-50 rounded-xl" />
+                </div>
+              )}
+
+              {/* Cluster suggestions — results */}
+              {!clustersLoading && clusters.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
+                    Suggested from your saves
+                  </p>
+                  <div className="space-y-2">
+                    {clusters.map((cluster) => {
+                      const isExpanded = expandedCountry === cluster.country_code
+                      const isSingleCity = cluster.cities.length === 1
+
+                      return (
+                        <div
+                          key={cluster.country_code}
+                          className={`rounded-xl border overflow-hidden transition-colors ${
+                            isExpanded
+                              ? 'border-blue-200 bg-blue-50'
+                              : 'border-gray-100 bg-gray-50'
+                          }`}
+                        >
+                          {/* Card header row */}
+                          <button
+                            type="button"
+                            onClick={() => handleCountryCardTap(cluster)}
+                            className="w-full flex items-center gap-3 px-3.5 py-3 text-left hover:bg-black/[0.03] active:bg-black/[0.06] transition-colors"
+                          >
+                            <span className="text-2xl leading-none select-none" aria-hidden>
+                              {flagEmoji(cluster.country_code)}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 leading-tight">
+                                {cluster.country}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-0.5 leading-tight">
+                                {clusterSummary(cluster)}
+                              </p>
+                            </div>
+                            {/* Single city: arrow; multi-city: chevron */}
+                            {isSingleCity ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4 text-gray-400 shrink-0">
+                                <path fillRule="evenodd" d="M6.22 4.22a.75.75 0 0 1 1.06 0l3.25 3.25a.75.75 0 0 1 0 1.06l-3.25 3.25a.75.75 0 0 1-1.06-1.06L8.94 8 6.22 5.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className={`w-4 h-4 shrink-0 transition-transform ${isExpanded ? 'rotate-180 text-blue-500' : 'text-gray-400'}`}>
+                                <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </button>
+
+                          {/* Expanded: city chip selection */}
+                          {isExpanded && (
+                            <div className="px-3.5 pb-3.5 space-y-3 border-t border-blue-100">
+                              <p className="text-xs text-blue-700 font-medium pt-3">Select cities to add:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {cluster.cities.map((city) => {
+                                  const alreadyAdded = destinations.some((d) => d.place_id === city.place_id)
+                                  const isSelected = pendingCities.has(city.place_id)
+                                  return (
+                                    <button
+                                      key={city.place_id}
+                                      type="button"
+                                      onClick={() => !alreadyAdded && togglePendingCity(city.place_id)}
+                                      disabled={alreadyAdded}
+                                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                                        alreadyAdded
+                                          ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                                          : isSelected
+                                            ? 'bg-blue-600 text-white'
+                                            : 'bg-white border border-gray-200 text-gray-700 hover:border-blue-300'
+                                      }`}
+                                    >
+                                      {city.name}
+                                      <span className={`text-xs tabular-nums ${
+                                        alreadyAdded ? 'text-emerald-500' : isSelected ? 'text-blue-200' : 'text-gray-400'
+                                      }`}>
+                                        {city.item_count}
+                                      </span>
+                                    </button>
+                                  )
+                                })}
+                              </div>
+
+                              <div className="flex flex-col gap-2 pt-0.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddPendingCities(cluster)}
+                                  disabled={pendingCities.size === 0}
+                                  className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                >
+                                  {pendingCities.size === 0
+                                    ? 'Select cities above'
+                                    : `Add ${pendingCities.size} ${pendingCities.size === 1 ? 'city' : 'cities'}`}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddCountry(cluster)}
+                                  className="text-sm text-center text-blue-600 hover:text-blue-800 py-1.5 transition-colors"
+                                >
+                                  Just add {cluster.country} — I'll pick cities later
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Manual destination input */}
               <LocationAutocomplete
                 key={autocompleteKey}
                 value=""
                 onSelect={handleLocationSelect}
-                label="Add a destination"
+                label={clusters.length > 0 || clustersLoading ? 'Or add a destination manually' : 'Add a destination'}
                 optional={false}
                 placeholder="e.g. Beijing, Tokyo, Paris"
               />

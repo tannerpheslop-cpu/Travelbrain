@@ -7,6 +7,7 @@ export interface CityCluster {
   name: string       // Representative city name (first segment of location_name)
   lat: number        // Cluster centroid latitude
   lng: number        // Cluster centroid longitude
+  place_id: string   // Representative Google Place ID (or synthetic if unavailable)
   item_count: number
 }
 
@@ -14,6 +15,8 @@ export interface CityCluster {
 export interface CountryCluster {
   country: string        // e.g. "China"
   country_code: string   // e.g. "CN"
+  lat: number            // Average of city cluster centroids
+  lng: number
   item_count: number     // Total saves in this country
   cities: CityCluster[]
 }
@@ -26,6 +29,7 @@ interface RawItem {
   location_name: string | null
   location_country: string | null
   location_country_code: string | null
+  location_place_id: string | null
 }
 
 interface LocatedItem {
@@ -34,6 +38,7 @@ interface LocatedItem {
   location_name: string
   location_country: string
   location_country_code: string
+  location_place_id: string | null
 }
 
 function isLocated(item: RawItem): item is LocatedItem {
@@ -96,41 +101,36 @@ function clusterCities(items: LocatedItem[]): CityCluster[] {
     const centerLat = c.sumLat / c.items.length
     const centerLng = c.sumLng / c.items.length
 
-    // Determine the representative city name:
-    // 1. Find the most common location_name in this cluster.
-    // 2. On a tie, fall back to the location_name of the item closest to the centroid.
+    // Find item closest to centroid — used for place_id and name tie-breaking
+    let closestDist = Infinity
+    let representative = c.items[0]
+    for (const item of c.items) {
+      const dist = Math.hypot(
+        item.location_lat - centerLat,
+        item.location_lng - centerLng,
+      )
+      if (dist < closestDist) {
+        closestDist = dist
+        representative = item
+      }
+    }
+
+    // Most common location_name; fall back to representative item on tie
     const nameCounts = new Map<string, number>()
     for (const item of c.items) {
       nameCounts.set(item.location_name, (nameCounts.get(item.location_name) ?? 0) + 1)
     }
-
     const maxCount = Math.max(...nameCounts.values())
     const topNames = [...nameCounts.entries()].filter(([, n]) => n === maxCount)
+    const bestName = topNames.length === 1 ? topNames[0][0] : representative.location_name
+    const name = bestName.split(',')[0].trim()
 
-    let representativeName: string
-    if (topNames.length === 1) {
-      representativeName = topNames[0][0]
-    } else {
-      // Tie — pick the item whose coordinates are closest to the centroid
-      let closestDist = Infinity
-      let closestItem = c.items[0]
-      for (const item of c.items) {
-        const dist = Math.hypot(
-          item.location_lat - centerLat,
-          item.location_lng - centerLng,
-        )
-        if (dist < closestDist) {
-          closestDist = dist
-          closestItem = item
-        }
-      }
-      representativeName = closestItem.location_name
-    }
+    // place_id from representative item, or synthesised if not available
+    const place_id =
+      representative.location_place_id ??
+      `cluster-${representative.location_country_code}-${Math.round(centerLat * 100)}-${Math.round(centerLng * 100)}`
 
-    // Trim to first segment: "Tokyo, Japan" → "Tokyo"
-    const name = representativeName.split(',')[0].trim()
-
-    return { name, lat: centerLat, lng: centerLng, item_count: c.items.length }
+    return { name, lat: centerLat, lng: centerLng, place_id, item_count: c.items.length }
   })
 }
 
@@ -149,7 +149,9 @@ function clusterCities(items: LocatedItem[]): CityCluster[] {
 export async function getInboxClusters(userId: string): Promise<CountryCluster[]> {
   const { data, error } = await supabase
     .from('saved_items')
-    .select('location_lat, location_lng, location_name, location_country, location_country_code')
+    .select(
+      'location_lat, location_lng, location_name, location_country, location_country_code, location_place_id',
+    )
     .eq('user_id', userId)
     .eq('is_archived', false)
     .not('location_lat', 'is', null)
@@ -185,12 +187,12 @@ export async function getInboxClusters(userId: string): Promise<CountryCluster[]
   for (const [country, { country_code, items: countryItems }] of byCountry) {
     if (countryItems.length < 2) continue // not enough signal
 
-    clusters.push({
-      country,
-      country_code,
-      item_count: countryItems.length,
-      cities: clusterCities(countryItems),
-    })
+    const cities = clusterCities(countryItems)
+    // Country centroid = average of city cluster centroids
+    const lat = cities.reduce((s, c) => s + c.lat, 0) / cities.length
+    const lng = cities.reduce((s, c) => s + c.lng, 0) / cities.length
+
+    clusters.push({ country, country_code, lat, lng, item_count: countryItems.length, cities })
   }
 
   // Most saves first
