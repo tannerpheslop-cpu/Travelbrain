@@ -78,6 +78,7 @@ export interface DestinationSectionProps {
   dragHandleAttributes?: Record<string, unknown>
   dragHandleListeners?: Record<string, unknown>
   isDragging?: boolean
+  isFlat?: boolean
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -760,6 +761,7 @@ export default function DestinationSection({
   dragHandleAttributes,
   dragHandleListeners,
   isDragging,
+  isFlat = false,
 }: DestinationSectionProps) {
   // Linked items — initialized from preloaded destination_items, then managed locally
   const [linkedItems, setLinkedItems] = useState<LinkedItem[]>(destination.destination_items ?? [])
@@ -1072,9 +1074,10 @@ export default function DestinationSection({
   // ── Render ─────────────────────────────────────────────────────────────────────
 
   return (
-    <div className={`bg-white rounded-2xl border border-gray-100 shadow-sm transition-opacity ${isDragging ? 'opacity-40 shadow-md' : ''}`}>
+    <div className={isFlat ? '' : `bg-white rounded-2xl border border-gray-100 shadow-sm transition-opacity ${isDragging ? 'opacity-40 shadow-md' : ''}`}>
 
-      {/* ── Collapsed header row ── */}
+      {/* ── Collapsed header row (hidden in flat mode) ── */}
+      {!isFlat && (
       <div
         className="flex items-center gap-3 px-3 py-3 cursor-pointer select-none"
         onClick={onToggle}
@@ -1168,10 +1171,11 @@ export default function DestinationSection({
           </svg>
         </div>
       </div>
+      )}
 
       {/* ── Expanded content ── */}
       {isExpanded && (
-        <div className="border-t border-gray-50">
+        <div className={isFlat ? '' : 'border-t border-gray-50'}>
           {/* Date + item count bar */}
           <div className="px-4 py-2.5 flex items-center justify-between border-b border-gray-50">
             {hasSchedule ? (

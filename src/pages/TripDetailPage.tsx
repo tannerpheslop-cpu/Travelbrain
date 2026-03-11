@@ -23,7 +23,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { SortableDestinationSection, type DestinationWithItems, type LocatedItemBasic } from './DestinationSection'
+import DestinationSection, { SortableDestinationSection, type DestinationWithItems, type LocatedItemBasic } from './DestinationSection'
 
 // ── Local types ────────────────────────────────────────────────────────────────
 
@@ -907,6 +907,7 @@ export default function TripDetailPage() {
   }
 
   const isScheduled = trip?.status === 'scheduled'
+  const isSingleDest = destinations.length === 1
 
   return (
     <div className="px-4 pt-6 pb-24">
@@ -916,8 +917,36 @@ export default function TripDetailPage() {
         Trips
       </button>
 
+      {/* Single-destination hero image — destination photo + name + dates, shown in place of the small collapsed header */}
+      {isSingleDest && destinations[0] && (
+        <div className="relative -mx-4 mt-3 mb-5 h-44 overflow-hidden">
+          {destinations[0].image_url ? (
+            <img
+              src={destinations[0].image_url}
+              alt={destinations[0].location_name.split(',')[0].trim()}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-blue-400 to-indigo-600" />
+          )}
+          {/* Gradient overlay */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+          {/* Destination name + dates overlaid */}
+          <div className="absolute bottom-0 left-0 right-0 px-4 pb-3">
+            <p className="text-white font-bold text-xl leading-tight drop-shadow">
+              {destinations[0].location_name.split(',')[0].trim()}
+            </p>
+            {destinations[0].start_date && destinations[0].end_date && (
+              <p className="text-white/80 text-sm mt-0.5 drop-shadow">
+                {formatDateRange(destinations[0].start_date, destinations[0].end_date)}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Trip header */}
-      <div className="mt-4 mb-5">
+      <div className={`${isSingleDest ? '' : 'mt-4 '}mb-5`}>
         {editingTitle ? (
           <input
             ref={titleInputRef}
@@ -1009,9 +1038,10 @@ export default function TripDetailPage() {
         </button>
       </div>
 
-      {/* ── Destination sections (inline accordion) ── */}
+      {/* ── Destination sections — adaptive layout ── */}
       {destinations.length === 0 ? (
-        /* Combined empty state with integrated autocomplete */
+
+        /* ── ZERO destinations: combined empty state with integrated autocomplete ── */
         <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-5">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0">
@@ -1034,7 +1064,61 @@ export default function TripDetailPage() {
           />
           {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
         </div>
+
+      ) : isSingleDest ? (
+
+        /* ── ONE destination: flat/hero layout — content rendered inline, no collapsible wrapper ── */
+        <>
+          {/* Flat destination content — always visible, no accordion */}
+          <DestinationSection
+            destination={destinations[0]}
+            index={0}
+            tripId={id!}
+            userId={user!.id}
+            isExpanded={true}
+            isFlat={true}
+            onToggle={() => {}}
+            onDelete={handleDeleteDestination}
+            onDatesUpdated={handleDestDatesUpdated}
+            locatedItems={locatedItems}
+            canEdit={true}
+          />
+
+          {/* Add Destination — subtle button/form below destination content */}
+          <div className="mt-4">
+            {showAddDest ? (
+              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                <LocationAutocomplete
+                  key={addDestKey}
+                  value=""
+                  onSelect={handleAddDestination}
+                  label="New destination"
+                  optional={false}
+                  placeholder="e.g. Beijing, Tokyo, France…"
+                />
+                {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
+                {!addingDest && (
+                  <button type="button" onClick={() => setShowAddDest(false)}
+                    className="mt-2 w-full text-center text-sm text-gray-400 hover:text-gray-600 transition-colors">
+                    Cancel
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button type="button" onClick={() => setShowAddDest(true)}
+                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                  <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                </svg>
+                Add Destination
+              </button>
+            )}
+          </div>
+        </>
+
       ) : (
+
+        /* ── TWO OR MORE destinations: full collapsible accordion with country grouping ── */
         <>
           {/* Timeline + accordion sections */}
           <div className="relative">
