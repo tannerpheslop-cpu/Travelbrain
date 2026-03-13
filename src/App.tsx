@@ -9,6 +9,7 @@ import ItemDetailPage from './pages/ItemDetailPage'
 import TripDetailPage from './pages/TripDetailPage'
 import ProfilePage from './pages/ProfilePage'
 import SharedTripPage from './pages/SharedTripPage'
+import GlobalActions from './components/GlobalActions'
 
 function AppLayout() {
   return (
@@ -25,6 +26,7 @@ function AppLayout() {
           </Routes>
         </main>
         <BottomNav />
+        <GlobalActions />
       </div>
     </ProtectedRoute>
   )
