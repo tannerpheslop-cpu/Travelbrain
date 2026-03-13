@@ -1,14 +1,12 @@
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SaveSheet from '../components/SaveSheet'
-import HorizonSheet from '../components/HorizonSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { getCategoryIcon, categoryPillColors, categoryLabel, categoryIconColors } from '../utils/categoryIcons'
-import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react'
-import { useRapidCapture } from '../hooks/useRapidCapture'
+import { LayoutGrid, List, SlidersHorizontal, X, Search } from 'lucide-react'
 import type { SavedItem, Trip } from '../types'
 
 /** Shorten a Google Places formatted_address to "City, Province, Country".
@@ -101,23 +99,26 @@ export default function InboxPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('expanded')
   const filterPanelRef = useRef<HTMLDivElement>(null)
 
-  // ── Rapid capture ───────────────────────────────────────────────────────
+  // ── Listen for saves created/updated from GlobalCreateSheet ────────────
 
-  const handleItemCreated = useCallback((item: SavedItem) => {
-    setItems((prev) => [item, ...prev])
+  useEffect(() => {
+    const handleCreated = (e: Event) => {
+      const item = (e as CustomEvent<SavedItem>).detail
+      setItems((prev) => [item, ...prev])
+    }
+    const handleUpdated = (e: Event) => {
+      const updated = (e as CustomEvent<SavedItem>).detail
+      setItems((prev) =>
+        prev.map((item) => (item.id === updated.id ? updated : item)),
+      )
+    }
+    window.addEventListener('horizon-item-created', handleCreated)
+    window.addEventListener('horizon-item-updated', handleUpdated)
+    return () => {
+      window.removeEventListener('horizon-item-created', handleCreated)
+      window.removeEventListener('horizon-item-updated', handleUpdated)
+    }
   }, [])
-
-  const handleItemUpdated = useCallback((updated: SavedItem) => {
-    setItems((prev) =>
-      prev.map((item) => (item.id === updated.id ? updated : item)),
-    )
-  }, [])
-
-  const { createSaves, resolvingIds } = useRapidCapture(
-    user?.id,
-    handleItemCreated,
-    handleItemUpdated,
-  )
 
   // ── Data fetching ───────────────────────────────────────────────────────
 
@@ -299,9 +300,31 @@ export default function InboxPage() {
 
   return (
     <>
-    <div className="px-4 pt-6 pb-36">
+    <div className="px-4 pt-6 pb-24">
       <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Horizon</h1>
       <p className="mt-1 text-sm text-gray-500">Your saved travel inspiration</p>
+
+      {/* Inline search bar */}
+      <div className="relative mt-3">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Filter saves..."
+          className="w-full pl-10 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
+            aria-label="Clear search"
+          >
+            <X className="w-3 h-3 text-gray-500" />
+          </button>
+        )}
+      </div>
 
       {/* Filter Bar + View Toggle */}
       <div className="mt-4 flex gap-2 pb-1 items-center">
@@ -542,8 +565,8 @@ export default function InboxPage() {
                     <div className={viewMode === 'expanded' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'flex flex-col gap-0.5'}>
                       {cityGroup.items.map((item) => (
                         viewMode === 'expanded'
-                          ? <ExpandedCard key={item.id} item={item} onTripAdded={refreshTripItems} isResolving={resolvingIds.has(item.id)} />
-                          : <CompactRow key={item.id} item={item} onTripAdded={refreshTripItems} isResolving={resolvingIds.has(item.id)} />
+                          ? <ExpandedCard key={item.id} item={item} onTripAdded={refreshTripItems} />
+                          : <CompactRow key={item.id} item={item} onTripAdded={refreshTripItems} />
                       ))}
                     </div>
                   </div>
@@ -555,17 +578,7 @@ export default function InboxPage() {
       )}
     </div>
 
-    {/* Horizon Bottom Sheet — search + rapid capture + action buttons */}
-    <HorizonSheet
-      items={items}
-      search={search}
-      onSearchChange={setSearch}
-      onRapidCapture={createSaves}
-      onOpenSaveSheet={() => setShowSaveSheet(true)}
-      resolvingIds={resolvingIds}
-    />
-
-    {/* Save Sheet — triggered from HorizonSheet action buttons */}
+    {/* Save Sheet — triggered from empty state CTA */}
     {showSaveSheet && (
       <SaveSheet
         onClose={() => setShowSaveSheet(false)}
@@ -581,11 +594,9 @@ export default function InboxPage() {
 function ExpandedCard({
   item,
   onTripAdded,
-  isResolving,
 }: {
   item: SavedItem
   onTripAdded: () => void
-  isResolving?: boolean
 }) {
   const [showSheet, setShowSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -607,14 +618,9 @@ function ExpandedCard({
         {/* Content */}
         <div className="flex-1 min-w-0 px-3 py-2.5 flex flex-col justify-center gap-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-          {item.location_name ? (
+          {item.location_name && (
             <p className="text-xs text-gray-400 truncate">{formatCityCountry(item.location_name)}</p>
-          ) : isResolving ? (
-            <p className="text-xs text-gray-400 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-              Resolving...
-            </p>
-          ) : null}
+          )}
           <div>
             <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${categoryPillColors[item.category]}`}>
               {categoryLabel[item.category]}
@@ -665,11 +671,9 @@ function ExpandedCard({
 function CompactRow({
   item,
   onTripAdded,
-  isResolving,
 }: {
   item: SavedItem
   onTripAdded: () => void
-  isResolving?: boolean
 }) {
   const [showSheet, setShowSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -689,14 +693,9 @@ function CompactRow({
       >
         <Icon className={`w-4 h-4 shrink-0 ${categoryIconColors[item.category]}`} />
         <span className="text-sm text-gray-900 truncate flex-1 min-w-0">{item.title}</span>
-        {item.location_name ? (
+        {item.location_name && (
           <span className="text-xs text-gray-400 truncate shrink-0 max-w-[120px]">{formatCityCountry(item.location_name)}</span>
-        ) : isResolving ? (
-          <span className="text-xs text-gray-400 flex items-center gap-1 shrink-0">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
-            Resolving...
-          </span>
-        ) : null}
+        )}
       </Link>
 
       {/* Options button — visible on hover */}
