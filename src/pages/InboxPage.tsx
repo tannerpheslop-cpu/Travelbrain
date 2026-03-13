@@ -1,13 +1,12 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SaveSheet from '../components/SaveSheet'
-import type { SavedItem, Trip, Category } from '../types'
-
-type TileType = 'standard' | 'wide' | 'tall'
-type ImageState = 'portrait' | 'landscape' | 'failed'
+import { getCategoryIcon, categoryPillColors, categoryLabel, categoryBgColors, categoryIconColors } from '../utils/categoryIcons'
+import { LayoutGrid, List } from 'lucide-react'
+import type { SavedItem, Trip } from '../types'
 
 /** Shorten a Google Places formatted_address to "City, Province, Country".
  *  Only collapses when there are 4+ parts (e.g. strips a prefecture level).
@@ -18,50 +17,70 @@ function formatCityCountry(locationName: string): string {
   return `${parts[0]}, ${parts[parts.length - 2]}, ${parts[parts.length - 1]}`
 }
 
-const categoryBgColors: Record<Category, string> = {
-  restaurant: 'bg-orange-500',
-  activity: 'bg-blue-500',
-  hotel: 'bg-emerald-600',
-  transit: 'bg-gray-500',
-  general: 'bg-violet-500',
+/** Extract city name (first comma-separated part) from a full location_name. */
+function extractCity(locationName: string): string {
+  return locationName.split(',')[0].trim()
 }
 
-const categoryPillColors: Record<Category, string> = {
-  restaurant: 'bg-orange-500 text-white',
-  activity: 'bg-blue-500 text-white',
-  hotel: 'bg-emerald-600 text-white',
-  transit: 'bg-gray-500 text-white',
-  general: 'bg-violet-500 text-white',
+/** Convert a two-letter country code to its flag emoji. */
+function countryCodeToFlag(code: string): string {
+  return [...code.toUpperCase()].map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')
 }
 
-const categoryLabel: Record<Category, string> = {
-  restaurant: 'Restaurant',
-  activity: 'Activity',
-  hotel: 'Hotel',
-  transit: 'Transit',
-  general: 'General',
+interface GeoGroup {
+  country: string | null       // null = unsorted
+  countryCode: string | null
+  cities: { city: string | null; items: SavedItem[] }[]
 }
 
-const tileGridClasses: Record<TileType, string> = {
-  standard: 'col-span-1 row-span-1',
-  wide:     'col-span-2 row-span-1',
-  tall:     'col-span-1 row-span-2',
+/** Group items by country, then by city within each country. Items without
+ *  location_country go into a single "Unsorted" group at the end. */
+function groupByGeography(items: SavedItem[]): GeoGroup[] {
+  const countryMap = new Map<string, { code: string | null; cityMap: Map<string, SavedItem[]> }>()
+  const unsorted: SavedItem[] = []
+
+  for (const item of items) {
+    if (!item.location_country) {
+      unsorted.push(item)
+      continue
+    }
+    let entry = countryMap.get(item.location_country)
+    if (!entry) {
+      entry = { code: item.location_country_code, cityMap: new Map() }
+      countryMap.set(item.location_country, entry)
+    }
+    const city = item.location_name ? extractCity(item.location_name) : null
+    const cityKey = city ?? '__no_city__'
+    const arr = entry.cityMap.get(cityKey)
+    if (arr) arr.push(item)
+    else entry.cityMap.set(cityKey, [item])
+  }
+
+  const groups: GeoGroup[] = []
+
+  // Country groups sorted by total item count (largest first)
+  const sorted = [...countryMap.entries()].sort((a, b) => {
+    const countA = [...a[1].cityMap.values()].reduce((s, arr) => s + arr.length, 0)
+    const countB = [...b[1].cityMap.values()].reduce((s, arr) => s + arr.length, 0)
+    return countB - countA
+  })
+
+  for (const [country, { code, cityMap }] of sorted) {
+    const cities = [...cityMap.entries()].map(([cityKey, cityItems]) => ({
+      city: cityKey === '__no_city__' ? null : cityKey,
+      items: cityItems,
+    }))
+    groups.push({ country, countryCode: code, cities })
+  }
+
+  if (unsorted.length > 0) {
+    groups.push({ country: null, countryCode: null, cities: [{ city: null, items: unsorted }] })
+  }
+
+  return groups
 }
 
-// Skeleton placeholder pattern
-const SKELETON_PATTERN: TileType[] = [
-  'standard', 'wide', 'tall', 'standard', 'standard', 'standard', 'wide', 'standard',
-]
-
-function getTileType(item: SavedItem, imgState: ImageState | undefined): TileType {
-  if (!item.image_url) return 'wide'
-  if (imgState === 'failed') return 'wide'
-  if (imgState === 'portrait') return 'tall'
-  if (imgState === 'landscape') return 'standard'
-  // Not yet probed — use source_type as heuristic to minimise reflow
-  if (item.source_type === 'screenshot') return 'tall'
-  return 'standard'
-}
+type ViewMode = 'expanded' | 'compact'
 
 export default function InboxPage() {
   const { user } = useAuth()
@@ -74,16 +93,8 @@ export default function InboxPage() {
   const [unassignedOnly, setUnassignedOnly] = useState(false)
   const [selectedTripId, setSelectedTripId] = useState('')
   const [selectedCity, setSelectedCity] = useState('')
-  const [imageStates, setImageStates] = useState<Record<string, ImageState>>({})
   const [showSaveSheet, setShowSaveSheet] = useState(false)
-
-  const setImageState = (id: string, state: ImageState) =>
-    setImageStates((prev) => {
-      // Return the same reference if unchanged — prevents infinite re-render loops
-      // triggered by the callback ref in ImageTileContent firing on every render.
-      if (prev[id] === state) return prev
-      return { ...prev, [id]: state }
-    })
+  const [viewMode, setViewMode] = useState<ViewMode>('expanded')
 
   const fetchAll = async () => {
     if (!user) return
@@ -245,6 +256,8 @@ export default function InboxPage() {
     [items, search, unassignedOnly, assignedItemIds, selectedTripId, selectedTripItemIds, selectedCity],
   )
 
+  const geoGroups = useMemo(() => groupByGeography(filtered), [filtered])
+
   return (
     <>
     <div className="px-4 pt-6 pb-28">
@@ -274,7 +287,7 @@ export default function InboxPage() {
         />
       </div>
 
-      {/* Filter Bar */}
+      {/* Filter Bar + View Toggle */}
       <div className="mt-3 flex gap-2 overflow-x-auto pb-1 -mx-4 px-4 scrollbar-hide items-center">
         <button
           type="button"
@@ -353,19 +366,26 @@ export default function InboxPage() {
             />
           </svg>
         </div>
+
+        {/* Spacer pushes toggle to the right */}
+        <div className="flex-1 min-w-0" />
+
+        {/* View Mode Toggle */}
+        <button
+          type="button"
+          onClick={() => setViewMode(viewMode === 'expanded' ? 'compact' : 'expanded')}
+          className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          aria-label={viewMode === 'expanded' ? 'Switch to compact view' : 'Switch to expanded view'}
+        >
+          {viewMode === 'expanded' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+        </button>
       </div>
 
       {/* Loading Skeletons */}
       {loading && (
-        <div
-          className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
-          style={{ gridAutoRows: 'var(--inbox-row-height)', gridAutoFlow: 'dense' }}
-        >
-          {SKELETON_PATTERN.map((type, i) => (
-            <div
-              key={i}
-              className={`${tileGridClasses[type]} rounded-2xl animate-pulse bg-gray-100`}
-            />
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-[72px] rounded-xl animate-pulse bg-gray-100" />
           ))}
         </div>
       )}
@@ -419,8 +439,9 @@ export default function InboxPage() {
           <p className="mt-1.5 text-sm text-gray-500 max-w-xs mx-auto">
             Paste a link, upload a screenshot, or add a place manually to get started.
           </p>
-          <Link
-            to="/save"
+          <button
+            type="button"
+            onClick={() => setShowSaveSheet(true)}
             className="inline-flex mt-5 items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
           >
             <svg
@@ -432,7 +453,7 @@ export default function InboxPage() {
               <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
             </svg>
             Save your first place
-          </Link>
+          </button>
         </div>
       )}
 
@@ -458,24 +479,40 @@ export default function InboxPage() {
         </div>
       )}
 
-      {/* Fixed CSS Grid */}
+      {/* Grouped Card Grid */}
       {!loading && !error && filtered.length > 0 && (
-        <div
-          className="mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3"
-          style={{ gridAutoRows: 'var(--inbox-row-height)', gridAutoFlow: 'dense' }}
-        >
-          {filtered.map((item) => (
-            <GridTile
-              key={item.id}
-              item={item}
-              tileType={getTileType(item, imageStates[item.id])}
-              onTripAdded={refreshTripItems}
-              onAspectRatioKnown={(isPortrait) =>
-                setImageState(item.id, isPortrait ? 'portrait' : 'landscape')
-              }
-              onImageError={() => setImageState(item.id, 'failed')}
-            />
-          ))}
+        <div className="mt-4 space-y-6">
+          {geoGroups.map((group) => {
+            const showCityHeaders = group.cities.length > 1 || (group.cities.length === 1 && group.cities[0].city !== null && group.country !== null)
+            return (
+              <section key={group.country ?? '__unsorted__'}>
+                {/* Country header */}
+                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
+                  {group.country
+                    ? `${group.countryCode ? countryCodeToFlag(group.countryCode) + ' ' : ''}${group.country}`
+                    : 'Unsorted'}
+                </h2>
+
+                {group.cities.map((cityGroup, ci) => (
+                  <div key={cityGroup.city ?? `__nocity_${ci}`} className={ci > 0 ? 'mt-3' : ''}>
+                    {/* City sub-header — only when multiple cities or explicit city within a country */}
+                    {showCityHeaders && cityGroup.city && (
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-gray-300 mb-1.5 ml-0.5">
+                        {cityGroup.city}
+                      </p>
+                    )}
+                    <div className={viewMode === 'expanded' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'flex flex-col gap-0.5'}>
+                      {cityGroup.items.map((item) => (
+                        viewMode === 'expanded'
+                          ? <ExpandedCard key={item.id} item={item} onTripAdded={refreshTripItems} />
+                          : <CompactRow key={item.id} item={item} onTripAdded={refreshTripItems} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </section>
+            )
+          })}
         </div>
       )}
     </div>
@@ -503,42 +540,14 @@ export default function InboxPage() {
   )
 }
 
-// ─── Info Strip ───────────────────────────────────────────────────────────────
+// ─── Expanded Card ────────────────────────────────────────────────────────────
 
-function InfoStrip({ item }: { item: SavedItem }) {
-  return (
-    <div className="px-3 py-2.5 bg-black/85">
-      <p className="text-white text-xs font-semibold truncate leading-snug">{item.title}</p>
-      <div className="flex items-center justify-between mt-1 gap-1.5">
-        {item.location_name ? (
-          <span className="text-white/55 text-xs truncate min-w-0 flex-1">{formatCityCountry(item.location_name)}</span>
-        ) : (
-          <span className="flex-1" />
-        )}
-        <span
-          className={`shrink-0 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${categoryPillColors[item.category]}`}
-        >
-          {categoryLabel[item.category]}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-// ─── Grid Tile ────────────────────────────────────────────────────────────────
-
-function GridTile({
+function ExpandedCard({
   item,
-  tileType,
   onTripAdded,
-  onAspectRatioKnown,
-  onImageError,
 }: {
   item: SavedItem
-  tileType: TileType
   onTripAdded: () => void
-  onAspectRatioKnown: (isPortrait: boolean) => void
-  onImageError: () => void
 }) {
   const [showSheet, setShowSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -548,35 +557,55 @@ function GridTile({
     setTimeout(() => setToast(null), 2500)
   }
 
+  const Icon = getCategoryIcon(item.category)
+
   return (
-    <div className={`relative ${tileGridClasses[tileType]}`}>
+    <div className="relative group">
       <Link
         to={`/item/${item.id}`}
-        className="absolute inset-0 rounded-2xl overflow-hidden shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
+        className="flex items-stretch bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md active:scale-[0.99] transition-all overflow-hidden"
       >
-        {tileType === 'wide' ? (
-          <WideTileContent item={item} />
-        ) : (
-          <ImageTileContent
-            item={item}
-            onAspectRatioKnown={onAspectRatioKnown}
-            onImageError={onImageError}
-          />
-        )}
+        {/* Thumbnail / Icon area */}
+        <div className="w-[72px] shrink-0 self-stretch">
+          {item.image_url ? (
+            <img
+              src={item.image_url}
+              alt=""
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className={`w-full h-full ${categoryBgColors[item.category]} flex items-center justify-center`}>
+              <Icon className={`w-6 h-6 ${categoryIconColors[item.category]}`} />
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 min-w-0 px-3 py-2.5 flex flex-col justify-center gap-1">
+          <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
+          {item.location_name && (
+            <p className="text-xs text-gray-400 truncate">{formatCityCountry(item.location_name)}</p>
+          )}
+          <div>
+            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${categoryPillColors[item.category]}`}>
+              {categoryLabel[item.category]}
+            </span>
+          </div>
+        </div>
       </Link>
 
       {/* Options button */}
       <button
         type="button"
         onClick={() => setShowSheet(true)}
-        className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-black/40 flex items-center justify-center hover:bg-black/60 transition-colors"
+        className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-200 transition-all"
         aria-label="Add to trip"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 20 20"
           fill="currentColor"
-          className="w-3.5 h-3.5 text-white"
+          className="w-3.5 h-3.5 text-gray-500"
         >
           <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
         </svg>
@@ -603,67 +632,72 @@ function GridTile({
   )
 }
 
-// ─── Wide Tile (no image) ─────────────────────────────────────────────────────
+// ─── Compact Row ──────────────────────────────────────────────────────────────
 
-function WideTileContent({ item }: { item: SavedItem }) {
-  return (
-    <div
-      className={`w-full h-full ${categoryBgColors[item.category]} flex items-center px-5 gap-4`}
-    >
-      {/* Title — left side, fills available space */}
-      <p className="flex-1 text-white text-base font-bold leading-snug line-clamp-3 min-w-0">
-        {item.title}
-      </p>
-
-      {/* City + pill — right side, fixed width */}
-      <div className="flex flex-col items-end gap-1.5 shrink-0">
-        <span
-          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold bg-black/25 text-white whitespace-nowrap`}
-        >
-          {categoryLabel[item.category]}
-        </span>
-        {item.location_name && (
-          <span className="text-white/70 text-xs text-right leading-tight">{formatCityCountry(item.location_name)}</span>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Standard / Tall Tile (has image) ────────────────────────────────────────
-
-function ImageTileContent({
+function CompactRow({
   item,
-  onAspectRatioKnown,
-  onImageError,
+  onTripAdded,
 }: {
   item: SavedItem
-  onAspectRatioKnown: (isPortrait: boolean) => void
-  onImageError: () => void
+  onTripAdded: () => void
 }) {
-  // Prevent the callback ref from re-firing on every re-render
-  const reported = useRef(false)
+  const [showSheet, setShowSheet] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
 
-  const reportAspect = (img: HTMLImageElement) => {
-    if (reported.current || img.naturalWidth === 0) return
-    reported.current = true
-    onAspectRatioKnown(img.naturalHeight > img.naturalWidth * 1.2)
+  const handleToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 2500)
   }
 
+  const Icon = getCategoryIcon(item.category)
+
   return (
-    <div className="relative w-full h-full bg-gray-200">
-      <img
-        src={item.image_url!}
-        alt={item.title}
-        className="absolute inset-0 w-full h-full object-cover"
-        // Callback ref handles cached images already complete before onLoad fires
-        ref={(img) => { if (img?.complete) reportAspect(img) }}
-        onLoad={(e) => reportAspect(e.currentTarget)}
-        onError={onImageError}
-      />
-      <div className="absolute bottom-0 left-0 right-0">
-        <InfoStrip item={item} />
-      </div>
+    <div className="relative group">
+      <Link
+        to={`/item/${item.id}`}
+        className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors"
+      >
+        <Icon className={`w-4 h-4 shrink-0 ${categoryIconColors[item.category]}`} />
+        <span className="text-sm text-gray-900 truncate flex-1 min-w-0">{item.title}</span>
+        {item.location_name && (
+          <span className="text-xs text-gray-400 truncate shrink-0 max-w-[120px]">{formatCityCountry(item.location_name)}</span>
+        )}
+      </Link>
+
+      {/* Options button — visible on hover */}
+      <button
+        type="button"
+        onClick={() => setShowSheet(true)}
+        className="absolute top-1/2 -translate-y-1/2 right-1 z-10 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-200 transition-all"
+        aria-label="Add to trip"
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          className="w-3 h-3 text-gray-400"
+        >
+          <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
+        </svg>
+      </button>
+
+      {showSheet && (
+        <AddToTripSheet
+          itemId={item.id}
+          onClose={() => setShowSheet(false)}
+          onAdded={(tripTitle) => {
+            handleToast(`Added to "${tripTitle}"`)
+            onTripAdded()
+          }}
+          onAlreadyAdded={(tripTitle) => handleToast(`Already in "${tripTitle}"`)}
+        />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gray-900 text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

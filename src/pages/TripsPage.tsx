@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTrips, type TripWithDestinations } from '../hooks/useTrips'
 import { useAuth } from '../lib/auth'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
@@ -256,7 +256,7 @@ type CreateStep = 'name' | 'destinations'
 
 interface CreateTripModalProps {
   onClose: () => void
-  onCreated: () => void
+  onCreated: (tripId: string) => void
   createTrip: (input: { title: string }) => Promise<{ trip: TripWithDestinations | null; error: string | null }>
   createDestination: (tripId: string, location: LocationSelection, sortOrder: number, imageUrl?: string) => Promise<{ destination: unknown; error: string | null }>
 }
@@ -357,12 +357,12 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
       return
     }
 
-    await Promise.all(
-      destinations.map((d, i) =>
-        createDestination(trip.id, d, i, photoUrls[i] ?? undefined),
-      ),
-    )
-    onCreated()
+    // Save destinations sequentially to avoid stale-state race conditions
+    // in the useTrips hook's setTrips updater
+    for (let i = 0; i < destinations.length; i++) {
+      await createDestination(trip.id, destinations[i], i, photoUrls[i] ?? undefined)
+    }
+    onCreated(trip.id)
   }
 
   // ── Suggestion scope ────────────────────────────────────────────────────────
@@ -455,34 +455,45 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
         <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden" />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2.5">
-            {step === 'destinations' && (
-              <button
-                type="button"
-                onClick={() => setStep('name')}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-                aria-label="Back"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-                  <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
-                </svg>
-              </button>
-            )}
-            <h2 className="text-base font-semibold text-gray-900">
-              {step === 'name' ? 'New Trip' : title}
-            </h2>
+        <div className="px-5 py-4 border-b border-gray-100">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              {step === 'destinations' && (
+                <button
+                  type="button"
+                  onClick={() => setStep('name')}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                  aria-label="Back"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                    <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              )}
+              <h2 className="text-base font-semibold text-gray-900">
+                {step === 'name' ? 'New Trip' : title}
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              aria-label="Close"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+              </svg>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-            aria-label="Close"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-            </svg>
-          </button>
+
+          {/* Step indicator */}
+          <div className="flex items-center gap-2 mt-3">
+            <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'name' ? 'bg-blue-500' : 'bg-blue-500'}`} />
+            <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'destinations' ? 'bg-blue-500' : 'bg-gray-200'}`} />
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1.5">
+            {step === 'name' ? 'Step 1 of 2 — Name your trip' : 'Step 2 of 2 — Add destinations'}
+          </p>
         </div>
 
         {/* Scrollable body */}
@@ -560,10 +571,20 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                           </p>
                         </div>
 
-                        {/* City-scoped: individual save rows */}
-                        {suggScope.kind === 'city' && (
+                        {/* City-scoped: individual save rows (hide items whose city is already added) */}
+                        {suggScope.kind === 'city' && (() => {
+                          const visibleItems = suggScope.items.filter((item) =>
+                            !destinations.some(
+                              (d) =>
+                                d.country_code === item.location_country_code &&
+                                Math.abs((item.location_lat ?? 999) - d.lat) <= 0.45 &&
+                                Math.abs((item.location_lng ?? 999) - d.lng) <= 0.45,
+                            ),
+                          )
+                          if (visibleItems.length === 0 && !suggScope.addLoc) return null
+                          return (
                           <div>
-                            {suggScope.items.map((item) => (
+                            {visibleItems.map((item) => (
                               <div
                                 key={item.id}
                                 className="flex items-center gap-3 px-3.5 py-2.5 border-t border-gray-50"
@@ -602,7 +623,8 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                               </button>
                             )}
                           </div>
-                        )}
+                          )
+                        })()}
 
                         {/* Country-scoped: cluster rows */}
                         {suggScope.kind === 'country' && (
@@ -801,6 +823,7 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
 export default function TripsPage() {
   const { trips, loading, createTrip, createDestination, deleteTrip } = useTrips()
   const [showModal, setShowModal] = useState(false)
+  const navigate = useNavigate()
 
   // Preload destination cover images so they appear instantly when entering a trip
   useEffect(() => {
@@ -892,7 +915,7 @@ export default function TripsPage() {
       {showModal && (
         <CreateTripModal
           onClose={() => setShowModal(false)}
-          onCreated={() => setShowModal(false)}
+          onCreated={(tripId) => { setShowModal(false); navigate(`/trip/${tripId}`) }}
           createTrip={createTrip}
           createDestination={createDestination}
         />

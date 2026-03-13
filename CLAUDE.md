@@ -497,3 +497,77 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
 - Handle loading states and errors gracefully — never show a blank screen or unhandled error
 - Prefetch images (destination photos) on list pages so they're cached before the user navigates deeper
 - Git commit after each working feature
+
+---
+
+## 15. Inbox Philosophy
+
+The Travel Inbox is a collection of potential travel experiences waiting to become trips. It is not a photo gallery, Pinterest board, or spreadsheet.
+
+Design principles:
+- Entries are represented as structured travel-object cards, not image tiles.
+- Each card uses a category icon as its primary visual anchor.
+- Images are optional enrichment (small thumbnail), not the layout driver.
+- The inbox must look premium and intentional when ALL entries are text-only with no images.
+- Items are visually grouped by geographic location (country, then city) to create a sense of emerging journeys.
+
+The brand metaphor is a traveler's notebook: creative, exploratory, personal. But the product is a planning tool, not a journal.
+
+---
+
+## 16. Rapid Capture Principles
+
+Rapid capture is a core product capability, not a convenience feature.
+
+Requirements:
+- Support Enter-to-add for rapid multi-entry workflows in the save flow.
+- Support pasting multiple lines at once and splitting them into separate draft entries.
+- Prefer a draft-first, resolve-second model: create entries instantly, then resolve locations via Google Places in the background or on review.
+- Preserve user momentum first, then structure the data.
+- This workflow should work especially well for users manually extracting places from travel blogs, friend recommendations, or copied lists.
+
+This is more important to the MVP than AI-based long-form blog parsing.
+
+---
+
+## 17. AI Scope
+
+AI is not a dependency for the core MVP. The MVP must deliver full value without any LLM requirement.
+
+Future paid features may include:
+- Paste a full travel blog and auto-extract destinations, hotels, and activities
+- Auto-generate draft trips from long-form content
+- Route optimization and itinerary suggestions
+
+These are explicitly post-MVP unless otherwise instructed.
+
+---
+
+## 18. Trip Content Layers (Future Architecture Note)
+
+The current MVP focuses on activities (things to do at a place). Future versions will add two additional layers to the trip model. The data model should not prevent these from being added later.
+
+**Layer 1 — Activities (current):** Restaurants, sights, hikes, experiences. Saved via inbox, organized into destinations.
+
+**Layer 2 — Accommodations (future):** Where users stay. Sometimes saved inspirationally via inbox (e.g., a beautiful hotel from TikTok), sometimes configured directly within a destination during trip planning. Accommodations will have their own small section at the top or bottom of each destination section on the trip page. Hotels saved via inbox should be auto-tagged as accommodation when the source URL domain suggests it (e.g., booking.com, airbnb.com).
+
+**Layer 3 — Transport (future):** How users get between destinations. Transport connects two destinations rather than belonging to one. Visually represented as illustrated dotted pathway connectors between destination sections on the trip page.
+
+Do NOT build Layers 2 or 3 yet. This section exists so architectural decisions do not block them.
+
+---
+
+## 19. Brand Direction
+
+**Name:** Youji (游记, yóujì) — meaning travel journal / travelogue. The journal meaning is a brand metaphor, not the product description. The product is a travel planning and organization tool.
+
+**Visual identity:**
+- Graphite-style accents and sketch-like strokes as visual accents (not literal paper textures)
+- Monochrome category icons (Lucide for MVP, custom illustrated icons later)
+- Clean modern interface with subtle hand-crafted touches
+- Premium and aspirational feel
+
+**What the brand is NOT:**
+- Not skeuomorphic (no corkboard, paper textures, scrapbook aesthetic)
+- Not a journal product (the journal meaning is metaphor only)
+- Not generic travel branding (no Wander, Atlas, Roam)
