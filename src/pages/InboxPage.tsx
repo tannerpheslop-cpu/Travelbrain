@@ -6,7 +6,7 @@ import AddToTripSheet from '../components/AddToTripSheet'
 import SaveSheet from '../components/SaveSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { getCategoryIcon, categoryPillColors, categoryLabel, categoryIconColors } from '../utils/categoryIcons'
-import { LayoutGrid, List, SlidersHorizontal, X, Search } from 'lucide-react'
+import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react'
 import type { SavedItem, Trip } from '../types'
 
 /** Shorten a Google Places formatted_address to "City, Province, Country".
@@ -90,7 +90,6 @@ export default function InboxPage() {
   const [allTripItems, setAllTripItems] = useState<{ trip_id: string; item_id: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
   const [unassignedOnly, setUnassignedOnly] = useState(false)
   const [selectedTripId, setSelectedTripId] = useState('')
   const [selectedCity, setSelectedCity] = useState('')
@@ -99,7 +98,7 @@ export default function InboxPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('expanded')
   const filterPanelRef = useRef<HTMLDivElement>(null)
 
-  // ── Listen for saves created/updated from GlobalCreateSheet ────────────
+  // ── Listen for saves created/updated from CreatePopover ────────────────
 
   useEffect(() => {
     const handleCreated = (e: Event) => {
@@ -279,21 +278,12 @@ export default function InboxPage() {
   const filtered = useMemo(
     () =>
       items.filter((item) => {
-        if (search.trim()) {
-          const q = search.toLowerCase()
-          if (
-            !item.title.toLowerCase().includes(q) &&
-            !item.location_name?.toLowerCase().includes(q) &&
-            !item.notes?.toLowerCase().includes(q)
-          )
-            return false
-        }
         if (unassignedOnly && assignedItemIds.has(item.id)) return false
         if (selectedTripId && selectedTripItemIds && !selectedTripItemIds.has(item.id)) return false
         if (selectedCity && item.location_name !== selectedCity) return false
         return true
       }),
-    [items, search, unassignedOnly, assignedItemIds, selectedTripId, selectedTripItemIds, selectedCity],
+    [items, unassignedOnly, assignedItemIds, selectedTripId, selectedTripItemIds, selectedCity],
   )
 
   const geoGroups = useMemo(() => groupByGeography(filtered), [filtered])
@@ -303,28 +293,6 @@ export default function InboxPage() {
     <div className="px-4 pt-6 pb-24">
       <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Horizon</h1>
       <p className="mt-1 text-sm text-gray-500">Your saved travel inspiration</p>
-
-      {/* Inline search bar */}
-      <div className="relative mt-3">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Filter saves..."
-          className="w-full pl-10 pr-9 py-2.5 bg-white border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
-        />
-        {search && (
-          <button
-            type="button"
-            onClick={() => setSearch('')}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 transition-colors"
-            aria-label="Clear search"
-          >
-            <X className="w-3 h-3 text-gray-500" />
-          </button>
-        )}
-      </div>
 
       {/* Filter Bar + View Toggle */}
       <div className="mt-4 flex gap-2 pb-1 items-center">
