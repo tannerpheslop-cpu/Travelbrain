@@ -21,6 +21,7 @@ export interface SavedItem {
   source_type: SourceType
   source_url: string | null
   image_url: string | null
+  places_photo_url: string | null
   title: string
   description: string | null
   site_name: string | null

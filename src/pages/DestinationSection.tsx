@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { trackEvent } from '../lib/analytics'
+import SavedItemImage from '../components/SavedItemImage'
 import type { TripDestination, SavedItem, Category } from '../types'
 import {
   DndContext,
@@ -478,13 +479,7 @@ function DayItemCard({
           <div className="w-1" />
         )}
         <Link to={`/item/${item.id}`} className="shrink-0">
-          {item.image_url ? (
-            <img src={item.image_url} alt={item.title} className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
-          ) : (
-            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colors.bg}`}>
-              <PlaceholderIcon className="w-5 h-5 text-gray-300" />
-            </div>
-          )}
+          <SavedItemImage item={item} size="sm" className="rounded-lg" />
         </Link>
         <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
@@ -566,13 +561,7 @@ function LinkedItemCard({
     <div className={`bg-white border border-gray-100 shadow-sm overflow-hidden ${interaction?.isExpanded ? 'rounded-t-2xl' : 'rounded-2xl'}`}>
       <div className="flex items-center gap-0 p-2">
         <Link to={`/item/${item.id}`} className="shrink-0">
-          {item.image_url ? (
-            <img src={item.image_url} alt={item.title} className="w-14 h-14 rounded-xl object-cover bg-gray-100" />
-          ) : (
-            <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${colors.bg}`}>
-              <PlaceholderIcon className="w-6 h-6 text-gray-300" />
-            </div>
-          )}
+          <SavedItemImage item={item} size="md" className="rounded-xl" />
         </Link>
         <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
@@ -613,13 +602,7 @@ function SuggestionCard({ item, onAdd, onDismiss }: { item: SavedItem; onAdd: (i
 
   return (
     <div className="flex items-center gap-0 bg-blue-50 border border-blue-100 rounded-2xl overflow-hidden p-2">
-      {item.image_url ? (
-        <img src={item.image_url} alt={item.title} className="w-12 h-12 rounded-lg object-cover bg-gray-100 shrink-0" />
-      ) : (
-        <div className={`w-12 h-12 rounded-lg shrink-0 flex items-center justify-center ${colors.bg}`}>
-          <PlaceholderIcon className="w-5 h-5 text-gray-300" />
-        </div>
-      )}
+      <SavedItemImage item={item} size="sm" className="rounded-lg" />
       <div className="flex-1 min-w-0 px-3 py-1">
         <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
         {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>}
@@ -659,13 +642,7 @@ function InboxPickerRow({ item, onAdd }: { item: SavedItem; onAdd: (item: SavedI
   return (
     <button type="button" onClick={handleTap} disabled={adding}
       className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-60 text-left">
-      {item.image_url ? (
-        <img src={item.image_url} alt={item.title} className="w-12 h-12 rounded-xl object-cover bg-gray-100 shrink-0" />
-      ) : (
-        <div className={`w-12 h-12 rounded-xl shrink-0 flex items-center justify-center ${colors.bg}`}>
-          <PlaceholderIcon className="w-5 h-5 text-gray-300" />
-        </div>
-      )}
+      <SavedItemImage item={item} size="sm" className="rounded-xl" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
         {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>}

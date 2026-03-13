@@ -4,6 +4,7 @@ import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import AddToTripSheet from '../components/AddToTripSheet'
+import SavedItemImage from '../components/SavedItemImage'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import type { SavedItem, Category } from '../types'
 
@@ -211,7 +212,9 @@ export default function ItemDetailPage() {
     )
   }
 
-  const showImage = item.image_url && !imgFailed
+  // SavedItemImage handles image_url → places_photo_url → Places API fetch → icon fallback
+  // We only show the "Fetch Image" button when there's truly no image at all
+  const hasAnyImage = (item.image_url || item.places_photo_url) && !imgFailed
 
   return (
     <div className="px-4 pt-6 pb-24">
@@ -233,14 +236,12 @@ export default function ItemDetailPage() {
         )}
       </div>
 
-      {/* Image */}
-      {showImage ? (
-        <img
-          src={item.image_url!}
-          alt={title}
-          className="w-full h-56 object-cover rounded-2xl bg-gray-100"
-          onError={() => setImgFailed(true)}
-        />
+      {/* Image — SavedItemImage handles Places photo fallback automatically */}
+      {hasAnyImage ? (
+        <SavedItemImage item={item} size="full" className="rounded-2xl" />
+      ) : item.location_place_id ? (
+        /* Item has a place_id but no cached image yet — SavedItemImage will fetch from Places API */
+        <SavedItemImage item={item} size="full" className="rounded-2xl" />
       ) : (
         <div className={`relative w-full h-56 ${categoryPlaceholderColors[category].bg} rounded-2xl flex flex-col items-center justify-center gap-3`}>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-12 h-12 ${categoryPlaceholderColors[category].icon}`}>

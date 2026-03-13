@@ -4,7 +4,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SaveSheet from '../components/SaveSheet'
-import { getCategoryIcon, categoryPillColors, categoryLabel, categoryBgColors, categoryIconColors } from '../utils/categoryIcons'
+import SavedItemImage from '../components/SavedItemImage'
+import { getCategoryIcon, categoryPillColors, categoryLabel, categoryIconColors } from '../utils/categoryIcons'
 import { LayoutGrid, List } from 'lucide-react'
 import type { SavedItem, Trip } from '../types'
 
@@ -557,8 +558,6 @@ function ExpandedCard({
     setTimeout(() => setToast(null), 2500)
   }
 
-  const Icon = getCategoryIcon(item.category)
-
   return (
     <div className="relative group">
       <Link
@@ -566,19 +565,7 @@ function ExpandedCard({
         className="flex items-stretch bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md active:scale-[0.99] transition-all overflow-hidden"
       >
         {/* Thumbnail / Icon area */}
-        <div className="w-[72px] shrink-0 self-stretch">
-          {item.image_url ? (
-            <img
-              src={item.image_url}
-              alt=""
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className={`w-full h-full ${categoryBgColors[item.category]} flex items-center justify-center`}>
-              <Icon className={`w-6 h-6 ${categoryIconColors[item.category]}`} />
-            </div>
-          )}
-        </div>
+        <SavedItemImage item={item} size="xl" />
 
         {/* Content */}
         <div className="flex-1 min-w-0 px-3 py-2.5 flex flex-col justify-center gap-1">

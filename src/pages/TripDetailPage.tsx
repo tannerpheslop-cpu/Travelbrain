@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import SavedItemImage from '../components/SavedItemImage'
 import { useCompanions } from '../hooks/useCompanions'
 import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
 import type { Trip, TripDestination, TripNote, SavedItem, Category, SharePrivacy } from '../types'
@@ -600,15 +601,7 @@ function RefinementModal({
         <div className="space-y-2 mb-5 max-h-48 overflow-y-auto">
           {nearbyItems.map((ri) => (
             <div key={ri.id} className="flex items-center gap-2.5">
-              {ri.saved_item.image_url ? (
-                <img
-                  src={ri.saved_item.image_url}
-                  alt=""
-                  className="w-9 h-9 rounded-lg object-cover shrink-0 bg-gray-100"
-                />
-              ) : (
-                <div className="w-9 h-9 rounded-lg bg-gray-100 shrink-0" />
-              )}
+              <SavedItemImage item={ri.saved_item} size="xs" className="rounded-lg" />
               <div className="min-w-0">
                 <p className="text-sm font-medium text-gray-800 truncate">{ri.saved_item.title}</p>
                 {ri.saved_item.location_name && (

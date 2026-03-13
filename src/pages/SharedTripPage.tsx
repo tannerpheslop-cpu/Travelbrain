@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase, supabaseUrl } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import SavedItemImage from '../components/SavedItemImage'
 import type { Trip, TripDestination, SavedItem, Category } from '../types'
 
 // ── Local types ────────────────────────────────────────────────────────────────
@@ -66,25 +67,10 @@ function shortName(locationName: string): string {
 
 function SharedItemCard({ item }: { item: SavedItem }) {
   const colors = categoryColors[item.category]
-  const [imgFailed, setImgFailed] = useState(false)
-  const hasImg = item.image_url && !imgFailed
 
   return (
     <div className="flex gap-4 py-4 border-b border-gray-100 last:border-b-0">
-      {hasImg ? (
-        <img
-          src={item.image_url!}
-          alt={item.title}
-          className="w-16 h-16 object-cover rounded-xl bg-gray-100 shrink-0"
-          onError={() => setImgFailed(true)}
-        />
-      ) : (
-        <div className={`w-16 h-16 ${colors.bg} rounded-xl shrink-0 flex items-center justify-center`}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-gray-300">
-            <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6z" clipRule="evenodd" />
-          </svg>
-        </div>
-      )}
+      <SavedItemImage item={item} size="lg" className="rounded-xl" readOnly />
       <div className="flex-1 min-w-0 py-0.5">
         <p className="text-sm font-semibold text-gray-900 leading-snug">{item.title}</p>
         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
