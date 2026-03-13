@@ -205,8 +205,8 @@ export default function HorizonSheet({
   return (
     <div
       ref={sheetRef}
-      className="fixed inset-x-0 bottom-0 z-30 pointer-events-none"
-      style={{ height: '100dvh' }}
+      className="fixed inset-x-0 top-0 z-30 pointer-events-none overflow-hidden"
+      style={{ bottom: `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom))` }}
     >
       <div
         className="pointer-events-auto absolute inset-x-0 bg-white rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex flex-col max-w-lg mx-auto"
