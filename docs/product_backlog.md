@@ -17,7 +17,7 @@ These are ideas for future development. They should NOT be implemented during MV
 
 - Hotels/hostels as a distinct content layer within destinations
 - Own small section at top or bottom of each destination section on trip page
-- Can enter the system two ways: saved inspirationally via inbox (auto-tagged as accommodation from domain), or configured directly within a destination during planning
+- Can enter the system two ways: saved inspirationally via Horizon (auto-tagged as accommodation from domain), or configured directly within a destination during planning
 - Typically one accommodation per destination per date range
 
 ### Transport Connectors
@@ -40,6 +40,14 @@ These are ideas for future development. They should NOT be implemented during MV
 - Multi-line paste: paste a list of place names, auto-split into draft entries
 - Draft-first, resolve-second model for Google Places
 - Designed for blog-driven manual extraction and friend recommendation lists
+
+### Drag-and-Drop Scheduling Redesign
+
+- Replace current day-index-based scheduling with a more intuitive drag-and-drop interface
+- Items within a destination can be dragged between days or to "Unplanned"
+- Visual day timeline with time slots (morning/afternoon/evening)
+- Reorder items within a day via drag handle
+- Batch move: select multiple items and assign to a day at once
 
 ---
 
@@ -100,7 +108,7 @@ These are ideas for future development. They should NOT be implemented during MV
 ### Living Map Cues (Advanced)
 
 - Subtle visual connectors between nearby inbox items
-- "You have 4 saves near Lijiang — create a trip?" prompts in inbox
+- "You have 4 saves near Lijiang — create a trip?" prompts in Horizon
 - Journey emergence UI that reveals trips forming from saves
 - Animated path lines, directional flow hints
 

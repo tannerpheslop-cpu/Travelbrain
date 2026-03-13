@@ -4,7 +4,7 @@ This document defines the order in which features should be built. Claude Code s
 
 ## Current Status
 
-Phases 0–5 are substantially complete (auth, save flow, inbox, trips, collaboration, sharing). Current work is focused on polish, optimization, and the inbox redesign.
+Phases 0–6 and Phase 1 (Horizon experience) are complete. Current work is focused on polish, optimization, and launch prep.
 
 ---
 
@@ -16,15 +16,17 @@ Phases 0–5 are substantially complete (auth, save flow, inbox, trips, collabor
 - Manual entry
 - Google Places location attachment
 
-## Phase 1 — Inbox Experience [IN PROGRESS]
+## Phase 1 — Horizon Experience [COMPLETE]
 
-- Fixed CSS grid with tile sizes [COMPLETE — being replaced]
-- Filters and search [COMPLETE]
-- Item editing with Google Places autocomplete [COMPLETE]
-- Uniform travel-object card redesign [NEXT]
-- Compact/expanded toggle [NEXT]
-- Lucide category icon mapping [NEXT]
-- Basic geographic grouping (country/city sections) [NEXT]
+- Uniform horizontal card layout with expanded/compact toggle [COMPLETE]
+- Lucide category icon mapping via shared utility [COMPLETE]
+- Geographic grouping (country → city sections) [COMPLETE]
+- Google Places Photos fallback for imageless saves (`SavedItemImage` component) [COMPLETE]
+- Nomenclature rename: Inbox → Horizon, Aspirational → Someday, Scheduled → Upcoming [COMPLETE]
+- Top navigation header removed (consolidated into bottom tab Profile) [COMPLETE]
+- Simplified filter model: search bar + Unplanned toggle + collapsed Filter panel [COMPLETE]
+- Trips page redesign: featured trip hero card + adaptive stacked/carousel layout [COMPLETE]
+- Feature toggle on TripDetailPage (star button, `is_featured` + `updated_at` migration) [COMPLETE]
 
 ## Phase 2 — Rapid Capture [PLANNED]
 

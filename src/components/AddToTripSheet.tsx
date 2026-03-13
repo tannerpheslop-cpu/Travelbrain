@@ -186,13 +186,12 @@ export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSh
 
       // Status progression: aspirational → planning
       if (selectedTrip) {
-        supabase
+        void supabase
           .from('trips')
           .update({ status: 'planning' })
           .eq('id', selectedTrip.id)
           .eq('status', 'aspirational')
           .then(() => {/* DB trigger is authoritative */})
-          .catch(() => {/* no-op */})
       }
     }
 

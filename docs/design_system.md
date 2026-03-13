@@ -61,17 +61,53 @@ Tier 3 — Rare landmark-specific icons: Great Wall, Eiffel Tower, Mount Fuji, Y
 
 Style guidelines for future icons: graphite lines, sketch style, monochrome, consistent stroke weight, minimal shading.
 
-## Inbox Card Layout (Current Direction)
+## Horizon Card Layout
 
-Uniform horizontal cards in a responsive grid.
+Uniform horizontal cards in a responsive grid (1 column mobile, 2 columns desktop), grouped by geography (country → city).
 
-Card structure: category icon or thumbnail (left) | title, location, category pill (right).
+Card structure: category icon or `SavedItemImage` thumbnail (left) | title, location, category pill (right).
 
-Two modes: expanded (default, full card) and compact (dense list rows for scanning).
+Two modes: expanded (default, full card) and compact (dense list rows for scanning). Toggle via icon button in the filter bar.
 
-Images are optional thumbnails, not the primary layout element.
+Images are optional thumbnails, not the primary layout element. For saves without an `image_url`, a Google Places Photo is automatically fetched as a fallback thumbnail (via `SavedItemImage` component, stored as `places_photo_url`).
 
-The inbox must look beautiful even when all entries are text-only.
+The Horizon must look beautiful even when all entries are text-only.
+
+### Horizon Filter Bar
+
+Minimal filter model to keep the save surface clean:
+- Search bar (full-width, above filter bar)
+- Unplanned toggle chip (always visible, pill style)
+- Filter button (collapsed, opens Trip + Location panel below)
+- Active filter pills (dismissable, shown when panel is closed)
+- View mode toggle (right-aligned)
+
+## Trips Page Layout
+
+### Featured Trip Hero Card
+
+Full-width `h-56 rounded-2xl overflow-hidden` hero card at the top of the Trips page.
+
+- **Image:** First destination `image_url` → `cover_image_url` → gradient fallback (from shared `gradients` array)
+- **Scrim:** Bottom gradient `from-black/60` for text readability
+- **Overlaid content (bottom-left):** Trip title (`text-xl font-bold text-white` with `[text-shadow:_0_1px_8px_rgb(0_0_0_/_60%)]`), destination count, phase badge (reuses `statusConfig`), date range if Upcoming
+- **Pin badge (top-left):** Small filled star icon if `is_featured === true`
+- **Navigation:** Entire card wraps in `<Link to={/trip/${id}}>`
+
+### Adaptive Trip Layout
+
+Below the hero card, remaining trips use one of two layouts based on count:
+
+**Stacked (< 4 remaining trips):** Full-width vertical `TripCard` components, `space-y-3`, ordered by `updated_at` desc.
+
+**Carousels (4+ remaining trips):** Phase-grouped horizontal scroll sections:
+- Section header: phase label (Upcoming / Planning / Someday)
+- Horizontal scroll: `flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-3 -mx-4 px-4`
+- `CarouselTripCard`: `w-[260px] shrink-0 snap-start`, `h-36` cover, compact title + destination count + badge
+
+### Loading Skeleton
+
+Hero-sized skeleton (`h-56 rounded-2xl animate-pulse bg-gray-100`) + 2 smaller card skeletons.
 
 ## Trip Page Visual Direction (Future)
 
@@ -79,4 +115,4 @@ Transport connectors between destinations as illustrated dotted pathways.
 
 Accommodation section within each destination (small, distinct from activities).
 
-Ghost cards for inbox-derived suggestions (dashed border, muted colors).
+Ghost cards for Horizon-derived suggestions (dashed border, muted colors).

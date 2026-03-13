@@ -2,7 +2,16 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { getCategoryIcon, categoryBgColors, categoryIconColors } from '../utils/categoryIcons'
-import type { SavedItem } from '../types'
+import type { SavedItem, Category } from '../types'
+
+/** Minimal item shape required by SavedItemImage (allows partial items from joins) */
+export interface SavedItemImageData {
+  id: string
+  image_url: string | null
+  places_photo_url?: string | null
+  location_place_id?: string | null
+  category: Category | string
+}
 
 // ── In-memory cache & concurrency control ────────────────────────────────────
 
@@ -65,7 +74,7 @@ const sizeClasses: Record<string, { wrapper: string; icon: string }> = {
 // ── Component ────────────────────────────────────────────────────────────────
 
 interface Props {
-  item: SavedItem
+  item: SavedItem | SavedItemImageData
   size: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full'
   className?: string
   /** Skip DB persist (e.g. on shared/public pages where viewer doesn't own the item) */
@@ -73,31 +82,32 @@ interface Props {
 }
 
 export default function SavedItemImage({ item, size, className = '', readOnly = false }: Props) {
-  const effectiveUrl = item.image_url || item.places_photo_url
+  const effectiveUrl = item.image_url || ('places_photo_url' in item ? item.places_photo_url ?? null : null)
   const [photoUrl, setPhotoUrl] = useState<string | null>(effectiveUrl)
   const [imgFailed, setImgFailed] = useState(false)
 
   // Reset when item changes
   useEffect(() => {
-    const url = item.image_url || item.places_photo_url
+    const url = item.image_url || ('places_photo_url' in item ? item.places_photo_url ?? null : null)
     setPhotoUrl(url)
     setImgFailed(false)
-  }, [item.id, item.image_url, item.places_photo_url])
+  }, [item.id, item.image_url, 'places_photo_url' in item ? item.places_photo_url ?? null : null])
 
   // Fetch Places photo if needed
   useEffect(() => {
     if (photoUrl || imgFailed) return
-    if (!item.location_place_id) return
+    const placeId = 'location_place_id' in item ? item.location_place_id : null
+    if (!placeId) return
 
     // Check cache synchronously
-    if (photoCache.has(item.location_place_id)) {
-      const cached = photoCache.get(item.location_place_id)!
+    if (photoCache.has(placeId)) {
+      const cached = photoCache.get(placeId)!
       if (cached) setPhotoUrl(cached)
       return
     }
 
     let cancelled = false
-    getPlacePhoto(item.location_place_id).then((url) => {
+    getPlacePhoto(placeId).then((url) => {
       if (cancelled || !url) return
       setPhotoUrl(url)
 
@@ -113,10 +123,11 @@ export default function SavedItemImage({ item, size, className = '', readOnly = 
     })
 
     return () => { cancelled = true }
-  }, [photoUrl, imgFailed, item.location_place_id, item.id, readOnly])
+  }, [photoUrl, imgFailed, item, item.id, readOnly])
 
   const s = sizeClasses[size]
-  const Icon = getCategoryIcon(item.category)
+  const cat = item.category as import('../types').Category
+  const Icon = getCategoryIcon(cat)
 
   // Has a usable photo
   if (photoUrl && !imgFailed) {
@@ -132,8 +143,8 @@ export default function SavedItemImage({ item, size, className = '', readOnly = 
 
   // Fallback: category icon
   return (
-    <div className={`${s.wrapper} shrink-0 flex items-center justify-center ${categoryBgColors[item.category]} ${className}`}>
-      <Icon className={`${s.icon} ${categoryIconColors[item.category]}`} />
+    <div className={`${s.wrapper} shrink-0 flex items-center justify-center ${categoryBgColors[cat]} ${className}`}>
+      <Icon className={`${s.icon} ${categoryIconColors[cat]}`} />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTrips, type TripWithDestinations } from '../hooks/useTrips'
 import { useAuth } from '../lib/auth'
@@ -6,6 +6,7 @@ import LocationAutocomplete, { type LocationSelection } from '../components/Loca
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import { trackEvent } from '../lib/analytics'
+import { selectFeaturedTrip } from '../utils/featuredTrip'
 import type { TripStatus, SavedItem, Category } from '../types'
 import { supabase } from '../lib/supabase'
 
@@ -36,12 +37,6 @@ function formatDateRange(start: string, end: string): string {
   const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts)
   const e = new Date(end + 'T00:00:00').toLocaleDateString('en-US', opts)
   return `${s} – ${e}`
-}
-
-function flagEmoji(countryCode: string): string {
-  return [...countryCode.toUpperCase()]
-    .map((c) => String.fromCodePoint(0x1f1e0 + c.charCodeAt(0) - 65))
-    .join('')
 }
 
 /**
@@ -818,6 +813,141 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
   )
 }
 
+// ── Featured Trip Hero ────────────────────────────────────────────────────────
+
+function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: number }) {
+  const [coverImgFailed, setCoverImgFailed] = useState(false)
+  const gradient = gradients[index % gradients.length]
+  const status = statusConfig[trip.status]
+  const dests = trip.trip_destinations ?? []
+  const coverImage = !coverImgFailed
+    ? (dests.find((d) => d.image_url)?.image_url ?? trip.cover_image_url ?? null)
+    : null
+  const destCount = dests.length
+
+  return (
+    <Link
+      to={`/trip/${trip.id}`}
+      className="block rounded-2xl overflow-hidden shadow-md hover:shadow-lg active:scale-[0.99] transition-all"
+    >
+      <div className={`relative h-56 bg-gradient-to-br ${gradient}`}>
+        {coverImage && (
+          <img
+            src={coverImage}
+            alt={trip.title}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={() => setCoverImgFailed(true)}
+          />
+        )}
+        {/* Scrim */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+
+        {/* Pin icon if user-featured */}
+        {trip.is_featured && (
+          <div className="absolute top-3 left-3">
+            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-400/90 text-amber-900 text-[10px] font-bold uppercase tracking-wider shadow-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
+              </svg>
+              Featured
+            </span>
+          </div>
+        )}
+
+        {/* Status badge */}
+        <div className="absolute top-3 right-3">
+          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${status.classes}`}>
+            {status.label}
+          </span>
+        </div>
+
+        {/* Overlaid info */}
+        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4">
+          <h2 className="text-xl font-bold text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.4)] truncate">
+            {trip.title}
+          </h2>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-sm text-white/80">
+              {destCount} destination{destCount !== 1 ? 's' : ''}
+            </span>
+            {trip.status === 'scheduled' && trip.start_date && trip.end_date && (
+              <>
+                <span className="text-white/40">·</span>
+                <span className="text-sm text-white/70">{formatDateRange(trip.start_date, trip.end_date)}</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+// ── Carousel Trip Card ───────────────────────────────────────────────────────
+
+function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: number }) {
+  const [coverImgFailed, setCoverImgFailed] = useState(false)
+  const gradient = gradients[index % gradients.length]
+  const status = statusConfig[trip.status]
+  const dests = trip.trip_destinations ?? []
+  const coverImage = !coverImgFailed
+    ? (dests.find((d) => d.image_url)?.image_url ?? trip.cover_image_url ?? null)
+    : null
+
+  return (
+    <Link
+      to={`/trip/${trip.id}`}
+      className="block w-[260px] shrink-0 snap-start rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
+    >
+      <div className={`relative h-36 bg-gradient-to-br ${gradient}`}>
+        {coverImage && (
+          <img
+            src={coverImage}
+            alt={trip.title}
+            className="absolute inset-0 w-full h-full object-cover"
+            onError={() => setCoverImgFailed(true)}
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+        {/* Status badge */}
+        <div className="absolute top-2.5 right-2.5">
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shadow-sm ${status.classes}`}>
+            {status.label}
+          </span>
+        </div>
+      </div>
+      <div className="px-3 py-2.5">
+        <h3 className="text-sm font-semibold text-gray-900 truncate">{trip.title}</h3>
+        <div className="flex items-center gap-1.5 mt-1">
+          <span className="text-xs text-gray-500">{dests.length} destination{dests.length !== 1 ? 's' : ''}</span>
+          {trip.status === 'scheduled' && trip.start_date && trip.end_date && (
+            <>
+              <span className="text-gray-300">·</span>
+              <span className="text-xs text-gray-400">{formatDateRange(trip.start_date, trip.end_date)}</span>
+            </>
+          )}
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+// ── Phase Carousel ───────────────────────────────────────────────────────────
+
+function PhaseCarousel({ label, trips }: { label: string; trips: TripWithDestinations[] }) {
+  if (trips.length === 0) return null
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2.5">{label}</h3>
+      <div className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-3 -mx-4 px-4 pb-1">
+        {trips.map((trip, i) => (
+          <CarouselTripCard key={trip.id} trip={trip} index={i} />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── Trips Page ────────────────────────────────────────────────────────────────
 
 export default function TripsPage() {
@@ -825,7 +955,26 @@ export default function TripsPage() {
   const [showModal, setShowModal] = useState(false)
   const navigate = useNavigate()
 
-  // Preload destination cover images so they appear instantly when entering a trip
+  const featuredTrip = useMemo(() => selectFeaturedTrip(trips), [trips])
+
+  const remainingTrips = useMemo(
+    () => trips.filter((t) => t.id !== featuredTrip?.id),
+    [trips, featuredTrip],
+  )
+
+  const useCarouselLayout = remainingTrips.length >= 4
+
+  // Group remaining trips by phase for carousel layout
+  const groupedTrips = useMemo(() => {
+    if (!useCarouselLayout) return null
+    return {
+      scheduled: remainingTrips.filter((t) => t.status === 'scheduled'),
+      planning: remainingTrips.filter((t) => t.status === 'planning'),
+      aspirational: remainingTrips.filter((t) => t.status === 'aspirational'),
+    }
+  }, [remainingTrips, useCarouselLayout])
+
+  // Preload destination cover images
   useEffect(() => {
     if (loading) return
     for (const trip of trips) {
@@ -863,9 +1012,14 @@ export default function TripsPage() {
       {/* Loading Skeletons */}
       {loading && (
         <div className="mt-5 space-y-4">
-          {['from-blue-300 to-indigo-400', 'from-rose-300 to-pink-400'].map((g, i) => (
+          {/* Hero skeleton */}
+          <div className="animate-pulse rounded-2xl overflow-hidden">
+            <div className="h-56 bg-gradient-to-br from-blue-300 to-indigo-400 opacity-60" />
+          </div>
+          {/* Card skeletons */}
+          {[0, 1].map((i) => (
             <div key={i} className="animate-pulse bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-              <div className={`h-44 bg-gradient-to-br ${g} opacity-60`} />
+              <div className={`h-44 bg-gradient-to-br ${i === 0 ? 'from-rose-300 to-pink-400' : 'from-emerald-300 to-teal-400'} opacity-60`} />
               <div className="px-4 py-3 space-y-2.5">
                 <div className="h-4 bg-gray-200 rounded-full w-2/5" />
                 <div className="flex gap-2">
@@ -902,12 +1056,34 @@ export default function TripsPage() {
         </div>
       )}
 
-      {/* Trip Cards */}
+      {/* Trip content */}
       {!loading && trips.length > 0 && (
-        <div className="mt-5 space-y-4">
-          {trips.map((trip, index) => (
-            <TripCard key={trip.id} trip={trip} index={index} onDelete={deleteTrip} />
-          ))}
+        <div className="mt-5 space-y-5">
+          {/* Featured Trip Hero */}
+          {featuredTrip && (
+            <FeaturedTripHero trip={featuredTrip} index={trips.indexOf(featuredTrip)} />
+          )}
+
+          {/* Adaptive layout */}
+          {!useCarouselLayout ? (
+            /* State 1: Stacked cards */
+            <div className="space-y-3">
+              {remainingTrips.map((trip, index) => (
+                <TripCard key={trip.id} trip={trip} index={index} onDelete={deleteTrip} />
+              ))}
+            </div>
+          ) : (
+            /* State 2: Phase carousels */
+            <div className="space-y-5">
+              {groupedTrips && (
+                <>
+                  <PhaseCarousel label="Upcoming" trips={groupedTrips.scheduled} />
+                  <PhaseCarousel label="Planning" trips={groupedTrips.planning} />
+                  <PhaseCarousel label="Someday" trips={groupedTrips.aspirational} />
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
 

@@ -12,6 +12,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DraggableAttributes,
 } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -482,7 +483,7 @@ function DayItemCard({
   startDate: string
   onRemove: (linkId: string) => void
   onMove: (linkId: string, dayIndex: number | null) => void
-  dragHandleAttributes?: Record<string, unknown>
+  dragHandleAttributes?: DraggableAttributes
   dragHandleListeners?: Record<string, unknown>
   isDragging?: boolean
   canEdit?: boolean
@@ -1113,8 +1114,7 @@ export default function DestinationPage() {
         .update({ status: 'planning' })
         .eq('id', destination.trip_id)
         .eq('status', 'aspirational')
-        .then(() => {/* no-op */})
-        .catch(() => {/* DB trigger is authoritative */})
+        .then(() => {/* DB trigger is authoritative */})
     }
 
     return true
@@ -1263,7 +1263,7 @@ export default function DestinationPage() {
       .eq('item_id', itemId)
       .order('created_at', { ascending: true })
 
-    const entries: CommentEntry[] = ((data ?? []) as {
+    const entries: CommentEntry[] = ((data ?? []) as unknown as {
       id: string; user_id: string; body: string; created_at: string;
       user: { display_name: string | null; email: string; avatar_url: string | null } | null
     }[]).map((c) => ({

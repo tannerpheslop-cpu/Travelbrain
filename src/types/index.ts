@@ -50,8 +50,10 @@ export interface Trip {
   share_token: string | null
   share_privacy: SharePrivacy | null
   forked_from_trip_id: string | null
+  is_featured: boolean
   notes: TripNote[]
   created_at: string
+  updated_at: string
 }
 
 export interface TripNote {

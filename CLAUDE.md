@@ -1,4 +1,4 @@
-# CLAUDE.md — Travel Inbox Project Context
+# CLAUDE.md — Youji Project Context
 
 > Claude Code: Read this file at the start of every session. It is the source of truth for the product vision, architecture, data model, and design principles. Every feature you build should be consistent with this document.
 
@@ -6,7 +6,7 @@
 
 ## 1. What This Product Is
 
-Travel Inbox is a travel planning platform that transforms unstructured travel inspiration (TikTok links, Instagram posts, screenshots, website URLs, manual notes) into organized travel objects and lets users build destination-based trips that grow organically as users save more content.
+Youji is a travel planning platform that transforms unstructured travel inspiration (TikTok links, Instagram posts, screenshots, website URLs, manual notes) into organized travel objects and lets users build destination-based trips that grow organically as users save more content.
 
 **This is NOT:**
 - A travel booking service
@@ -23,20 +23,44 @@ Travel Inbox is a travel planning platform that transforms unstructured travel i
 
 ---
 
+## 1a. Nomenclature (Canonical User-Facing Terms)
+
+These are the official UI labels. Database enum values may differ — always use these labels in user-facing text.
+
+| Concept | User-Facing Label | DB / Code Value | Notes |
+|---------|-------------------|-----------------|-------|
+| Saves page | **Horizon** | Route: `/inbox` | "Your saved travel inspiration" |
+| Trip status: dreaming | **Someday** | `aspirational` | Starting state for new trips |
+| Trip status: active planning | **Planning** | `planning` | Auto-transitions when items are added |
+| Trip status: dates set | **Upcoming** | `scheduled` | User explicitly sets dates |
+| Items not assigned to a day | **Unplanned** | `day_index: null` | Within a destination's itinerary |
+| Items not in any trip | **Unplanned** (filter) | — | Horizon filter chip |
+| Trip-wide items section | **General** | `trip_general_items` | Packing lists, visa guides, etc. |
+| Save sheet title | **Add to your Horizon** | — | |
+| Save sheet CTA | **Save to my Horizon** | — | |
+| Item categories | **Restaurant, Activity, Hotel, Transit, General** | Same as label | |
+| "Add from inbox" button | **Add from Horizon** | — | On trip/destination pages |
+
+**Important:** The DB enums (`aspirational`, `scheduled`) are NOT user-facing. Always map to the canonical labels above.
+
+---
+
 ## 2. Current Phase: Phase 0 (Web MVP)
 
 We are building a **web-based MVP** to validate core planning loops before investing in native iOS. The web app must be **mobile-responsive as the primary design target** — users will test this on their phones.
 
 ### What We Are Building (Phase 0 Scope)
-- Save flow via floating + button on inbox: paste URL → auto-generate travel card from Open Graph metadata
+- Save flow via floating + button on the Horizon page: paste URL → auto-generate travel card from Open Graph metadata
 - Save flow: upload screenshot or manual entry → user quick-tags with category and location
-- Travel Inbox: fixed CSS grid of all saves with search and dynamic filters
+- Horizon page: geographic-grouped card list of all saves with search, Unplanned toggle, and collapsible Trip/Location filters
+- Google Places Photos as automatic fallback thumbnails for saves without images (via `SavedItemImage` component)
 - Destination-based trip model: trips are collections of destinations (cities or countries) that automatically surface nearby saved items
 - Automatic country grouping: destinations are visually grouped by country using data from Google Places
 - Adaptive trip UI: single-destination trips flatten the UI, multi-destination trips show collapsible sections, multi-country trips add country grouping headers
-- Smart destination suggestions: during trip creation and destination addition, the app suggests destinations based on geographic clusters in the user's inbox
-- Trip progression: aspirational → planning → scheduled as users add more content
+- Smart destination suggestions: during trip creation and destination addition, the app suggests destinations based on geographic clusters in the user's Horizon
+- Trip progression: Someday → Planning → Upcoming as users add more content
 - Country-level destinations that can be refined into cities over time
+- Trips page with featured trip hero card and adaptive layout (stacked cards or phase-grouped carousels)
 - Share links with privacy controls
 - Adopt/Fork: clone someone's shared trip into your own library
 - Companion Mode: invite friends who can comment and vote on items
@@ -95,6 +119,7 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | source_type | ENUM | 'url', 'screenshot', 'manual' |
 | source_url | TEXT (nullable) | Original URL if source_type = url |
 | image_url | TEXT (nullable) | OG image URL or Supabase Storage path |
+| places_photo_url | TEXT (nullable) | Auto-fetched Google Places Photo URL (fallback when image_url is null) |
 | title | TEXT | Editable. Auto-filled from OG title for URLs. |
 | description | TEXT (nullable) | From OG description |
 | site_name | TEXT (nullable) | e.g. "TikTok", "Instagram" |
@@ -116,14 +141,16 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | id | UUID (PK) | |
 | owner_id | UUID (FK → users) | Trip creator |
 | title | TEXT | e.g. "Asia 2026" |
-| status | ENUM | 'aspirational', 'planning', 'scheduled' |
+| status | ENUM | 'aspirational', 'planning', 'scheduled' (UI: Someday / Planning / Upcoming) |
 | start_date | DATE (nullable) | Set when scheduled |
 | end_date | DATE (nullable) | Set when scheduled |
 | cover_image_url | TEXT (nullable) | Auto from first destination image or user-selected |
 | share_token | TEXT (nullable, unique) | URL slug for sharing |
 | share_privacy | ENUM (nullable) | 'city_only', 'city_dates', 'full' |
 | forked_from_trip_id | UUID (nullable, FK → trips) | If adopted from another trip |
+| is_featured | BOOLEAN | Default false. At most one per user (enforced by partial unique index) |
 | created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | Auto-updated via trigger. Used for featured trip selection and sort order. |
 
 ### trip_destinations
 | Column | Type | Notes |
@@ -194,13 +221,15 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | Page | Route | Purpose |
 |------|-------|---------|
 | Login / Signup | /login | Supabase Auth (email + Google) |
-| Travel Inbox | /inbox | Fixed CSS grid of all saved items. Search + dynamic filters. Floating + button triggers save flow. Default home screen. |
+| Horizon | /inbox | Geographic-grouped card list of all saves. Search + Unplanned toggle + collapsible filters. Floating + button triggers save flow. Default home screen. |
 | Item Detail | /item/:id | View/edit a saved item |
-| Trip Library | /trips | List of all trips with destination previews |
+| Trips | /trips | Featured trip hero + adaptive layout (stacked cards or phase-grouped carousels) |
 | Trip Page | /trip/:id | Destination-based trip view with adaptive layout. All destination content lives inline — no separate destination pages. |
 | Shared Trip (public) | /s/:share_token | Read-only public view. Adopt CTA. |
 
 **There is NO separate destination page.** All destination content (items, suggestions, day-by-day itinerary) is displayed inline on the trip page in collapsible sections.
+
+**There is NO top-level navigation header.** Navigation uses a bottom tab bar only. Profile/settings are accessed via a Profile tab.
 
 ---
 
@@ -238,7 +267,7 @@ All standard CRUD (saved items, trips, destinations, comments, votes) happens di
 - If a nearby destination is found, show a notification/suggestion: "This is near [Destination] in your [Trip] — add it?"
 - Do NOT auto-add items to trips — always prompt the user
 
-### Inbox Clustering Logic (for Smart Suggestions)
+### Horizon Clustering Logic (for Smart Suggestions)
 - Cluster the user's saved_items by location_country to find country-level groups
 - Within each country group, cluster by proximity (~50km radius) to find city-level clusters
 - Use simple grouping: group by location_country, then within each country, group items whose coordinates are within ~0.45 degrees lat/lng of each other
@@ -258,51 +287,56 @@ These are non-negotiable and must guide every UI decision:
 5. **Sharing must be beautiful.** The public trip page is the viral surface — it must look polished enough that people want to share it.
 6. **The app must feel fun, not like project management.** No Gantt charts, no heavy admin UI, no complexity.
 7. **Mobile-first always.** Every component is designed for phone screens first, desktop second.
-8. **The inbox should feel like a travel inspiration brain, not a task list.** Visual-first layout with images driving the experience. The inbox stays clean — no analytics or clustering UI here.
-9. **Saving happens from within the inbox via a floating action button — never a separate page.** The user should never leave the inbox to add something.
+8. **The Horizon should feel like a travel inspiration brain, not a task list.** Visual-first layout with images driving the experience. The Horizon stays clean — no analytics or clustering UI here.
+9. **Saving happens from within the Horizon via a floating action button — never a separate page.** The user should never leave the Horizon to add something.
 10. **Trips should grow organically.** The destination-based model means trips get richer as users save more content, without requiring manual organization.
-11. **Intelligence surfaces at decision points, not in the inbox.** Smart suggestions (clusters, nearby items) appear during trip creation and destination addition — the moments when the user is actively deciding. The inbox remains a pure inspiration space.
+11. **Intelligence surfaces at decision points, not in the Horizon.** Smart suggestions (clusters, nearby items) appear during trip creation and destination addition — the moments when the user is actively deciding. The Horizon remains a pure inspiration space.
 12. **Minimize navigation depth.** All destination content lives inline on the trip page via collapsible sections. Users should never be more than 2 taps from any content.
 
 ---
 
 ## 8. Save Flow Details
 
-The save flow is triggered by a floating + button on the inbox page. It opens as a bottom sheet modal over the inbox. The URL paste input is shown by default, with options to switch to Upload Screenshot or Manual Entry. After saving, the modal closes and the new item appears in the inbox immediately.
+The save flow is triggered by a floating + button on the Horizon page. It opens as a bottom sheet modal ("Add to your Horizon"). The URL paste input is shown by default, with options to switch to Upload Screenshot or Manual Entry. After saving, the modal closes and the new item appears in the Horizon immediately.
 
 ### URL Save Path
 1. User taps + button, pastes URL into input
 2. App calls extract-metadata Edge Function
 3. Preview card appears with thumbnail, title, source site
 4. User optionally taps category buttons, adds location via Google Places autocomplete, adds notes
-5. Card saves to inbox
+5. Card saves to Horizon
 6. If the saved item's location is near a destination in one of the user's trips, show a suggestion to add it
 
 ### Screenshot / Manual Save Path
 1. User taps + button, switches to Upload Screenshot or Manual Entry
 2. For screenshots: image is uploaded to Supabase Storage, displayed as thumbnail
 3. User gives it a title (required for screenshots/manual), taps category, optionally adds location and notes
-4. Card saves to inbox
+4. Card saves to Horizon
 
 **There is NO screenshot OCR or ML classification.** Users tag manually. This is a deliberate design decision — it's faster, more accurate, and avoids the frustration of wrong AI guesses.
 
 ### Location Input
 All location fields use Google Places Autocomplete, configured to accept cities, regions, and countries. User starts typing and selects from dropdown suggestions. Stores structured data: location_name, location_lat, location_lng, location_place_id, location_country, location_country_code. The country and country_code fields are extracted from the Google Places address_components.
 
-### Inbox Tile Design
+### Horizon Card Layout
 
-The inbox uses a fixed CSS grid (2 columns mobile, 3-4 columns desktop). Three tile sizes:
-- **Standard (1x1):** Square-cropped image. Default for URL saves with landscape/square images. Roughly 160-180px tall on mobile so 6-8 tiles visible on screen.
-- **Wide (2x1):** Spans full row. Same height as standard. Used for text-only entries (manual/failed URL extraction) with category-colored background (warm orange for Restaurant, blue for Activity, green for Hotel, gray for Transit, muted purple for General). Title displays in large clean typography.
-- **Tall (1x2):** Spans two rows. Exactly 2x standard height. Used for portrait images like screenshots (height > 1.2x width).
+The Horizon uses uniform horizontal cards in a responsive grid (1 column mobile, 2 columns desktop), grouped by geography (country → city). Two view modes:
 
-Tile size is assigned automatically based on content: no image = wide, portrait image = tall, everything else = standard. All tiles share a consistent dark info strip at the bottom showing title (one line, truncated with ellipsis), location_name in smaller text (hidden if none), and category pill badge.
+- **Expanded (default):** Full horizontal card with category icon/thumbnail on the left, title + location + category pill on the right.
+- **Compact:** Dense list rows for quick scanning — category icon, title, and location on one line.
 
-### Inbox Filters
-- **Unassigned:** Shows only items not linked to any trip destination or trip general items
-- **Trip dropdown:** Dynamically lists user's trips, filters to items linked to that trip
-- **City dropdown:** Dynamically lists unique location_name values, filters accordingly
-- **Search bar** above filters for keyword search
+Images are optional thumbnails, not the primary layout element. For saves without an `image_url`, the `SavedItemImage` component automatically fetches a Google Places Photo using the item's `location_place_id` (stored as `places_photo_url` on the saved_item).
+
+### Horizon Filters
+
+The Horizon uses a simplified filter model:
+
+- **Search bar:** Full-width text input above the filter bar. Searches title, location, and notes.
+- **Unplanned chip:** Always-visible toggle button. Filters to items not linked to any trip.
+- **Filter button:** Collapsed by default. Opens a panel with Trip and Location dropdowns. Shows a count badge when filters are active. Active filters display as dismissable pills when the panel is closed.
+- **View mode toggle:** Switches between expanded and compact card layouts.
+
+This replaces the previous inline dropdown design to reduce visual clutter on the primary save surface.
 
 ---
 
@@ -314,7 +348,7 @@ This is the core product model. Trips are built around destinations, not flat li
 
 A destination is any geographic location — a city, a country, or a region. All are stored in the same trip_destinations table with a location_type field ('city', 'country', 'region') populated from Google Places type data.
 
-Country-level destinations are useful when the user knows they want to visit a country but hasn't decided on specific cities yet. A country destination has a wider proximity radius (500km vs 50km) for surfacing nearby inbox items. As the user refines their plans, they can add city-level destinations within that country. When a city is added within a country that already exists as a destination, the app offers to move relevant items from the country destination to the more specific city destination.
+Country-level destinations are useful when the user knows they want to visit a country but hasn't decided on specific cities yet. A country destination has a wider proximity radius (500km vs 50km) for surfacing nearby Horizon items. As the user refines their plans, they can add city-level destinations within that country. When a city is added within a country that already exists as a destination, the app offers to move relevant items from the country destination to the more specific city destination.
 
 ### Automatic Country Grouping on Trip Page
 
@@ -338,8 +372,8 @@ Each destination on the trip page is a collapsible section styled as an itinerar
 
 **Expanded state** reveals:
 - List of items linked to this destination (thumbnail, title, location, category badge). Each item taps through to /item/:id and has a remove action.
-- "Nearby Suggestions" subsection: inbox items within proximity radius that aren't already linked. One-tap "Add" buttons.
-- "Add from Inbox" button for manual item addition.
+- "Nearby Suggestions" subsection: Horizon items within proximity radius that aren't already linked. One-tap "Add" buttons.
+- "Add from Horizon" button for manual item addition.
 - If destination has dates: day-by-day itinerary tabs (Day 1, Day 2...) with drag-and-drop reordering, all inline.
 - If no dates: items as a simple list with "Add Dates" prompt.
 
@@ -347,9 +381,9 @@ Each destination on the trip page is a collapsible section styled as an itinerar
 
 ### Smart Destination Suggestions (Cluster-Based)
 
-During trip creation and when adding destinations to an existing trip, the app analyzes the user's inbox items to suggest relevant destinations. This intelligence appears only at these decision points — never in the inbox itself.
+During trip creation and when adding destinations to an existing trip, the app analyzes the user's Horizon items to suggest relevant destinations. This intelligence appears only at these decision points — never in the Horizon itself.
 
-**During trip creation:** After the user enters a trip name, before they add destinations manually, show a "Suggested from your saves" section. This clusters the user's inbox items by country, then by city proximity within each country. Display suggestions as tappable cards:
+**During trip creation:** After the user enters a trip name, before they add destinations manually, show a "Suggested from your saves" section. This clusters the user's Horizon items by country, then by city proximity within each country. Display suggestions as tappable cards:
 
 ```
 Suggested from your saves:
@@ -362,7 +396,7 @@ Tapping a country suggestion adds it as a destination (country-level or expands 
 
 **When adding destinations to an existing trip:** The "Add Destination" flow shows suggestions first, filtered to be relevant. If the trip already has China, suggest specific Chinese cities the user has saves near. Also suggest countries not yet in the trip.
 
-**If the user has few or no location-tagged inbox items:** Skip the suggestions section entirely and show only the manual autocomplete input. Don't show an empty suggestions area.
+**If the user has few or no location-tagged Horizon items:** Skip the suggestions section entirely and show only the manual autocomplete input. Don't show an empty suggestions area.
 
 ### Country-to-City Refinement
 
@@ -377,16 +411,16 @@ When a user has a country-level destination (e.g., "China") and later adds a cit
 
 Trips naturally progress through three states:
 
-**Aspirational** (starting state)
+**Someday** (starting state, DB: `aspirational`)
 - User creates a trip and adds one or more destinations
 - No dates, no items — just "I want to go here"
 - Destinations show with "0 places saved"
 
 **Planning** (auto-transitions when items are added)
-- Trip moves to "planning" when any destination has at least one item linked to it
+- Trip moves to Planning when any destination has at least one item linked to it
 - Destination sections show item counts and thumbnails
 
-**Scheduled** (user explicitly triggers)
+**Upcoming** (user explicitly triggers, DB: `scheduled`)
 - User adds dates to the trip and/or individual destinations
 - Day-by-day itinerary builder becomes available within each destination's expanded section
 
@@ -396,7 +430,43 @@ Below all destination sections, a collapsible "General" section holds trip-wide 
 
 When empty, show a single combined empty state: friendly text like "Add trip-wide items like packing lists or visa guides" with an integrated "Add Item" button — not a separate empty message and separate button.
 
-When a trip has no destinations, show a single combined empty state with the Google Places autocomplete built into the card: "Add your first destination to get started" with the input right there. Smart suggestions appear above this if the user has location-tagged inbox items.
+When a trip has no destinations, show a single combined empty state with the Google Places autocomplete built into the card: "Add your first destination to get started" with the input right there. Smart suggestions appear above this if the user has location-tagged Horizon items.
+
+---
+
+## 9a. Trips Page Layout
+
+The Trips page (`/trips`) uses a featured trip hero card at the top with an adaptive layout below.
+
+### Featured Trip Selection
+
+A pure client-side function (`selectFeaturedTrip`) picks which trip to feature using this priority cascade:
+1. **User-pinned:** `is_featured = true` (set manually via star button on TripDetailPage)
+2. **Nearest upcoming:** `status = 'scheduled'` with `start_date >= today`, sorted by `start_date` ascending
+3. **Most recently edited Planning trip:** sorted by `updated_at` descending
+4. **Most recently edited Someday trip:** sorted by `updated_at` descending
+
+At most one trip can be `is_featured = true` per user (enforced by partial unique index in DB).
+
+### Featured Trip Hero Card
+
+Full-width `h-56 rounded-2xl` card with:
+- Cover image from first destination's `image_url`, falling back to `cover_image_url`, falling back to a gradient
+- Bottom gradient scrim (`from-black/60`) for text readability
+- Overlaid: trip title (white, text-shadow), destination count, phase badge (Someday/Planning/Upcoming), dates if scheduled
+- Pin badge (top-left) if user has explicitly featured this trip
+- Entire card is a `<Link>` to the trip page
+
+### Adaptive Layout Below Hero
+
+The remaining trips (excluding the featured trip) use one of two layouts:
+
+**Stacked (< 4 remaining trips):** Full-width vertical cards with `space-y-3`, ordered by `updated_at` desc.
+
+**Carousels (4+ remaining trips):** Trips grouped by phase (Upcoming / Planning / Someday). Each non-empty group renders:
+- Section header with phase label
+- Horizontal scroll carousel: `overflow-x-auto scrollbar-hide snap-x snap-mandatory`
+- Compact cards: `w-[260px] shrink-0 snap-start`, `h-36` cover, title + destination count + badge
 
 ---
 
@@ -459,10 +529,10 @@ Build features in this exact sequence. Test each one before moving to the next.
 
 1. Auth (login/signup with Supabase Auth)
 2. Save flow — URL path (floating + button, paste URL → metadata → preview card → save)
-3. Travel Inbox (fixed CSS grid with three tile sizes, search, filters)
+3. Horizon page (geographic-grouped cards with search, Unplanned toggle, collapsible filters)
 4. Item editing (edit title, category, location via Google Places, notes)
 5. Save flow — screenshot/manual path (upload image, quick-tag)
-6. Trip Library + Destination model (create trips, add destinations — cities or countries — via Google Places, with cluster suggestions)
+6. Trips page + Destination model (create trips, add destinations — cities or countries — via Google Places, with cluster suggestions, featured trip hero + adaptive layout)
 7. Trip Page with adaptive layout (country grouping, collapsible destination sections, accordion behavior)
 8. Destination content inline (items, nearby suggestions, add from inbox — all within collapsible sections)
 9. Country-to-city refinement (adding cities within country destinations, item migration prompts)
@@ -500,16 +570,17 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
 
 ---
 
-## 15. Inbox Philosophy
+## 15. Horizon Philosophy
 
-The Travel Inbox is a collection of potential travel experiences waiting to become trips. It is not a photo gallery, Pinterest board, or spreadsheet.
+The Horizon is a collection of potential travel experiences waiting to become trips. It is not a photo gallery, Pinterest board, or spreadsheet.
 
 Design principles:
 - Entries are represented as structured travel-object cards, not image tiles.
 - Each card uses a category icon as its primary visual anchor.
-- Images are optional enrichment (small thumbnail), not the layout driver.
-- The inbox must look premium and intentional when ALL entries are text-only with no images.
+- Images are optional enrichment (small thumbnail), not the layout driver. For saves without images, Google Places Photos are fetched automatically as fallback thumbnails.
+- The Horizon must look premium and intentional when ALL entries are text-only with no images.
 - Items are visually grouped by geographic location (country, then city) to create a sense of emerging journeys.
+- Filters are minimal and non-intrusive: a search bar, an Unplanned toggle chip, and a collapsed Filter panel for Trip/Location dropdowns.
 
 The brand metaphor is a traveler's notebook: creative, exploratory, personal. But the product is a planning tool, not a journal.
 
@@ -547,9 +618,9 @@ These are explicitly post-MVP unless otherwise instructed.
 
 The current MVP focuses on activities (things to do at a place). Future versions will add two additional layers to the trip model. The data model should not prevent these from being added later.
 
-**Layer 1 — Activities (current):** Restaurants, sights, hikes, experiences. Saved via inbox, organized into destinations.
+**Layer 1 — Activities (current):** Restaurants, sights, hikes, experiences. Saved via Horizon, organized into destinations.
 
-**Layer 2 — Accommodations (future):** Where users stay. Sometimes saved inspirationally via inbox (e.g., a beautiful hotel from TikTok), sometimes configured directly within a destination during trip planning. Accommodations will have their own small section at the top or bottom of each destination section on the trip page. Hotels saved via inbox should be auto-tagged as accommodation when the source URL domain suggests it (e.g., booking.com, airbnb.com).
+**Layer 2 — Accommodations (future):** Where users stay. Sometimes saved inspirationally via Horizon (e.g., a beautiful hotel from TikTok), sometimes configured directly within a destination during trip planning. Accommodations will have their own small section at the top or bottom of each destination section on the trip page. Hotels saved via Horizon should be auto-tagged as accommodation when the source URL domain suggests it (e.g., booking.com, airbnb.com).
 
 **Layer 3 — Transport (future):** How users get between destinations. Transport connects two destinations rather than belonging to one. Visually represented as illustrated dotted pathway connectors between destination sections on the trip page.
 

@@ -162,7 +162,7 @@ export default function ItemDetailPage() {
           .from('saved_items')
           .update({ image_url: data.image })
           .eq('id', item.id)
-        setItem((prev) => prev ? { ...prev, image_url: data.image } : prev)
+        setItem((prev) => prev ? { ...prev, image_url: data.image ?? null } : prev)
         setImgFailed(false)
       } else {
         handleToast('No image found for this link')
@@ -317,7 +317,6 @@ export default function ItemDetailPage() {
           itemId={item.id}
           onClose={() => setShowTripSheet(false)}
           onAdded={(tripTitle) => handleToast(`Added to "${tripTitle}"`)}
-          onAlreadyAdded={(tripTitle) => handleToast(`Already in "${tripTitle}"`)}
         />
       )}
 

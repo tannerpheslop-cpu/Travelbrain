@@ -12,6 +12,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DraggableAttributes,
 } from '@dnd-kit/core'
 import {
   arrayMove,
@@ -87,7 +88,7 @@ export interface DestinationSectionProps {
   locatedItems: LocatedItemBasic[]
   canEdit: boolean
   userAvatarUrl?: string | null
-  dragHandleAttributes?: Record<string, unknown>
+  dragHandleAttributes?: DraggableAttributes
   dragHandleListeners?: Record<string, unknown>
   isDragging?: boolean
   isFlat?: boolean
@@ -177,14 +178,6 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
 }
 
 // ── Shared icons ───────────────────────────────────────────────────────────────
-
-function PlaceholderIcon({ className }: { className?: string }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className}>
-      <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6z" clipRule="evenodd" />
-    </svg>
-  )
-}
 
 function CloseIcon() {
   return (
@@ -443,7 +436,7 @@ function DayItemCard({
   startDate: string
   onRemove: (linkId: string) => void
   onMove: (linkId: string, dayIndex: number | null) => void
-  dragHandleAttributes?: Record<string, unknown>
+  dragHandleAttributes?: DraggableAttributes
   dragHandleListeners?: Record<string, unknown>
   isDragging?: boolean
   canEdit?: boolean
@@ -631,7 +624,6 @@ function SuggestionCard({ item, onAdd, onDismiss }: { item: SavedItem; onAdd: (i
 // ── Inbox Picker Row ───────────────────────────────────────────────────────────
 
 function InboxPickerRow({ item, onAdd }: { item: SavedItem; onAdd: (item: SavedItem) => Promise<void> }) {
-  const colors = categoryColors[item.category]
   const [adding, setAdding] = useState(false)
   const handleTap = async () => {
     if (adding) return
@@ -760,7 +752,7 @@ export default function DestinationSection({
   dragHandleListeners,
   isDragging,
   isFlat = false,
-  onAddDestination,
+  onAddDestination: _onAddDestination,
   onAddCityWithItems,
 }: DestinationSectionProps) {
   // Linked items — initialized from preloaded destination_items, then managed locally
@@ -1000,8 +992,8 @@ export default function DestinationSection({
     setCommentCounts((prev) => ({ ...prev, [item.id]: prev[item.id] ?? 0 }))
 
     // Nudge trip to planning status (best-effort — DB trigger is authoritative)
-    supabase.from('trips').update({ status: 'planning' }).eq('id', tripId).eq('status', 'aspirational')
-      .then(() => {/* no-op */}).catch(() => {/* non-critical */})
+    void supabase.from('trips').update({ status: 'planning' }).eq('id', tripId).eq('status', 'aspirational')
+      .then(() => {/* no-op */})
 
     return true
   }
@@ -1110,7 +1102,7 @@ export default function DestinationSection({
       .eq('item_id', itemId)
       .order('created_at', { ascending: true })
 
-    const entries: CommentEntry[] = ((data ?? []) as {
+    const entries: CommentEntry[] = ((data ?? []) as unknown as {
       id: string; user_id: string; body: string; created_at: string;
       user: { display_name: string | null; email: string; avatar_url: string | null } | null
     }[]).map((c) => ({
