@@ -1,12 +1,14 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SaveSheet from '../components/SaveSheet'
+import HorizonSheet from '../components/HorizonSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { getCategoryIcon, categoryPillColors, categoryLabel, categoryIconColors } from '../utils/categoryIcons'
 import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react'
+import { useRapidCapture } from '../hooks/useRapidCapture'
 import type { SavedItem, Trip } from '../types'
 
 /** Shorten a Google Places formatted_address to "City, Province, Country".
@@ -98,6 +100,26 @@ export default function InboxPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('expanded')
   const filterPanelRef = useRef<HTMLDivElement>(null)
+
+  // ── Rapid capture ───────────────────────────────────────────────────────
+
+  const handleItemCreated = useCallback((item: SavedItem) => {
+    setItems((prev) => [item, ...prev])
+  }, [])
+
+  const handleItemUpdated = useCallback((updated: SavedItem) => {
+    setItems((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item)),
+    )
+  }, [])
+
+  const { createSaves, resolvingIds } = useRapidCapture(
+    user?.id,
+    handleItemCreated,
+    handleItemUpdated,
+  )
+
+  // ── Data fetching ───────────────────────────────────────────────────────
 
   const fetchAll = async () => {
     if (!user) return
@@ -277,35 +299,12 @@ export default function InboxPage() {
 
   return (
     <>
-    <div className="px-4 pt-6 pb-28">
+    <div className="px-4 pt-6 pb-36">
       <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Horizon</h1>
       <p className="mt-1 text-sm text-gray-500">Your saved travel inspiration</p>
 
-      {/* Search Bar */}
-      <div className="mt-4 relative">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2"
-        >
-          <path
-            fillRule="evenodd"
-            d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z"
-            clipRule="evenodd"
-          />
-        </svg>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by title, location, or notes..."
-          className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 shadow-sm"
-        />
-      </div>
-
       {/* Filter Bar + View Toggle */}
-      <div className="mt-3 flex gap-2 pb-1 items-center">
+      <div className="mt-4 flex gap-2 pb-1 items-center">
         <button
           type="button"
           onClick={() => setUnassignedOnly(!unassignedOnly)}
@@ -543,8 +542,8 @@ export default function InboxPage() {
                     <div className={viewMode === 'expanded' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'flex flex-col gap-0.5'}>
                       {cityGroup.items.map((item) => (
                         viewMode === 'expanded'
-                          ? <ExpandedCard key={item.id} item={item} onTripAdded={refreshTripItems} />
-                          : <CompactRow key={item.id} item={item} onTripAdded={refreshTripItems} />
+                          ? <ExpandedCard key={item.id} item={item} onTripAdded={refreshTripItems} isResolving={resolvingIds.has(item.id)} />
+                          : <CompactRow key={item.id} item={item} onTripAdded={refreshTripItems} isResolving={resolvingIds.has(item.id)} />
                       ))}
                     </div>
                   </div>
@@ -556,19 +555,17 @@ export default function InboxPage() {
       )}
     </div>
 
-    {/* Floating Action Button */}
-    <button
-      type="button"
-      onClick={() => setShowSaveSheet(true)}
-      className="fixed bottom-24 right-4 z-30 w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center shadow-xl shadow-blue-500/40 hover:bg-blue-700 hover:shadow-blue-500/50 active:bg-blue-800 active:scale-95 transition-all"
-      aria-label="Save a place"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-7 h-7 text-white">
-        <path fillRule="evenodd" d="M12 3.75a.75.75 0 01.75.75v6.75h6.75a.75.75 0 010 1.5h-6.75v6.75a.75.75 0 01-1.5 0v-6.75H4.5a.75.75 0 010-1.5h6.75V4.5a.75.75 0 01.75-.75z" clipRule="evenodd" />
-      </svg>
-    </button>
+    {/* Horizon Bottom Sheet — search + rapid capture + action buttons */}
+    <HorizonSheet
+      items={items}
+      search={search}
+      onSearchChange={setSearch}
+      onRapidCapture={createSaves}
+      onOpenSaveSheet={() => setShowSaveSheet(true)}
+      resolvingIds={resolvingIds}
+    />
 
-    {/* Save Sheet */}
+    {/* Save Sheet — triggered from HorizonSheet action buttons */}
     {showSaveSheet && (
       <SaveSheet
         onClose={() => setShowSaveSheet(false)}
@@ -584,9 +581,11 @@ export default function InboxPage() {
 function ExpandedCard({
   item,
   onTripAdded,
+  isResolving,
 }: {
   item: SavedItem
   onTripAdded: () => void
+  isResolving?: boolean
 }) {
   const [showSheet, setShowSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -608,9 +607,14 @@ function ExpandedCard({
         {/* Content */}
         <div className="flex-1 min-w-0 px-3 py-2.5 flex flex-col justify-center gap-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-          {item.location_name && (
+          {item.location_name ? (
             <p className="text-xs text-gray-400 truncate">{formatCityCountry(item.location_name)}</p>
-          )}
+          ) : isResolving ? (
+            <p className="text-xs text-gray-400 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+              Resolving...
+            </p>
+          ) : null}
           <div>
             <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${categoryPillColors[item.category]}`}>
               {categoryLabel[item.category]}
@@ -661,9 +665,11 @@ function ExpandedCard({
 function CompactRow({
   item,
   onTripAdded,
+  isResolving,
 }: {
   item: SavedItem
   onTripAdded: () => void
+  isResolving?: boolean
 }) {
   const [showSheet, setShowSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -683,9 +689,14 @@ function CompactRow({
       >
         <Icon className={`w-4 h-4 shrink-0 ${categoryIconColors[item.category]}`} />
         <span className="text-sm text-gray-900 truncate flex-1 min-w-0">{item.title}</span>
-        {item.location_name && (
+        {item.location_name ? (
           <span className="text-xs text-gray-400 truncate shrink-0 max-w-[120px]">{formatCityCountry(item.location_name)}</span>
-        )}
+        ) : isResolving ? (
+          <span className="text-xs text-gray-400 flex items-center gap-1 shrink-0">
+            <span className="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse" />
+            Resolving...
+          </span>
+        ) : null}
       </Link>
 
       {/* Options button — visible on hover */}
