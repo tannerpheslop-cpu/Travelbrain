@@ -1,28 +1,19 @@
 import { useState } from 'react'
 import GlobalFABs from './GlobalFABs'
-import GlobalSearchOverlay from './GlobalSearchOverlay'
-import GlobalCreateSheet from './GlobalCreateSheet'
+import CreatePopover from './CreatePopover'
 
 export default function GlobalActions() {
   const [showCreate, setShowCreate] = useState(false)
-  const [showSearch, setShowSearch] = useState(false)
 
   return (
     <>
-      {/* Hide FABs when either overlay/sheet is open */}
-      {!showCreate && !showSearch && (
-        <GlobalFABs
-          onCreateClick={() => setShowCreate(true)}
-          onSearchClick={() => setShowSearch(true)}
-        />
-      )}
-
-      {showSearch && (
-        <GlobalSearchOverlay onClose={() => setShowSearch(false)} />
+      {/* Hide FAB when popover is open */}
+      {!showCreate && (
+        <GlobalFABs onCreateClick={() => setShowCreate(true)} />
       )}
 
       {showCreate && (
-        <GlobalCreateSheet onClose={() => setShowCreate(false)} />
+        <CreatePopover onClose={() => setShowCreate(false)} />
       )}
     </>
   )

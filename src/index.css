@@ -11,3 +11,8 @@ html {
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { scrollbar-width: none; }
 
+/* Prevent iOS Safari auto-zoom on input focus (triggers at <16px) */
+input, textarea, select {
+  font-size: 16px !important;
+}
+
