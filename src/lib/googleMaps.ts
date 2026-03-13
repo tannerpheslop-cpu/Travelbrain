@@ -44,6 +44,69 @@ export function loadGoogleMapsScript(): Promise<void> {
  * Uses PlacesService.getDetails with fields: ['photos'].
  * Returns null if no photo is available, the API is unavailable, or any error occurs.
  */
+/** Resolved location data returned by findPlaceByQuery. */
+export interface ResolvedLocation {
+  location_name: string
+  location_lat: number
+  location_lng: number
+  location_place_id: string
+  location_country: string | null
+  location_country_code: string | null
+}
+
+/**
+ * Attempts to resolve a text query (e.g. "Ramen Nagi Tokyo") into structured
+ * location data using the Google Places JS API.
+ * Returns null if no confident match is found or the API is unavailable.
+ */
+export async function findPlaceByQuery(query: string): Promise<ResolvedLocation | null> {
+  try {
+    await loadGoogleMapsScript()
+    if (!window.google?.maps?.places) return null
+
+    return new Promise<ResolvedLocation | null>((resolve) => {
+      const service = new window.google.maps.places.PlacesService(
+        document.createElement('div'),
+      )
+      service.findPlaceFromQuery(
+        {
+          query,
+          fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components', 'types'],
+        },
+        (
+          results: google.maps.places.PlaceResult[] | null,
+          status: google.maps.places.PlacesServiceStatus,
+        ) => {
+          if (
+            status !== window.google.maps.places.PlacesServiceStatus.OK ||
+            !results?.length ||
+            !results[0].geometry?.location
+          ) {
+            resolve(null)
+            return
+          }
+
+          const place = results[0]
+          const countryComponent = place.address_components?.find(
+            (c: google.maps.GeocoderAddressComponent) => c.types.includes('country'),
+          )
+
+          resolve({
+            location_name: place.formatted_address || place.name || query,
+            location_lat: place.geometry!.location!.lat(),
+            location_lng: place.geometry!.location!.lng(),
+            location_place_id: place.place_id ?? '',
+            location_country: countryComponent?.long_name ?? null,
+            location_country_code: countryComponent?.short_name ?? null,
+          })
+        },
+      )
+    })
+  } catch {
+    return null
+  }
+}
+
 export async function fetchPlacePhoto(placeId: string): Promise<string | null> {
   try {
     await loadGoogleMapsScript()
