@@ -34,7 +34,7 @@ export default function SaveSheet({ onClose, onSaved }: Props) {
 
   // Shared fields
   const [title, setTitle] = useState('')
-  const [category, setCategory] = useState<Category>('general')
+  const [category, setCategory] = useState<Category>('activity')
   const [location, setLocation] = useState<LocationSelection | null>(null)
   const [notes, setNotes] = useState('')
   const [saveError, setSaveError] = useState('')
@@ -58,7 +58,7 @@ export default function SaveSheet({ onClose, onSaved }: Props) {
 
   const resetAll = () => {
     setTitle('')
-    setCategory('general')
+    setCategory('activity')
     setLocation(null)
     setNotes('')
     setSaveError('')
@@ -271,7 +271,7 @@ export default function SaveSheet({ onClose, onSaved }: Props) {
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 shrink-0">
-          <h2 className="text-lg font-bold text-gray-900">Save a place</h2>
+          <h2 className="text-lg font-bold text-gray-900">Add to your Horizon</h2>
           <button
             type="button"
             onClick={isSaving ? undefined : onClose}
@@ -571,7 +571,7 @@ function SheetSaveButton({ onClick, saving, saved, disabled }: {
           : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed'
       }`}
     >
-      {saving ? 'Saving...' : saved ? 'Saved! ✓' : 'Save to Horizon'}
+      {saving ? 'Saving...' : saved ? 'Saved! ✓' : 'Save to my Horizon'}
     </button>
   )
 }

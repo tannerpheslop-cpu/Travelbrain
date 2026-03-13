@@ -46,7 +46,11 @@ export default function LocationAutocomplete({
     let cancelled = false
 
     loadGoogleMapsScript().then(() => {
-      if (cancelled || !inputRef.current || !window.google?.maps?.places) return
+      if (cancelled) return
+      if (!inputRef.current || !window.google?.maps?.places) {
+        setReady(true)
+        return
+      }
 
       const ac = new window.google.maps.places.Autocomplete(inputRef.current, {
         fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components', 'types'],

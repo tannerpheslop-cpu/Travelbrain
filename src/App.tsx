@@ -1,7 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './lib/auth'
 import ProtectedRoute from './components/ProtectedRoute'
-import UserHeader from './components/UserHeader'
 import BottomNav from './components/BottomNav'
 import LoginPage from './pages/LoginPage'
 import InboxPage from './pages/InboxPage'
@@ -15,7 +14,6 @@ function AppLayout() {
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50">
-        <UserHeader />
         <main className="max-w-lg mx-auto">
           <Routes>
             <Route path="/inbox" element={<InboxPage />} />
