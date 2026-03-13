@@ -261,7 +261,7 @@ export default function InboxPage() {
   return (
     <>
     <div className="px-4 pt-6 pb-28">
-      <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Inbox</h1>
+      <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Horizon</h1>
       <p className="mt-1 text-sm text-gray-500">Your saved travel inspiration</p>
 
       {/* Search Bar */}
@@ -298,7 +298,7 @@ export default function InboxPage() {
               : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50'
           }`}
         >
-          Unassigned
+          Unplanned
         </button>
 
         <div className="relative shrink-0">
@@ -435,7 +435,7 @@ export default function InboxPage() {
               />
             </svg>
           </div>
-          <p className="mt-4 text-gray-800 font-semibold text-lg">Your inbox is empty</p>
+          <p className="mt-4 text-gray-800 font-semibold text-lg">Your horizon is empty</p>
           <p className="mt-1.5 text-sm text-gray-500 max-w-xs mx-auto">
             Paste a link, upload a screenshot, or add a place manually to get started.
           </p>
@@ -490,7 +490,7 @@ export default function InboxPage() {
                 <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
                   {group.country
                     ? `${group.countryCode ? countryCodeToFlag(group.countryCode) + ' ' : ''}${group.country}`
-                    : 'Unsorted'}
+                    : 'Unplaced'}
                 </h2>
 
                 {group.cities.map((cityGroup, ci) => (

@@ -127,7 +127,7 @@ function AdoptBanner({ onAdopt, loading }: { onAdopt: () => void; loading: boole
             <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1Z" />
             <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5Z" />
           </svg>
-          Adopt This Trip
+          Copy this trip
         </>
       )}
     </button>
@@ -489,7 +489,7 @@ function SharedTripFooter() {
             <path fillRule="evenodd" d="M9.315 7.584C12.195 3.883 16.695 1.5 21.75 1.5a.75.75 0 01.75.75c0 5.056-2.383 9.555-6.084 12.436A6.75 6.75 0 019.75 22.5a.75.75 0 01-.75-.75v-4.131A15.838 15.838 0 016.382 15H2.25a.75.75 0 01-.75-.75 6.75 6.75 0 017.815-6.666zM15 6.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" clipRule="evenodd" />
           </svg>
         </div>
-        Made with Travel Inbox
+        Made with Youji
       </a>
     </div>
   )
@@ -634,7 +634,7 @@ export default function SharedTripPage() {
           onClick={() => navigate('/')}
           className="mt-6 px-6 py-3 bg-blue-600 text-white rounded-2xl text-sm font-semibold hover:bg-blue-700 transition-colors shadow-sm"
         >
-          Go to Travel Inbox
+          Go to Youji
         </button>
       </div>
     )

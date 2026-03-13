@@ -21,9 +21,9 @@ const gradients = [
 ]
 
 const statusConfig: Record<TripStatus, { label: string; classes: string }> = {
-  aspirational: { label: 'Aspirational', classes: 'bg-white/90 text-gray-600' },
-  planning:     { label: 'Planning',     classes: 'bg-blue-500 text-white' },
-  scheduled:    { label: 'Scheduled',    classes: 'bg-emerald-500 text-white' },
+  aspirational: { label: 'Someday',  classes: 'bg-white/90 text-gray-600' },
+  planning:     { label: 'Planning', classes: 'bg-blue-500 text-white' },
+  scheduled:    { label: 'Upcoming', classes: 'bg-emerald-500 text-white' },
 }
 
 /** Keep only the first segment of a Google Places name, e.g. "Chengdu, Sichuan, China" → "Chengdu" */

@@ -1431,7 +1431,7 @@ export default function TripDetailPage() {
             trip?.status === 'planning'  ? 'bg-blue-100 text-blue-700' :
                                            'bg-gray-100 text-gray-500'
           }`}>
-            {trip?.status === 'scheduled' ? 'Scheduled' : trip?.status === 'planning' ? 'Planning' : 'Aspirational'}
+            {trip?.status === 'scheduled' ? 'Upcoming' : trip?.status === 'planning' ? 'Planning' : 'Someday'}
           </span>
           {isScheduled && trip?.start_date && trip?.end_date && (
             <button type="button" onClick={() => setShowScheduleModal(true)}

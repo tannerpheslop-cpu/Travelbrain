@@ -272,7 +272,7 @@ export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSh
                       >
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-gray-900 truncate">{trip.title}</p>
-                          <p className="text-xs text-gray-400 mt-0.5 capitalize">{trip.status}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{{ aspirational: 'Someday', planning: 'Planning', scheduled: 'Upcoming' }[trip.status]}</p>
                         </div>
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-300 shrink-0 ml-2">
                           <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 011.06 0l4.25 4.25a.75.75 0 010 1.06l-4.25 4.25a.75.75 0 01-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 010-1.06z" clipRule="evenodd" />

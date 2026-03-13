@@ -310,7 +310,7 @@ function DayTabRow({
             activeDay === null ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
           }`}
         >
-          <span>Unassigned</span>
+          <span>Unplanned</span>
           <span className={`text-xs mt-0.5 tabular-nums ${activeDay === null ? 'text-white/60' : 'text-gray-400'}`}>
             {unassignedCount} item{unassignedCount !== 1 ? 's' : ''}
           </span>
@@ -453,7 +453,7 @@ function DayItemCard({
   const colors = categoryColors[item.category]
 
   const moveOptions: Array<{ label: string; dayIndex: number | null }> = []
-  if (activeDayIndex !== null) moveOptions.push({ label: 'Unassigned', dayIndex: null })
+  if (activeDayIndex !== null) moveOptions.push({ label: 'Unplanned', dayIndex: null })
   for (let i = 1; i <= dayCount; i++) {
     if (i !== activeDayIndex) moveOptions.push({ label: `Day ${i} · ${formatDayTabDate(startDate, i)}`, dayIndex: i })
   }
@@ -705,7 +705,7 @@ function AddFromInboxSheet({
       <div className="relative w-full max-w-lg bg-white rounded-t-3xl shadow-xl flex flex-col max-h-[82vh]">
         <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <h2 className="text-base font-semibold text-gray-900">Add from Inbox</h2>
+          <h2 className="text-base font-semibold text-gray-900">Add from Horizon</h2>
           <button type="button" onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close">
             <CloseIcon />
           </button>
@@ -1361,7 +1361,7 @@ export default function DestinationSection({
                         {activeDay === null ? 'All items are assigned to days' : `Nothing planned for Day ${activeDay} yet`}
                       </p>
                       <p className="mt-1 text-xs text-gray-400">
-                        {activeDay === null ? 'Add items from your inbox below' : 'Move items here from Unassigned or another day'}
+                        {activeDay === null ? 'Add items from your horizon below' : 'Move items here from Unplanned or another day'}
                       </p>
                     </div>
                   ) : (
@@ -1524,7 +1524,7 @@ export default function DestinationSection({
                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
                           <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
                         </svg>
-                        Add from Inbox
+                        Add from Horizon
                       </button>
                     )}
                   </div>
@@ -1558,7 +1558,7 @@ export default function DestinationSection({
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                   <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
                 </svg>
-                Add from Inbox
+                Add from Horizon
               </button>
             )}
 

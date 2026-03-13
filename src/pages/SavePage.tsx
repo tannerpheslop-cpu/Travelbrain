@@ -606,7 +606,7 @@ function SaveButton({ onClick, saving, saved, disabled }: {
           : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed'
       }`}
     >
-      {saving ? 'Saving...' : saved ? 'Saved!' : 'Save to Inbox'}
+      {saving ? 'Saving...' : saved ? 'Saved!' : 'Save to Horizon'}
     </button>
   )
 }

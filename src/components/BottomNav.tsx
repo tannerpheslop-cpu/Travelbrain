@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom'
 const navItems = [
   {
     to: '/inbox',
-    label: 'Inbox',
+    label: 'Horizon',
     icon: (active: boolean) => (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-6 h-6 transition-transform ${active ? 'scale-110' : ''}`}>
         <path d="M3.375 3C2.339 3 1.5 3.84 1.5 4.875v.75c0 1.036.84 1.875 1.875 1.875h17.25c1.035 0 1.875-.84 1.875-1.875v-.75C22.5 3.839 21.66 3 20.625 3H3.375z" />
