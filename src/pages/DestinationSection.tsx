@@ -53,6 +53,7 @@ interface CommentEntry {
   body: string
   created_at: string
   authorName: string
+  avatarUrl: string | null
 }
 
 interface ItemInteraction {
@@ -84,6 +85,7 @@ export interface DestinationSectionProps {
   onDatesUpdated: (updated: TripDestination) => void
   locatedItems: LocatedItemBasic[]
   canEdit: boolean
+  userAvatarUrl?: string | null
   dragHandleAttributes?: Record<string, unknown>
   dragHandleListeners?: Record<string, unknown>
   isDragging?: boolean
@@ -395,7 +397,11 @@ function CommentThread({
             const initials = c.authorName.split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('') || '?'
             return (
               <div key={c.id} className="flex items-start gap-2">
-                <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5">{initials}</div>
+                {c.avatarUrl ? (
+                  <img src={c.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 mt-0.5" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5">{initials}</div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
                     <p className="text-xs font-semibold text-gray-800 truncate">{c.authorName}</p>
@@ -454,31 +460,33 @@ function DayItemCard({
 
   return (
     <div className={`bg-white border border-gray-100 shadow-sm overflow-visible relative transition-opacity ${isDragging ? 'opacity-40' : ''} ${interaction?.isExpanded ? 'rounded-t-2xl' : 'rounded-2xl'}`}>
-      <div className="flex items-center">
+      <div className="flex items-center p-2">
         {canEdit ? (
           <button type="button" onClick={(e) => e.preventDefault()}
             {...(dragHandleAttributes as React.HTMLAttributes<HTMLButtonElement>)}
             {...(dragHandleListeners as React.HTMLAttributes<HTMLButtonElement>)}
-            className="pl-2.5 pr-1 self-stretch flex items-center text-gray-300 hover:text-gray-400 touch-none cursor-grab active:cursor-grabbing shrink-0"
+            className="pr-1.5 self-stretch flex items-center text-gray-300 hover:text-gray-400 touch-none cursor-grab active:cursor-grabbing shrink-0"
             aria-label="Drag to reorder"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 6zm0 6a2 2 0 10.001 4.001A2 2 0 007 12zm6-12a2 2 0 10.001 4.001A2 2 0 0013 2zm0 6a2 2 0 10.001 4.001A2 2 0 0013 6zm0 6a2 2 0 10.001 4.001A2 2 0 0013 12z" />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
+              <circle cx="5.5" cy="3" r="1" /><circle cx="10.5" cy="3" r="1" />
+              <circle cx="5.5" cy="8" r="1" /><circle cx="10.5" cy="8" r="1" />
+              <circle cx="5.5" cy="13" r="1" /><circle cx="10.5" cy="13" r="1" />
             </svg>
           </button>
         ) : (
-          <div className="w-3" />
+          <div className="w-1" />
         )}
         <Link to={`/item/${item.id}`} className="shrink-0">
           {item.image_url ? (
-            <img src={item.image_url} alt={item.title} className="w-14 h-14 object-cover bg-gray-100" />
+            <img src={item.image_url} alt={item.title} className="w-12 h-12 rounded-lg object-cover bg-gray-100" />
           ) : (
-            <div className={`w-14 h-14 flex items-center justify-center ${colors.bg}`}>
+            <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${colors.bg}`}>
               <PlaceholderIcon className="w-5 h-5 text-gray-300" />
             </div>
           )}
         </Link>
-        <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-2.5">
+        <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
           {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>}
           <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
@@ -556,17 +564,17 @@ function LinkedItemCard({
   const colors = categoryColors[item.category]
   return (
     <div className={`bg-white border border-gray-100 shadow-sm overflow-hidden ${interaction?.isExpanded ? 'rounded-t-2xl' : 'rounded-2xl'}`}>
-      <div className="flex items-center gap-0">
+      <div className="flex items-center gap-0 p-2">
         <Link to={`/item/${item.id}`} className="shrink-0">
           {item.image_url ? (
-            <img src={item.image_url} alt={item.title} className="w-16 h-16 object-cover bg-gray-100" />
+            <img src={item.image_url} alt={item.title} className="w-14 h-14 rounded-xl object-cover bg-gray-100" />
           ) : (
-            <div className={`w-16 h-16 flex items-center justify-center ${colors.bg}`}>
+            <div className={`w-14 h-14 rounded-xl flex items-center justify-center ${colors.bg}`}>
               <PlaceholderIcon className="w-6 h-6 text-gray-300" />
             </div>
           )}
         </Link>
-        <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-2.5">
+        <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
           {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>}
           <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
@@ -604,15 +612,15 @@ function SuggestionCard({ item, onAdd, onDismiss }: { item: SavedItem; onAdd: (i
   }
 
   return (
-    <div className="flex items-center gap-0 bg-blue-50 border border-blue-100 rounded-2xl overflow-hidden">
+    <div className="flex items-center gap-0 bg-blue-50 border border-blue-100 rounded-2xl overflow-hidden p-2">
       {item.image_url ? (
-        <img src={item.image_url} alt={item.title} className="w-14 h-14 object-cover bg-gray-100 shrink-0" />
+        <img src={item.image_url} alt={item.title} className="w-12 h-12 rounded-lg object-cover bg-gray-100 shrink-0" />
       ) : (
-        <div className={`w-14 h-14 shrink-0 flex items-center justify-center ${colors.bg}`}>
+        <div className={`w-12 h-12 rounded-lg shrink-0 flex items-center justify-center ${colors.bg}`}>
           <PlaceholderIcon className="w-5 h-5 text-gray-300" />
         </div>
       )}
-      <div className="flex-1 min-w-0 px-3 py-2.5">
+      <div className="flex-1 min-w-0 px-3 py-1">
         <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
         {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>}
         <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
@@ -770,6 +778,7 @@ export default function DestinationSection({
   onDatesUpdated,
   locatedItems,
   canEdit,
+  userAvatarUrl,
   dragHandleAttributes,
   dragHandleListeners,
   isDragging,
@@ -973,7 +982,31 @@ export default function DestinationSection({
 
   // ── Link an item to this destination ──────────────────────────────────────────
 
+  const [locationError, setLocationError] = useState<string | null>(null)
+
   const handleLinkItem = async (item: SavedItem): Promise<boolean> => {
+    setLocationError(null)
+
+    // Block location-mismatched items
+    if (item.location_country && destination.location_country) {
+      if (destination.location_type === 'country') {
+        // Country destination: item's country must match
+        if (item.location_country !== destination.location_country) {
+          setLocationError(`This activity is in ${item.location_country} and doesn't match your ${shortName(destination.location_name)} trip.`)
+          return false
+        }
+      } else {
+        // City destination: item must be within ~100km
+        if (item.location_lat != null && item.location_lng != null) {
+          const dist = haversineKm(item.location_lat, item.location_lng, destination.location_lat, destination.location_lng)
+          if (dist > 100) {
+            setLocationError(`This activity is in ${item.location_country} and is ~${Math.round(dist)}km from ${shortName(destination.location_name)}.`)
+            return false
+          }
+        }
+      }
+    }
+
     const { data, error } = await supabase
       .from('destination_items')
       .insert({ destination_id: destination.id, item_id: item.id, day_index: null, sort_order: linkedItems.length })
@@ -1095,20 +1128,21 @@ export default function DestinationSection({
 
     const { data } = await supabase
       .from('comments')
-      .select('id, user_id, body, created_at, user:users(display_name, email)')
+      .select('id, user_id, body, created_at, user:users(display_name, email, avatar_url)')
       .eq('trip_id', tripId)
       .eq('item_id', itemId)
       .order('created_at', { ascending: true })
 
     const entries: CommentEntry[] = ((data ?? []) as {
       id: string; user_id: string; body: string; created_at: string;
-      user: { display_name: string | null; email: string } | null
+      user: { display_name: string | null; email: string; avatar_url: string | null } | null
     }[]).map((c) => ({
       id: c.id,
       user_id: c.user_id,
       body: c.body,
       created_at: c.created_at,
       authorName: c.user?.display_name ?? c.user?.email?.split('@')[0] ?? 'User',
+      avatarUrl: c.user?.avatar_url ?? null,
     }))
     setThreadComments(entries)
     setThreadLoading(false)
@@ -1133,6 +1167,7 @@ export default function DestinationSection({
         body,
         created_at: (data as { created_at: string }).created_at,
         authorName: 'Me',
+        avatarUrl: userAvatarUrl ?? null,
       }])
       setCommentCounts((prev) => ({ ...prev, [expandedItemId]: (prev[expandedItemId] ?? 0) + 1 }))
       setCommentDraft('')
@@ -1219,8 +1254,10 @@ export default function DestinationSection({
             className="p-1 text-gray-300 hover:text-gray-400 touch-none cursor-grab active:cursor-grabbing transition-colors"
             aria-label="Drag to reorder"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path d="M7 2a2 2 0 10.001 4.001A2 2 0 007 2zm0 6a2 2 0 10.001 4.001A2 2 0 007 6zm0 6a2 2 0 10.001 4.001A2 2 0 007 12zm6-12a2 2 0 10.001 4.001A2 2 0 0013 2zm0 6a2 2 0 10.001 4.001A2 2 0 0013 6zm0 6a2 2 0 10.001 4.001A2 2 0 0013 12z" />
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
+              <circle cx="5.5" cy="3" r="1" /><circle cx="10.5" cy="3" r="1" />
+              <circle cx="5.5" cy="8" r="1" /><circle cx="10.5" cy="8" r="1" />
+              <circle cx="5.5" cy="13" r="1" /><circle cx="10.5" cy="13" r="1" />
             </svg>
           </button>
 
@@ -1523,6 +1560,21 @@ export default function DestinationSection({
                 </svg>
                 Add from Inbox
               </button>
+            )}
+
+            {/* Location mismatch error */}
+            {locationError && (
+              <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-red-400 shrink-0 mt-0.5">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+                <p className="text-xs text-red-700 flex-1">{locationError}</p>
+                <button type="button" onClick={() => setLocationError(null)} className="text-red-400 hover:text-red-600 shrink-0">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+                    <path d="M5.28 4.22a.75.75 0 00-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 101.06 1.06L8 9.06l2.72 2.72a.75.75 0 101.06-1.06L9.06 8l2.72-2.72a.75.75 0 00-1.06-1.06L8 6.94 5.28 4.22z" />
+                  </svg>
+                </button>
+              </div>
             )}
 
             {/* Nearby suggestions — hidden when empty (shown inline in empty state instead) */}

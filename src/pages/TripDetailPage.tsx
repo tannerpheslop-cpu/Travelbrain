@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import { useCompanions } from '../hooks/useCompanions'
 import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
-import type { Trip, TripDestination, SavedItem, Category, SharePrivacy } from '../types'
+import type { Trip, TripDestination, TripNote, SavedItem, Category, SharePrivacy } from '../types'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
@@ -22,19 +22,13 @@ import {
   arrayMove,
   SortableContext,
   sortableKeyboardCoordinates,
+  useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import DestinationSection, { SortableDestinationSection, type DestinationWithItems, type LocatedItemBasic, type LinkedItem } from './DestinationSection'
+import { CSS } from '@dnd-kit/utilities'
+import DestinationSection, { type DestinationWithItems, type LocatedItemBasic, type LinkedItem } from './DestinationSection'
 
 // ── Local types ────────────────────────────────────────────────────────────────
-
-interface GeneralItem {
-  id: string
-  trip_id: string
-  item_id: string
-  sort_order: number
-  saved_item: SavedItem
-}
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -438,217 +432,72 @@ function InviteCompanionModal({
   )
 }
 
-// ── General Item Picker Sheet ──────────────────────────────────────────────────
+// ── General Section (Quick Notes) ──────────────────────────────────────────────
 
-function GeneralItemPickerSheet({
-  tripId, existingItemIds, userId, onClose, onAdded,
+function GeneralSection({
+  notes, onAddNote, onDeleteNote,
 }: {
-  tripId: string
-  existingItemIds: Set<string>
-  userId: string
-  onClose: () => void
-  onAdded: (newItem: GeneralItem) => void
+  notes: TripNote[]
+  onAddNote: (text: string) => void
+  onDeleteNote: (noteId: string) => void
 }) {
-  const [inboxItems, setInboxItems] = useState<SavedItem[]>([])
-  const [pickerLoading, setPickerLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [addingId, setAddingId] = useState<string | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const [draft, setDraft] = useState('')
 
-  useEffect(() => {
-    supabase
-      .from('saved_items')
-      .select('*')
-      .eq('user_id', userId)
-      .eq('is_archived', false)
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setInboxItems((data ?? []) as SavedItem[])
-        setPickerLoading(false)
-      })
-    const t = setTimeout(() => inputRef.current?.focus(), 300)
-    return () => clearTimeout(t)
-  }, [userId])
-
-  const q = search.trim().toLowerCase()
-  const filtered = inboxItems
-    .filter((item) => !existingItemIds.has(item.id))
-    .filter((item) => !q || item.title.toLowerCase().includes(q) || (item.location_name?.toLowerCase().includes(q) ?? false))
-
-  const handleAdd = async (item: SavedItem) => {
-    if (addingId) return
-    setAddingId(item.id)
-
-    const { data: existing } = await supabase
-      .from('trip_general_items').select('id').eq('trip_id', tripId).eq('item_id', item.id).maybeSingle()
-
-    if (existing) { setAddingId(null); onClose(); return }
-
-    const { data: maxRow } = await supabase
-      .from('trip_general_items').select('sort_order').eq('trip_id', tripId)
-      .order('sort_order', { ascending: false }).limit(1).maybeSingle()
-    const sortOrder = ((maxRow as { sort_order: number } | null)?.sort_order ?? -1) + 1
-
-    const { data: newRow, error } = await supabase
-      .from('trip_general_items')
-      .insert({ trip_id: tripId, item_id: item.id, sort_order: sortOrder })
-      .select('*, saved_item:saved_items(*)')
-      .single()
-
-    setAddingId(null)
-    if (!error && newRow) {
-      trackEvent('item_added_to_trip_general', userId, { trip_id: tripId, item_id: item.id })
-      onAdded(newRow as unknown as GeneralItem)
-      onClose()
-    }
+  const handleSubmit = () => {
+    const text = draft.trim()
+    if (!text) return
+    onAddNote(text)
+    setDraft('')
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full bg-white rounded-t-3xl shadow-xl overflow-hidden max-h-[80vh] flex flex-col">
-        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 shrink-0" />
-        <div className="px-5 pt-3 pb-4 border-b border-gray-100 shrink-0 space-y-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">Add to General</h2>
-            <button type="button" onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" /></svg>
-            </button>
-          </div>
-          <div className="relative">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
-              <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
-            </svg>
-            <input ref={inputRef} type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search your saves…"
-              className="w-full pl-9 pr-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400" />
-          </div>
-        </div>
-        <div className="overflow-y-auto flex-1">
-          {pickerLoading ? (
-            <div className="py-12 flex justify-center">
-              <svg className="w-6 h-6 text-gray-300 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="py-12 text-center px-6">
-              <p className="text-sm text-gray-500 font-medium">{search ? 'No matches' : 'All your saves are already added'}</p>
-              {search && <p className="mt-1 text-xs text-gray-400">Try a different search term</p>}
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-100">
-              {filtered.map((item) => {
-                const colors = categoryColors[item.category]
-                return (
-                  <li key={item.id}>
-                    <button type="button" onClick={() => handleAdd(item)} disabled={!!addingId}
-                      className="w-full flex items-center gap-3 px-5 py-3 hover:bg-gray-50 active:bg-gray-100 transition-colors text-left disabled:opacity-60">
-                      {item.image_url ? (
-                        <img src={item.image_url} alt={item.title} className="w-10 h-10 rounded-lg object-cover shrink-0 bg-gray-100" />
-                      ) : (
-                        <div className={`w-10 h-10 rounded-lg shrink-0 flex items-center justify-center ${colors.bg}`}>
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-gray-300">
-                            <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{item.title}</p>
-                        {item.location_name && <p className="text-xs text-gray-400 truncate mt-0.5">{item.location_name}</p>}
-                      </div>
-                      {addingId === item.id ? (
-                        <svg className="w-5 h-5 text-blue-500 animate-spin shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                      ) : (
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-gray-300 shrink-0">
-                          <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                        </svg>
-                      )}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── General Section ────────────────────────────────────────────────────────────
-
-function GeneralSection({
-  items, onOpenPicker, onRemove,
-}: {
-  items: GeneralItem[]
-  onOpenPicker: () => void
-  onRemove: (id: string) => void
-}) {
-  return (
     <div className="mt-8">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <h2 className="text-base font-semibold text-gray-900">General</h2>
-          <span className="text-sm text-gray-400">Trip-wide items</span>
-        </div>
-        {items.length > 0 && (
-          <button type="button" onClick={onOpenPicker}
-            className="flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-            </svg>
-            Add Item
-          </button>
-        )}
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-base font-semibold text-gray-900">General</h2>
+        <span className="text-sm text-gray-400">Trip-wide notes</span>
       </div>
 
-      {items.length === 0 ? (
-        <div className="flex items-center gap-2 py-1">
-          <p className="text-sm text-gray-400 flex-1">Add trip-wide items like packing lists or visa guides</p>
-          <button type="button" onClick={onOpenPicker}
-            className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors shrink-0"
-            aria-label="Add item">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-            </svg>
-          </button>
-        </div>
+      {/* Note input */}
+      <div className="flex items-center gap-2 mb-3">
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit() }}
+          placeholder="Pack power adapter, check visa…"
+          className="flex-1 text-sm px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400"
+        />
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!draft.trim()}
+          className="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-40 shrink-0"
+        >
+          Add
+        </button>
+      </div>
+
+      {/* Notes list */}
+      {notes.length === 0 ? (
+        <p className="text-sm text-gray-400 py-1">No notes yet — add packing reminders, visa info, or anything trip-wide.</p>
       ) : (
-        <div className="space-y-2">
-          {items.map((gi) => {
-            const item = gi.saved_item
-            const colors = categoryColors[item.category]
-            return (
-              <div key={gi.id} className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 px-3 py-2.5 shadow-sm">
-                {item.image_url ? (
-                  <img src={item.image_url} alt={item.title} className="w-10 h-10 rounded-lg object-cover shrink-0 bg-gray-100" />
-                ) : (
-                  <div className={`w-10 h-10 rounded-lg shrink-0 flex items-center justify-center ${colors.bg}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-gray-300">
-                      <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">{item.title}</p>
-                  <span className={`inline-block mt-0.5 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
-                    {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
-                  </span>
-                </div>
-                <button type="button" onClick={() => onRemove(gi.id)}
-                  className="p-1.5 rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors shrink-0" aria-label="Remove item">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                    <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-            )
-          })}
-        </div>
+        <ul className="space-y-1.5">
+          {notes.map((note) => (
+            <li key={note.id} className="flex items-center gap-2 bg-white rounded-xl border border-gray-100 px-3 py-2 shadow-sm group">
+              <p className="flex-1 text-sm text-gray-800 min-w-0">{note.text}</p>
+              <button
+                type="button"
+                onClick={() => onDeleteNote(note.id)}
+                className="p-1 rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                aria-label="Delete note"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                  <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                </svg>
+              </button>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   )
@@ -842,6 +691,56 @@ function CountryRemovePrompt({
   )
 }
 
+// ── Sortable Destination Row (dot + card, with sortable ref on the outer div) ──
+
+function SortableDestinationRow({
+  dest, destIdx, tripId, userId, userAvatarUrl, isExpanded, onToggle, onDelete, onDatesUpdated,
+  locatedItems, openAddDest, handleAddCityWithItems,
+}: {
+  dest: DestinationWithItems
+  destIdx: number
+  tripId: string
+  userId: string
+  userAvatarUrl?: string | null
+  isExpanded: boolean
+  onToggle: () => void
+  onDelete: (id: string) => void
+  onDatesUpdated: (updated: TripDestination) => void
+  locatedItems: LocatedItemBasic[]
+  openAddDest: () => void
+  handleAddCityWithItems: (city: { name: string; lat: number; lng: number; placeId: string; country: string; countryCode: string }, itemIds: string[]) => Promise<void>
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dest.id })
+  const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition }
+  return (
+    <div ref={setNodeRef} style={style} className={`relative flex items-start gap-2 ${isDragging ? 'z-20' : ''}`}>
+      {/* Timeline dot */}
+      <div className={`shrink-0 w-3 h-3 rounded-full mt-[19px] z-10 ring-2 ring-white transition-colors flex-none ${isExpanded ? 'bg-blue-500' : 'bg-gray-300'}`} />
+      {/* Section card */}
+      <div className="flex-1 min-w-0">
+        <DestinationSection
+          destination={dest}
+          index={destIdx}
+          tripId={tripId}
+          userId={userId}
+          isExpanded={isExpanded}
+          onToggle={onToggle}
+          onDelete={onDelete}
+          onDatesUpdated={onDatesUpdated}
+          locatedItems={locatedItems}
+          canEdit={true}
+          userAvatarUrl={userAvatarUrl}
+          dragHandleAttributes={attributes}
+          dragHandleListeners={listeners}
+          isDragging={isDragging}
+          onAddDestination={openAddDest}
+          onAddCityWithItems={handleAddCityWithItems}
+        />
+      </div>
+    </div>
+  )
+}
+
 // ── Trip Detail Page ───────────────────────────────────────────────────────────
 
 export default function TripDetailPage() {
@@ -856,7 +755,7 @@ export default function TripDetailPage() {
   const [destinations, setDestinations] = useState<DestinationWithItems[]>([])
   const [destsLoading, setDestsLoading] = useState(true)
 
-  const [generalItems, setGeneralItems] = useState<GeneralItem[]>([])
+  const [tripNotes, setTripNotes] = useState<TripNote[]>([])
 
   const [locatedItems, setLocatedItems] = useState<LocatedItemBasic[]>([])
 
@@ -956,7 +855,6 @@ export default function TripDetailPage() {
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
-  const [showGeneralPicker, setShowGeneralPicker] = useState(false)
 
   // Country grouping — derived from destinations, recomputes when order changes
   const countryGroups = useMemo(() => {
@@ -1002,15 +900,10 @@ export default function TripDetailPage() {
       })
   }, [id])
 
-  // Fetch general items
+  // Sync tripNotes from trip record
   useEffect(() => {
-    if (!id) return
-    supabase.from('trip_general_items').select('*, saved_item:saved_items(*)').eq('trip_id', id)
-      .order('sort_order', { ascending: true })
-      .then(({ data, error }) => {
-        if (!error && data) setGeneralItems(data as unknown as GeneralItem[])
-      })
-  }, [id])
+    if (trip?.notes) setTripNotes(trip.notes)
+  }, [trip])
 
   // Fetch located items for proximity count in collapsed headers
   useEffect(() => {
@@ -1389,9 +1282,19 @@ export default function TripDetailPage() {
     )
   }
 
-  const handleRemoveGeneralItem = async (generalItemId: string) => {
-    setGeneralItems((prev) => prev.filter((gi) => gi.id !== generalItemId))
-    await supabase.from('trip_general_items').delete().eq('id', generalItemId)
+  const handleAddNote = async (text: string) => {
+    if (!id) return
+    const note: TripNote = { id: crypto.randomUUID(), text, created_at: new Date().toISOString() }
+    const updated = [...tripNotes, note]
+    setTripNotes(updated)
+    await supabase.from('trips').update({ notes: updated }).eq('id', id)
+  }
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!id) return
+    const updated = tripNotes.filter((n) => n.id !== noteId)
+    setTripNotes(updated)
+    await supabase.from('trips').update({ notes: updated }).eq('id', id)
   }
 
   // Drag-to-reorder destinations
@@ -1646,6 +1549,7 @@ export default function TripDetailPage() {
             onDatesUpdated={handleDestDatesUpdated}
             locatedItems={locatedItems}
             canEdit={true}
+            userAvatarUrl={user!.user_metadata?.avatar_url}
             onAddDestination={openAddDest}
             onAddCityWithItems={handleAddCityWithItems}
           />
@@ -1696,9 +1600,9 @@ export default function TripDetailPage() {
         <>
           {/* Timeline + accordion sections */}
           <div className="relative">
-            {/* Subtle vertical connecting line */}
+            {/* Subtle vertical connecting line — centered on the timeline dots */}
             {destinations.length > 1 && (
-              <div className="absolute left-[21px] top-8 bottom-8 w-px bg-gray-100 pointer-events-none z-0" />
+              <div className="absolute left-[6px] top-6 bottom-6 w-px bg-gray-200 pointer-events-none z-0" />
             )}
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
               <SortableContext items={destinations.map((d) => d.id)} strategy={verticalListSortingStrategy}>
@@ -1708,7 +1612,6 @@ export default function TripDetailPage() {
                       {/* Country group header — shown only when trip spans multiple countries */}
                       {hasMultipleCountries && (
                         <div className={`pl-[27px] flex items-center gap-1.5 ${groupIdx > 0 ? 'mt-4 mb-1.5' : 'mb-1.5'}`}>
-                          <span className="text-sm leading-none">{countryCodeToFlag(group.countryCode)}</span>
                           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{group.country}</span>
                         </div>
                       )}
@@ -1716,27 +1619,21 @@ export default function TripDetailPage() {
                         {group.destinations.map((dest) => {
                           const destIdx = destinations.findIndex((d) => d.id === dest.id)
                           return (
-                            <div key={dest.id} className="relative flex items-start gap-2.5">
-                              {/* Timeline dot */}
-                              <div className={`shrink-0 w-3.5 h-3.5 rounded-full mt-[18px] z-10 ring-2 ring-gray-50 transition-colors flex-none ${expandedDestId === dest.id ? 'bg-blue-500' : 'bg-gray-200'}`} />
-                              {/* Section card */}
-                              <div className="flex-1 min-w-0">
-                                <SortableDestinationSection
-                                  destination={dest}
-                                  index={destIdx}
-                                  tripId={id!}
-                                  userId={user!.id}
-                                  isExpanded={expandedDestId === dest.id}
-                                  onToggle={() => setExpandedDestId(expandedDestId === dest.id ? null : dest.id)}
-                                  onDelete={handleDeleteDestination}
-                                  onDatesUpdated={handleDestDatesUpdated}
-                                  locatedItems={locatedItems}
-                                  canEdit={true}
-                                  onAddDestination={openAddDest}
-                                  onAddCityWithItems={handleAddCityWithItems}
-                                />
-                              </div>
-                            </div>
+                            <SortableDestinationRow
+                              key={dest.id}
+                              dest={dest}
+                              destIdx={destIdx}
+                              tripId={id!}
+                              userId={user!.id}
+                              userAvatarUrl={user!.user_metadata?.avatar_url}
+                              isExpanded={expandedDestId === dest.id}
+                              onToggle={() => setExpandedDestId(expandedDestId === dest.id ? null : dest.id)}
+                              onDelete={handleDeleteDestination}
+                              onDatesUpdated={handleDestDatesUpdated}
+                              locatedItems={locatedItems}
+                              openAddDest={openAddDest}
+                              handleAddCityWithItems={handleAddCityWithItems}
+                            />
                           )
                         })}
                       </div>
@@ -1787,9 +1684,9 @@ export default function TripDetailPage() {
 
       {/* General section */}
       <GeneralSection
-        items={generalItems}
-        onOpenPicker={() => setShowGeneralPicker(true)}
-        onRemove={handleRemoveGeneralItem}
+        notes={tripNotes}
+        onAddNote={handleAddNote}
+        onDeleteNote={handleDeleteNote}
       />
 
       {/* Modals */}
@@ -1840,16 +1737,6 @@ export default function TripDetailPage() {
           }}
           onRemove={removeCompanion}
           onRemovePending={removePendingInvite}
-        />
-      )}
-
-      {showGeneralPicker && id && user && (
-        <GeneralItemPickerSheet
-          tripId={id}
-          existingItemIds={new Set(generalItems.map((gi) => gi.item_id))}
-          userId={user.id}
-          onClose={() => setShowGeneralPicker(false)}
-          onAdded={(newItem) => setGeneralItems((prev) => [...prev, newItem])}
         />
       )}
 

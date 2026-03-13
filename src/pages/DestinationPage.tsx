@@ -44,6 +44,7 @@ interface CommentEntry {
   body: string
   created_at: string
   authorName: string
+  avatarUrl: string | null
 }
 
 interface ItemInteraction {
@@ -411,9 +412,13 @@ function CommentThread({
               .join('') || '?'
             return (
               <div key={c.id} className="flex items-start gap-2">
-                <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5">
-                  {initials}
-                </div>
+                {c.avatarUrl ? (
+                  <img src={c.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 mt-0.5" referrerPolicy="no-referrer" />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5">
+                    {initials}
+                  </div>
+                )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
                     <p className="text-xs font-semibold text-gray-800 truncate">{c.authorName}</p>
@@ -1253,20 +1258,21 @@ export default function DestinationPage() {
 
     const { data } = await supabase
       .from('comments')
-      .select('id, user_id, body, created_at, user:users(display_name, email)')
+      .select('id, user_id, body, created_at, user:users(display_name, email, avatar_url)')
       .eq('trip_id', destination.trip_id)
       .eq('item_id', itemId)
       .order('created_at', { ascending: true })
 
     const entries: CommentEntry[] = ((data ?? []) as {
       id: string; user_id: string; body: string; created_at: string;
-      user: { display_name: string | null; email: string } | null
+      user: { display_name: string | null; email: string; avatar_url: string | null } | null
     }[]).map((c) => ({
       id: c.id,
       user_id: c.user_id,
       body: c.body,
       created_at: c.created_at,
       authorName: c.user?.display_name ?? c.user?.email?.split('@')[0] ?? 'User',
+      avatarUrl: c.user?.avatar_url ?? null,
     }))
 
     setThreadComments(entries)
@@ -1294,6 +1300,7 @@ export default function DestinationPage() {
         body,
         created_at: (data as { created_at: string }).created_at,
         authorName: user.email?.split('@')[0] ?? 'Me',
+        avatarUrl: user.user_metadata?.avatar_url ?? null,
       }
       setThreadComments((prev) => [...prev, newEntry])
       setCommentCounts((prev) => ({

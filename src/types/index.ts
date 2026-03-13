@@ -49,6 +49,13 @@ export interface Trip {
   share_token: string | null
   share_privacy: SharePrivacy | null
   forked_from_trip_id: string | null
+  notes: TripNote[]
+  created_at: string
+}
+
+export interface TripNote {
+  id: string
+  text: string
   created_at: string
 }
 

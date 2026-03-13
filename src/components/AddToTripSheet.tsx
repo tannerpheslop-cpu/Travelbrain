@@ -32,6 +32,11 @@ export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSh
 
   // Which row is in-flight ('general' | destination.id)
   const [addingId, setAddingId] = useState<string | null>(null)
+  const [locationError, setLocationError] = useState<string | null>(null)
+
+  // Item location data (fetched once for location matching)
+  const [itemLocation, setItemLocation] = useState<{ country: string | null; lat: number | null; lng: number | null } | null>(null)
+  const itemLocationFetched = useRef(false)
 
   const bodyRef = useRef<HTMLDivElement>(null)
 
@@ -67,6 +72,21 @@ export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSh
         setLoadingDests(false)
       })
   }, [selectedTrip])
+
+  // ── Fetch item location (once) ───────────────────────────────────────────
+
+  useEffect(() => {
+    if (itemLocationFetched.current) return
+    itemLocationFetched.current = true
+    supabase
+      .from('saved_items')
+      .select('location_country, location_lat, location_lng')
+      .eq('id', itemId)
+      .single()
+      .then(({ data }) => {
+        if (data) setItemLocation({ country: data.location_country, lat: data.location_lat, lng: data.location_lng })
+      })
+  }, [itemId])
 
   // ── Add to trip general ───────────────────────────────────────────────────
 
@@ -110,6 +130,30 @@ export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSh
 
   const handleAddToDestination = async (dest: TripDestination) => {
     if (addingId) return
+    setLocationError(null)
+
+    // Block location-mismatched items
+    if (itemLocation?.country && dest.location_country) {
+      if (dest.location_type === 'country') {
+        if (itemLocation.country !== dest.location_country) {
+          setLocationError(`This activity is in ${itemLocation.country} and doesn't match ${dest.location_name.split(',')[0]}.`)
+          return
+        }
+      } else if (itemLocation.lat != null && itemLocation.lng != null) {
+        const dLat = itemLocation.lat - dest.location_lat
+        const dLng = itemLocation.lng - dest.location_lng
+        const R = 6371
+        const a = Math.sin((dLat * Math.PI / 180) / 2) ** 2 +
+          Math.cos(itemLocation.lat * Math.PI / 180) * Math.cos(dest.location_lat * Math.PI / 180) *
+          Math.sin((dLng * Math.PI / 180) / 2) ** 2
+        const dist = R * 2 * Math.asin(Math.sqrt(a))
+        if (dist > 100) {
+          setLocationError(`This activity is ~${Math.round(dist)}km from ${dest.location_name.split(',')[0]}.`)
+          return
+        }
+      }
+    }
+
     setAddingId(dest.id)
 
     const { data: existing } = await supabase
@@ -275,6 +319,19 @@ export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSh
                 <span className="text-xs text-gray-400 font-medium shrink-0">or add to a destination</span>
                 <div className="flex-1 h-px bg-gray-100" />
               </div>
+
+              {/* Location error */}
+              {locationError && (
+                <div className="mx-5 mb-2 flex items-start gap-2 rounded-xl bg-red-50 px-3.5 py-2.5 text-sm text-red-700">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 mt-0.5 shrink-0 text-red-400">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                  </svg>
+                  <p className="flex-1">{locationError}</p>
+                  <button type="button" onClick={() => setLocationError(null)} className="shrink-0 text-red-400 hover:text-red-600">
+                    <CloseIcon />
+                  </button>
+                </div>
+              )}
 
               {/* Destinations */}
               {loadingDests ? (

@@ -8,6 +8,7 @@ import InboxPage from './pages/InboxPage'
 import TripsPage from './pages/TripsPage'
 import ItemDetailPage from './pages/ItemDetailPage'
 import TripDetailPage from './pages/TripDetailPage'
+import ProfilePage from './pages/ProfilePage'
 import SharedTripPage from './pages/SharedTripPage'
 
 function AppLayout() {
@@ -21,6 +22,7 @@ function AppLayout() {
             <Route path="/trips" element={<TripsPage />} />
             <Route path="/item/:id" element={<ItemDetailPage />} />
             <Route path="/trip/:id" element={<TripDetailPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
             <Route path="/" element={<Navigate to="/inbox" replace />} />
           </Routes>
         </main>

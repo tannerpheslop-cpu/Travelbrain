@@ -21,6 +21,16 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    to: '/profile',
+    label: 'Profile',
+    icon: (active: boolean) => (
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-6 h-6 transition-transform ${active ? 'scale-110' : ''}`}>
+        <circle cx="12" cy="8" r="5" />
+        <path d="M20 21a8 8 0 0 0-16 0" />
+      </svg>
+    ),
+  },
 ]
 
 export default function BottomNav() {
@@ -32,7 +42,7 @@ export default function BottomNav() {
             key={item.to}
             to={item.to}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 px-12 py-2 rounded-2xl text-xs font-semibold transition-all ${
+              `flex flex-col items-center gap-0.5 px-8 py-2 rounded-2xl text-xs font-semibold transition-all ${
                 isActive
                   ? 'text-blue-600 bg-blue-100/80'
                   : 'text-gray-400 hover:text-gray-500 hover:bg-gray-50'
