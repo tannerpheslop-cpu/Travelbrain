@@ -26,7 +26,7 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="px-5 pt-6 pb-32">
+    <div className="px-5 pb-32" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       {/* Profile card */}
       <div className="flex flex-col items-center text-center mb-8">
         {avatarUrl ? (

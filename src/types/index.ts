@@ -32,6 +32,8 @@ export interface SavedItem {
   location_place_id: string | null // Google Place ID
   location_country: string | null      // e.g. "Japan"
   location_country_code: string | null // e.g. "JP"
+  location_name_en: string | null      // English place name (e.g. "Chongqing, China")
+  location_name_local: string | null   // Local language name (e.g. "重庆市")
   category: Category
   notes: string | null
   tags: string[] | null
@@ -71,11 +73,14 @@ export interface TripDestination {
   location_place_id: string
   location_country: string
   location_country_code: string
+  location_name_en: string | null
+  location_name_local: string | null
   location_type: 'city' | 'country' | 'region'
   proximity_radius_km: number
   image_url: string | null
   start_date: string | null
   end_date: string | null
+  notes: string | null
   sort_order: number
   created_at: string
 }

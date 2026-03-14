@@ -42,6 +42,8 @@ export function useRapidCapture(
               location_place_id: resolved.location_place_id,
               location_country: resolved.location_country,
               location_country_code: resolved.location_country_code,
+              location_name_en: resolved.location_name_en,
+              location_name_local: resolved.location_name_local,
             })
             .eq('id', item.id)
 
@@ -54,6 +56,8 @@ export function useRapidCapture(
               location_place_id: resolved.location_place_id,
               location_country: resolved.location_country,
               location_country_code: resolved.location_country_code,
+              location_name_en: resolved.location_name_en,
+              location_name_local: resolved.location_name_local,
             })
           }
         }

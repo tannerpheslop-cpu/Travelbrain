@@ -52,6 +52,137 @@ export interface ResolvedLocation {
   location_place_id: string
   location_country: string | null
   location_country_code: string | null
+  location_name_en: string | null
+  location_name_local: string | null
+}
+
+/** Bilingual name data for a place. */
+export interface BilingualNames {
+  name_en: string
+  name_local: string | null
+}
+
+/**
+ * Map from two-letter country codes to their primary local language code
+ * for Google Places API requests. Only non-English countries need entries.
+ */
+const COUNTRY_LANGUAGE_MAP: Record<string, string> = {
+  CN: 'zh-CN',  // China (Simplified Chinese)
+  TW: 'zh-TW',  // Taiwan (Traditional Chinese)
+  HK: 'zh-HK',  // Hong Kong (Traditional Chinese)
+  JP: 'ja',      // Japan
+  KR: 'ko',      // Korea
+  TH: 'th',      // Thailand
+  VN: 'vi',      // Vietnam
+  RU: 'ru',      // Russia
+  FR: 'fr',      // France
+  DE: 'de',      // Germany
+  ES: 'es',      // Spain
+  IT: 'it',      // Italy
+  PT: 'pt',      // Portugal
+  BR: 'pt-BR',   // Brazil
+  GR: 'el',      // Greece
+  TR: 'tr',      // Turkey
+  SA: 'ar',      // Saudi Arabia
+  AE: 'ar',      // UAE
+  EG: 'ar',      // Egypt
+  IL: 'he',      // Israel
+  IN: 'hi',      // India
+  ID: 'id',      // Indonesia
+  MY: 'ms',      // Malaysia
+  PH: 'tl',      // Philippines
+  MM: 'my',      // Myanmar
+  KH: 'km',      // Cambodia
+  LA: 'lo',      // Laos
+  NP: 'ne',      // Nepal
+  LK: 'si',      // Sri Lanka
+  MN: 'mn',      // Mongolia
+  GE: 'ka',      // Georgia
+  AM: 'hy',      // Armenia
+  UA: 'uk',      // Ukraine
+  PL: 'pl',      // Poland
+  CZ: 'cs',      // Czech Republic
+  HU: 'hu',      // Hungary
+  RO: 'ro',      // Romania
+  BG: 'bg',      // Bulgaria
+  HR: 'hr',      // Croatia
+  RS: 'sr',      // Serbia
+  MX: 'es',      // Mexico
+  AR: 'es',      // Argentina
+  CL: 'es',      // Chile
+  CO: 'es',      // Colombia
+  PE: 'es',      // Peru
+  NL: 'nl',      // Netherlands
+  SE: 'sv',      // Sweden
+  NO: 'no',      // Norway
+  DK: 'da',      // Denmark
+  FI: 'fi',      // Finland
+  IR: 'fa',      // Iran
+  PK: 'ur',      // Pakistan
+  BD: 'bn',      // Bangladesh
+  ET: 'am',      // Ethiopia
+}
+
+/** English-speaking countries — no local name needed */
+const ENGLISH_COUNTRIES = new Set([
+  'US', 'GB', 'CA', 'AU', 'NZ', 'IE', 'SG', 'ZA', 'JM', 'TT', 'BB', 'BS',
+])
+
+/**
+ * Returns the local language code for a country, or null if it's an
+ * English-speaking country (no local name needed).
+ */
+export function getLocalLanguage(countryCode: string | null): string | null {
+  if (!countryCode) return null
+  const code = countryCode.toUpperCase()
+  if (ENGLISH_COUNTRIES.has(code)) return null
+  return COUNTRY_LANGUAGE_MAP[code] ?? null
+}
+
+/**
+ * Fetches the place name in a specific language using the Google Places REST API.
+ * Uses Place Details (Basic) which is billed per-call.
+ */
+async function fetchPlaceNameInLanguage(placeId: string, language: string): Promise<string | null> {
+  try {
+    const key = import.meta.env.VITE_GOOGLE_PLACES_API_KEY as string | undefined
+    if (!key || key === 'YOUR_KEY_HERE') return null
+
+    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=formatted_address,name&language=${encodeURIComponent(language)}&key=${encodeURIComponent(key)}`
+    const resp = await fetch(url)
+    if (!resp.ok) return null
+    const data = await resp.json()
+    if (data.status !== 'OK' || !data.result) return null
+    return data.result.formatted_address || data.result.name || null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Fetches bilingual names for a place: English + local language.
+ * Returns { name_en, name_local } where name_local is null if the country
+ * is English-speaking or the local fetch fails.
+ */
+export async function fetchBilingualNames(
+  placeId: string,
+  countryCode: string | null,
+): Promise<BilingualNames> {
+  const localLang = getLocalLanguage(countryCode)
+
+  // Fetch English name (and optionally local name in parallel)
+  const promises: [Promise<string | null>, Promise<string | null>] = [
+    fetchPlaceNameInLanguage(placeId, 'en'),
+    localLang ? fetchPlaceNameInLanguage(placeId, localLang) : Promise.resolve(null),
+  ]
+
+  const [enName, localName] = await Promise.all(promises)
+
+  return {
+    name_en: enName ?? '',
+    // Don't show duplicate if local name matches English
+    name_local: localName && localName !== enName ? localName : null,
+  }
 }
 
 /**
@@ -91,14 +222,47 @@ export async function findPlaceByQuery(query: string): Promise<ResolvedLocation 
             (c: google.maps.GeocoderAddressComponent) => c.types.includes('country'),
           )
 
-          resolve({
-            location_name: place.formatted_address || place.name || query,
-            location_lat: place.geometry!.location!.lat(),
-            location_lng: place.geometry!.location!.lng(),
-            location_place_id: place.place_id ?? '',
-            location_country: countryComponent?.long_name ?? null,
-            location_country_code: countryComponent?.short_name ?? null,
-          })
+          const placeIdStr = place.place_id ?? ''
+          const cc = countryComponent?.short_name ?? null
+          const defaultName = place.formatted_address || place.name || query
+
+          // Fetch bilingual names before resolving
+          if (placeIdStr) {
+            fetchBilingualNames(placeIdStr, cc).then((bilingual) => {
+              resolve({
+                location_name: bilingual.name_en || defaultName,
+                location_lat: place.geometry!.location!.lat(),
+                location_lng: place.geometry!.location!.lng(),
+                location_place_id: placeIdStr,
+                location_country: countryComponent?.long_name ?? null,
+                location_country_code: cc,
+                location_name_en: bilingual.name_en || defaultName,
+                location_name_local: bilingual.name_local,
+              })
+            }).catch(() => {
+              resolve({
+                location_name: defaultName,
+                location_lat: place.geometry!.location!.lat(),
+                location_lng: place.geometry!.location!.lng(),
+                location_place_id: placeIdStr,
+                location_country: countryComponent?.long_name ?? null,
+                location_country_code: cc,
+                location_name_en: null,
+                location_name_local: null,
+              })
+            })
+          } else {
+            resolve({
+              location_name: defaultName,
+              location_lat: place.geometry!.location!.lat(),
+              location_lng: place.geometry!.location!.lng(),
+              location_place_id: placeIdStr,
+              location_country: countryComponent?.long_name ?? null,
+              location_country_code: cc,
+              location_name_en: null,
+              location_name_local: null,
+            })
+          }
         },
       )
     })

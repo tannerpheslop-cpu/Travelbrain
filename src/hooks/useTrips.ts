@@ -100,6 +100,8 @@ export function useTrips() {
           location_country_code: location.country_code ?? 'XX',
           location_type: location.location_type,
           proximity_radius_km: location.proximity_radius_km,
+          location_name_en: location.name_en ?? null,
+          location_name_local: location.name_local ?? null,
           sort_order: sortOrder,
           ...(imageUrl ? { image_url: imageUrl } : {}),
         })

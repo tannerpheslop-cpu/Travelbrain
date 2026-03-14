@@ -85,6 +85,8 @@ export default function ItemDetailPage() {
         country_code: saved.location_country_code ?? null,
         location_type: 'city',
         proximity_radius_km: 50,
+        name_en: saved.location_name_en ?? null,
+        name_local: saved.location_name_local ?? null,
       } : null)
       setNotes(saved.notes || '')
       setTags(saved.tags?.join(', ') || '')
@@ -129,6 +131,8 @@ export default function ItemDetailPage() {
       location_place_id: location?.place_id ?? null,
       location_country: location?.country ?? null,
       location_country_code: location?.country_code ?? null,
+      location_name_en: location?.name_en ?? null,
+      location_name_local: location?.name_local ?? null,
       notes: notes.trim() || null,
       tags: tags.trim() ? tags.split(',').map((t) => t.trim()).filter(Boolean) : null,
     })
@@ -177,7 +181,7 @@ export default function ItemDetailPage() {
 
   if (loading) {
     return (
-      <div className="px-4 pt-6 pb-24">
+      <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
         <div className="animate-pulse">
           <div className="h-5 w-14 bg-gray-200 rounded-full mb-6" />
           <div className="h-56 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl" />
@@ -194,7 +198,7 @@ export default function ItemDetailPage() {
 
   if (notFound || !item) {
     return (
-      <div className="px-4 pt-6 pb-24">
+      <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
         <button
           onClick={() => navigate('/inbox')}
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
@@ -217,7 +221,7 @@ export default function ItemDetailPage() {
   const hasAnyImage = (item.image_url || item.places_photo_url) && !imgFailed
 
   return (
-    <div className="px-4 pt-6 pb-24">
+    <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       {/* Header: Back + Save Status */}
       <div className="flex items-center justify-between mb-4">
         <button

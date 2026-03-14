@@ -144,6 +144,8 @@ export default function SavePage() {
       location_place_id: location?.place_id ?? null,
       location_country: location?.country ?? null,
       location_country_code: location?.country_code ?? null,
+      location_name_en: location?.name_en ?? null,
+      location_name_local: location?.name_local ?? null,
       category,
       notes: notes.trim() || null,
     })
@@ -221,6 +223,8 @@ export default function SavePage() {
       location_place_id: location?.place_id ?? null,
       location_country: location?.country ?? null,
       location_country_code: location?.country_code ?? null,
+      location_name_en: location?.name_en ?? null,
+      location_name_local: location?.name_local ?? null,
       category,
       notes: notes.trim() || null,
     })
@@ -257,6 +261,8 @@ export default function SavePage() {
       location_place_id: location?.place_id ?? null,
       location_country: location?.country ?? null,
       location_country_code: location?.country_code ?? null,
+      location_name_en: location?.name_en ?? null,
+      location_name_local: location?.name_local ?? null,
       category,
       notes: notes.trim() || null,
     })

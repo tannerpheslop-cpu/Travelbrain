@@ -365,7 +365,10 @@ export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSh
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-900 truncate">{cityName}</p>
+                            <p className="text-sm font-medium text-gray-900 truncate">
+                              {cityName}
+                              {dest.location_name_local && <span className="ml-1 font-normal text-gray-400">{dest.location_name_local.split(',')[0].trim()}</span>}
+                            </p>
                             {dest.start_date && dest.end_date && (
                               <p className="text-xs text-gray-400 mt-0.5">
                                 {new Date(dest.start_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
