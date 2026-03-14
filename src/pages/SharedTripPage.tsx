@@ -4,6 +4,7 @@ import { supabase, supabaseUrl } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import SavedItemImage from '../components/SavedItemImage'
+import { RenderedMarkdown } from '../components/MarkdownNotes'
 import type { Trip, TripDestination, SavedItem, Category } from '../types'
 
 // ── Local types ────────────────────────────────────────────────────────────────
@@ -78,11 +79,16 @@ function SharedItemCard({ item }: { item: SavedItem }) {
             {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
           </span>
           {item.location_name && (
-            <span className="text-xs text-gray-400">{shortName(item.location_name)}</span>
+            <span className="text-xs text-gray-400">
+              {shortName(item.location_name)}
+              {item.location_name_local && <span className="ml-1 opacity-60">{item.location_name_local.split(',')[0].trim()}</span>}
+            </span>
           )}
         </div>
         {item.notes && (
-          <p className="mt-1.5 text-xs text-gray-500 line-clamp-2 leading-relaxed">{item.notes}</p>
+          <div className="mt-1.5 line-clamp-2">
+            <RenderedMarkdown text={item.notes} />
+          </div>
         )}
       </div>
     </div>
@@ -212,6 +218,7 @@ function DestPhotoCard({
         <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
           <p className="text-white font-bold text-2xl drop-shadow-sm leading-tight">
             {shortName(dest.location_name)}
+            {dest.location_name_local && <span className="ml-2 font-normal text-white/60 text-lg">{dest.location_name_local.split(',')[0].trim()}</span>}
           </p>
           {showDates && dest.start_date && dest.end_date && (
             <p className="text-white/80 text-sm mt-1">
@@ -272,6 +279,7 @@ function FullDestSection({
           <div className="absolute bottom-0 left-0 right-0 px-5 pb-5">
             <p className="text-white font-bold text-3xl drop-shadow-sm leading-tight tracking-tight">
               {shortName(dest.location_name)}
+              {dest.location_name_local && <span className="ml-2 font-normal text-white/60 text-xl">{dest.location_name_local.split(',')[0].trim()}</span>}
             </p>
             {hasSchedule ? (
               <p className="text-white/80 text-sm mt-1.5">
@@ -283,6 +291,13 @@ function FullDestSection({
           </div>
         </div>
       </div>
+
+      {/* Destination notes (read-only) */}
+      {dest.notes && (
+        <div className="mb-4 px-1">
+          <RenderedMarkdown text={dest.notes} />
+        </div>
+      )}
 
       {items.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-4">No places saved for this destination.</p>

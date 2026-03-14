@@ -7,6 +7,7 @@ import SaveSheet from '../components/SaveSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { getCategoryIcon, categoryPillColors, categoryLabel, categoryIconColors } from '../utils/categoryIcons'
 import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react'
+import { shortLocalName } from '../components/BilingualName'
 import type { SavedItem, Trip } from '../types'
 
 /** Shorten a Google Places formatted_address to "City, Province, Country".
@@ -290,7 +291,7 @@ export default function InboxPage() {
 
   return (
     <>
-    <div className="px-4 pt-6 pb-24">
+    <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Horizon</h1>
       <p className="mt-1 text-sm text-gray-500">Your saved travel inspiration</p>
 
@@ -587,7 +588,12 @@ function ExpandedCard({
         <div className="flex-1 min-w-0 px-3 py-2.5 flex flex-col justify-center gap-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
           {item.location_name && (
-            <p className="text-xs text-gray-400 truncate">{formatCityCountry(item.location_name)}</p>
+            <p className="text-xs text-gray-400 truncate">
+              {formatCityCountry(item.location_name)}
+              {item.location_name_local && (
+                <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>
+              )}
+            </p>
           )}
           <div>
             <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${categoryPillColors[item.category]}`}>
@@ -662,7 +668,10 @@ function CompactRow({
         <Icon className={`w-4 h-4 shrink-0 ${categoryIconColors[item.category]}`} />
         <span className="text-sm text-gray-900 truncate flex-1 min-w-0">{item.title}</span>
         {item.location_name && (
-          <span className="text-xs text-gray-400 truncate shrink-0 max-w-[120px]">{formatCityCountry(item.location_name)}</span>
+          <span className="text-xs text-gray-400 truncate shrink-0 max-w-[140px]">
+            {formatCityCountry(item.location_name)}
+            {item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}
+          </span>
         )}
       </Link>
 

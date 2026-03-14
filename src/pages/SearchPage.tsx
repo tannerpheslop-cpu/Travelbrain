@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import { getCategoryIcon, categoryIconColors } from '../utils/categoryIcons'
+import { shortLocalName } from '../components/BilingualName'
 import type { SavedItem, Trip, TripDestination } from '../types'
 
 interface TripWithDestinations extends Trip {
@@ -156,7 +157,7 @@ export default function SearchPage() {
   }
 
   return (
-    <div className="px-4 pt-6 pb-24">
+    <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       {/* Search input */}
       <div className="relative">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -375,8 +376,9 @@ function SaveRow({ item }: { item: SavedItem }) {
       <Icon className={`w-4 h-4 shrink-0 ${categoryIconColors[item.category]}`} />
       <span className="text-sm text-gray-900 truncate flex-1 min-w-0">{item.title}</span>
       {item.location_name && (
-        <span className="text-xs text-gray-400 truncate shrink-0 max-w-[120px]">
+        <span className="text-xs text-gray-400 truncate shrink-0 max-w-[140px]">
           {item.location_name.split(',')[0].trim()}
+          {item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}
         </span>
       )}
     </Link>

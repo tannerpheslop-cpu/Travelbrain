@@ -102,6 +102,7 @@ function TripCard({
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const [coverImgFailed, setCoverImgFailed] = useState(false)
+  const [coverImgLoaded, setCoverImgLoaded] = useState(false)
 
   const gradient = gradients[index % gradients.length]
   const status = statusConfig[trip.status]
@@ -140,7 +141,8 @@ function TripCard({
             <img
               src={coverImage}
               alt={trip.title}
-              className="absolute inset-0 w-full h-full object-cover"
+              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
+              onLoad={() => setCoverImgLoaded(true)}
               onError={() => setCoverImgFailed(true)}
             />
           )}
@@ -429,6 +431,8 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
           country_code: cluster.country_code,
           location_type: 'city',
           proximity_radius_km: 50,
+          name_en: null,
+          name_local: null,
         }
         return { kind: 'city', items, locationLabel: matchedCity.name, addLoc }
       }
@@ -447,12 +451,12 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
     >
       <div className="absolute inset-0 bg-black/40" />
       <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
-        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden" />
+        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-2 sm:hidden" />
 
-        {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-100">
+        {/* Header — compact */}
+        <div className="px-4 py-3 border-b border-gray-100">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
               {step === 'destinations' && (
                 <button
                   type="button"
@@ -480,49 +484,35 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
               </svg>
             </button>
           </div>
-
-          {/* Step indicator */}
-          <div className="flex items-center gap-2 mt-3">
-            <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'name' ? 'bg-blue-500' : 'bg-blue-500'}`} />
-            <div className={`h-1 flex-1 rounded-full transition-colors ${step === 'destinations' ? 'bg-blue-500' : 'bg-gray-200'}`} />
-          </div>
-          <p className="text-[11px] text-gray-400 mt-1.5">
-            {step === 'name' ? 'Step 1 of 2 — Name your trip' : 'Step 2 of 2 — Add destinations'}
-          </p>
         </div>
 
-        {/* Scrollable body */}
-        <div className="px-5 py-5 max-h-[80vh] overflow-y-auto">
+        {/* Scrollable body — compact spacing */}
+        <div className="px-4 py-3 max-h-[80vh] overflow-y-auto">
           {/* ── Step 1: Name ── */}
           {step === 'name' && (
-            <form onSubmit={handleNextStep} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                  Trip name <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => { setTitle(e.target.value); setError(null) }}
-                  placeholder="e.g. China 2026"
-                  autoFocus
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
-                />
-              </div>
+            <form onSubmit={handleNextStep} className="space-y-3">
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => { setTitle(e.target.value); setError(null) }}
+                placeholder="Trip name, e.g. China 2026"
+                autoFocus
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+              />
               {error && <p className="text-sm text-red-600">{error}</p>}
               <button
                 type="submit"
                 disabled={!title.trim()}
                 className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                Next: Add Destinations
+                Next
               </button>
             </form>
           )}
 
           {/* ── Step 2: Destinations ── */}
           {step === 'destinations' && (
-            <div className="space-y-5">
+            <div className="space-y-3">
 
               {/* Search input + inline suggestions panel */}
               <div>
@@ -530,9 +520,9 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                   key={autocompleteKey}
                   value=""
                   onSelect={handleLocationSelect}
-                  label="Add a destination"
+                  label=""
                   optional={false}
-                  placeholder="e.g. Beijing, Tokyo, Paris"
+                  placeholder="Search destinations..."
                   className={clustersLoading || suggScope !== null ? 'rounded-t-xl rounded-b-none' : ''}
                 />
 
@@ -677,6 +667,8 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                                                   country_code: cluster.country_code,
                                                   location_type: 'city',
                                                   proximity_radius_km: 50,
+                                                  name_en: null,
+                                                  name_local: null,
                                                 })
                                               }}
                                               className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors shrink-0 ${
@@ -735,6 +727,8 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                                               country_code: cluster.country_code,
                                               location_type: 'country',
                                               proximity_radius_km: 500,
+                                              name_en: null,
+                                              name_local: null,
                                             })
                                           }
                                           className="text-sm text-blue-500 hover:text-blue-700 transition-colors"
@@ -755,56 +749,44 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                 )}
               </div>
 
-              {/* Added destinations list */}
+              {/* Added destinations pills */}
               {destinations.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">
-                    {destinations.length} destination{destinations.length !== 1 ? 's' : ''} added
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {destinations.map((d) => (
-                      <div
-                        key={d.place_id}
-                        className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-blue-50 border border-blue-200 rounded-full"
+                <div className="flex flex-wrap gap-1.5">
+                  {destinations.map((d) => (
+                    <div
+                      key={d.place_id}
+                      className="flex items-center gap-1 pl-2.5 pr-1.5 py-1 bg-blue-50 border border-blue-200 rounded-full"
+                    >
+                      <span className="text-xs font-medium text-blue-800">{shortDestName(d.name)}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeDestination(d.place_id)}
+                        className="text-blue-400 hover:text-blue-700 transition-colors"
+                        aria-label={`Remove ${d.name}`}
                       >
-                        <span className="text-sm font-medium text-blue-800">{shortDestName(d.name)}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeDestination(d.place_id)}
-                          className="text-blue-400 hover:text-blue-700 transition-colors"
-                          aria-label={`Remove ${d.name}`}
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                            <path d="M5.28 4.22a.75.75 0 00-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 101.06 1.06L8 9.06l2.72 2.72a.75.75 0 101.06-1.06L9.06 8l2.72-2.72a.75.75 0 00-1.06-1.06L8 6.94 5.28 4.22z" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+                          <path d="M5.28 4.22a.75.75 0 00-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 101.06 1.06L8 9.06l2.72 2.72a.75.75 0 101.06-1.06L9.06 8l2.72-2.72a.75.75 0 00-1.06-1.06L8 6.94 5.28 4.22z" />
+                        </svg>
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
 
               {error && <p className="text-sm text-red-600">{error}</p>}
 
-              <div className="flex flex-col gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleCreate}
-                  disabled={saving}
-                  className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {saving
-                    ? 'Creating…'
-                    : destinations.length === 0
-                    ? 'Create Trip'
-                    : `Create Trip with ${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`}
-                </button>
-                {destinations.length === 0 && (
-                  <p className="text-center text-xs text-gray-400">
-                    You can add destinations later from the trip page
-                  </p>
-                )}
-              </div>
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={saving}
+                className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {saving
+                  ? 'Creating…'
+                  : destinations.length === 0
+                  ? 'Create Trip'
+                  : `Create with ${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`}
+              </button>
             </div>
           )}
         </div>
@@ -817,6 +799,7 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
 
 function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: number }) {
   const [coverImgFailed, setCoverImgFailed] = useState(false)
+  const [coverImgLoaded, setCoverImgLoaded] = useState(false)
   const gradient = gradients[index % gradients.length]
   const status = statusConfig[trip.status]
   const dests = trip.trip_destinations ?? []
@@ -835,7 +818,8 @@ function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: 
           <img
             src={coverImage}
             alt={trip.title}
-            className="absolute inset-0 w-full h-full object-cover"
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => setCoverImgLoaded(true)}
             onError={() => setCoverImgFailed(true)}
           />
         )}
@@ -887,6 +871,7 @@ function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: 
 
 function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: number }) {
   const [coverImgFailed, setCoverImgFailed] = useState(false)
+  const [coverImgLoaded, setCoverImgLoaded] = useState(false)
   const gradient = gradients[index % gradients.length]
   const status = statusConfig[trip.status]
   const dests = trip.trip_destinations ?? []
@@ -904,7 +889,8 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
           <img
             src={coverImage}
             alt={trip.title}
-            className="absolute inset-0 w-full h-full object-cover"
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => setCoverImgLoaded(true)}
             onError={() => setCoverImgFailed(true)}
           />
         )}
@@ -955,6 +941,13 @@ export default function TripsPage() {
   const [showModal, setShowModal] = useState(false)
   const navigate = useNavigate()
 
+  // Listen for create-trip event from global FAB
+  useEffect(() => {
+    const handler = () => setShowModal(true)
+    window.addEventListener('youji-create-trip', handler)
+    return () => window.removeEventListener('youji-create-trip', handler)
+  }, [])
+
   const featuredTrip = useMemo(() => selectFeaturedTrip(trips), [trips])
 
   const remainingTrips = useMemo(
@@ -990,23 +983,11 @@ export default function TripsPage() {
   }, [trips, loading])
 
   return (
-    <div className="px-4 pt-6 pb-24">
+    <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Trips</h1>
-          <p className="mt-1 text-sm text-gray-500">Your trip library</p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-1.5 px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-          </svg>
-          New Trip
-        </button>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Trips</h1>
+        <p className="mt-1 text-sm text-gray-500">Your trip library</p>
       </div>
 
       {/* Loading Skeletons */}

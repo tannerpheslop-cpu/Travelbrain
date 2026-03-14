@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { MapPin, Search } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { trackEvent } from '../lib/analytics'
 import SavedItemImage from '../components/SavedItemImage'
@@ -22,6 +23,9 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { shortLocalName } from '../components/BilingualName'
+import PlaceSearchInput from '../components/PlaceSearchInput'
+import MarkdownNotes from '../components/MarkdownNotes'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -428,7 +432,7 @@ function CommentThread({
 function DayItemCard({
   linkedItem, activeDayIndex, dayCount, startDate,
   onRemove, onMove, dragHandleAttributes, dragHandleListeners,
-  isDragging, canEdit, interaction,
+  isDragging, canEdit, interaction, onNotesChange,
 }: {
   linkedItem: LinkedItem
   activeDayIndex: number | null
@@ -441,6 +445,7 @@ function DayItemCard({
   isDragging?: boolean
   canEdit?: boolean
   interaction?: ItemInteraction
+  onNotesChange?: (itemId: string, notes: string | null) => void
 }) {
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const item = linkedItem.saved_item
@@ -476,7 +481,7 @@ function DayItemCard({
         </Link>
         <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-          {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>}
+          {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
           <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
         </Link>
         {canEdit && (
@@ -515,6 +520,16 @@ function DayItemCard({
           </div>
         )}
       </div>
+      {/* Activity notes — inline editable */}
+      <div className="px-3 pb-2">
+        <MarkdownNotes
+          value={item.notes}
+          onSave={(notes) => onNotesChange?.(item.id, notes)}
+          placeholder="Add note"
+          readOnly={!canEdit || !onNotesChange}
+          previewLines={2}
+        />
+      </div>
       {interaction && (
         <ItemInteractionBar
           voteCount={interaction.voteCount} userHasVoted={interaction.userHasVoted}
@@ -541,13 +556,14 @@ function SortableDayItem(props: Omit<React.ComponentProps<typeof DayItemCard>, '
 // ── Linked Item Card ───────────────────────────────────────────────────────────
 
 function LinkedItemCard({
-  item, linkId, onRemove, canEdit, interaction,
+  item, linkId, onRemove, canEdit, interaction, onNotesChange,
 }: {
   item: SavedItem
   linkId: string
   onRemove: (linkId: string) => void
   canEdit?: boolean
   interaction?: ItemInteraction
+  onNotesChange?: (itemId: string, notes: string | null) => void
 }) {
   const colors = categoryColors[item.category]
   return (
@@ -558,7 +574,7 @@ function LinkedItemCard({
         </Link>
         <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-          {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>}
+          {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
           <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
         </Link>
         {canEdit && (
@@ -569,6 +585,16 @@ function LinkedItemCard({
             </svg>
           </button>
         )}
+      </div>
+      {/* Activity notes — inline editable */}
+      <div className="px-3 pb-2">
+        <MarkdownNotes
+          value={item.notes}
+          onSave={(notes) => onNotesChange?.(item.id, notes)}
+          placeholder="Add note"
+          readOnly={!canEdit || !onNotesChange}
+          previewLines={2}
+        />
       </div>
       {interaction && (
         <ItemInteractionBar
@@ -598,7 +624,7 @@ function SuggestionCard({ item, onAdd, onDismiss }: { item: SavedItem; onAdd: (i
       <SavedItemImage item={item} size="sm" className="rounded-lg" />
       <div className="flex-1 min-w-0 px-3 py-1">
         <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-        {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>}
+        {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
         <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
       </div>
       <div className="flex items-center gap-1 mr-3 shrink-0">
@@ -637,7 +663,7 @@ function InboxPickerRow({ item, onAdd }: { item: SavedItem; onAdd: (item: SavedI
       <SavedItemImage item={item} size="sm" className="rounded-xl" />
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-        {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}</p>}
+        {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
       </div>
       {adding && <div className="shrink-0 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />}
     </button>
@@ -674,7 +700,7 @@ function AddFromInboxSheet({
       <div className="relative w-full max-w-lg bg-white rounded-t-3xl shadow-xl flex flex-col max-h-[82vh]">
         <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <h2 className="text-base font-semibold text-gray-900">Add from Horizon</h2>
+          <h2 className="text-base font-semibold text-gray-900">Add from your Horizon</h2>
           <button type="button" onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close">
             <CloseIcon />
           </button>
@@ -780,8 +806,48 @@ export default function DestinationSection({
   const [inboxLoading, setInboxLoading] = useState(false)
   const inboxFetched = useRef(false)
 
+  // Keep inbox cache fresh when new items are created via quick-save
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const item = (e as CustomEvent<SavedItem>).detail
+      if (item) setInboxItems((prev) => [item, ...prev.filter((i) => i.id !== item.id)])
+    }
+    const updateHandler = (e: Event) => {
+      const item = (e as CustomEvent<SavedItem>).detail
+      if (item) setInboxItems((prev) => prev.map((i) => i.id === item.id ? item : i))
+    }
+    window.addEventListener('horizon-item-created', handler)
+    window.addEventListener('horizon-item-updated', updateHandler)
+    return () => {
+      window.removeEventListener('horizon-item-created', handler)
+      window.removeEventListener('horizon-item-updated', updateHandler)
+    }
+  }, [])
+
   // Add/edit dates modal
   const [showAddDates, setShowAddDates] = useState(false)
+
+  // Inline place search (Google Places)
+  const [showPlaceSearch, setShowPlaceSearch] = useState(false)
+
+  // Destination notes
+  const [destNotes, setDestNotes] = useState<string | null>(destination.notes ?? null)
+  const handleSaveDestNotes = useCallback((notes: string | null) => {
+    setDestNotes(notes)
+    supabase.from('trip_destinations').update({ notes }).eq('id', destination.id).then(() => {/* best-effort */})
+  }, [destination.id])
+
+  // Activity notes handler — saves to saved_items and updates local state
+  const handleItemNotesChange = useCallback((itemId: string, notes: string | null) => {
+    setLinkedItems((prev) =>
+      prev.map((li) =>
+        li.item_id === itemId
+          ? { ...li, saved_item: { ...li.saved_item, notes } }
+          : li,
+      ),
+    )
+    supabase.from('saved_items').update({ notes }).eq('id', itemId).then(() => {/* best-effort */})
+  }, [])
 
   // Delete menu
   const [menuOpen, setMenuOpen] = useState(false)
@@ -1013,6 +1079,26 @@ export default function DestinationSection({
     if (ok) trackEvent('item_added_to_destination', userId, { destination_id: destination.id, item_id: item.id })
   }
 
+  const handlePlaceAdded = async (item: SavedItem) => {
+    // Link the newly created saved_item to this destination
+    const { data, error } = await supabase
+      .from('destination_items')
+      .insert({ destination_id: destination.id, item_id: item.id, day_index: null, sort_order: linkedItems.length })
+      .select()
+      .single()
+
+    if (!error && data) {
+      const row = data as { id: string; destination_id: string; item_id: string; day_index: number | null; sort_order: number }
+      setLinkedItems((prev) => [...prev, { ...row, saved_item: item }])
+      setVotes((prev) => ({ ...prev, [item.id]: { count: 0, userVoted: false } }))
+      setCommentCounts((prev) => ({ ...prev, [item.id]: 0 }))
+      trackEvent('item_added_to_destination', userId, { destination_id: destination.id, item_id: item.id, source: 'place_search' })
+      // Nudge trip to planning status
+      void supabase.from('trips').update({ status: 'planning' }).eq('id', tripId).eq('status', 'aspirational')
+    }
+    setShowPlaceSearch(false)
+  }
+
   // ── Remove a linked item ───────────────────────────────────────────────────────
 
   const handleRemoveItem = async (linkId: string) => {
@@ -1157,6 +1243,7 @@ export default function DestinationSection({
 
   const gradient = DEST_GRADIENTS[index % DEST_GRADIENTS.length]
   const city = shortName(destination.location_name)
+  const cityLocal = shortLocalName(destination.location_name_local)
   const hasSchedule = !!(destination.start_date && destination.end_date)
   const dayCount = hasSchedule ? getDayCount(destination.start_date!, destination.end_date!) : 0
 
@@ -1197,7 +1284,10 @@ export default function DestinationSection({
 
         {/* Name + dates */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{city}</p>
+          <p className="text-sm font-semibold text-gray-900 truncate leading-snug">
+            {city}
+            {cityLocal && <span className="ml-1.5 font-normal text-gray-400">{cityLocal}</span>}
+          </p>
           {destination.start_date && destination.end_date ? (
             <p className="text-xs text-blue-600 font-medium truncate">{shortDateRange(destination.start_date, destination.end_date)}</p>
           ) : (
@@ -1311,6 +1401,16 @@ export default function DestinationSection({
             <span className="text-xs text-gray-400 font-medium">{linkedItems.length} place{linkedItems.length !== 1 ? 's' : ''}</span>
           </div>
 
+          {/* Destination notes */}
+          <div className="px-4 pt-2">
+            <MarkdownNotes
+              value={destNotes}
+              onSave={handleSaveDestNotes}
+              placeholder="Add notes"
+              readOnly={!canEdit}
+            />
+          </div>
+
           <div className="px-4 pt-4 pb-5 space-y-4">
             {hasSchedule ? (
               /* ── Scheduled: day-tab itinerary view ── */
@@ -1348,6 +1448,7 @@ export default function DestinationSection({
                                 onMove={handleMoveItem}
                                 canEdit={canEdit}
                                 interaction={buildInteraction(li.item_id)}
+                                onNotesChange={handleItemNotesChange}
                               />
                               {expandedItemId === li.item_id && (
                                 <CommentThread
@@ -1367,17 +1468,17 @@ export default function DestinationSection({
             ) : (
               /* ── Unscheduled: simple list ── */
               <>
-                {/* "Add dates" prompt when items exist */}
+                {/* "Add dates" inline hint when items exist */}
                 {linkedItems.length > 0 && canEdit && (
-                  <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-2xl px-4 py-3">
-                    <span className="text-xl shrink-0">📅</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-blue-900">Add dates to unlock day-by-day planning</p>
-                      <button type="button" onClick={() => setShowAddDates(true)}
-                        className="text-xs text-blue-600 hover:text-blue-800 font-medium mt-0.5 transition-colors">
-                        Add dates →
-                      </button>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setShowAddDates(true)}
+                      className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                      </svg>
+                      Add dates
+                    </button>
+                    <span className="text-xs text-gray-400">to unlock day-by-day planning</span>
                   </div>
                 )}
 
@@ -1486,15 +1587,32 @@ export default function DestinationSection({
                       </div>
                     )}
 
-                    {/* Add from Inbox — compact inline, part of the empty state */}
+                    {/* Action buttons — compact inline, part of the empty state */}
                     {canEdit && (
-                      <button type="button" onClick={handleOpenInboxSheet}
-                        className="flex items-center gap-2 text-sm text-blue-500 hover:text-blue-700 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
-                          <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
-                        </svg>
-                        Add from Horizon
-                      </button>
+                      <div className="flex flex-col gap-2">
+                        {showPlaceSearch ? (
+                          <PlaceSearchInput
+                            userId={userId}
+                            biasLat={destination.location_lat}
+                            biasLng={destination.location_lng}
+                            onPlaceAdded={handlePlaceAdded}
+                            onClose={() => setShowPlaceSearch(false)}
+                          />
+                        ) : (
+                          <button type="button" onClick={() => setShowPlaceSearch(true)}
+                            className="flex items-center gap-2 text-sm text-blue-500 hover:text-blue-700 transition-colors">
+                            <MapPin className="w-3.5 h-3.5 shrink-0" />
+                            Add a place
+                          </button>
+                        )}
+                        <button type="button" onClick={handleOpenInboxSheet}
+                          className="flex items-center gap-2 text-sm text-gray-400 hover:text-blue-500 transition-colors">
+                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
+                            <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
+                          </svg>
+                          Add from your Horizon
+                        </button>
+                      </div>
                     )}
                   </div>
                 ) : (
@@ -1505,6 +1623,7 @@ export default function DestinationSection({
                           item={li.saved_item} linkId={li.id}
                           onRemove={handleRemoveItem} canEdit={canEdit}
                           interaction={buildInteraction(li.item_id)}
+                          onNotesChange={handleItemNotesChange}
                         />
                         {expandedItemId === li.item_id && (
                           <CommentThread
@@ -1520,15 +1639,34 @@ export default function DestinationSection({
               </>
             )}
 
-            {/* Add from Inbox — shown when destination already has items */}
+            {/* Add actions — shown when destination already has items */}
             {canEdit && linkedItems.length > 0 && (
-              <button type="button" onClick={handleOpenInboxSheet}
-                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                  <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                </svg>
-                Add from Horizon
-              </button>
+              <div className="space-y-2">
+                {showPlaceSearch ? (
+                  <PlaceSearchInput
+                    userId={userId}
+                    biasLat={destination.location_lat}
+                    biasLng={destination.location_lng}
+                    onPlaceAdded={handlePlaceAdded}
+                    onClose={() => setShowPlaceSearch(false)}
+                  />
+                ) : (
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setShowPlaceSearch(true)}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
+                      <Search className="w-3.5 h-3.5" />
+                      Add a place
+                    </button>
+                    <button type="button" onClick={handleOpenInboxSheet}
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+                      </svg>
+                      From Horizon
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Location mismatch error */}

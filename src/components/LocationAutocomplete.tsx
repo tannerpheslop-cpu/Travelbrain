@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { loadGoogleMapsScript } from '../lib/googleMaps'
+import { loadGoogleMapsScript, fetchBilingualNames } from '../lib/googleMaps'
 
 export interface LocationSelection {
   name: string              // formatted display name, e.g. "Tokyo, Japan"
@@ -10,6 +10,8 @@ export interface LocationSelection {
   country_code: string | null   // e.g. "CN"
   location_type: 'city' | 'country' | 'region'
   proximity_radius_km: number   // 50 for city, 200 for region, 500 for country
+  name_en: string | null        // English name
+  name_local: string | null     // Local language name
 }
 
 interface Props {
@@ -69,29 +71,57 @@ export default function LocationAutocomplete({
         const country_code = countryComponent?.short_name ?? null
 
         // Determine location_type + proximity radius from the place's own types
+        // No 'types' restriction on autocomplete — valleys, regions, natural features all accepted
         const placeTypes: string[] = place.types ?? []
         let location_type: 'city' | 'country' | 'region' = 'city'
         let proximity_radius_km = 50
         if (placeTypes.includes('country')) {
           location_type = 'country'
           proximity_radius_km = 500
-        } else if (placeTypes.some((t: string) => t.startsWith('administrative_area_level'))) {
+        } else if (
+          placeTypes.some((t: string) => t.startsWith('administrative_area_level')) ||
+          placeTypes.includes('natural_feature') ||
+          placeTypes.includes('colloquial_area') ||
+          placeTypes.includes('sublocality')
+        ) {
           location_type = 'region'
           proximity_radius_km = 200
         }
 
-        const name = place.formatted_address || place.name || ''
-        setInputValue(name)
-        onSelect({
-          name,
+        const defaultName = place.formatted_address || place.name || ''
+        const placeId = place.place_id ?? ''
+
+        // Immediately select with default name, then update with bilingual
+        setInputValue(defaultName)
+        const selection: LocationSelection = {
+          name: defaultName,
           lat: place.geometry.location.lat(),
           lng: place.geometry.location.lng(),
-          place_id: place.place_id ?? '',
+          place_id: placeId,
           country,
           country_code,
           location_type,
           proximity_radius_km,
-        })
+          name_en: null,
+          name_local: null,
+        }
+
+        // Fetch bilingual names async and update
+        if (placeId) {
+          fetchBilingualNames(placeId, country_code).then((bilingual) => {
+            const enName = bilingual.name_en || defaultName
+            selection.name = enName
+            selection.name_en = enName
+            selection.name_local = bilingual.name_local
+            setInputValue(enName)
+            onSelect({ ...selection })
+          }).catch(() => {
+            // Fall back to default name
+            onSelect(selection)
+          })
+        } else {
+          onSelect(selection)
+        }
       })
 
       autocompleteRef.current = ac
@@ -120,10 +150,12 @@ export default function LocationAutocomplete({
 
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-        {label}{' '}
-        {optional && <span className="text-gray-400 font-normal">(optional)</span>}
-      </label>
+      {label && (
+        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+          {label}{' '}
+          {optional && <span className="text-gray-400 font-normal">(optional)</span>}
+        </label>
+      )}
       <input
         ref={inputRef}
         type="text"

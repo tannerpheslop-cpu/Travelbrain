@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { Plus, Zap, Link as LinkIcon, Camera, FileText, ArrowRight, MapPin, Loader2 } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import { Plus, Zap, Link as LinkIcon, Camera, FileText, ArrowRight, MapPin, Loader2, Map, Compass, Inbox } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useRapidCapture } from '../hooks/useRapidCapture'
 import SaveSheet from './SaveSheet'
@@ -16,6 +17,7 @@ function dispatchSaveEvent(name: string, item: SavedItem) {
 
 export default function CreatePopover({ onClose }: Props) {
   const { user } = useAuth()
+  const location = useLocation()
   const inputRef = useRef<HTMLInputElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
 
@@ -23,6 +25,12 @@ export default function CreatePopover({ onClose }: Props) {
   const [input, setInput] = useState('')
   const [recentItems, setRecentItems] = useState<SavedItem[]>([])
   const [showSaveSheet, setShowSaveSheet] = useState(false)
+
+  // ── Route context ──────────────────────────────────────────────────────
+
+  const isTripsPage = location.pathname === '/trips'
+  const tripDetailMatch = location.pathname.match(/^\/trip\/([^/]+)$/)
+  const isTripDetailPage = !!tripDetailMatch
 
   // ── Rapid capture ──────────────────────────────────────────────────────
 
@@ -117,6 +125,23 @@ export default function CreatePopover({ onClose }: Props) {
     setShowSaveSheet(false)
   }, [])
 
+  // ── Context-aware action handlers ──────────────────────────────────────
+
+  const handleNewTrip = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('youji-create-trip'))
+    onClose()
+  }, [onClose])
+
+  const handleAddDestination = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('youji-add-destination'))
+    onClose()
+  }, [onClose])
+
+  const handleAddFromHorizon = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('youji-add-from-horizon'))
+    onClose()
+  }, [onClose])
+
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
@@ -126,7 +151,7 @@ export default function CreatePopover({ onClose }: Props) {
         className="fixed z-30 right-4"
         style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 4.5rem)' }}
       >
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-56 animate-in zoom-in-95 fade-in duration-150 origin-bottom-right">
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-72 animate-in zoom-in-95 fade-in duration-150 origin-bottom-right">
           {/* Quick save mode */}
           {showQuickSave ? (
             <div className="p-3">
@@ -139,7 +164,7 @@ export default function CreatePopover({ onClose }: Props) {
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onPaste={handlePaste}
-                  placeholder="Add a place... (Enter to save)"
+                  placeholder="Add a place..."
                   enterKeyHint="send"
                   className="w-full pl-9 pr-9 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
                 />
@@ -153,6 +178,7 @@ export default function CreatePopover({ onClose }: Props) {
                   <ArrowRight className="w-3.5 h-3.5 text-white" />
                 </button>
               </div>
+              <p className="text-[10px] text-gray-400 mt-1.5 ml-1">Enter to save · Paste a list for bulk add</p>
 
               {/* Recently added items */}
               {recentItems.length > 0 && (
@@ -180,6 +206,43 @@ export default function CreatePopover({ onClose }: Props) {
           ) : (
             /* Menu options */
             <div className="py-1">
+              {/* Context-aware options at the top */}
+              {isTripsPage && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleNewTrip}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  >
+                    <Map className="w-4.5 h-4.5 text-blue-500" />
+                    <span className="text-sm font-medium text-gray-800">New trip</span>
+                  </button>
+                  <div className="h-px bg-gray-100 mx-3" />
+                </>
+              )}
+              {isTripDetailPage && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleAddDestination}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  >
+                    <Compass className="w-4.5 h-4.5 text-emerald-500" />
+                    <span className="text-sm font-medium text-gray-800">Add destination</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddFromHorizon}
+                    className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  >
+                    <Inbox className="w-4.5 h-4.5 text-indigo-500" />
+                    <span className="text-sm font-medium text-gray-800">Add from your Horizon</span>
+                  </button>
+                  <div className="h-px bg-gray-100 mx-3" />
+                </>
+              )}
+
+              {/* Standard save options */}
               <button
                 type="button"
                 onClick={() => setShowQuickSave(true)}

@@ -166,7 +166,7 @@ function ScheduleTripModal({
               <div className="space-y-4">
                 {destinations.map((d, i) => (
                   <div key={d.id} className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs font-semibold text-gray-600 mb-2">{i + 1}. {d.location_name.split(',')[0]}</p>
+                    <p className="text-xs font-semibold text-gray-600 mb-2">{i + 1}. {d.location_name.split(',')[0]}{d.location_name_local && <span className="ml-1 font-normal text-gray-400">{d.location_name_local.split(',')[0]}</span>}</p>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className="block text-xs text-gray-400 mb-1">Arrival</label>
@@ -544,6 +544,7 @@ interface RefinementItem {
     id: string
     title: string
     location_name: string | null
+    location_name_local: string | null
     location_lat: number | null
     location_lng: number | null
     image_url: string | null
@@ -595,7 +596,7 @@ function RefinementModal({
               <div className="min-w-0">
                 <p className="text-sm font-medium text-gray-800 truncate">{ri.saved_item.title}</p>
                 {ri.saved_item.location_name && (
-                  <p className="text-xs text-gray-400 truncate">{ri.saved_item.location_name}</p>
+                  <p className="text-xs text-gray-400 truncate">{ri.saved_item.location_name}{ri.saved_item.location_name_local && <span className="ml-1 opacity-60">{ri.saved_item.location_name_local.split(',')[0]}</span>}</p>
                 )}
               </div>
             </div>
@@ -792,6 +793,8 @@ export default function TripDetailPage() {
               country_code: cluster.country_code,
               location_type: singleCity ? 'city' : 'country',
               proximity_radius_km: singleCity ? 50 : 500,
+              name_en: null,
+              name_local: null,
             },
           })
         } else {
@@ -816,6 +819,8 @@ export default function TripDetailPage() {
                   country_code: cluster.country_code,
                   location_type: 'city',
                   proximity_radius_km: 50,
+                  name_en: null,
+                  name_local: null,
                 },
               })
             }
@@ -838,6 +843,26 @@ export default function TripDetailPage() {
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
+
+  // Ref to hold the openAddDest function for the event listener
+  const openAddDestRef = useRef<() => void>(() => {})
+
+  // Listen for global FAB events
+  useEffect(() => {
+    const handleAddDest = () => openAddDestRef.current()
+    const handleAddFromHorizon = () => {
+      // Expand the first destination and let the user add from there
+      if (destinations.length > 0) {
+        setExpandedDestId(destinations[0].id)
+      }
+    }
+    window.addEventListener('youji-add-destination', handleAddDest)
+    window.addEventListener('youji-add-from-horizon', handleAddFromHorizon)
+    return () => {
+      window.removeEventListener('youji-add-destination', handleAddDest)
+      window.removeEventListener('youji-add-from-horizon', handleAddFromHorizon)
+    }
+  }, [destinations])
 
   // Country grouping — derived from destinations, recomputes when order changes
   const countryGroups = useMemo(() => {
@@ -961,6 +986,8 @@ export default function TripDetailPage() {
         location_country_code: loc.country_code ?? 'XX',
         location_type: loc.location_type,
         proximity_radius_km: loc.proximity_radius_km,
+        location_name_en: loc.name_en ?? null,
+        location_name_local: loc.name_local ?? null,
         sort_order: destinations.length,
       }).select().single(),
       fetchPlacePhoto(loc.place_id).catch(() => null),
@@ -1010,6 +1037,7 @@ export default function TripDetailPage() {
                 id: di.saved_item.id,
                 title: di.saved_item.title,
                 location_name: di.saved_item.location_name ?? null,
+                location_name_local: di.saved_item.location_name_local ?? null,
                 location_lat: di.saved_item.location_lat ?? null,
                 location_lng: di.saved_item.location_lng ?? null,
                 image_url: di.saved_item.image_url ?? null,
@@ -1059,6 +1087,8 @@ export default function TripDetailPage() {
         location_country_code: city.countryCode,
         location_type: 'city' as const,
         proximity_radius_km: 50,
+        location_name_en: null,
+        location_name_local: null,
         sort_order: destinations.length,
       }).select().single(),
       fetchPlacePhoto(city.placeId).catch(() => null),
@@ -1213,6 +1243,8 @@ export default function TripDetailPage() {
               country_code: cluster.country_code,
               location_type: singleCity ? 'city' : 'country',
               proximity_radius_km: singleCity ? 50 : 500,
+              name_en: null,
+              name_local: null,
             },
           })
         } else {
@@ -1237,6 +1269,8 @@ export default function TripDetailPage() {
                   country_code: cluster.country_code,
                   location_type: 'city',
                   proximity_radius_km: 50,
+                  name_en: null,
+                  name_local: null,
                 },
               })
             }
@@ -1248,6 +1282,9 @@ export default function TripDetailPage() {
     setFrozenSuggestions(suggestions)
     setShowAddDest(true)
   }
+
+  // Keep ref in sync for global FAB event listener
+  openAddDestRef.current = openAddDest
 
   const handleDeleteDestination = async (destId: string) => {
     setDestinations((prev) => prev.filter((d) => d.id !== destId))
@@ -1304,7 +1341,7 @@ export default function TripDetailPage() {
 
   if (!tripLoading && notFound) {
     return (
-      <div className="px-4 pt-6 pb-24">
+      <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
         <button onClick={() => navigate('/trips')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" /></svg>
           Trips
@@ -1319,7 +1356,7 @@ export default function TripDetailPage() {
 
   if (tripLoading || destsLoading) {
     return (
-      <div className="px-4 pt-6 pb-24 animate-pulse">
+      <div className="px-4 pb-24 animate-pulse" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
         <div className="h-4 w-12 bg-gray-100 rounded-lg mb-6" />
         <div className="h-7 w-2/3 bg-gray-100 rounded-lg mb-2" />
         <div className="h-4 w-1/3 bg-gray-100 rounded-lg mb-6" />
@@ -1349,7 +1386,7 @@ export default function TripDetailPage() {
   const isSingleDest = destinations.length === 1
 
   return (
-    <div className="px-4 pt-6 pb-24">
+    <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       {/* Back button */}
       <button onClick={() => navigate('/trips')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" /></svg>
@@ -1374,6 +1411,9 @@ export default function TripDetailPage() {
           <div className="absolute bottom-0 left-0 right-0 px-4 pb-3">
             <p className="text-white font-bold text-xl leading-tight drop-shadow">
               {destinations[0].location_name.split(',')[0].trim()}
+              {destinations[0].location_name_local && (
+                <span className="ml-2 font-normal text-white/70 text-base">{destinations[0].location_name_local.split(',')[0].trim()}</span>
+              )}
             </p>
             {destinations[0].start_date && destinations[0].end_date && (
               <p className="text-white/80 text-sm mt-0.5 drop-shadow">
@@ -1429,24 +1469,24 @@ export default function TripDetailPage() {
       <div className="flex gap-2 mb-6">
         {!isScheduled && (
           <button type="button" onClick={() => setShowScheduleModal(true)}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+            className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
               <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
             </svg>
             Schedule Trip
           </button>
         )}
         <button type="button" onClick={() => setShowShareModal(true)}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 border rounded-xl text-sm font-semibold transition-colors ${
+          className={`flex-1 flex items-center justify-center gap-1.5 min-h-[44px] py-2.5 border rounded-xl text-sm font-semibold transition-colors ${
             trip?.share_token ? 'border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
           }`}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
             <path d="M13 4.5a2.5 2.5 0 11.702 1.737L6.97 9.604a2.518 2.518 0 010 .792l6.733 3.367a2.5 2.5 0 11-.671 1.341l-6.733-3.367a2.5 2.5 0 110-3.475l6.733-3.366A2.52 2.52 0 0113 4.5z" />
           </svg>
           {trip?.share_token ? 'Shared ✓' : 'Share'}
         </button>
         <button type="button" onClick={() => setShowInviteModal(true)}
-          className={`flex items-center justify-center gap-1.5 px-3 py-2.5 border rounded-xl transition-colors ${
+          className={`flex items-center justify-center gap-1.5 min-h-[44px] px-4 py-2.5 border rounded-xl transition-colors ${
             companions.length > 0 ? 'border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
           }`}
           aria-label="Invite companions"
