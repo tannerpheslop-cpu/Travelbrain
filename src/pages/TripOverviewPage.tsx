@@ -503,25 +503,23 @@ function GeneralSection({
             </SortableContext>
           </DndContext>
 
-          {/* Checked items (not draggable) */}
+          {/* Checked items (not draggable, just strikethrough + muted) */}
           {hasCompleted && (
             <div className="space-y-1.5 mt-2">
               {sortedNotes.filter(n => n.completed).map(note => (
-                <SwipeToDelete key={note.id} onDelete={() => onDeleteNote(note.id)} enabled>
-                  <div className="flex items-center gap-2.5 bg-white rounded-xl border border-gray-100 px-3 py-2.5 shadow-sm opacity-60">
-                    <button
-                      type="button"
-                      onClick={() => onUpdateNote(note.id, { completed: false })}
-                      className="w-5 h-5 rounded-md border-2 bg-blue-600 border-blue-600 flex items-center justify-center shrink-0"
-                      aria-label="Uncheck"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white">
-                        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                    <span className="flex-1 text-sm text-gray-400 line-through min-w-0 truncate">{note.text}</span>
-                  </div>
-                </SwipeToDelete>
+                <div key={note.id} className="flex items-center gap-2.5 bg-white rounded-xl border border-gray-100 px-3 py-2.5 shadow-sm opacity-60">
+                  <button
+                    type="button"
+                    onClick={() => onUpdateNote(note.id, { completed: false })}
+                    className="w-5 h-5 rounded-md border-2 bg-blue-600 border-blue-600 flex items-center justify-center shrink-0"
+                    aria-label="Uncheck"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white">
+                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                  <span className="flex-1 text-sm text-gray-400 line-through min-w-0 truncate">{note.text}</span>
+                </div>
               ))}
             </div>
           )}
@@ -825,7 +823,7 @@ export default function TripOverviewPage() {
 
   // Sync tripNotes from trip record
   useEffect(() => {
-    if (trip?.notes) setTripNotes(trip.notes)
+    if (trip) setTripNotes(Array.isArray(trip.notes) ? trip.notes : [])
   }, [trip])
 
   // Load inbox clusters
@@ -995,6 +993,15 @@ export default function TripOverviewPage() {
 
   openAddDestRef.current = openAddDest
 
+  const persistNotes = async (notes: TripNote[]) => {
+    if (!id) return
+    const { error } = await supabase
+      .from('trips')
+      .update({ notes })
+      .eq('id', id)
+    if (error) console.error('Failed to save notes:', error)
+  }
+
   const handleAddNote = async (text: string) => {
     if (!id) return
     const note: TripNote = {
@@ -1006,34 +1013,30 @@ export default function TripOverviewPage() {
     }
     const updated = [...tripNotes, note]
     setTripNotes(updated)
-    await supabase.from('trips').update({ notes: updated }).eq('id', id)
+    await persistNotes(updated)
   }
 
   const handleDeleteNote = async (noteId: string) => {
-    if (!id) return
     const updated = tripNotes.filter((n) => n.id !== noteId)
     setTripNotes(updated)
-    await supabase.from('trips').update({ notes: updated }).eq('id', id)
+    await persistNotes(updated)
   }
 
   const handleUpdateNote = async (noteId: string, updates: Partial<TripNote>) => {
-    if (!id) return
     const updated = tripNotes.map(n => n.id === noteId ? { ...n, ...updates } : n)
     setTripNotes(updated)
-    await supabase.from('trips').update({ notes: updated }).eq('id', id)
+    await persistNotes(updated)
   }
 
   const handleReorderNotes = async (reordered: TripNote[]) => {
-    if (!id) return
     setTripNotes(reordered)
-    await supabase.from('trips').update({ notes: reordered }).eq('id', id)
+    await persistNotes(reordered)
   }
 
   const handleClearCompleted = async () => {
-    if (!id) return
     const updated = tripNotes.filter(n => !n.completed)
     setTripNotes(updated)
-    await supabase.from('trips').update({ notes: updated }).eq('id', id)
+    await persistNotes(updated)
   }
 
   // ── Destination date picker ──────────────────────────────────────────────
@@ -1349,7 +1352,7 @@ export default function TripOverviewPage() {
 
       {/* Section header with organize toggle */}
       {destinations.length >= 2 && (
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mt-8 mb-3">
           <p className="text-sm font-semibold text-gray-500">{destinations.length} destinations</p>
           <button
             type="button"
