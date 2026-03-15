@@ -924,6 +924,17 @@ export default function TripOverviewPage() {
     )
   }
 
+  // ── Computed values (must be before early returns to satisfy Rules of Hooks) ──
+
+  const coverImage = destinations.find(d => d.image_url)?.image_url ?? trip?.cover_image_url ?? null
+
+  const derivedDateRange = useMemo(() => {
+    const starts = destinations.filter(d => d.start_date).map(d => d.start_date!)
+    const ends = destinations.filter(d => d.end_date).map(d => d.end_date!)
+    if (!starts.length || !ends.length) return null
+    return formatDateRange(starts.sort()[0], ends.sort().reverse()[0])
+  }, [destinations])
+
   // ── Loading / error states ────────────────────────────────────────────────
 
   if (!tripLoading && notFound) {
@@ -968,15 +979,6 @@ export default function TripOverviewPage() {
       </div>
     )
   }
-
-  const coverImage = destinations.find(d => d.image_url)?.image_url ?? trip?.cover_image_url ?? null
-
-  const derivedDateRange = useMemo(() => {
-    const starts = destinations.filter(d => d.start_date).map(d => d.start_date!)
-    const ends = destinations.filter(d => d.end_date).map(d => d.end_date!)
-    if (!starts.length || !ends.length) return null
-    return formatDateRange(starts.sort()[0], ends.sort().reverse()[0])
-  }, [destinations])
 
   return (
     <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
