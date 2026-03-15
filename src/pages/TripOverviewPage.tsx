@@ -14,6 +14,7 @@ import DestinationCard from '../components/DestinationCard'
 import CalendarRangePicker from '../components/CalendarRangePicker'
 import RouteCard from '../components/RouteCard'
 import DottedConnector from '../components/DottedConnector'
+import SwipeToDelete from '../components/SwipeToDelete'
 import {
   DndContext,
   closestCenter,
@@ -297,14 +298,117 @@ function InviteCompanionModal({
   )
 }
 
-// ── General Section (Quick Notes) ──────────────────────────────────────────────
+// ── General Section (Checklist) ───────────────────────────────────────────────
+
+function SortableChecklistItem({
+  note, onToggle, onDelete, onUpdate,
+}: {
+  note: TripNote
+  onToggle: () => void
+  onDelete: () => void
+  onUpdate: (text: string) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const [editText, setEditText] = useState(note.text)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: note.id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...(isDragging ? { scale: '1.03', boxShadow: '0 8px 25px rgba(0,0,0,0.12)', zIndex: 50, position: 'relative' as const } : {}),
+  }
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus()
+  }, [editing])
+
+  const handleSaveEdit = () => {
+    const trimmed = editText.trim()
+    setEditing(false)
+    if (trimmed && trimmed !== note.text) {
+      onUpdate(trimmed)
+    } else {
+      setEditText(note.text)
+    }
+  }
+
+  const handleStartEdit = () => {
+    if (note.completed) return
+    setEditText(note.text)
+    setEditing(true)
+  }
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <SwipeToDelete onDelete={onDelete} enabled>
+        <div
+          className={`flex items-center gap-2.5 bg-white rounded-xl border border-gray-100 px-3 py-2.5 shadow-sm transition-colors ${
+            isDragging ? 'ring-2 ring-blue-200' : ''
+          }`}
+          {...attributes}
+          {...(listeners as React.HTMLAttributes<HTMLDivElement>)}
+        >
+          {/* Checkbox */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggle() }}
+            className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
+              note.completed
+                ? 'bg-blue-600 border-blue-600'
+                : 'border-gray-300 hover:border-blue-400'
+            }`}
+            aria-label={note.completed ? 'Uncheck' : 'Check'}
+          >
+            {note.completed && (
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white">
+                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+              </svg>
+            )}
+          </button>
+
+          {/* Text / Edit */}
+          {editing ? (
+            <input
+              ref={inputRef}
+              type="text"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onBlur={handleSaveEdit}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveEdit()
+                if (e.key === 'Escape') { setEditing(false); setEditText(note.text) }
+              }}
+              className="flex-1 text-sm bg-transparent border-b border-blue-300 focus:outline-none py-0 min-w-0"
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={handleStartEdit}
+              className={`flex-1 text-left text-sm min-w-0 truncate transition-colors ${
+                note.completed
+                  ? 'line-through text-gray-400'
+                  : 'text-gray-800 hover:text-gray-600'
+              }`}
+            >
+              {note.text}
+            </button>
+          )}
+        </div>
+      </SwipeToDelete>
+    </div>
+  )
+}
 
 function GeneralSection({
-  notes, onAddNote, onDeleteNote,
+  notes, onAddNote, onDeleteNote, onUpdateNote, onReorderNotes, onClearCompleted,
 }: {
   notes: TripNote[]
   onAddNote: (text: string) => void
   onDeleteNote: (noteId: string) => void
+  onUpdateNote: (noteId: string, updates: Partial<TripNote>) => void
+  onReorderNotes: (reordered: TripNote[]) => void
+  onClearCompleted: () => void
 }) {
   const [draft, setDraft] = useState('')
 
@@ -315,10 +419,46 @@ function GeneralSection({
     setDraft('')
   }
 
+  // Sort: unchecked first by sort_order, then checked by sort_order
+  const sortedNotes = useMemo(() => {
+    const unchecked = notes.filter(n => !n.completed).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    const checked = notes.filter(n => n.completed).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    return [...unchecked, ...checked]
+  }, [notes])
+
+  const uncheckedIds = useMemo(
+    () => sortedNotes.filter(n => !n.completed).map(n => n.id),
+    [sortedNotes],
+  )
+
+  const hasCompleted = notes.some(n => n.completed)
+
+  const noteSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  const handleNoteDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const unchecked = sortedNotes.filter(n => !n.completed)
+    const checked = sortedNotes.filter(n => n.completed)
+
+    const oldIdx = unchecked.findIndex(n => n.id === active.id)
+    const newIdx = unchecked.findIndex(n => n.id === over.id)
+    if (oldIdx === -1 || newIdx === -1) return
+
+    const reordered = arrayMove(unchecked, oldIdx, newIdx)
+    const all = [...reordered, ...checked].map((n, i) => ({ ...n, sort_order: i }))
+    onReorderNotes(all)
+  }
+
   return (
     <div className="mt-8">
       <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-base font-semibold text-gray-900">General</h2>
+        <h2 className="text-base font-semibold text-gray-900">Notes</h2>
         <span className="text-sm text-gray-400">Trip-wide notes</span>
       </div>
 
@@ -342,27 +482,61 @@ function GeneralSection({
         </button>
       </div>
 
-      {/* Notes list */}
+      {/* Checklist */}
       {notes.length === 0 ? (
         <p className="text-sm text-gray-400 py-1">No notes yet — add packing reminders, visa info, or anything trip-wide.</p>
       ) : (
-        <ul className="space-y-1.5">
-          {notes.map((note) => (
-            <li key={note.id} className="flex items-center gap-2 bg-white rounded-xl border border-gray-100 px-3 py-2 shadow-sm group">
-              <p className="flex-1 text-sm text-gray-800 min-w-0">{note.text}</p>
-              <button
-                type="button"
-                onClick={() => onDeleteNote(note.id)}
-                className="p-1 rounded-full text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors shrink-0 opacity-0 group-hover:opacity-100 focus:opacity-100"
-                aria-label="Delete note"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                  <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                </svg>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <>
+          <DndContext sensors={noteSensors} collisionDetection={closestCenter} onDragEnd={handleNoteDragEnd}>
+            <SortableContext items={uncheckedIds} strategy={verticalListSortingStrategy}>
+              <div className="space-y-1.5">
+                {sortedNotes.filter(n => !n.completed).map(note => (
+                  <SortableChecklistItem
+                    key={note.id}
+                    note={note}
+                    onToggle={() => onUpdateNote(note.id, { completed: true })}
+                    onDelete={() => onDeleteNote(note.id)}
+                    onUpdate={(text) => onUpdateNote(note.id, { text })}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {/* Checked items (not draggable) */}
+          {hasCompleted && (
+            <div className="space-y-1.5 mt-2">
+              {sortedNotes.filter(n => n.completed).map(note => (
+                <SwipeToDelete key={note.id} onDelete={() => onDeleteNote(note.id)} enabled>
+                  <div className="flex items-center gap-2.5 bg-white rounded-xl border border-gray-100 px-3 py-2.5 shadow-sm opacity-60">
+                    <button
+                      type="button"
+                      onClick={() => onUpdateNote(note.id, { completed: false })}
+                      className="w-5 h-5 rounded-md border-2 bg-blue-600 border-blue-600 flex items-center justify-center shrink-0"
+                      aria-label="Uncheck"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white">
+                        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    <span className="flex-1 text-sm text-gray-400 line-through min-w-0 truncate">{note.text}</span>
+                  </div>
+                </SwipeToDelete>
+              ))}
+            </div>
+          )}
+
+          {/* Clear completed */}
+          {hasCompleted && (
+            <button
+              type="button"
+              onClick={onClearCompleted}
+              className="mt-2 text-xs text-gray-400 hover:text-red-500 font-medium transition-colors"
+            >
+              Clear completed
+            </button>
+          )}
+        </>
       )}
     </div>
   )
@@ -823,7 +997,13 @@ export default function TripOverviewPage() {
 
   const handleAddNote = async (text: string) => {
     if (!id) return
-    const note: TripNote = { id: crypto.randomUUID(), text, created_at: new Date().toISOString() }
+    const note: TripNote = {
+      id: crypto.randomUUID(),
+      text,
+      created_at: new Date().toISOString(),
+      completed: false,
+      sort_order: tripNotes.length,
+    }
     const updated = [...tripNotes, note]
     setTripNotes(updated)
     await supabase.from('trips').update({ notes: updated }).eq('id', id)
@@ -832,6 +1012,26 @@ export default function TripOverviewPage() {
   const handleDeleteNote = async (noteId: string) => {
     if (!id) return
     const updated = tripNotes.filter((n) => n.id !== noteId)
+    setTripNotes(updated)
+    await supabase.from('trips').update({ notes: updated }).eq('id', id)
+  }
+
+  const handleUpdateNote = async (noteId: string, updates: Partial<TripNote>) => {
+    if (!id) return
+    const updated = tripNotes.map(n => n.id === noteId ? { ...n, ...updates } : n)
+    setTripNotes(updated)
+    await supabase.from('trips').update({ notes: updated }).eq('id', id)
+  }
+
+  const handleReorderNotes = async (reordered: TripNote[]) => {
+    if (!id) return
+    setTripNotes(reordered)
+    await supabase.from('trips').update({ notes: reordered }).eq('id', id)
+  }
+
+  const handleClearCompleted = async () => {
+    if (!id) return
+    const updated = tripNotes.filter(n => !n.completed)
     setTripNotes(updated)
     await supabase.from('trips').update({ notes: updated }).eq('id', id)
   }
@@ -1138,7 +1338,14 @@ export default function TripOverviewPage() {
       </div>
 
       {/* Trip notes (General section) */}
-      <GeneralSection notes={tripNotes} onAddNote={handleAddNote} onDeleteNote={handleDeleteNote} />
+      <GeneralSection
+        notes={tripNotes}
+        onAddNote={handleAddNote}
+        onDeleteNote={handleDeleteNote}
+        onUpdateNote={handleUpdateNote}
+        onReorderNotes={handleReorderNotes}
+        onClearCompleted={handleClearCompleted}
+      />
 
       {/* Section header with organize toggle */}
       {destinations.length >= 2 && (

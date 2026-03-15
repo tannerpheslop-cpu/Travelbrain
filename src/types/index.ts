@@ -62,6 +62,8 @@ export interface TripNote {
   id: string
   text: string
   created_at: string
+  completed?: boolean
+  sort_order?: number
 }
 
 export interface TripDestination {
