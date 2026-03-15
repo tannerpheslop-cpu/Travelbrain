@@ -1,3 +1,4 @@
+import { useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { MapPin, Check } from 'lucide-react'
 import type { TripDestination } from '../types'
@@ -30,14 +31,55 @@ export interface DestinationCardProps {
   onToggleSelect?: () => void
   onAddDates?: () => void
   onDatesTap?: () => void
+  onLongPress?: () => void
 }
 
 export default function DestinationCard({
   destination, itemCount, tripId, index,
   organizeMode, isSelected, onToggleSelect,
-  onAddDates, onDatesTap,
+  onAddDates, onDatesTap, onLongPress,
 }: DestinationCardProps) {
   const gradient = gradients[index % gradients.length]
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
+  const longPressFired = useRef(false)
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [])
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (organizeMode || !onLongPress) return
+    const touch = e.touches[0]
+    touchStart.current = { x: touch.clientX, y: touch.clientY }
+    longPressFired.current = false
+    longPressTimer.current = setTimeout(() => {
+      longPressFired.current = true
+      navigator.vibrate?.(50)
+      onLongPress()
+    }, 800)
+  }, [organizeMode, onLongPress])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchStart.current || !longPressTimer.current) return
+    const touch = e.touches[0]
+    const dx = touch.clientX - touchStart.current.x
+    const dy = touch.clientY - touchStart.current.y
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) clearLongPress()
+  }, [clearLongPress])
+
+  const handleTouchEnd = useCallback(() => { clearLongPress() }, [clearLongPress])
+
+  const handleClick = useCallback((e: React.MouseEvent) => {
+    if (longPressFired.current) {
+      e.preventDefault()
+      e.stopPropagation()
+      longPressFired.current = false
+    }
+  }, [])
   const city = shortName(destination.location_name)
   const cityLocal = shortLocalName(destination.location_name_local)
   const hasDates = destination.start_date && destination.end_date
@@ -122,7 +164,13 @@ export default function DestinationCard({
   }
 
   return (
-    <Link to={`/trip/${tripId}/dest/${destination.id}`}>
+    <Link
+      to={`/trip/${tripId}/dest/${destination.id}`}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      onClick={handleClick}
+    >
       {cardContent}
     </Link>
   )

@@ -1091,6 +1091,11 @@ export default function TripOverviewPage() {
     }
   }
 
+  const handleLongPress = (destId: string) => {
+    setOrganizeMode(true)
+    setSelectedDestIds(new Set([destId]))
+  }
+
   const toggleDestSelection = (destId: string) => {
     setSelectedDestIds(prev => {
       const next = new Set(prev)
@@ -1441,6 +1446,7 @@ export default function TripOverviewPage() {
                           onToggleSelect={() => toggleDestSelection(entry.destination.id)}
                           onAddDates={() => setDatePickerDestId(entry.destination.id)}
                           onDatesTap={() => setDatePickerDestId(entry.destination.id)}
+                          onLongPress={() => handleLongPress(entry.destination.id)}
                         />
                       ) : (
                         <RouteCard
