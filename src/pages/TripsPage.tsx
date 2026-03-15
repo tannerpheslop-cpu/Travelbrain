@@ -137,6 +137,9 @@ function TripCard({
       >
         {/* Cover image / gradient */}
         <div className={`h-44 bg-gradient-to-br ${gradient} relative overflow-hidden`}>
+          {coverImage && !coverImgLoaded && (
+            <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+          )}
           {coverImage && (
             <img
               src={coverImage}
@@ -814,6 +817,10 @@ function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: 
       className="block rounded-2xl overflow-hidden shadow-md hover:shadow-lg active:scale-[0.99] transition-all"
     >
       <div className={`relative h-56 bg-gradient-to-br ${gradient}`}>
+        {/* Shimmer skeleton while image loads */}
+        {coverImage && !coverImgLoaded && (
+          <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        )}
         {coverImage && (
           <img
             src={coverImage}
@@ -885,6 +892,9 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
       className="block w-[260px] shrink-0 snap-start rounded-2xl overflow-hidden bg-white border border-gray-100 shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
     >
       <div className={`relative h-36 bg-gradient-to-br ${gradient}`}>
+        {coverImage && !coverImgLoaded && (
+          <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+        )}
         {coverImage && (
           <img
             src={coverImage}
@@ -925,7 +935,7 @@ function PhaseCarousel({ label, trips }: { label: string; trips: TripWithDestina
   return (
     <div>
       <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2.5">{label}</h3>
-      <div className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-3 -mx-4 px-4 pb-1">
+      <div className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-3 -mx-4 px-4 pb-1" style={{ scrollPaddingInlineStart: '1rem' }}>
         {trips.map((trip, i) => (
           <CarouselTripCard key={trip.id} trip={trip} index={i} />
         ))}

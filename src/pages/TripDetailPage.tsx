@@ -15,6 +15,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -1320,6 +1321,7 @@ export default function TripDetailPage() {
   // Drag-to-reorder destinations
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -1466,18 +1468,18 @@ export default function TripDetailPage() {
       </div>
 
       {/* Action buttons */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex flex-wrap gap-2 mb-6">
         {!isScheduled && (
           <button type="button" onClick={() => setShowScheduleModal(true)}
-            className="flex-1 flex items-center justify-center gap-1.5 min-h-[44px] py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors">
+            className="flex-1 basis-0 min-w-[120px] flex items-center justify-center gap-2 min-h-[44px] px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
               <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
             </svg>
-            Schedule Trip
+            Schedule
           </button>
         )}
         <button type="button" onClick={() => setShowShareModal(true)}
-          className={`flex-1 flex items-center justify-center gap-1.5 min-h-[44px] py-2.5 border rounded-xl text-sm font-semibold transition-colors ${
+          className={`flex-1 basis-0 min-w-[100px] flex items-center justify-center gap-2 min-h-[44px] px-4 py-2.5 border rounded-xl text-sm font-semibold transition-colors ${
             trip?.share_token ? 'border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
           }`}>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
@@ -1486,7 +1488,7 @@ export default function TripDetailPage() {
           {trip?.share_token ? 'Shared ✓' : 'Share'}
         </button>
         <button type="button" onClick={() => setShowInviteModal(true)}
-          className={`flex items-center justify-center gap-1.5 min-h-[44px] px-4 py-2.5 border rounded-xl transition-colors ${
+          className={`flex items-center justify-center gap-2 min-h-[44px] px-4 py-2.5 border rounded-xl transition-colors ${
             companions.length > 0 ? 'border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
           }`}
           aria-label="Invite companions"
