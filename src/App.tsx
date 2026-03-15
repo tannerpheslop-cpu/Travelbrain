@@ -6,7 +6,9 @@ import LoginPage from './pages/LoginPage'
 import InboxPage from './pages/InboxPage'
 import TripsPage from './pages/TripsPage'
 import ItemDetailPage from './pages/ItemDetailPage'
-import TripDetailPage from './pages/TripDetailPage'
+import TripOverviewPage from './pages/TripOverviewPage'
+import RouteOverviewPage from './pages/RouteOverviewPage'
+import DestinationDetailPage from './pages/DestinationDetailPage'
 import ProfilePage from './pages/ProfilePage'
 import SearchPage from './pages/SearchPage'
 import SharedTripPage from './pages/SharedTripPage'
@@ -21,7 +23,9 @@ function AppLayout() {
             <Route path="/inbox" element={<InboxPage />} />
             <Route path="/trips" element={<TripsPage />} />
             <Route path="/item/:id" element={<ItemDetailPage />} />
-            <Route path="/trip/:id" element={<TripDetailPage />} />
+            <Route path="/trip/:id" element={<TripOverviewPage />} />
+            <Route path="/trip/:id/route/:routeId" element={<RouteOverviewPage />} />
+            <Route path="/trip/:id/dest/:destId" element={<DestinationDetailPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/" element={<Navigate to="/inbox" replace />} />

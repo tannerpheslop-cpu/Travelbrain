@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -8,6 +8,7 @@ import SavedItemImage from '../components/SavedItemImage'
 import { getCategoryIcon, categoryPillColors, categoryLabel, categoryIconColors } from '../utils/categoryIcons'
 import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react'
 import { shortLocalName } from '../components/BilingualName'
+import { useLocationResolver } from '../hooks/useLocationResolver'
 import type { SavedItem, Trip } from '../types'
 
 /** Shorten a Google Places formatted_address to "City, Province, Country".
@@ -35,21 +36,27 @@ interface GeoGroup {
   cities: { city: string | null; items: SavedItem[] }[]
 }
 
-/** Group items by country, then by city within each country. Items without
- *  location_country go into a single "Unsorted" group at the end. */
+/** Group items by country CODE (not name) to avoid duplicate groups for the
+ *  same country in different languages (e.g. "China" vs "中国"). Items without
+ *  location_country_code go into a single "Unsorted" group at the end. */
 function groupByGeography(items: SavedItem[]): GeoGroup[] {
-  const countryMap = new Map<string, { code: string | null; cityMap: Map<string, SavedItem[]> }>()
+  const countryMap = new Map<string, { name: string; code: string; cityMap: Map<string, SavedItem[]> }>()
   const unsorted: SavedItem[] = []
 
   for (const item of items) {
-    if (!item.location_country) {
+    const code = item.location_country_code
+    if (!code) {
       unsorted.push(item)
       continue
     }
-    let entry = countryMap.get(item.location_country)
+    let entry = countryMap.get(code)
     if (!entry) {
-      entry = { code: item.location_country_code, cityMap: new Map() }
-      countryMap.set(item.location_country, entry)
+      // Prefer English country name; fall back to whatever we have
+      const name = item.location_name_en
+        ? (item.location_name_en.split(',').pop()?.trim() ?? item.location_country ?? code)
+        : (item.location_country ?? code)
+      entry = { name, code, cityMap: new Map() }
+      countryMap.set(code, entry)
     }
     const city = item.location_name ? extractCity(item.location_name) : null
     const cityKey = city ?? '__no_city__'
@@ -67,12 +74,12 @@ function groupByGeography(items: SavedItem[]): GeoGroup[] {
     return countB - countA
   })
 
-  for (const [country, { code, cityMap }] of sorted) {
+  for (const [, { name, code, cityMap }] of sorted) {
     const cities = [...cityMap.entries()].map(([cityKey, cityItems]) => ({
       city: cityKey === '__no_city__' ? null : cityKey,
       items: cityItems,
     }))
-    groups.push({ country, countryCode: code, cities })
+    groups.push({ country: name, countryCode: code, cities })
   }
 
   if (unsorted.length > 0) {
@@ -98,6 +105,12 @@ export default function InboxPage() {
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('expanded')
   const filterPanelRef = useRef<HTMLDivElement>(null)
+
+  // Background location resolver — resolves titles for items without location data
+  const handleResolved = useCallback((updated: SavedItem) => {
+    setItems((prev) => prev.map((item) => item.id === updated.id ? updated : item))
+  }, [])
+  const { resolveItems } = useLocationResolver(user?.id, handleResolved)
 
   // ── Listen for saves created/updated from CreatePopover ────────────────
 
@@ -150,6 +163,9 @@ export default function InboxPage() {
     const fetchedTrips = (tripsResult.data ?? []) as Trip[]
     setItems(fetchedItems)
     setTrips(fetchedTrips)
+
+    // Background-resolve locations for items that have titles but no location
+    resolveItems(fetchedItems)
 
     setAllTripItems([])
     if (fetchedTrips.length > 0) {

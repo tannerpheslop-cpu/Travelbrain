@@ -81,6 +81,15 @@ export interface TripDestination {
   start_date: string | null
   end_date: string | null
   notes: string | null
+  route_id: string | null
+  sort_order: number
+  created_at: string
+}
+
+export interface TripRoute {
+  id: string
+  trip_id: string
+  name: string
   sort_order: number
   created_at: string
 }

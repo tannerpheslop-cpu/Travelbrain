@@ -10,6 +10,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -26,6 +27,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { shortLocalName } from '../components/BilingualName'
 import PlaceSearchInput from '../components/PlaceSearchInput'
 import MarkdownNotes from '../components/MarkdownNotes'
+import SwipeToDelete from '../components/SwipeToDelete'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -476,8 +478,8 @@ function DayItemCard({
         ) : (
           <div className="w-1" />
         )}
-        <Link to={`/item/${item.id}`} className="shrink-0">
-          <SavedItemImage item={item} size="sm" className="rounded-lg" />
+        <Link to={`/item/${item.id}`} className="shrink-0 select-none" style={{ WebkitTouchCallout: 'none' }}>
+          <SavedItemImage item={item} size="sm" className="rounded-lg pointer-events-none" />
         </Link>
         <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
@@ -545,9 +547,13 @@ function DayItemCard({
 
 function SortableDayItem(props: Omit<React.ComponentProps<typeof DayItemCard>, 'dragHandleAttributes' | 'dragHandleListeners' | 'isDragging'>) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.linkedItem.id })
-  const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition }
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...(isDragging ? { scale: '1.03', boxShadow: '0 8px 25px rgba(0,0,0,0.15)', zIndex: 50, position: 'relative' as const, borderRadius: '1rem' } : {}),
+  }
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} {...attributes} {...(listeners as React.HTMLAttributes<HTMLDivElement>)}>
       <DayItemCard {...props} dragHandleAttributes={attributes} dragHandleListeners={listeners} isDragging={isDragging} />
     </div>
   )
@@ -569,8 +575,8 @@ function LinkedItemCard({
   return (
     <div className={`bg-white border border-gray-100 shadow-sm overflow-hidden ${interaction?.isExpanded ? 'rounded-t-2xl' : 'rounded-2xl'}`}>
       <div className="flex items-center gap-0 p-2">
-        <Link to={`/item/${item.id}`} className="shrink-0">
-          <SavedItemImage item={item} size="md" className="rounded-xl" />
+        <Link to={`/item/${item.id}`} className="shrink-0 select-none" style={{ WebkitTouchCallout: 'none' }}>
+          <SavedItemImage item={item} size="md" className="rounded-xl pointer-events-none" />
         </Link>
         <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
@@ -621,7 +627,9 @@ function SuggestionCard({ item, onAdd, onDismiss }: { item: SavedItem; onAdd: (i
 
   return (
     <div className="flex items-center gap-0 bg-blue-50 border border-blue-100 rounded-2xl overflow-hidden p-2">
-      <SavedItemImage item={item} size="sm" className="rounded-lg" />
+      <div className="select-none" style={{ WebkitTouchCallout: 'none' }}>
+        <SavedItemImage item={item} size="sm" className="rounded-lg pointer-events-none" />
+      </div>
       <div className="flex-1 min-w-0 px-3 py-1">
         <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
         {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
@@ -660,7 +668,9 @@ function InboxPickerRow({ item, onAdd }: { item: SavedItem; onAdd: (item: SavedI
   return (
     <button type="button" onClick={handleTap} disabled={adding}
       className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-60 text-left">
-      <SavedItemImage item={item} size="sm" className="rounded-xl" />
+      <div className="select-none" style={{ WebkitTouchCallout: 'none' }}>
+        <SavedItemImage item={item} size="sm" className="rounded-xl pointer-events-none" />
+      </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
         {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
@@ -756,6 +766,32 @@ function AddFromInboxSheet({
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── Destination Thumbnail with loading/error states ─────────────────────────────
+
+function DestThumb({ imageUrl, alt, gradient }: { imageUrl: string | null; alt: string; gradient: string }) {
+  const [loaded, setLoaded] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const showImage = imageUrl && !failed
+  return (
+    <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 flex-none">
+      {showImage ? (
+        <>
+          {!loaded && <div className={`w-full h-full bg-gradient-to-br ${gradient} animate-pulse`} />}
+          <img
+            src={imageUrl}
+            alt={alt}
+            className={`w-full h-full object-cover transition-opacity duration-200 ${loaded ? 'opacity-100' : 'opacity-0 absolute inset-0'}`}
+            onLoad={() => setLoaded(true)}
+            onError={() => setFailed(true)}
+          />
+        </>
+      ) : (
+        <div className={`w-full h-full bg-gradient-to-br ${gradient}`} />
+      )}
     </div>
   )
 }
@@ -864,6 +900,7 @@ export default function DestinationSection({
   // dnd-kit for items within a day view
   const itemSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
@@ -1274,13 +1311,7 @@ export default function DestinationSection({
         onClick={onToggle}
       >
         {/* City thumbnail */}
-        <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 flex-none">
-          {destination.image_url ? (
-            <img src={destination.image_url} alt={city} className="w-full h-full object-cover" />
-          ) : (
-            <div className={`w-full h-full bg-gradient-to-br ${gradient}`} />
-          )}
-        </div>
+        <DestThumb imageUrl={destination.image_url} alt={city} gradient={gradient} />
 
         {/* Name + dates */}
         <div className="flex-1 min-w-0">
@@ -1290,6 +1321,14 @@ export default function DestinationSection({
           </p>
           {destination.start_date && destination.end_date ? (
             <p className="text-xs text-blue-600 font-medium truncate">{shortDateRange(destination.start_date, destination.end_date)}</p>
+          ) : canEdit ? (
+            <button type="button" onClick={(e) => { e.stopPropagation(); setShowAddDates(true) }}
+              className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 font-medium transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
+                <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
+              </svg>
+              Add dates
+            </button>
           ) : (
             <p className="text-xs text-gray-400">No dates set</p>
           )}
@@ -1439,17 +1478,19 @@ export default function DestinationSection({
                         <div className="space-y-2">
                           {activeItems.map((li) => (
                             <div key={li.id}>
-                              <SortableDayItem
-                                linkedItem={li}
-                                activeDayIndex={activeDay}
-                                dayCount={dayCount}
-                                startDate={destination.start_date!}
-                                onRemove={handleRemoveItem}
-                                onMove={handleMoveItem}
-                                canEdit={canEdit}
-                                interaction={buildInteraction(li.item_id)}
-                                onNotesChange={handleItemNotesChange}
-                              />
+                              <SwipeToDelete enabled={canEdit} onDelete={() => handleRemoveItem(li.id)}>
+                                <SortableDayItem
+                                  linkedItem={li}
+                                  activeDayIndex={activeDay}
+                                  dayCount={dayCount}
+                                  startDate={destination.start_date!}
+                                  onRemove={handleRemoveItem}
+                                  onMove={handleMoveItem}
+                                  canEdit={canEdit}
+                                  interaction={buildInteraction(li.item_id)}
+                                  onNotesChange={handleItemNotesChange}
+                                />
+                              </SwipeToDelete>
                               {expandedItemId === li.item_id && (
                                 <CommentThread
                                   comments={threadComments} loading={threadLoading}
@@ -1468,20 +1509,6 @@ export default function DestinationSection({
             ) : (
               /* ── Unscheduled: simple list ── */
               <>
-                {/* "Add dates" inline hint when items exist */}
-                {linkedItems.length > 0 && canEdit && (
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => setShowAddDates(true)}
-                      className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                        <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                      </svg>
-                      Add dates
-                    </button>
-                    <span className="text-xs text-gray-400">to unlock day-by-day planning</span>
-                  </div>
-                )}
-
                 {linkedItems.length === 0 ? (
                   <div className="space-y-3">
                     <p className="text-sm text-gray-400 py-1">No places saved yet</p>
@@ -1619,12 +1646,14 @@ export default function DestinationSection({
                   <div className="space-y-2">
                     {linkedItems.slice().sort((a, b) => a.sort_order - b.sort_order).map((li) => (
                       <div key={li.id}>
-                        <LinkedItemCard
-                          item={li.saved_item} linkId={li.id}
-                          onRemove={handleRemoveItem} canEdit={canEdit}
-                          interaction={buildInteraction(li.item_id)}
-                          onNotesChange={handleItemNotesChange}
-                        />
+                        <SwipeToDelete enabled={canEdit} onDelete={() => handleRemoveItem(li.id)}>
+                          <LinkedItemCard
+                            item={li.saved_item} linkId={li.id}
+                            onRemove={handleRemoveItem} canEdit={canEdit}
+                            interaction={buildInteraction(li.item_id)}
+                            onNotesChange={handleItemNotesChange}
+                          />
+                        </SwipeToDelete>
                         {expandedItemId === li.item_id && (
                           <CommentThread
                             comments={threadComments} loading={threadLoading}
@@ -1740,9 +1769,13 @@ export default function DestinationSection({
 
 export function SortableDestinationSection(props: Omit<DestinationSectionProps, 'dragHandleAttributes' | 'dragHandleListeners' | 'isDragging'>) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.destination.id })
-  const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition }
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...(isDragging ? { scale: '1.02', boxShadow: '0 8px 25px rgba(0,0,0,0.12)', zIndex: 50, position: 'relative' as const, borderRadius: '1rem' } : {}),
+  }
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} {...attributes} {...(listeners as React.HTMLAttributes<HTMLDivElement>)}>
       <DestinationSection
         {...props}
         dragHandleAttributes={attributes}

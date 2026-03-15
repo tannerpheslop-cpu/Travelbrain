@@ -31,6 +31,8 @@ export default function CreatePopover({ onClose }: Props) {
   const isTripsPage = location.pathname === '/trips'
   const tripDetailMatch = location.pathname.match(/^\/trip\/([^/]+)$/)
   const isTripDetailPage = !!tripDetailMatch
+  const routePageMatch = location.pathname.match(/^\/trip\/[^/]+\/route\/[^/]+$/)
+  const isRoutePage = !!routePageMatch
 
   // ── Rapid capture ──────────────────────────────────────────────────────
 
@@ -220,7 +222,7 @@ export default function CreatePopover({ onClose }: Props) {
                   <div className="h-px bg-gray-100 mx-3" />
                 </>
               )}
-              {isTripDetailPage && (
+              {(isTripDetailPage || isRoutePage) && (
                 <>
                   <button
                     type="button"
@@ -228,16 +230,20 @@ export default function CreatePopover({ onClose }: Props) {
                     className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
                   >
                     <Compass className="w-4.5 h-4.5 text-emerald-500" />
-                    <span className="text-sm font-medium text-gray-800">Add destination</span>
+                    <span className="text-sm font-medium text-gray-800">
+                      {isRoutePage ? 'Add destination to route' : 'Add destination'}
+                    </span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleAddFromHorizon}
-                    className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                  >
-                    <Inbox className="w-4.5 h-4.5 text-indigo-500" />
-                    <span className="text-sm font-medium text-gray-800">Add from your Horizon</span>
-                  </button>
+                  {isTripDetailPage && (
+                    <button
+                      type="button"
+                      onClick={handleAddFromHorizon}
+                      className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                    >
+                      <Inbox className="w-4.5 h-4.5 text-indigo-500" />
+                      <span className="text-sm font-medium text-gray-800">Add from your Horizon</span>
+                    </button>
+                  )}
                   <div className="h-px bg-gray-100 mx-3" />
                 </>
               )}

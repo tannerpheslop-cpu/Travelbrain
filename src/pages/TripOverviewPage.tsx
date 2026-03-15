@@ -3,13 +3,16 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
-import SavedItemImage from '../components/SavedItemImage'
 import { useCompanions } from '../hooks/useCompanions'
+import { useRoutes } from '../hooks/useRoutes'
 import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
-import type { Trip, TripDestination, TripNote, SavedItem, SharePrivacy } from '../types'
+import type { Trip, TripDestination, TripNote, TripRoute, SharePrivacy } from '../types'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
+import DestinationCard from '../components/DestinationCard'
+import RouteCard from '../components/RouteCard'
+import DottedConnector from '../components/DottedConnector'
 import {
   DndContext,
   closestCenter,
@@ -28,9 +31,14 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import DestinationSection, { type DestinationWithItems, type LocatedItemBasic, type LinkedItem } from './DestinationSection'
 
 // ── Local types ────────────────────────────────────────────────────────────────
+
+type DestWithCount = TripDestination & { _count: number }
+
+type OverviewEntry =
+  | { type: 'destination'; destination: DestWithCount; sortKey: number }
+  | { type: 'route'; route: TripRoute; destinations: DestWithCount[]; sortKey: number }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -46,6 +54,26 @@ function formatDateRange(start: string, end: string): string {
   const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts)
   const e = new Date(end + 'T00:00:00').toLocaleDateString('en-US', opts)
   return `${s} – ${e}`
+}
+
+function getEntryCountry(entry: OverviewEntry): string {
+  if (entry.type === 'destination') {
+    return entry.destination.location_country ?? 'Unknown'
+  }
+  const first = entry.destinations[0]
+  return first?.location_country ?? 'Unknown'
+}
+
+function getEntryCountryCode(entry: OverviewEntry): string {
+  if (entry.type === 'destination') {
+    return entry.destination.location_country_code ?? ''
+  }
+  const first = entry.destinations[0]
+  return first?.location_country_code ?? ''
+}
+
+function getEntryId(entry: OverviewEntry): string {
+  return entry.type === 'destination' ? entry.destination.id : entry.route.id
 }
 
 // ── Schedule Trip Modal ────────────────────────────────────────────────────────
@@ -536,216 +564,39 @@ function AddDestSuggestionList({
   )
 }
 
-// ── Country-to-City Refinement Types ──────────────────────────────────────────
+// ── Sortable Overview Entry ────────────────────────────────────────────────────
 
-interface RefinementItem {
-  id: string            // destination_items.id
-  item_id: string
-  saved_item: {
-    id: string
-    title: string
-    location_name: string | null
-    location_name_local: string | null
-    location_lat: number | null
-    location_lng: number | null
-    image_url: string | null
-    category: string
+function SortableOverviewEntry({ entry, children }: { entry: OverviewEntry; children: React.ReactNode }) {
+  const id = entry.type === 'destination' ? entry.destination.id : entry.route.id
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    ...(isDragging ? { scale: '1.02', boxShadow: '0 8px 25px rgba(0,0,0,0.12)', zIndex: 50, position: 'relative' as const } : {}),
   }
-}
-
-interface RefinementState {
-  countryDest: DestinationWithItems
-  newCityDest: DestinationWithItems
-  nearbyItems: RefinementItem[]
-}
-
-// ── Refinement Modal ───────────────────────────────────────────────────────────
-
-function RefinementModal({
-  refinement,
-  onMove,
-  onKeep,
-  moving,
-}: {
-  refinement: RefinementState
-  onMove: () => void
-  onKeep: () => void
-  moving: boolean
-}) {
-  const { countryDest, newCityDest, nearbyItems } = refinement
-  const cityName = newCityDest.location_name.split(',')[0].trim()
-  const countryName = countryDest.location_name
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onKeep} />
-      <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5 shadow-xl">
-        <h3 className="text-base font-semibold text-gray-900 mb-1">
-          Move saves to {cityName}?
-        </h3>
-        <p className="text-sm text-gray-500 mb-4">
-          {nearbyItems.length} item{nearbyItems.length !== 1 ? 's' : ''} in your{' '}
-          <span className="font-medium text-gray-700">{countryName}</span> bucket{' '}
-          {nearbyItems.length !== 1 ? 'are' : 'is'} near {cityName}.
-        </p>
-
-        {/* Item list */}
-        <div className="space-y-2 mb-5 max-h-48 overflow-y-auto">
-          {nearbyItems.map((ri) => (
-            <div key={ri.id} className="flex items-center gap-2.5">
-              <SavedItemImage item={ri.saved_item} size="xs" className="rounded-lg" />
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-800 truncate">{ri.saved_item.title}</p>
-                {ri.saved_item.location_name && (
-                  <p className="text-xs text-gray-400 truncate">{ri.saved_item.location_name}{ri.saved_item.location_name_local && <span className="ml-1 opacity-60">{ri.saved_item.location_name_local.split(',')[0]}</span>}</p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onMove}
-            disabled={moving}
-            className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50"
-          >
-            {moving ? 'Moving…' : `Move to ${cityName}`}
-          </button>
-          <button
-            type="button"
-            onClick={onKeep}
-            disabled={moving}
-            className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
-          >
-            Keep in {countryName}
-          </button>
-        </div>
-      </div>
+    <div ref={setNodeRef} style={style} {...attributes} {...(listeners as React.HTMLAttributes<HTMLDivElement>)}>
+      {children}
     </div>
   )
 }
 
-// ── Country Remove Prompt ──────────────────────────────────────────────────────
+// ── Trip Overview Page ─────────────────────────────────────────────────────────
 
-function CountryRemovePrompt({
-  countryDest,
-  onRemove,
-  onKeep,
-  removing,
-}: {
-  countryDest: DestinationWithItems
-  onRemove: () => void
-  onKeep: () => void
-  removing: boolean
-}) {
-  const countryName = countryDest.location_name
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="absolute inset-0 bg-black/40" onClick={onKeep} />
-      <div className="relative bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-sm p-5 shadow-xl">
-        <h3 className="text-base font-semibold text-gray-900 mb-1">
-          Remove {countryName}?
-        </h3>
-        <p className="text-sm text-gray-500 mb-5">
-          All your {countryName} saves are now in specific cities. You can remove{' '}
-          {countryName} as a destination or keep it as a placeholder.
-        </p>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onRemove}
-            disabled={removing}
-            className="flex-1 py-2.5 border border-gray-200 text-gray-600 rounded-xl text-sm font-semibold hover:bg-gray-50 transition-colors disabled:opacity-50"
-          >
-            {removing ? 'Removing…' : `Remove ${countryName}`}
-          </button>
-          <button
-            type="button"
-            onClick={onKeep}
-            disabled={removing}
-            className="flex-1 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
-          >
-            Keep it
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Sortable Destination Row (dot + card, with sortable ref on the outer div) ──
-
-function SortableDestinationRow({
-  dest, destIdx, tripId, userId, userAvatarUrl, isExpanded, onToggle, onDelete, onDatesUpdated,
-  locatedItems, openAddDest, handleAddCityWithItems,
-}: {
-  dest: DestinationWithItems
-  destIdx: number
-  tripId: string
-  userId: string
-  userAvatarUrl?: string | null
-  isExpanded: boolean
-  onToggle: () => void
-  onDelete: (id: string) => void
-  onDatesUpdated: (updated: TripDestination) => void
-  locatedItems: LocatedItemBasic[]
-  openAddDest: () => void
-  handleAddCityWithItems: (city: { name: string; lat: number; lng: number; placeId: string; country: string; countryCode: string }, itemIds: string[]) => Promise<void>
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: dest.id })
-  const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition }
-  return (
-    <div ref={setNodeRef} style={style} className={`relative flex items-start gap-2 ${isDragging ? 'z-20' : ''}`}>
-      {/* Timeline dot */}
-      <div className={`shrink-0 w-3 h-3 rounded-full mt-[19px] z-10 ring-2 ring-white transition-colors flex-none ${isExpanded ? 'bg-blue-500' : 'bg-gray-300'}`} />
-      {/* Section card */}
-      <div className="flex-1 min-w-0">
-        <DestinationSection
-          destination={dest}
-          index={destIdx}
-          tripId={tripId}
-          userId={userId}
-          isExpanded={isExpanded}
-          onToggle={onToggle}
-          onDelete={onDelete}
-          onDatesUpdated={onDatesUpdated}
-          locatedItems={locatedItems}
-          canEdit={true}
-          userAvatarUrl={userAvatarUrl}
-          dragHandleAttributes={attributes}
-          dragHandleListeners={listeners}
-          isDragging={isDragging}
-          onAddDestination={openAddDest}
-          onAddCityWithItems={handleAddCityWithItems}
-        />
-      </div>
-    </div>
-  )
-}
-
-// ── Trip Detail Page ───────────────────────────────────────────────────────────
-
-export default function TripDetailPage() {
+export default function TripOverviewPage() {
   const { id } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
 
+  // Core state
   const [trip, setTrip] = useState<Trip | null>(null)
   const [tripLoading, setTripLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
 
-  const [destinations, setDestinations] = useState<DestinationWithItems[]>([])
+  const [destinations, setDestinations] = useState<DestWithCount[]>([])
   const [destsLoading, setDestsLoading] = useState(true)
 
   const [tripNotes, setTripNotes] = useState<TripNote[]>([])
-
-  const [locatedItems, setLocatedItems] = useState<LocatedItemBasic[]>([])
-
-  // Accordion — which destination is expanded
-  const [expandedDestId, setExpandedDestId] = useState<string | null>(null)
 
   // Editable title
   const [editingTitle, setEditingTitle] = useState(false)
@@ -757,22 +608,40 @@ export default function TripDetailPage() {
   const [addingDest, setAddingDest] = useState(false)
   const [addDestKey, setAddDestKey] = useState(0)
 
-  // Clusters stored in a ref — intentionally NOT state so loading never triggers a re-render.
-  // Any async re-render while a LocationAutocomplete is active disrupts the Google Places widget.
+  // Clusters
   const inboxClustersRef = useRef<CountryCluster[]>([])
   const [clustersLoaded, setClustersLoaded] = useState(false)
-  // Suggestions snapshotted into state only at the moment the panel opens (in openAddDest).
   const [frozenSuggestions, setFrozenSuggestions] = useState<Array<{
     key: string; label: string; flag: string; itemCount: number; loc: LocationSelection
   }>>([])
-  // Proactive destination suggestions shown directly on the trip page
   const [tripPageSuggestions, setTripPageSuggestions] = useState<Array<{
     key: string; label: string; flag: string; itemCount: number; loc: LocationSelection
   }>>([])
 
-  /** Build destination suggestions for the trip page from current clusters + destinations. */
+  // Modals
+  const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
+  const [showInviteModal, setShowInviteModal] = useState(false)
+
+  // Organize mode
+  const [organizeMode, setOrganizeMode] = useState(false)
+  const [selectedDestIds, setSelectedDestIds] = useState<Set<string>>(new Set())
+  const [routeNameInput, setRouteNameInput] = useState('')
+  const [showRouteNameInput, setShowRouteNameInput] = useState(false)
+
+  // Routes
+  const { routes, fetchRoutes, createRoute, ungroupRoute, renameRoute } = useRoutes(id)
+
+  // Companions
+  const { companions, pendingInvites, inviteByEmail, removeCompanion, removePendingInvite } = useCompanions(id)
+
+  // Ref for global event listener
+  const openAddDestRef = useRef<() => void>(() => {})
+
+  // ── Build suggestions ─────────────────────────────────────────────────────
+
   const buildTripPageSuggestions = useCallback(
-    (currentDests: DestinationWithItems[]) => {
+    (currentDests: DestWithCount[]) => {
       const clusters = inboxClustersRef.current
       if (!clusters.length) return []
       const existingCodes = new Set(currentDests.map((d) => d.location_country_code))
@@ -828,61 +697,47 @@ export default function TripDetailPage() {
           }
         }
       }
-      console.log('[trip-page] tripPageSuggestions:', suggs.length, suggs.map((s) => s.label))
       return suggs
     },
     [],
   )
 
-  // Country-to-city refinement
-  const [refinement, setRefinement] = useState<RefinementState | null>(null)
-  const [movingItems, setMovingItems] = useState(false)
-  const [countryRemovePrompt, setCountryRemovePrompt] = useState<DestinationWithItems | null>(null)
-  const [removingCountry, setRemovingCountry] = useState(false)
+  // ── Overview entries (destinations + routes) ──────────────────────────────
 
-  // Modals
-  const [showScheduleModal, setShowScheduleModal] = useState(false)
-  const [showShareModal, setShowShareModal] = useState(false)
-  const [showInviteModal, setShowInviteModal] = useState(false)
+  const overviewEntries = useMemo((): OverviewEntry[] => {
+    const standalone = destinations
+      .filter(d => !d.route_id)
+      .map(d => ({ type: 'destination' as const, destination: d, sortKey: d.sort_order }))
 
-  // Ref to hold the openAddDest function for the event listener
-  const openAddDestRef = useRef<() => void>(() => {})
+    const routeEntries = routes.map(r => ({
+      type: 'route' as const,
+      route: r,
+      destinations: destinations
+        .filter(d => d.route_id === r.id)
+        .sort((a, b) => a.sort_order - b.sort_order),
+      sortKey: r.sort_order,
+    }))
 
-  // Listen for global FAB events
+    return [...standalone, ...routeEntries].sort((a, b) => a.sortKey - b.sortKey)
+  }, [destinations, routes])
+
+  const entryIds = useMemo(() => overviewEntries.map(getEntryId), [overviewEntries])
+
+  // Country grouping
+  const hasMultipleCountries = useMemo(() => {
+    const countries = new Set(overviewEntries.map(getEntryCountry))
+    return countries.size > 1
+  }, [overviewEntries])
+
+  // ── Global event listener ─────────────────────────────────────────────────
+
   useEffect(() => {
     const handleAddDest = () => openAddDestRef.current()
-    const handleAddFromHorizon = () => {
-      // Expand the first destination and let the user add from there
-      if (destinations.length > 0) {
-        setExpandedDestId(destinations[0].id)
-      }
-    }
     window.addEventListener('youji-add-destination', handleAddDest)
-    window.addEventListener('youji-add-from-horizon', handleAddFromHorizon)
-    return () => {
-      window.removeEventListener('youji-add-destination', handleAddDest)
-      window.removeEventListener('youji-add-from-horizon', handleAddFromHorizon)
-    }
-  }, [destinations])
+    return () => window.removeEventListener('youji-add-destination', handleAddDest)
+  }, [])
 
-  // Country grouping — derived from destinations, recomputes when order changes
-  const countryGroups = useMemo(() => {
-    const groups: { country: string; countryCode: string; destinations: DestinationWithItems[] }[] = []
-    const seen = new Map<string, number>()
-    for (const dest of destinations) {
-      const key = dest.location_country ?? 'Unknown'
-      if (seen.has(key)) {
-        groups[seen.get(key)!].destinations.push(dest)
-      } else {
-        seen.set(key, groups.length)
-        groups.push({ country: key, countryCode: dest.location_country_code ?? '', destinations: [dest] })
-      }
-    }
-    return groups
-  }, [destinations])
-  const hasMultipleCountries = countryGroups.length > 1
-
-  const { companions, pendingInvites, inviteByEmail, removeCompanion, removePendingInvite } = useCompanions(id)
+  // ── Data fetching ─────────────────────────────────────────────────────────
 
   // Fetch trip
   useEffect(() => {
@@ -895,55 +750,53 @@ export default function TripDetailPage() {
       })
   }, [user, id])
 
-  // Fetch destinations with their items
+  // Fetch destinations with item counts
   useEffect(() => {
     if (!id) return
     supabase
       .from('trip_destinations')
-      .select('*, destination_items(*, saved_item:saved_items(*))')
+      .select('*, destination_items(count)')
       .eq('trip_id', id)
       .order('sort_order', { ascending: true })
       .then(({ data, error }) => {
-        if (!error && data) setDestinations(data as unknown as DestinationWithItems[])
+        if (!error && data) {
+          const mapped: DestWithCount[] = (data as unknown as Array<TripDestination & { destination_items: Array<{ count: number }> }>)
+            .map(d => ({
+              ...d,
+              _count: d.destination_items?.[0]?.count ?? 0,
+            }))
+          setDestinations(mapped)
+        }
         setDestsLoading(false)
       })
   }, [id])
+
+  // Fetch routes
+  useEffect(() => {
+    if (id) fetchRoutes()
+  }, [id, fetchRoutes])
 
   // Sync tripNotes from trip record
   useEffect(() => {
     if (trip?.notes) setTripNotes(trip.notes)
   }, [trip])
 
-  // Fetch located items for proximity count in collapsed headers
-  useEffect(() => {
-    if (!user) return
-    supabase.from('saved_items').select('id, location_lat, location_lng')
-      .eq('user_id', user.id).eq('is_archived', false)
-      .not('location_lat', 'is', null).not('location_lng', 'is', null)
-      .then(({ data }) => {
-        if (data) setLocatedItems(data as LocatedItemBasic[])
-      })
-  }, [user])
-
-  // Load inbox clusters into a ref; signal readiness via minimal boolean state
+  // Load inbox clusters
   useEffect(() => {
     if (!user) return
     getInboxClusters(user.id).then((clusters) => {
-      console.log('[trip-page] inbox clusters loaded:', clusters.length, clusters)
       inboxClustersRef.current = clusters
       setClustersLoaded(true)
     })
   }, [user])
 
-  // Recompute trip-page destination suggestions whenever clusters arrive or destinations change.
-  // Safe to depend on `destinations`: it only changes after a destination is added/removed,
-  // at which point the LocationAutocomplete key is already incremented (reset) anyway.
+  // Recompute trip-page suggestions
   useEffect(() => {
     if (!clustersLoaded) return
     setTripPageSuggestions(buildTripPageSuggestions(destinations))
   }, [clustersLoaded, destinations, buildTripPageSuggestions])
 
-  // Track when add-destination suggestions are shown
+  // Track suggestion display
   useEffect(() => {
     if (!showAddDest || !frozenSuggestions.length || !user) return
     trackEvent('cluster_suggestion_shown', user.id, {
@@ -954,10 +807,12 @@ export default function TripDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showAddDest])
 
-  // Focus title input when editing starts
+  // Focus title input
   useEffect(() => {
     if (editingTitle) titleInputRef.current?.focus()
   }, [editingTitle])
+
+  // ── Handlers ──────────────────────────────────────────────────────────────
 
   const handleStartEditTitle = () => {
     setTitleDraft(trip?.title ?? '')
@@ -1000,63 +855,20 @@ export default function TripDetailPage() {
     setAddDestKey((k) => k + 1)
 
     if (!error && data) {
-      const destData: DestinationWithItems = {
-        ...(data as DestinationWithItems),
+      const destData: DestWithCount = {
+        ...(data as TripDestination),
         image_url: photoUrl ?? null,
-        destination_items: [],
+        _count: 0,
       }
       setDestinations((prev) => [...prev, destData])
-      setExpandedDestId(data.id) // auto-expand the new destination
       trackEvent('destination_added', user?.id ?? null, { trip_id: id, location_name: loc.name, location_type: loc.location_type })
 
       if (photoUrl) {
         void supabase.from('trip_destinations').update({ image_url: photoUrl }).eq('id', data.id)
-          .then(() => {/* no-op */})
       }
 
-      // ── Country-to-city refinement check ──────────────────────────────────
-      // Only applies when the new destination is a city
-      if (loc.location_type === 'city' && loc.country) {
-        const countryDest = destinations.find(
-          (d) => d.location_type === 'country' && d.location_country === loc.country,
-        )
-        if (countryDest && countryDest.destination_items.length > 0) {
-          // Filter for items in the country bucket that are near this city (≈50km = 0.45°)
-          const nearbyItems: RefinementItem[] = countryDest.destination_items
-            .filter((di) => {
-              const { location_lat, location_lng } = di.saved_item
-              if (location_lat == null || location_lng == null) return false
-              return (
-                Math.abs(location_lat - loc.lat) <= 0.45 &&
-                Math.abs(location_lng - loc.lng) <= 0.45
-              )
-            })
-            .map((di) => ({
-              id: di.id,
-              item_id: di.item_id,
-              saved_item: {
-                id: di.saved_item.id,
-                title: di.saved_item.title,
-                location_name: di.saved_item.location_name ?? null,
-                location_name_local: di.saved_item.location_name_local ?? null,
-                location_lat: di.saved_item.location_lat ?? null,
-                location_lng: di.saved_item.location_lng ?? null,
-                image_url: di.saved_item.image_url ?? null,
-                category: di.saved_item.category,
-              },
-            }))
-
-          if (nearbyItems.length > 0) {
-            trackEvent('country_refinement_prompted', user?.id ?? null, {
-              trip_id: id,
-              country_dest_id: countryDest.id,
-              city_dest_id: data.id,
-              nearby_items: nearbyItems.length,
-            })
-            setRefinement({ countryDest, newCityDest: destData, nearbyItems })
-          }
-        }
-      }
+      // Nudge trip to planning if aspirational
+      void supabase.from('trips').update({ status: 'planning' }).eq('id', id).eq('status', 'aspirational')
     }
   }
 
@@ -1070,156 +882,6 @@ export default function TripDetailPage() {
     void handleAddDestination(loc)
   }
 
-  const handleAddCityWithItems = async (
-    city: { name: string; lat: number; lng: number; placeId: string; country: string; countryCode: string },
-    itemIds: string[],
-  ) => {
-    if (!id) return
-
-    // Create the city destination
-    const [insertResult, photoUrl] = await Promise.all([
-      supabase.from('trip_destinations').insert({
-        trip_id: id,
-        location_name: `${city.name}, ${city.country}`,
-        location_lat: city.lat,
-        location_lng: city.lng,
-        location_place_id: city.placeId,
-        location_country: city.country,
-        location_country_code: city.countryCode,
-        location_type: 'city' as const,
-        proximity_radius_km: 50,
-        location_name_en: null,
-        location_name_local: null,
-        sort_order: destinations.length,
-      }).select().single(),
-      fetchPlacePhoto(city.placeId).catch(() => null),
-    ])
-
-    const { data, error } = insertResult
-    if (error || !data) return
-
-    // Link items to the new destination
-    const linkInserts = itemIds.map((itemId, idx) => ({
-      destination_id: data.id,
-      item_id: itemId,
-      day_index: null,
-      sort_order: idx,
-    }))
-    const { data: linkedRows } = await supabase
-      .from('destination_items')
-      .insert(linkInserts)
-      .select('id, destination_id, item_id, day_index, sort_order')
-
-    // Fetch full saved_items for the linked rows
-    const { data: fullItems } = await supabase
-      .from('saved_items')
-      .select('*')
-      .in('id', itemIds)
-    const itemMap = new Map((fullItems ?? []).map((it: SavedItem) => [it.id, it]))
-
-    const destItems: LinkedItem[] = ((linkedRows ?? []) as { id: string; destination_id: string; item_id: string; day_index: number | null; sort_order: number }[]).map((row) => ({
-      ...row,
-      saved_item: itemMap.get(row.item_id) ?? ({} as SavedItem),
-    }))
-
-    const destData: DestinationWithItems = {
-      ...(data as DestinationWithItems),
-      image_url: photoUrl ?? null,
-      destination_items: destItems,
-    }
-    setDestinations((prev) => [...prev, destData])
-    setExpandedDestId(data.id)
-
-    trackEvent('destination_added', user?.id ?? null, {
-      trip_id: id,
-      location_name: city.name,
-      location_type: 'city',
-      source: 'country_suggestion',
-      items_linked: itemIds.length,
-    })
-
-    if (photoUrl) {
-      void supabase.from('trip_destinations').update({ image_url: photoUrl }).eq('id', data.id)
-        .then(() => {/* no-op */})
-    }
-
-    // Nudge trip to planning
-    void supabase.from('trips').update({ status: 'planning' }).eq('id', id).eq('status', 'aspirational')
-      .then(() => {/* no-op */})
-  }
-
-  const handleRefinementMove = async () => {
-    if (!refinement) return
-    const { countryDest, newCityDest, nearbyItems } = refinement
-    setMovingItems(true)
-
-    // Move all nearby destination_items to the new city destination
-    await Promise.all(
-      nearbyItems.map((ri) =>
-        supabase.from('destination_items').update({ destination_id: newCityDest.id }).eq('id', ri.id),
-      ),
-    )
-
-    setMovingItems(false)
-
-    // Update local state: remove items from country dest, add to city dest
-    const movedIds = new Set(nearbyItems.map((ri) => ri.id))
-    setDestinations((prev) =>
-      prev.map((d) => {
-        if (d.id === countryDest.id) {
-          return { ...d, destination_items: d.destination_items.filter((di) => !movedIds.has(di.id)) }
-        }
-        if (d.id === newCityDest.id) {
-          const addedItems = nearbyItems.map((ri) => ({
-            id: ri.id,
-            destination_id: newCityDest.id,
-            item_id: ri.item_id,
-            day_index: null,
-            sort_order: d.destination_items.length,
-            saved_item: ri.saved_item as SavedItem,
-          }))
-          return { ...d, destination_items: [...d.destination_items, ...addedItems] }
-        }
-        return d
-      }),
-    )
-
-    trackEvent('country_refinement_accepted', user?.id ?? null, {
-      trip_id: id,
-      country_dest_id: countryDest.id,
-      city_dest_id: newCityDest.id,
-      moved_items: nearbyItems.length,
-    })
-
-    const remainingCount = countryDest.destination_items.length - nearbyItems.length
-    setRefinement(null)
-
-    // If country dest is now empty, prompt to remove it
-    if (remainingCount === 0) {
-      setCountryRemovePrompt(countryDest)
-    }
-  }
-
-  const handleRefinementKeep = () => {
-    setRefinement(null)
-  }
-
-  const handleCountryRemove = async () => {
-    if (!countryRemovePrompt) return
-    setRemovingCountry(true)
-    await supabase.from('trip_destinations').delete().eq('id', countryRemovePrompt.id)
-    setDestinations((prev) => prev.filter((d) => d.id !== countryRemovePrompt.id))
-    if (expandedDestId === countryRemovePrompt.id) setExpandedDestId(null)
-    setRemovingCountry(false)
-    setCountryRemovePrompt(null)
-  }
-
-  const handleCountryKeep = () => {
-    setCountryRemovePrompt(null)
-  }
-
-  // Opens the add-destination panel. Suggestions are computed here from the ref
-  // (no state, no re-renders) and frozen for the lifetime of the open panel.
   const openAddDest = () => {
     const clusters = inboxClustersRef.current
     const suggestions: typeof frozenSuggestions = []
@@ -1284,24 +946,7 @@ export default function TripDetailPage() {
     setShowAddDest(true)
   }
 
-  // Keep ref in sync for global FAB event listener
   openAddDestRef.current = openAddDest
-
-  const handleDeleteDestination = async (destId: string) => {
-    setDestinations((prev) => prev.filter((d) => d.id !== destId))
-    if (expandedDestId === destId) setExpandedDestId(null)
-    await supabase.from('trip_destinations').delete().eq('id', destId)
-  }
-
-  const handleDestDatesUpdated = (updated: TripDestination) => {
-    setDestinations((prev) =>
-      prev.map((d) =>
-        d.id === updated.id
-          ? { ...d, start_date: updated.start_date, end_date: updated.end_date }
-          : d,
-      ),
-    )
-  }
 
   const handleAddNote = async (text: string) => {
     if (!id) return
@@ -1318,7 +963,77 @@ export default function TripDetailPage() {
     await supabase.from('trips').update({ notes: updated }).eq('id', id)
   }
 
-  // Drag-to-reorder destinations
+  // ── Organize mode ─────────────────────────────────────────────────────────
+
+  const toggleOrganizeMode = () => {
+    if (organizeMode) {
+      // Exit organize mode
+      setOrganizeMode(false)
+      setSelectedDestIds(new Set())
+      setShowRouteNameInput(false)
+      setRouteNameInput('')
+    } else {
+      setOrganizeMode(true)
+    }
+  }
+
+  const toggleDestSelection = (destId: string) => {
+    setSelectedDestIds(prev => {
+      const next = new Set(prev)
+      if (next.has(destId)) next.delete(destId)
+      else next.add(destId)
+      return next
+    })
+  }
+
+  const handleGroupAsRoute = () => {
+    if (selectedDestIds.size < 2) return
+    setShowRouteNameInput(true)
+    setRouteNameInput('')
+  }
+
+  const handleCreateRoute = async () => {
+    const name = routeNameInput.trim()
+    if (!name || selectedDestIds.size < 2) return
+
+    // Find the minimum sort_order among selected destinations
+    const selectedDests = destinations.filter(d => selectedDestIds.has(d.id))
+    const minSort = Math.min(...selectedDests.map(d => d.sort_order))
+
+    const route = await createRoute(name, Array.from(selectedDestIds), minSort)
+    if (route) {
+      // Update local destinations to reflect route_id
+      setDestinations(prev => prev.map(d =>
+        selectedDestIds.has(d.id) ? { ...d, route_id: route.id } : d
+      ))
+      trackEvent('route_created', user?.id ?? null, {
+        trip_id: id,
+        route_name: name,
+        destination_count: selectedDestIds.size,
+      })
+    }
+
+    // Exit organize mode
+    setOrganizeMode(false)
+    setSelectedDestIds(new Set())
+    setShowRouteNameInput(false)
+    setRouteNameInput('')
+  }
+
+  const handleUngroupRoute = async (routeId: string) => {
+    await ungroupRoute(routeId)
+    // Update local destinations to clear route_id
+    setDestinations(prev => prev.map(d =>
+      d.route_id === routeId ? { ...d, route_id: null } : d
+    ))
+  }
+
+  const handleRenameRoute = async (routeId: string, newName: string) => {
+    await renameRoute(routeId, newName)
+  }
+
+  // ── DnD ───────────────────────────────────────────────────────────────────
+
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 400, tolerance: 5 } }),
@@ -1328,18 +1043,53 @@ export default function TripDetailPage() {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const oldIndex = destinations.findIndex((d) => d.id === active.id)
-    const newIndex = destinations.findIndex((d) => d.id === over.id)
-    const reordered = arrayMove(destinations, oldIndex, newIndex)
-    setDestinations(reordered)
+
+    const oldIndex = overviewEntries.findIndex(e => getEntryId(e) === active.id)
+    const newIndex = overviewEntries.findIndex(e => getEntryId(e) === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = arrayMove(overviewEntries, oldIndex, newIndex)
+
+    // Assign new sort_orders
+    const updates: Array<{ table: 'trip_destinations' | 'trip_routes'; id: string; sort_order: number }> = []
+    reordered.forEach((entry, idx) => {
+      if (entry.type === 'destination') {
+        updates.push({ table: 'trip_destinations', id: entry.destination.id, sort_order: idx })
+      } else {
+        updates.push({ table: 'trip_routes', id: entry.route.id, sort_order: idx })
+        // Also keep child destination sort_orders relative within the route
+      }
+    })
+
+    // Optimistically update local state
+    setDestinations(prev => {
+      const updated = [...prev]
+      for (const u of updates) {
+        if (u.table === 'trip_destinations') {
+          const dest = updated.find(d => d.id === u.id)
+          if (dest) dest.sort_order = u.sort_order
+        }
+      }
+      return updated.sort((a, b) => a.sort_order - b.sort_order)
+    })
+
+    // Persist to DB
     await Promise.all(
-      reordered.map((dest, idx) =>
-        supabase.from('trip_destinations').update({ sort_order: idx }).eq('id', dest.id),
-      ),
+      updates.map(u =>
+        supabase.from(u.table).update({ sort_order: u.sort_order }).eq('id', u.id)
+      )
     )
   }
 
-  // ── Loading / error states ─────────────────────────────────────────────────
+  const handleScheduled = (updatedTrip: Trip, updatedDests: TripDestination[]) => {
+    setTrip(updatedTrip)
+    setDestinations(prev => prev.map(d => {
+      const updated = updatedDests.find(ud => ud.id === d.id)
+      return updated ? { ...d, start_date: updated.start_date, end_date: updated.end_date } : d
+    }))
+  }
+
+  // ── Loading / error states ────────────────────────────────────────────────
 
   if (!tripLoading && notFound) {
     return (
@@ -1367,12 +1117,12 @@ export default function TripDetailPage() {
           <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
           <div className="h-10 w-12 bg-gray-100 rounded-xl" />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-3">
           {[1, 2].map((i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-              <div className="flex items-center gap-3 px-3 py-3">
-                <div className="w-11 h-11 rounded-xl bg-gray-100 shrink-0" />
-                <div className="flex-1 space-y-1.5">
+            <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm p-3">
+              <div className="flex items-center gap-3.5">
+                <div className="w-20 h-20 rounded-xl bg-gray-100 shrink-0" />
+                <div className="flex-1 space-y-2">
                   <div className="h-4 bg-gray-100 rounded w-1/2" />
                   <div className="h-3 bg-gray-100 rounded w-1/3" />
                 </div>
@@ -1395,7 +1145,7 @@ export default function TripDetailPage() {
         Trips
       </button>
 
-      {/* Single-destination hero image — destination photo + name + dates, shown in place of the small collapsed header */}
+      {/* Single-dest hero image */}
       {isSingleDest && destinations[0] && (
         <div className="relative -mx-4 mt-3 mb-5 h-44 overflow-hidden">
           {destinations[0].image_url ? (
@@ -1407,9 +1157,7 @@ export default function TripDetailPage() {
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-blue-400 to-indigo-600" />
           )}
-          {/* Gradient overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-          {/* Destination name + dates overlaid */}
           <div className="absolute bottom-0 left-0 right-0 px-4 pb-3">
             <p className="text-white font-bold text-xl leading-tight drop-shadow">
               {destinations[0].location_name.split(',')[0].trim()}
@@ -1485,7 +1233,7 @@ export default function TripDetailPage() {
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
             <path d="M13 4.5a2.5 2.5 0 11.702 1.737L6.97 9.604a2.518 2.518 0 010 .792l6.733 3.367a2.5 2.5 0 11-.671 1.341l-6.733-3.367a2.5 2.5 0 110-3.475l6.733-3.366A2.52 2.52 0 0113 4.5z" />
           </svg>
-          {trip?.share_token ? 'Shared ✓' : 'Share'}
+          {trip?.share_token ? 'Shared' : 'Share'}
         </button>
         <button type="button" onClick={() => setShowInviteModal(true)}
           className={`flex items-center justify-center gap-2 min-h-[44px] px-4 py-2.5 border rounded-xl transition-colors ${
@@ -1524,7 +1272,6 @@ export default function TripDetailPage() {
             if (!trip || !user) return
             const newVal = !trip.is_featured
             setTrip((prev) => prev ? { ...prev, is_featured: newVal } : prev)
-            // Clear any existing featured trip first
             await supabase.from('trips').update({ is_featured: false }).eq('owner_id', user.id).eq('is_featured', true)
             if (newVal) {
               await supabase.from('trips').update({ is_featured: true }).eq('id', trip.id)
@@ -1545,13 +1292,30 @@ export default function TripDetailPage() {
             </svg>
           )}
         </button>
+        {/* Organize mode toggle */}
+        {destinations.length >= 2 && (
+          <button
+            type="button"
+            onClick={toggleOrganizeMode}
+            className={`flex items-center justify-center px-3 py-2.5 border rounded-xl transition-colors text-sm font-semibold ${
+              organizeMode ? 'border-blue-500 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+            }`}
+            aria-label={organizeMode ? 'Exit organize mode' : 'Organize destinations'}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z" clipRule="evenodd" />
+            </svg>
+          </button>
+        )}
       </div>
 
-      {/* ── Destination sections — adaptive layout ── */}
-      {destinations.length === 0 ? (
+      {/* Trip notes (General section) */}
+      <GeneralSection notes={tripNotes} onAddNote={handleAddNote} onDeleteNote={handleDeleteNote} />
 
-        /* ── ZERO destinations: combined empty state with integrated autocomplete ── */
-        <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-5">
+      {/* ── Overview entries ── */}
+      {destinations.length === 0 ? (
+        /* Empty state with autocomplete + suggestions */
+        <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-5 mt-6">
           <div className="text-center mb-5">
             <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-blue-400">
@@ -1584,163 +1348,170 @@ export default function TripDetailPage() {
           />
           {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
         </div>
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
+            <div className="space-y-0 mt-6">
+              {overviewEntries.map((entry, i) => {
+                const country = getEntryCountry(entry)
+                const countryCode = getEntryCountryCode(entry)
+                const prevCountry = i > 0 ? getEntryCountry(overviewEntries[i - 1]) : null
+                const showCountryHeader = hasMultipleCountries && country !== prevCountry
+                const showConnector = i > 0
+                const entryId = getEntryId(entry)
 
-      ) : isSingleDest ? (
+                return (
+                  <div key={entryId}>
+                    {showCountryHeader && (
+                      <div className={`flex items-center gap-2 ${i > 0 ? 'mt-4' : ''} mb-2`}>
+                        <span className="text-lg leading-none">{countryCodeToFlag(countryCode)}</span>
+                        <span className="text-sm font-semibold text-gray-600">{country}</span>
+                      </div>
+                    )}
+                    {showConnector && (
+                      <DottedConnector longer={showCountryHeader} />
+                    )}
+                    <SortableOverviewEntry entry={entry}>
+                      {entry.type === 'destination' ? (
+                        <DestinationCard
+                          destination={entry.destination}
+                          itemCount={entry.destination._count}
+                          tripId={id!}
+                          index={overviewEntries.slice(0, i).filter(e => e.type === 'destination').length}
+                          organizeMode={organizeMode}
+                          isSelected={selectedDestIds.has(entry.destination.id)}
+                          onToggleSelect={() => toggleDestSelection(entry.destination.id)}
+                        />
+                      ) : (
+                        <RouteCard
+                          route={entry.route}
+                          destinations={entry.destinations.map(d => ({ ...d, itemCount: d._count }))}
+                          tripId={id!}
+                          organizeMode={organizeMode}
+                          onUngroup={() => handleUngroupRoute(entry.route.id)}
+                          onRename={(newName) => handleRenameRoute(entry.route.id, newName)}
+                        />
+                      )}
+                    </SortableOverviewEntry>
+                  </div>
+                )
+              })}
+            </div>
+          </SortableContext>
+        </DndContext>
+      )}
 
-        /* ── ONE destination: flat/hero layout — content rendered inline, no collapsible wrapper ── */
-        <>
-          {/* Flat destination content — always visible, no accordion */}
-          <DestinationSection
-            destination={destinations[0]}
-            index={0}
-            tripId={id!}
-            userId={user!.id}
-            isExpanded={true}
-            isFlat={true}
-            onToggle={() => {}}
-            onDelete={handleDeleteDestination}
-            onDatesUpdated={handleDestDatesUpdated}
-            locatedItems={locatedItems}
-            canEdit={true}
-            userAvatarUrl={user!.user_metadata?.avatar_url}
-            onAddDestination={openAddDest}
-            onAddCityWithItems={handleAddCityWithItems}
-          />
-
-          {/* Add Destination — subtle button/form below destination content */}
-          {/* Hidden when destination is empty (accessible via unified + Add dropdown inside section) */}
-          {(showAddDest || (destinations[0].destination_items?.length ?? 0) > 0) && (
-            <div className="mt-4">
-              {showAddDest ? (
-                <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                  <LocationAutocomplete
-                    key={addDestKey}
-                    value=""
-                    onSelect={handleAddDestination}
-                    label="New destination"
-                    optional={false}
-                    placeholder="e.g. Beijing, Tokyo, France…"
-                  />
+      {/* Add destination section */}
+      {destinations.length > 0 && (
+        <div className="mt-6">
+          {showAddDest ? (
+            <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-gray-700">Add destination</p>
+                <button type="button" onClick={() => { setShowAddDest(false); setAddDestKey(k => k + 1) }}
+                  className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                    <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                  </svg>
+                </button>
+              </div>
+              {frozenSuggestions.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                    Suggested from your saves
+                  </p>
                   <AddDestSuggestionList
                     suggestions={frozenSuggestions}
                     onSelect={handleAddFromSuggestion}
                     disabled={addingDest}
                   />
-                  {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
-                  {!addingDest && (
-                    <button type="button" onClick={() => setShowAddDest(false)}
-                      className="mt-2 w-full text-center text-sm text-gray-400 hover:text-gray-600 transition-colors">
-                      Cancel
-                    </button>
-                  )}
+                  <p className="mt-3 text-xs text-gray-400 font-medium">Or search manually</p>
                 </div>
-              ) : (
-                <button type="button" onClick={openAddDest}
-                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                    <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                  </svg>
-                  Add Destination
-                </button>
               )}
+              <LocationAutocomplete
+                key={addDestKey}
+                value=""
+                onSelect={handleAddDestination}
+                label=""
+                optional={false}
+                placeholder="e.g. Beijing, Tokyo, France…"
+              />
+              {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
             </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openAddDest}
+              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-semibold text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+              </svg>
+              Add destination
+            </button>
           )}
-        </>
-
-      ) : (
-
-        /* ── TWO OR MORE destinations: full collapsible accordion with country grouping ── */
-        <>
-          {/* Timeline + accordion sections */}
-          <div className="relative">
-            {/* Subtle vertical connecting line — centered on the timeline dots */}
-            {destinations.length > 1 && (
-              <div className="absolute left-[6px] top-6 bottom-6 w-px bg-gray-200 pointer-events-none z-0" />
-            )}
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-              <SortableContext items={destinations.map((d) => d.id)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-2">
-                  {countryGroups.map((group, groupIdx) => (
-                    <div key={group.country}>
-                      {/* Country group header — shown only when trip spans multiple countries */}
-                      {hasMultipleCountries && (
-                        <div className={`pl-[27px] flex items-center gap-1.5 ${groupIdx > 0 ? 'mt-4 mb-1.5' : 'mb-1.5'}`}>
-                          <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{group.country}</span>
-                        </div>
-                      )}
-                      <div className="space-y-2">
-                        {group.destinations.map((dest) => {
-                          const destIdx = destinations.findIndex((d) => d.id === dest.id)
-                          return (
-                            <SortableDestinationRow
-                              key={dest.id}
-                              dest={dest}
-                              destIdx={destIdx}
-                              tripId={id!}
-                              userId={user!.id}
-                              userAvatarUrl={user!.user_metadata?.avatar_url}
-                              isExpanded={expandedDestId === dest.id}
-                              onToggle={() => setExpandedDestId(expandedDestId === dest.id ? null : dest.id)}
-                              onDelete={handleDeleteDestination}
-                              onDatesUpdated={handleDestDatesUpdated}
-                              locatedItems={locatedItems}
-                              openAddDest={openAddDest}
-                              handleAddCityWithItems={handleAddCityWithItems}
-                            />
-                          )
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-          </div>
-
-          {/* Add Destination */}
-          <div className="mt-3 pl-6">
-            {showAddDest ? (
-              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                <LocationAutocomplete
-                  key={addDestKey}
-                  value=""
-                  onSelect={handleAddDestination}
-                  label="New destination"
-                  optional={false}
-                  placeholder="e.g. Beijing, Tokyo, France…"
-                />
-                <AddDestSuggestionList
-                  suggestions={frozenSuggestions}
-                  onSelect={handleAddFromSuggestion}
-                  disabled={addingDest}
-                />
-                {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
-                {!addingDest && (
-                  <button type="button" onClick={() => setShowAddDest(false)}
-                    className="mt-2 w-full text-center text-sm text-gray-400 hover:text-gray-600 transition-colors">
-                    Cancel
-                  </button>
-                )}
-              </div>
-            ) : (
-              <button type="button" onClick={openAddDest}
-                className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                  <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-                </svg>
-                Add Destination
-              </button>
-            )}
-          </div>
-        </>
+        </div>
       )}
 
-      {/* General section */}
-      <GeneralSection
-        notes={tripNotes}
-        onAddNote={handleAddNote}
-        onDeleteNote={handleDeleteNote}
-      />
+      {/* Organize mode bottom bar */}
+      {organizeMode && (
+        <div className="fixed bottom-20 left-0 right-0 z-40 px-4 pb-2">
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-lg px-4 py-3 flex items-center gap-3">
+            {showRouteNameInput ? (
+              <div className="flex-1 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={routeNameInput}
+                  onChange={(e) => setRouteNameInput(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateRoute(); if (e.key === 'Escape') { setShowRouteNameInput(false); setRouteNameInput('') } }}
+                  placeholder="Route name…"
+                  className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={handleCreateRoute}
+                  disabled={!routeNameInput.trim()}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  Create
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowRouteNameInput(false); setRouteNameInput('') }}
+                  className="px-3 py-2 text-gray-500 text-sm font-medium hover:bg-gray-100 rounded-xl transition-colors shrink-0"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <>
+                <span className="text-sm text-gray-600 flex-1">
+                  {selectedDestIds.size === 0
+                    ? 'Select destinations to group'
+                    : `${selectedDestIds.size} selected`
+                  }
+                </span>
+                <button
+                  type="button"
+                  onClick={handleGroupAsRoute}
+                  disabled={selectedDestIds.size < 2}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 shrink-0"
+                >
+                  Group as Route
+                </button>
+                <button
+                  type="button"
+                  onClick={toggleOrganizeMode}
+                  className="px-3 py-2 text-gray-500 text-sm font-medium hover:bg-gray-100 rounded-xl transition-colors shrink-0"
+                >
+                  Done
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       {showScheduleModal && trip && (
@@ -1748,66 +1519,24 @@ export default function TripDetailPage() {
           trip={trip}
           destinations={destinations}
           onClose={() => setShowScheduleModal(false)}
-          onScheduled={(updated, updatedDests) => {
-            if (updated.status === 'scheduled' && trip.status !== 'scheduled') {
-              trackEvent('trip_scheduled', user?.id ?? null, { trip_id: updated.id, start_date: updated.start_date, end_date: updated.end_date })
-            }
-            setTrip(updated)
-            setDestinations((prev) =>
-              prev.map((d) => {
-                const ud = updatedDests.find((u) => u.id === d.id)
-                return ud ? { ...d, start_date: ud.start_date, end_date: ud.end_date } : d
-              }),
-            )
-          }}
+          onScheduled={handleScheduled}
         />
       )}
-
       {showShareModal && trip && (
         <ShareTripModal
           trip={trip}
           onClose={() => setShowShareModal(false)}
-          onUpdated={(updated) => {
-            if (updated.share_token && !trip.share_token) {
-              trackEvent('trip_shared', user?.id ?? null, { trip_id: updated.id, share_privacy: updated.share_privacy })
-            }
-            setTrip(updated)
-          }}
+          onUpdated={(updated) => setTrip(updated)}
         />
       )}
-
       {showInviteModal && (
         <InviteCompanionModal
           companions={companions}
           pendingInvites={pendingInvites}
           onClose={() => setShowInviteModal(false)}
-          onInviteByEmail={async (email) => {
-            const result = await inviteByEmail(email)
-            if (result.ok && result.type === 'added') {
-              trackEvent('companion_invited', user?.id ?? null, { trip_id: id })
-            }
-            return result
-          }}
+          onInviteByEmail={inviteByEmail}
           onRemove={removeCompanion}
           onRemovePending={removePendingInvite}
-        />
-      )}
-
-      {refinement && (
-        <RefinementModal
-          refinement={refinement}
-          onMove={handleRefinementMove}
-          onKeep={handleRefinementKeep}
-          moving={movingItems}
-        />
-      )}
-
-      {countryRemovePrompt && (
-        <CountryRemovePrompt
-          countryDest={countryRemovePrompt}
-          onRemove={handleCountryRemove}
-          onKeep={handleCountryKeep}
-          removing={removingCountry}
         />
       )}
     </div>

@@ -129,3 +129,4 @@ These are ideas for future development. They should NOT be implemented during MV
 - Overlap detection (notify friends when future trips coincide in same city)
 - Calendar export and sync
 - Schedule conflict detection
+- Gmail integration: scan inbox for travel confirmations (flights, hotels, car rentals) and auto-create saves or attach to existing trips. Parse booking emails from airlines, hotels, and OTAs to extract dates, confirmation numbers, and locations. Could use Gmail API with OAuth consent.
