@@ -109,10 +109,62 @@ Below the hero card, remaining trips use one of two layouts based on count:
 
 Hero-sized skeleton (`h-56 rounded-2xl animate-pulse bg-gray-100`) + 2 smaller card skeletons.
 
+## Illustrated Dotted Pathway Connectors
+
+The `DottedConnector` component renders an SVG-based illustrated dotted line between destination cards and activity items. It uses a curved path with rounded dot markers, evoking a travel route between stops.
+
+- **Usage:** Between destination cards on route overview, between activity items on destination detail, and as visual separators in the add-destination flow.
+- **Styling:** `stroke-dasharray` dotted pattern, muted gray (`text-gray-200`), ~40px tall, centered horizontally.
+- **Purpose:** Reinforces the journey metaphor. A key visual design element of the trip experience.
+
+## Destination Summary Card
+
+The `DestinationCard` component is the compact card used on the trip overview and route overview pages.
+
+- **Layout:** Horizontal card with `h-20 w-20 rounded-xl` thumbnail (left), content (right).
+- **Thumbnail:** Destination `image_url` or gradient fallback (from shared `DEST_GRADIENTS` array based on `sort_order`).
+- **Content:** Bilingual destination name (bold, truncated), date range in blue if set, item count with MapPin icon.
+- **Navigation:** Entire card is a `<Link to={/trip/${tripId}/dest/${destId}}>`.
+- **Styling:** `bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow`.
+
+## Route Card
+
+The `RouteCard` component displays a route (group of destinations) on the trip overview page.
+
+- **Layout:** Horizontal card with stacked-card visual effect (pseudo-element behind for depth).
+- **Thumbnail:** First destination's image or gradient fallback with `Layers` icon. Badge overlay showing stop count.
+- **Content:** Route name (bold), aggregated date range from destinations, total item count.
+- **Actions:** Three-dot menu with Rename and Ungroup options. In organize mode, shows Ungroup button directly.
+- **Navigation:** Entire card is a `<Link to={/trip/${tripId}/route/${routeId}}>`.
+- **Styling:** Same card styling as DestinationCard with `absolute inset-x-1 -bottom-1` stacked effect.
+
+## Destination Detail Page Layout
+
+The full-page destination editing environment at `/trip/:id/dest/:destId`:
+
+1. **Back button** — `px-4 pt-4 pb-2`, navigates to `/trip/${tripId}`
+2. **Hero image** — `mx-4 h-48 rounded-2xl overflow-hidden`, destination photo or gradient fallback with bilingual name overlay
+3. **Header area** — Bilingual name (English + local script), country with flag emoji, date range or "+ Add dates" button, item count
+4. **Destination notes** — `MarkdownNotes` component with auto-save
+5. **Day tabs** — `DayTabRow` horizontal scroll tabs (only when dates are set): "All", "Unplanned", "Day 1", "Day 2", etc.
+6. **Activities list** — Two sections:
+   - Scheduled items: `DndContext` + `SortableContext` for drag-to-reorder, wrapped in `SwipeToDelete`
+   - Unscheduled items: Simple list with `SwipeToDelete`
+   - Each item is expandable to show notes, votes, and comment thread
+7. **Add actions** — Google Places search input (biased to destination) + "Add from your Horizon" button
+8. **Nearby suggestions** — Ghost cards (`SuggestionCard`) with dashed border, muted colors, one-tap "+" to add
+9. **Modals** — `AddDatesModal` (date picker), `AddFromInboxSheet` (Horizon item picker)
+
+### Ghost Cards (Suggestions)
+
+Horizon items near the destination but not yet linked appear as suggestion cards:
+- **Styling:** `border-dashed border-gray-200 bg-gray-50/50` — visually distinct from linked items
+- **Content:** Item title, category pill, location name
+- **Action:** Green "+" button to link the item to the destination
+- **Purpose:** Surfaces relevant Horizon items at the decision point without cluttering the Horizon itself
+
 ## Trip Page Visual Direction (Future)
 
-Transport connectors between destinations as illustrated dotted pathways.
+Transport connectors between destinations as illustrated dotted pathways (partially implemented via `DottedConnector`).
 
 Accommodation section within each destination (small, distinct from activities).
-
-Ghost cards for Horizon-derived suggestions (dashed border, muted colors).
