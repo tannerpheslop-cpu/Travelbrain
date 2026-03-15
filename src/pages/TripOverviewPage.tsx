@@ -76,162 +76,6 @@ function getEntryId(entry: OverviewEntry): string {
   return entry.type === 'destination' ? entry.destination.id : entry.route.id
 }
 
-// ── Schedule Trip Modal ────────────────────────────────────────────────────────
-
-function ScheduleTripModal({
-  trip,
-  destinations,
-  onClose,
-  onScheduled,
-}: {
-  trip: Trip
-  destinations: TripDestination[]
-  onClose: () => void
-  onScheduled: (updatedTrip: Trip, updatedDests: TripDestination[]) => void
-}) {
-  const isAlreadyScheduled = trip.status === 'scheduled'
-  const [startDate, setStartDate] = useState(trip.start_date ?? '')
-  const [endDate, setEndDate] = useState(trip.end_date ?? '')
-
-  const [destDates, setDestDates] = useState<Record<string, { start: string; end: string }>>(() => {
-    const init: Record<string, { start: string; end: string }> = {}
-    for (const d of destinations) {
-      init[d.id] = { start: d.start_date ?? '', end: d.end_date ?? '' }
-    }
-    return init
-  })
-
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const setDestDate = (destId: string, field: 'start' | 'end', val: string) => {
-    setDestDates((prev) => ({ ...prev, [destId]: { ...prev[destId], [field]: val } }))
-  }
-
-  const handleSave = async () => {
-    if (!startDate || !endDate) { setError('Both trip dates are required.'); return }
-    if (startDate > endDate) { setError('Start date must be before end date.'); return }
-    setSaving(true)
-    setError(null)
-
-    const { data: tripData, error: tripError } = await supabase
-      .from('trips')
-      .update({ status: 'scheduled', start_date: startDate, end_date: endDate })
-      .eq('id', trip.id)
-      .select()
-      .single()
-
-    if (tripError || !tripData) { setSaving(false); setError(tripError?.message ?? 'Failed to save.'); return }
-
-    const updatedDests = await Promise.all(
-      destinations.map(async (d) => {
-        const dates = destDates[d.id]
-        if (!dates?.start || !dates?.end) return d
-        const { data } = await supabase
-          .from('trip_destinations')
-          .update({ start_date: dates.start, end_date: dates.end })
-          .eq('id', d.id)
-          .select()
-          .single()
-        return (data as TripDestination) ?? d
-      }),
-    )
-
-    setSaving(false)
-    onScheduled(tripData as Trip, updatedDests)
-    onClose()
-  }
-
-  const handleUnschedule = async () => {
-    setSaving(true)
-    setError(null)
-    const { data, error: dbError } = await supabase
-      .from('trips')
-      .update({ status: 'aspirational', start_date: null, end_date: null })
-      .eq('id', trip.id)
-      .select()
-      .single()
-    setSaving(false)
-    if (dbError || !data) { setError('Failed to unschedule. Please try again.'); return }
-    onScheduled(data as Trip, destinations)
-    onClose()
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
-        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden shrink-0" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <h2 className="text-base font-semibold text-gray-900">{isAlreadyScheduled ? 'Edit Trip Dates' : 'Schedule Trip'}</h2>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" /></svg>
-          </button>
-        </div>
-
-        <div className="overflow-y-auto flex-1 px-5 py-5 space-y-6">
-          <div>
-            <p className="text-sm font-semibold text-gray-800 mb-3">Trip dates</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">Start</label>
-                <input type="date" value={startDate} onChange={(e) => { setStartDate(e.target.value); setError(null) }} max={endDate || undefined}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1.5">End</label>
-                <input type="date" value={endDate} onChange={(e) => { setEndDate(e.target.value); setError(null) }} min={startDate || undefined}
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
-              </div>
-            </div>
-          </div>
-
-          {destinations.length > 0 && (
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-gray-800">Destination dates</p>
-                <span className="text-xs text-gray-400">Optional</span>
-              </div>
-              <div className="space-y-4">
-                {destinations.map((d, i) => (
-                  <div key={d.id} className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs font-semibold text-gray-600 mb-2">{i + 1}. {d.location_name.split(',')[0]}{d.location_name_local && <span className="ml-1 font-normal text-gray-400">{d.location_name_local.split(',')[0]}</span>}</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Arrival</label>
-                        <input type="date" value={destDates[d.id]?.start ?? ''} onChange={(e) => setDestDate(d.id, 'start', e.target.value)}
-                          className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white" />
-                      </div>
-                      <div>
-                        <label className="block text-xs text-gray-400 mb-1">Departure</label>
-                        <input type="date" value={destDates[d.id]?.end ?? ''} onChange={(e) => setDestDate(d.id, 'end', e.target.value)}
-                          className="w-full px-2.5 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white" />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <button type="button" onClick={handleSave} disabled={saving}
-            className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50">
-            {saving ? 'Saving…' : isAlreadyScheduled ? 'Update Dates' : 'Schedule Trip'}
-          </button>
-          {isAlreadyScheduled && (
-            <button type="button" onClick={handleUnschedule} disabled={saving}
-              className="w-full py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-50">
-              Remove dates
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ── Share Trip Modal ───────────────────────────────────────────────────────────
 
 const privacyOptions: { value: SharePrivacy; label: string; emoji: string; description: string }[] = [
@@ -619,7 +463,6 @@ export default function TripOverviewPage() {
   }>>([])
 
   // Modals
-  const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
 
@@ -1081,14 +924,6 @@ export default function TripOverviewPage() {
     )
   }
 
-  const handleScheduled = (updatedTrip: Trip, updatedDests: TripDestination[]) => {
-    setTrip(updatedTrip)
-    setDestinations(prev => prev.map(d => {
-      const updated = updatedDests.find(ud => ud.id === d.id)
-      return updated ? { ...d, start_date: updated.start_date, end_date: updated.end_date } : d
-    }))
-  }
-
   // ── Loading / error states ────────────────────────────────────────────────
 
   if (!tripLoading && notFound) {
@@ -1134,8 +969,14 @@ export default function TripOverviewPage() {
     )
   }
 
-  const isScheduled = trip?.status === 'scheduled'
-  const isSingleDest = destinations.length === 1
+  const coverImage = destinations.find(d => d.image_url)?.image_url ?? trip?.cover_image_url ?? null
+
+  const derivedDateRange = useMemo(() => {
+    const starts = destinations.filter(d => d.start_date).map(d => d.start_date!)
+    const ends = destinations.filter(d => d.end_date).map(d => d.end_date!)
+    if (!starts.length || !ends.length) return null
+    return formatDateRange(starts.sort()[0], ends.sort().reverse()[0])
+  }, [destinations])
 
   return (
     <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
@@ -1145,172 +986,105 @@ export default function TripOverviewPage() {
         Trips
       </button>
 
-      {/* Single-dest hero image */}
-      {isSingleDest && destinations[0] && (
-        <div className="relative -mx-4 mt-3 mb-5 h-44 overflow-hidden">
-          {destinations[0].image_url ? (
-            <img
-              src={destinations[0].image_url}
-              alt={destinations[0].location_name.split(',')[0].trim()}
-              className="w-full h-full object-cover"
+      {/* Hero image header */}
+      <div className="relative -mx-4 mt-3 mb-5 h-48 overflow-hidden">
+        {coverImage ? (
+          <img src={coverImage} alt={trip?.title ?? 'Trip'} className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-blue-400 to-indigo-600" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+
+        {/* Top-right action icons */}
+        <div className="absolute top-3 right-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowShareModal(true)}
+            className={`relative w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+              trip?.share_token ? 'bg-blue-500/50 backdrop-blur-sm' : 'bg-black/30 backdrop-blur-sm'
+            }`}
+            aria-label="Share trip"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-white">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowInviteModal(true)}
+            className="relative w-9 h-9 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center"
+            aria-label="Invite companions"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-white">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+            </svg>
+            {companions.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-violet-500 rounded-full text-[10px] text-white font-bold flex items-center justify-center">
+                {companions.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* Bottom overlay: title + phase + dates */}
+        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4">
+          {editingTitle ? (
+            <input
+              ref={titleInputRef}
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={handleSaveTitle}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveTitle()
+                if (e.key === 'Escape') setEditingTitle(false)
+              }}
+              className="text-2xl font-bold text-white bg-transparent border-b-2 border-white/60 focus:outline-none w-full [text-shadow:0_1px_4px_rgba(0,0,0,0.4)] pb-0.5"
             />
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-blue-400 to-indigo-600" />
+            <button type="button" onClick={handleStartEditTitle} className="group flex items-center gap-2 text-left">
+              <h1 className="text-2xl font-bold text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.4)] leading-tight">{trip?.title}</h1>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                className="w-4 h-4 text-white/50 group-hover:text-white/80 transition-colors shrink-0">
+                <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+              </svg>
+            </button>
           )}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-          <div className="absolute bottom-0 left-0 right-0 px-4 pb-3">
-            <p className="text-white font-bold text-xl leading-tight drop-shadow">
-              {destinations[0].location_name.split(',')[0].trim()}
-              {destinations[0].location_name_local && (
-                <span className="ml-2 font-normal text-white/70 text-base">{destinations[0].location_name_local.split(',')[0].trim()}</span>
-              )}
-            </p>
-            {destinations[0].start_date && destinations[0].end_date && (
-              <p className="text-white/80 text-sm mt-0.5 drop-shadow">
-                {formatDateRange(destinations[0].start_date, destinations[0].end_date)}
-              </p>
+          <div className="flex items-center gap-2 mt-1.5">
+            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+              trip?.status === 'scheduled' ? 'bg-emerald-500/80 text-white' :
+              trip?.status === 'planning'  ? 'bg-blue-500/80 text-white' :
+                                             'bg-white/20 text-white backdrop-blur-sm'
+            }`}>
+              {trip?.status === 'scheduled' ? 'Upcoming' : trip?.status === 'planning' ? 'Planning' : 'Someday'}
+            </span>
+            {derivedDateRange && (
+              <>
+                <span className="text-white/40">·</span>
+                <span className="text-sm text-white/70">{derivedDateRange}</span>
+              </>
             )}
           </div>
         </div>
-      )}
-
-      {/* Trip header */}
-      <div className={`${isSingleDest ? '' : 'mt-4 '}mb-5`}>
-        {editingTitle ? (
-          <input
-            ref={titleInputRef}
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            onBlur={handleSaveTitle}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSaveTitle()
-              if (e.key === 'Escape') setEditingTitle(false)
-            }}
-            className="text-2xl font-bold text-gray-900 w-full focus:outline-none border-b-2 border-blue-500 pb-0.5 bg-transparent"
-          />
-        ) : (
-          <button type="button" onClick={handleStartEditTitle} className="group flex items-center gap-2 text-left">
-            <h1 className="text-2xl font-bold text-gray-900 leading-tight">{trip?.title}</h1>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-              className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0">
-              <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
-            </svg>
-          </button>
-        )}
-
-        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-            trip?.status === 'scheduled' ? 'bg-emerald-100 text-emerald-700' :
-            trip?.status === 'planning'  ? 'bg-blue-100 text-blue-700' :
-                                           'bg-gray-100 text-gray-500'
-          }`}>
-            {trip?.status === 'scheduled' ? 'Upcoming' : trip?.status === 'planning' ? 'Planning' : 'Someday'}
-          </span>
-          {isScheduled && trip?.start_date && trip?.end_date && (
-            <button type="button" onClick={() => setShowScheduleModal(true)}
-              className="text-sm text-gray-500 hover:text-gray-700 hover:underline underline-offset-2 transition-colors">
-              {formatDateRange(trip.start_date, trip.end_date)}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Action buttons */}
-      <div className="flex flex-wrap gap-2 mb-6">
-        {!isScheduled && (
-          <button type="button" onClick={() => setShowScheduleModal(true)}
-            className="flex-1 basis-0 min-w-[120px] flex items-center justify-center gap-2 min-h-[44px] px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
-              <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
-            </svg>
-            Schedule
-          </button>
-        )}
-        <button type="button" onClick={() => setShowShareModal(true)}
-          className={`flex-1 basis-0 min-w-[100px] flex items-center justify-center gap-2 min-h-[44px] px-4 py-2.5 border rounded-xl text-sm font-semibold transition-colors ${
-            trip?.share_token ? 'border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-          }`}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
-            <path d="M13 4.5a2.5 2.5 0 11.702 1.737L6.97 9.604a2.518 2.518 0 010 .792l6.733 3.367a2.5 2.5 0 11-.671 1.341l-6.733-3.367a2.5 2.5 0 110-3.475l6.733-3.366A2.52 2.52 0 0113 4.5z" />
-          </svg>
-          {trip?.share_token ? 'Shared' : 'Share'}
-        </button>
-        <button type="button" onClick={() => setShowInviteModal(true)}
-          className={`flex items-center justify-center gap-2 min-h-[44px] px-4 py-2.5 border rounded-xl transition-colors ${
-            companions.length > 0 ? 'border-violet-300 text-violet-700 bg-violet-50 hover:bg-violet-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-          }`}
-          aria-label="Invite companions"
-        >
-          {companions.length === 0 ? (
-            <span className="flex items-center gap-1 text-sm font-semibold">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
-              </svg>
-              <span>+</span>
-            </span>
-          ) : (
-            <span className="flex items-center gap-1.5">
-              <span className="flex -space-x-1.5">
-                {companions.slice(0, 3).map((c) => {
-                  const name = c.user.display_name ?? c.user.email
-                  const initials = name.split(/\s+/).slice(0, 2).map((s: string) => s[0]?.toUpperCase() ?? '').join('') || '?'
-                  return (
-                    <span key={c.id} className="w-6 h-6 rounded-full bg-violet-200 text-violet-800 text-xs font-bold flex items-center justify-center border-2 border-white shrink-0">
-                      {initials}
-                    </span>
-                  )
-                })}
-              </span>
-              {companions.length > 3 && <span className="text-xs font-semibold text-violet-700">+{companions.length - 3}</span>}
-            </span>
-          )}
-        </button>
-        {/* Feature / Unfeature toggle */}
-        <button
-          type="button"
-          onClick={async () => {
-            if (!trip || !user) return
-            const newVal = !trip.is_featured
-            setTrip((prev) => prev ? { ...prev, is_featured: newVal } : prev)
-            await supabase.from('trips').update({ is_featured: false }).eq('owner_id', user.id).eq('is_featured', true)
-            if (newVal) {
-              await supabase.from('trips').update({ is_featured: true }).eq('id', trip.id)
-            }
-          }}
-          className={`flex items-center justify-center px-3 py-2.5 border rounded-xl transition-colors ${
-            trip?.is_featured ? 'border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-          }`}
-          aria-label={trip?.is_featured ? 'Unfeature this trip' : 'Feature this trip'}
-        >
-          {trip?.is_featured ? (
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
-            </svg>
-          )}
-        </button>
-        {/* Organize mode toggle */}
-        {destinations.length >= 2 && (
-          <button
-            type="button"
-            onClick={toggleOrganizeMode}
-            className={`flex items-center justify-center px-3 py-2.5 border rounded-xl transition-colors text-sm font-semibold ${
-              organizeMode ? 'border-blue-500 text-blue-700 bg-blue-50 hover:bg-blue-100' : 'border-gray-300 text-gray-700 hover:bg-gray-50'
-            }`}
-            aria-label={organizeMode ? 'Exit organize mode' : 'Organize destinations'}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path fillRule="evenodd" d="M2 4.75A.75.75 0 012.75 4h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 4.75zm0 10.5a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75a.75.75 0 01-.75-.75zM2 10a.75.75 0 01.75-.75h14.5a.75.75 0 010 1.5H2.75A.75.75 0 012 10z" clipRule="evenodd" />
-            </svg>
-          </button>
-        )}
       </div>
 
       {/* Trip notes (General section) */}
       <GeneralSection notes={tripNotes} onAddNote={handleAddNote} onDeleteNote={handleDeleteNote} />
+
+      {/* Section header with organize toggle */}
+      {destinations.length >= 2 && (
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-semibold text-gray-500">{destinations.length} destinations</p>
+          <button
+            type="button"
+            onClick={toggleOrganizeMode}
+            className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+              organizeMode ? 'text-blue-700 bg-blue-50' : 'text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            {organizeMode ? 'Done' : 'Organize'}
+          </button>
+        </div>
+      )}
 
       {/* ── Overview entries ── */}
       {destinations.length === 0 ? (
@@ -1514,14 +1288,6 @@ export default function TripOverviewPage() {
       )}
 
       {/* Modals */}
-      {showScheduleModal && trip && (
-        <ScheduleTripModal
-          trip={trip}
-          destinations={destinations}
-          onClose={() => setShowScheduleModal(false)}
-          onScheduled={handleScheduled}
-        />
-      )}
       {showShareModal && trip && (
         <ShareTripModal
           trip={trip}
