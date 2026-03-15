@@ -395,7 +395,7 @@ function CommentThread({
 function DayItemCard({
   linkedItem, activeDayIndex, dayCount, startDate,
   onRemove, onMove, dragHandleAttributes, dragHandleListeners,
-  isDragging, canEdit, interaction, onNotesChange,
+  isDragging, canEdit,
 }: {
   linkedItem: LinkedItem
   activeDayIndex: number | null
@@ -407,8 +407,6 @@ function DayItemCard({
   dragHandleListeners?: Record<string, unknown>
   isDragging?: boolean
   canEdit?: boolean
-  interaction?: ItemInteraction
-  onNotesChange?: (itemId: string, notes: string | null) => void
 }) {
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const item = linkedItem.saved_item
@@ -421,7 +419,7 @@ function DayItemCard({
   }
 
   return (
-    <div className={`bg-white border border-gray-100 shadow-sm overflow-visible relative transition-opacity ${isDragging ? 'opacity-40' : ''} ${interaction?.isExpanded ? 'rounded-t-2xl' : 'rounded-2xl'}`}>
+    <div className={`bg-white border border-gray-100 border-b-0 shadow-sm overflow-visible relative transition-opacity ${isDragging ? 'opacity-40' : ''} rounded-t-2xl`}>
       <div className="flex items-center p-2">
         {canEdit ? (
           <button type="button" onClick={(e) => e.preventDefault()}
@@ -483,23 +481,6 @@ function DayItemCard({
           </div>
         )}
       </div>
-      {/* Activity notes — inline editable */}
-      <div className="px-3 pb-2">
-        <MarkdownNotes
-          value={item.notes}
-          onSave={(notes) => onNotesChange?.(item.id, notes)}
-          placeholder="Add note"
-          readOnly={!canEdit || !onNotesChange}
-          previewLines={2}
-        />
-      </div>
-      {interaction && (
-        <ItemInteractionBar
-          voteCount={interaction.voteCount} userHasVoted={interaction.userHasVoted}
-          commentCount={interaction.commentCount} isExpanded={interaction.isExpanded}
-          onToggleVote={interaction.onToggleVote} onToggleComments={interaction.onToggleComments}
-        />
-      )}
     </div>
   )
 }
@@ -522,19 +503,18 @@ function SortableDayItem(props: Omit<React.ComponentProps<typeof DayItemCard>, '
 
 // ── Linked Item Card ───────────────────────────────────────────────────────────
 
-function LinkedItemCard({
-  item, linkId, onRemove, canEdit, interaction, onNotesChange,
+function LinkedItemCardSummary({
+  item, linkId, onRemove, canEdit, hasExpandedContent,
 }: {
   item: SavedItem
   linkId: string
   onRemove: (linkId: string) => void
   canEdit?: boolean
-  interaction?: ItemInteraction
-  onNotesChange?: (itemId: string, notes: string | null) => void
+  hasExpandedContent?: boolean
 }) {
   const colors = categoryColors[item.category]
   return (
-    <div className={`bg-white border border-gray-100 shadow-sm overflow-hidden ${interaction?.isExpanded ? 'rounded-t-2xl' : 'rounded-2xl'}`}>
+    <div className={`bg-white border border-gray-100 shadow-sm overflow-hidden ${hasExpandedContent ? 'rounded-t-2xl border-b-0' : 'rounded-2xl'}`}>
       <div className="flex items-center gap-0 p-2">
         <Link to={`/item/${item.id}`} className="shrink-0 select-none" style={{ WebkitTouchCallout: 'none' }}>
           <SavedItemImage item={item} size="md" className="rounded-xl pointer-events-none" />
@@ -553,7 +533,20 @@ function LinkedItemCard({
           </button>
         )}
       </div>
-      {/* Activity notes — inline editable */}
+    </div>
+  )
+}
+
+function LinkedItemExpanded({
+  item, canEdit, interaction, onNotesChange,
+}: {
+  item: SavedItem
+  canEdit?: boolean
+  interaction?: ItemInteraction
+  onNotesChange?: (itemId: string, notes: string | null) => void
+}) {
+  return (
+    <div className="bg-white border border-gray-100 border-t-0 shadow-sm overflow-hidden rounded-b-2xl">
       <div className="px-3 pb-2">
         <MarkdownNotes
           value={item.notes}
@@ -1413,10 +1406,13 @@ export default function DestinationDetailPage() {
                               onRemove={handleRemoveItem}
                               onMove={handleMoveItem}
                               canEdit={canEdit}
-                              interaction={buildInteraction(li.item_id)}
-                              onNotesChange={handleItemNotesChange}
                             />
                           </SwipeToDelete>
+                          <LinkedItemExpanded
+                            item={li.saved_item} canEdit={canEdit}
+                            interaction={buildInteraction(li.item_id)}
+                            onNotesChange={handleItemNotesChange}
+                          />
                           {expandedItemId === li.item_id && (
                             <CommentThread
                               comments={threadComments} loading={threadLoading}
@@ -1573,13 +1569,17 @@ export default function DestinationDetailPage() {
                 {linkedItems.slice().sort((a, b) => a.sort_order - b.sort_order).map((li) => (
                   <div key={li.id}>
                     <SwipeToDelete enabled={canEdit} onDelete={() => handleRemoveItem(li.id)}>
-                      <LinkedItemCard
+                      <LinkedItemCardSummary
                         item={li.saved_item} linkId={li.id}
                         onRemove={handleRemoveItem} canEdit={canEdit}
-                        interaction={buildInteraction(li.item_id)}
-                        onNotesChange={handleItemNotesChange}
+                        hasExpandedContent
                       />
                     </SwipeToDelete>
+                    <LinkedItemExpanded
+                      item={li.saved_item} canEdit={canEdit}
+                      interaction={buildInteraction(li.item_id)}
+                      onNotesChange={handleItemNotesChange}
+                    />
                     {expandedItemId === li.item_id && (
                       <CommentThread
                         comments={threadComments} loading={threadLoading}
