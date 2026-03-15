@@ -1592,12 +1592,6 @@ export default function DestinationDetailPage() {
               </div>
             )}
 
-            {/* Inline hint for adding dates */}
-            {!hasSchedule && linkedItems.length > 0 && canEdit && (
-              <button onClick={() => setShowAddDates(true)} className="text-xs text-blue-500 hover:text-blue-700 font-medium transition-colors">
-                + Add dates to unlock day-by-day planning
-              </button>
-            )}
           </>
         )}
 
