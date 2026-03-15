@@ -224,10 +224,32 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | Horizon | /inbox | Geographic-grouped card list of all saves. Search + Unplanned toggle + collapsible filters. Floating + button triggers save flow. Default home screen. |
 | Item Detail | /item/:id | View/edit a saved item |
 | Trips | /trips | Featured trip hero + adaptive layout (stacked cards or phase-grouped carousels) |
-| Trip Page | /trip/:id | Destination-based trip view with adaptive layout. All destination content lives inline — no separate destination pages. |
+| Trip Overview | /trip/:id | High-level trip view showing destination summary cards and route cards, grouped by country. Tapping a card navigates deeper. |
+| Route Overview | /trip/:id/route/:routeId | View/edit a route — shows the route's destinations as cards connected by illustrated dotted pathway connectors, with drag-to-reorder. |
+| Destination Detail | /trip/:id/dest/:destId | Full-page editing environment for a single destination: hero image, bilingual name, notes, activities with swipe-to-delete and drag-to-reorder, day-by-day scheduling, nearby suggestions, add-from-Horizon picker, Google Places search. |
+| Search | /search | Global search across saves, trips, and destinations. |
+| Profile | /profile | User profile and settings. |
 | Shared Trip (public) | /s/:share_token | Read-only public view. Adopt CTA. |
 
-**There is NO separate destination page.** All destination content (items, suggestions, day-by-day itinerary) is displayed inline on the trip page in collapsible sections.
+### Trip Page Architecture
+
+The trip experience uses a three-level navigation hierarchy:
+
+1. **Trip Overview** (`/trip/:id`) — The entry point. Shows all destinations as compact summary cards and route cards, grouped by country. Destinations not in any route appear as standalone cards. Users can organize destinations into routes, reorder them, and add new destinations. Tapping a destination card navigates to its detail page; tapping a route card navigates to the route overview.
+
+2. **Route Overview** (`/trip/:id/route/:routeId`) — An optional intermediate level for grouped destinations. Shows a route's destinations as cards connected by illustrated dotted pathway connectors. Supports drag-to-reorder, inline rename, and adding destinations to the route.
+
+3. **Destination Detail** (`/trip/:id/dest/:destId`) — The full editing environment for a single destination. This is where all content management happens: viewing and editing activities, scheduling items into days, adding places via Google Places search, linking items from Horizon, managing notes, and viewing nearby suggestions.
+
+**Destination editing happens on its own page, not inline.** The old accordion-based inline editing system has been replaced by this overview → detail navigation pattern, which provides more screen space for content management and a cleaner trip overview.
+
+### Route Grouping
+
+Destinations within a trip can be organized into named routes via the trip overview page's "Organize" mode. Routes represent logical travel segments (e.g., "Week 1: Tokyo → Osaka", "Southern Thailand"). Route grouping is stored in the `trip_routes` table with a `route_id` foreign key on `trip_destinations`. Destinations not assigned to any route appear as standalone cards on the trip overview.
+
+### Visual Design: Illustrated Dotted Pathway Connectors
+
+Dotted pathway connectors (`DottedConnector` component) appear between destination cards on the route overview page and between items on the destination detail page. They use an SVG-based illustrated dotted line with a subtle curve, evoking a travel path between stops. This is a key visual design element that reinforces the journey metaphor.
 
 **There is NO top-level navigation header.** Navigation uses a bottom tab bar only. Profile/settings are accessed via a Profile tab.
 
@@ -291,7 +313,7 @@ These are non-negotiable and must guide every UI decision:
 9. **Saving happens from within the Horizon via a floating action button — never a separate page.** The user should never leave the Horizon to add something.
 10. **Trips should grow organically.** The destination-based model means trips get richer as users save more content, without requiring manual organization.
 11. **Intelligence surfaces at decision points, not in the Horizon.** Smart suggestions (clusters, nearby items) appear during trip creation and destination addition — the moments when the user is actively deciding. The Horizon remains a pure inspiration space.
-12. **Minimize navigation depth.** All destination content lives inline on the trip page via collapsible sections. Users should never be more than 2 taps from any content.
+12. **Minimize navigation depth.** The trip overview → destination detail pattern keeps content within 2-3 taps. The trip overview provides a scannable summary; tapping a destination opens its full editing environment.
 
 ---
 
@@ -354,30 +376,29 @@ Country-level destinations are useful when the user knows they want to visit a c
 
 Destinations are visually grouped by country on the trip page. The country is derived from each destination's location_country field — not a separate data object. Country group headers show the flag emoji (from location_country_code) and country name. If all destinations are in the same country, the country header can be shown subtly or omitted since it's obvious.
 
-### Adaptive Trip UI
+### Trip Overview Layout
 
-The trip page layout adapts based on what's in the trip:
+The trip overview page (`/trip/:id`) shows destinations as compact summary cards, grouped by country:
 
-**One destination (any type):** The UI flattens. No collapsible sections. The trip page directly shows the destination's items, nearby suggestions, and day-by-day itinerary (if scheduled). The destination name and photo appear as the trip header area. This makes single-city trips feel streamlined.
+**Destination Summary Cards:** Each card shows a thumbnail image (or gradient fallback), bilingual destination name, date range (if set), item count, and a category breakdown. Tapping a card navigates to `/trip/:id/dest/:destId` for full editing.
 
-**Multiple destinations, same country:** Collapsible destination sections appear in a vertical timeline layout. No country grouping header needed (or shown subtly). Each destination is a collapsible section.
+**Route Cards:** Destinations grouped into routes appear as stacked route cards showing the route name, stop count, date range, and first destination's image. Tapping navigates to `/trip/:id/route/:routeId`.
 
-**Multiple destinations, multiple countries:** Destinations are visually grouped under country headers. Each country group has a flag emoji and country name. Within each group, destinations are collapsible sections in the timeline layout.
+**Country Grouping:** Destinations and routes are visually grouped under country headers with flag emoji. Single-country trips omit the header.
 
-### Collapsible Destination Sections
+**Organize Mode:** A toggle that enables drag-to-reorder destinations, create routes from selected destinations, and ungroup routes.
 
-Each destination on the trip page is a collapsible section styled as an itinerary timeline with a subtle vertical connecting line between sections.
+### Destination Detail Page
 
-**Collapsed state:** Small city photo thumbnail, destination name in bold, date range (if set), item count badge (e.g. "5 places"), expand/collapse chevron.
+Each destination has a full-page editing environment at `/trip/:id/dest/:destId`:
 
-**Expanded state** reveals:
-- List of items linked to this destination (thumbnail, title, location, category badge). Each item taps through to /item/:id and has a remove action.
-- "Nearby Suggestions" subsection: Horizon items within proximity radius that aren't already linked. One-tap "Add" buttons.
-- "Add from Horizon" button for manual item addition.
-- If destination has dates: day-by-day itinerary tabs (Day 1, Day 2...) with drag-and-drop reordering, all inline.
-- If no dates: items as a simple list with "Add Dates" prompt.
-
-**Accordion behavior:** Only one destination is expanded at a time. Expanding one collapses the others.
+- **Hero header:** Full-width destination image (or gradient fallback) with bilingual name overlay
+- **Destination notes:** Markdown-editable notes with auto-save
+- **Activities list:** Linked items with swipe-to-delete, expandable detail cards (notes, votes, comments)
+- **Day-by-day scheduling:** When dates are set, a DayTabRow lets users assign items to specific days with drag-and-drop reordering within each day
+- **Add content:** Google Places search (biased to destination coordinates) and "Add from Horizon" picker
+- **Nearby suggestions:** Horizon items within proximity radius shown as ghost cards with one-tap add
+- **Country-to-city refinement:** For country-level destinations, city cluster suggestions based on linked items
 
 ### Smart Destination Suggestions (Cluster-Based)
 
@@ -441,7 +462,7 @@ The Trips page (`/trips`) uses a featured trip hero card at the top with an adap
 ### Featured Trip Selection
 
 A pure client-side function (`selectFeaturedTrip`) picks which trip to feature using this priority cascade:
-1. **User-pinned:** `is_featured = true` (set manually via star button on TripDetailPage)
+1. **User-pinned:** `is_featured = true` (set manually via star button on TripOverviewPage)
 2. **Nearest upcoming:** `status = 'scheduled'` with `start_date >= today`, sorted by `start_date` ascending
 3. **Most recently edited Planning trip:** sorted by `updated_at` descending
 4. **Most recently edited Someday trip:** sorted by `updated_at` descending
@@ -533,10 +554,10 @@ Build features in this exact sequence. Test each one before moving to the next.
 4. Item editing (edit title, category, location via Google Places, notes)
 5. Save flow — screenshot/manual path (upload image, quick-tag)
 6. Trips page + Destination model (create trips, add destinations — cities or countries — via Google Places, with cluster suggestions, featured trip hero + adaptive layout)
-7. Trip Page with adaptive layout (country grouping, collapsible destination sections, accordion behavior)
-8. Destination content inline (items, nearby suggestions, add from inbox — all within collapsible sections)
+7. Trip Overview Page with destination summary cards, route cards, country grouping, and organize mode
+8. Destination Detail Page (hero header, activities, scheduling, suggestions, add from Horizon — full-page editing)
 9. Country-to-city refinement (adding cities within country destinations, item migration prompts)
-10. Scheduling (trip dates, destination dates, day-by-day itinerary within expanded destination sections)
+10. Scheduling (trip dates, destination dates, day-by-day itinerary on destination detail page)
 11. Share links (generate token, public trip page with country-grouped destination layout)
 12. Adopt/Fork (adopt button, deep copy including all destinations and items)
 13. Companion Mode (invite, comment, vote)
