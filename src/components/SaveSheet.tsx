@@ -26,11 +26,12 @@ const categories: { value: Category; label: string }[] = [
 interface Props {
   onClose: () => void
   onSaved: (item: SavedItem) => void
+  initialMode?: SaveMode
 }
 
-export default function SaveSheet({ onClose, onSaved }: Props) {
+export default function SaveSheet({ onClose, onSaved, initialMode = 'link' }: Props) {
   const { user } = useAuth()
-  const [mode, setMode] = useState<SaveMode>('link')
+  const [mode, setMode] = useState<SaveMode>(initialMode)
 
   // Shared fields
   const [title, setTitle] = useState('')
