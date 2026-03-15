@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
@@ -27,9 +27,10 @@ interface Props {
   onClose: () => void
   onSaved: (item: SavedItem) => void
   initialMode?: SaveMode
+  initialFile?: File   // Pre-selected file for screenshot mode (from photo capture)
 }
 
-export default function SaveSheet({ onClose, onSaved, initialMode = 'link' }: Props) {
+export default function SaveSheet({ onClose, onSaved, initialMode = 'link', initialFile }: Props) {
   const { user } = useAuth()
   const [mode, setMode] = useState<SaveMode>(initialMode)
 
@@ -56,6 +57,14 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link' }: Pr
 
   // Manual mode
   const [manualStatus, setManualStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+
+  // Auto-process initialFile for photo capture flow (skip drag-and-drop area)
+  useEffect(() => {
+    if (initialFile && mode === 'screenshot' && screenshotStatus === 'idle') {
+      handleFileSelect(initialFile)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialFile])
 
   const resetAll = () => {
     setTitle('')
@@ -292,7 +301,7 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link' }: Pr
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto flex-1 px-5 pb-10">
+        <div className="overflow-y-auto flex-1 px-5" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
 
           {/* ══ LINK MODE ══════════════════════════════════════════════════════ */}
           {mode === 'link' && (

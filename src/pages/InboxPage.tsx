@@ -9,6 +9,7 @@ import { getCategoryIcon, categoryPillColors, categoryLabel, categoryIconColors 
 import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react'
 import { shortLocalName } from '../components/BilingualName'
 import { useLocationResolver } from '../hooks/useLocationResolver'
+import SwipeToDelete from '../components/SwipeToDelete'
 import type { SavedItem, Trip } from '../types'
 
 /** Shorten a Google Places formatted_address to "City, Province, Country".
@@ -303,6 +304,21 @@ export default function InboxPage() {
     [items, unassignedOnly, assignedItemIds, selectedTripId, selectedTripItemIds, selectedCity],
   )
 
+  const handleDeleteItem = useCallback(async (itemId: string) => {
+    // Optimistically remove from UI
+    setItems((prev) => prev.filter((item) => item.id !== itemId))
+    // Archive in DB (soft delete)
+    const { error } = await supabase
+      .from('saved_items')
+      .update({ is_archived: true })
+      .eq('id', itemId)
+    if (error) {
+      console.error('[inbox] archive error:', error)
+      // Re-fetch on error to restore
+      fetchAll()
+    }
+  }, [user])
+
   const geoGroups = useMemo(() => groupByGeography(filtered), [filtered])
 
   return (
@@ -550,8 +566,8 @@ export default function InboxPage() {
                     <div className={viewMode === 'expanded' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'flex flex-col gap-0.5'}>
                       {cityGroup.items.map((item) => (
                         viewMode === 'expanded'
-                          ? <ExpandedCard key={item.id} item={item} onTripAdded={refreshTripItems} />
-                          : <CompactRow key={item.id} item={item} onTripAdded={refreshTripItems} />
+                          ? <ExpandedCard key={item.id} item={item} onTripAdded={refreshTripItems} onDelete={() => handleDeleteItem(item.id)} />
+                          : <CompactRow key={item.id} item={item} onTripAdded={refreshTripItems} onDelete={() => handleDeleteItem(item.id)} />
                       ))}
                     </div>
                   </div>
@@ -579,9 +595,11 @@ export default function InboxPage() {
 function ExpandedCard({
   item,
   onTripAdded,
+  onDelete,
 }: {
   item: SavedItem
   onTripAdded: () => void
+  onDelete: () => void
 }) {
   const [showSheet, setShowSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -592,6 +610,7 @@ function ExpandedCard({
   }
 
   return (
+    <SwipeToDelete onDelete={onDelete}>
     <div className="relative group">
       <Link
         to={`/item/${item.id}`}
@@ -653,6 +672,7 @@ function ExpandedCard({
         </div>
       )}
     </div>
+    </SwipeToDelete>
   )
 }
 
@@ -661,9 +681,11 @@ function ExpandedCard({
 function CompactRow({
   item,
   onTripAdded,
+  onDelete,
 }: {
   item: SavedItem
   onTripAdded: () => void
+  onDelete: () => void
 }) {
   const [showSheet, setShowSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -676,6 +698,7 @@ function CompactRow({
   const Icon = getCategoryIcon(item.category)
 
   return (
+    <SwipeToDelete onDelete={onDelete}>
     <div className="relative group">
       <Link
         to={`/item/${item.id}`}
@@ -725,5 +748,6 @@ function CompactRow({
         </div>
       )}
     </div>
+    </SwipeToDelete>
   )
 }

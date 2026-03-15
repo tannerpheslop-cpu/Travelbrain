@@ -7,6 +7,9 @@ import type { SavedItem } from '../types'
 
 interface Props {
   onClose: () => void
+  onPhotoCapture: () => void
+  pendingPhoto: File | null
+  onPhotoClear: () => void
 }
 
 /** Dispatch a custom event so InboxPage (and other listeners) can react. */
@@ -14,7 +17,7 @@ function dispatchSaveEvent(name: string, item: SavedItem) {
   window.dispatchEvent(new CustomEvent(name, { detail: item }))
 }
 
-export default function CreatePopover({ onClose }: Props) {
+export default function CreatePopover({ onClose, onPhotoCapture, pendingPhoto, onPhotoClear }: Props) {
   const { user } = useAuth()
   const inputRef = useRef<HTMLInputElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
@@ -52,7 +55,7 @@ export default function CreatePopover({ onClose }: Props) {
     const lines = val.split('\n').map((l) => l.trim()).filter((l) => l.length > 0)
     createSaves(lines)
     setInput('')
-    inputRef.current?.focus()
+    // Don't re-focus — let user see the result then close
   }, [input, createSaves])
 
   const handleKeyDown = useCallback(
@@ -109,13 +112,28 @@ export default function CreatePopover({ onClose }: Props) {
     }
   }, [showQuickSave])
 
+  // ── Photo flow: when pendingPhoto arrives, open SaveSheet in screenshot mode ─
+
+  useEffect(() => {
+    if (pendingPhoto) {
+      setSaveSheetMode('screenshot')
+    }
+  }, [pendingPhoto])
+
   // ── SaveSheet handler ──────────────────────────────────────────────────
 
   const handleSaveSheetSaved = useCallback((item: SavedItem) => {
     setRecentItems((prev) => [item, ...prev])
     dispatchSaveEvent('horizon-item-created', item)
     setSaveSheetMode(null)
-  }, [])
+    onPhotoClear()
+    onClose()
+  }, [onClose, onPhotoClear])
+
+  const handleSaveSheetClose = useCallback(() => {
+    setSaveSheetMode(null)
+    onPhotoClear()
+  }, [onPhotoClear])
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -191,7 +209,7 @@ export default function CreatePopover({ onClose }: Props) {
               </button>
               <button
                 type="button"
-                onClick={() => setSaveSheetMode('screenshot')}
+                onClick={onPhotoCapture}
                 className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
               >
                 <Camera className="w-4.5 h-4.5 text-purple-500" />
@@ -213,9 +231,10 @@ export default function CreatePopover({ onClose }: Props) {
       {/* SaveSheet sub-modal */}
       {saveSheetMode && (
         <SaveSheet
-          onClose={() => setSaveSheetMode(null)}
+          onClose={handleSaveSheetClose}
           onSaved={handleSaveSheetSaved}
           initialMode={saveSheetMode}
+          initialFile={saveSheetMode === 'screenshot' ? pendingPhoto ?? undefined : undefined}
         />
       )}
     </>
