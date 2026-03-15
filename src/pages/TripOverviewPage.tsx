@@ -11,6 +11,7 @@ import LocationAutocomplete, { type LocationSelection } from '../components/Loca
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import DestinationCard from '../components/DestinationCard'
+import CalendarRangePicker from '../components/CalendarRangePicker'
 import RouteCard from '../components/RouteCard'
 import DottedConnector from '../components/DottedConnector'
 import {
@@ -465,6 +466,7 @@ export default function TripOverviewPage() {
   // Modals
   const [showShareModal, setShowShareModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [datePickerDestId, setDatePickerDestId] = useState<string | null>(null)
 
   // Organize mode
   const [organizeMode, setOrganizeMode] = useState(false)
@@ -548,21 +550,49 @@ export default function TripOverviewPage() {
   // ── Overview entries (destinations + routes) ──────────────────────────────
 
   const overviewEntries = useMemo((): OverviewEntry[] => {
-    const standalone = destinations
-      .filter(d => !d.route_id)
-      .map(d => ({ type: 'destination' as const, destination: d, sortKey: d.sort_order }))
+    const standalone = destinations.filter(d => !d.route_id)
 
-    const routeEntries = routes.map(r => ({
-      type: 'route' as const,
-      route: r,
-      destinations: destinations
-        .filter(d => d.route_id === r.id)
-        .sort((a, b) => a.sort_order - b.sort_order),
-      sortKey: r.sort_order,
+    // Split into dated and undated, sort dated chronologically
+    const dated = standalone
+      .filter(d => d.start_date)
+      .sort((a, b) => a.start_date!.localeCompare(b.start_date!))
+    const undated = standalone
+      .filter(d => !d.start_date)
+      .sort((a, b) => a.sort_order - b.sort_order)
+
+    const sortedStandalone = [...dated, ...undated].map((d, i) => ({
+      type: 'destination' as const, destination: d, sortKey: i,
     }))
 
-    return [...standalone, ...routeEntries].sort((a, b) => a.sortKey - b.sortKey)
+    const routeEntries = routes.map(r => {
+      const routeDests = destinations
+        .filter(d => d.route_id === r.id)
+        .sort((a, b) => a.sort_order - b.sort_order)
+      // Use earliest destination date or high sortKey for undated routes
+      const earliestDate = routeDests.find(d => d.start_date)?.start_date
+      return {
+        type: 'route' as const,
+        route: r,
+        destinations: routeDests,
+        sortKey: earliestDate
+          ? dated.findIndex(d => d.start_date! >= earliestDate)
+          : sortedStandalone.length + r.sort_order,
+      }
+    })
+
+    return [...sortedStandalone, ...routeEntries].sort((a, b) => a.sortKey - b.sortKey)
   }, [destinations, routes])
+
+  // Track where undated destinations start (for "Unscheduled" divider)
+  const firstUndatedIndex = useMemo(() => {
+    const hasDated = overviewEntries.some(e =>
+      e.type === 'destination' && e.destination.start_date
+    )
+    if (!hasDated) return -1 // No divider needed if nothing is dated
+    return overviewEntries.findIndex(e =>
+      e.type === 'destination' && !e.destination.start_date
+    )
+  }, [overviewEntries])
 
   const entryIds = useMemo(() => overviewEntries.map(getEntryId), [overviewEntries])
 
@@ -804,6 +834,44 @@ export default function TripOverviewPage() {
     const updated = tripNotes.filter((n) => n.id !== noteId)
     setTripNotes(updated)
     await supabase.from('trips').update({ notes: updated }).eq('id', id)
+  }
+
+  // ── Destination date picker ──────────────────────────────────────────────
+
+  const datePickerDest = destinations.find(d => d.id === datePickerDestId) ?? null
+
+  const handleDestDatesConfirm = async (start: string, end: string) => {
+    if (!datePickerDestId) return
+    const { data } = await supabase
+      .from('trip_destinations')
+      .update({ start_date: start, end_date: end })
+      .eq('id', datePickerDestId)
+      .select()
+      .single()
+    if (data) {
+      setDestinations(prev => prev.map(d => d.id === datePickerDestId
+        ? { ...d, start_date: start, end_date: end } : d
+      ))
+    }
+    setDatePickerDestId(null)
+    // Nudge trip status to scheduled if not already
+    if (trip?.status !== 'scheduled') {
+      await supabase.from('trips').update({ status: 'scheduled' }).eq('id', trip!.id)
+      setTrip(prev => prev ? { ...prev, status: 'scheduled' } : prev)
+    }
+    trackEvent('destination_dates_set', user?.id ?? null, { trip_id: id, destination_id: datePickerDestId })
+  }
+
+  const handleDestDatesRemove = async () => {
+    if (!datePickerDestId) return
+    await supabase
+      .from('trip_destinations')
+      .update({ start_date: null, end_date: null })
+      .eq('id', datePickerDestId)
+    setDestinations(prev => prev.map(d => d.id === datePickerDestId
+      ? { ...d, start_date: null, end_date: null } : d
+    ))
+    setDatePickerDestId(null)
   }
 
   // ── Organize mode ─────────────────────────────────────────────────────────
@@ -1134,17 +1202,21 @@ export default function TripOverviewPage() {
                 const prevCountry = i > 0 ? getEntryCountry(overviewEntries[i - 1]) : null
                 const showCountryHeader = hasMultipleCountries && country !== prevCountry
                 const showConnector = i > 0
+                const showUnscheduledDivider = i === firstUndatedIndex
                 const entryId = getEntryId(entry)
 
                 return (
                   <div key={entryId}>
+                    {showUnscheduledDivider && (
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-4 mb-2">Unscheduled</p>
+                    )}
                     {showCountryHeader && (
                       <div className={`flex items-center gap-2 ${i > 0 ? 'mt-4' : ''} mb-2`}>
                         <span className="text-lg leading-none">{countryCodeToFlag(countryCode)}</span>
                         <span className="text-sm font-semibold text-gray-600">{country}</span>
                       </div>
                     )}
-                    {showConnector && (
+                    {showConnector && !showUnscheduledDivider && (
                       <DottedConnector longer={showCountryHeader} />
                     )}
                     <SortableOverviewEntry entry={entry}>
@@ -1157,6 +1229,8 @@ export default function TripOverviewPage() {
                           organizeMode={organizeMode}
                           isSelected={selectedDestIds.has(entry.destination.id)}
                           onToggleSelect={() => toggleDestSelection(entry.destination.id)}
+                          onAddDates={() => setDatePickerDestId(entry.destination.id)}
+                          onDatesTap={() => setDatePickerDestId(entry.destination.id)}
                         />
                       ) : (
                         <RouteCard
@@ -1305,6 +1379,15 @@ export default function TripOverviewPage() {
           onInviteByEmail={inviteByEmail}
           onRemove={removeCompanion}
           onRemovePending={removePendingInvite}
+        />
+      )}
+      {datePickerDestId && datePickerDest && (
+        <CalendarRangePicker
+          startDate={datePickerDest.start_date ?? null}
+          endDate={datePickerDest.end_date ?? null}
+          onConfirm={handleDestDatesConfirm}
+          onRemove={datePickerDest.start_date ? handleDestDatesRemove : undefined}
+          onClose={() => setDatePickerDestId(null)}
         />
       )}
     </div>

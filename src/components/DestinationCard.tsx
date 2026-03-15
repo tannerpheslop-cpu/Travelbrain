@@ -28,11 +28,14 @@ export interface DestinationCardProps {
   organizeMode?: boolean
   isSelected?: boolean
   onToggleSelect?: () => void
+  onAddDates?: () => void
+  onDatesTap?: () => void
 }
 
 export default function DestinationCard({
   destination, itemCount, tripId, index,
   organizeMode, isSelected, onToggleSelect,
+  onAddDates, onDatesTap,
 }: DestinationCardProps) {
   const gradient = gradients[index % gradients.length]
   const city = shortName(destination.location_name)
@@ -76,11 +79,23 @@ export default function DestinationCard({
           {city}
           {cityLocal && <span className="ml-1.5 font-normal text-gray-400 text-sm">{cityLocal}</span>}
         </p>
-        {hasDates && (
-          <p className="text-xs text-blue-600 font-medium mt-0.5">
+        {hasDates ? (
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDatesTap?.() }}
+            className="text-xs text-blue-600 font-medium mt-0.5 hover:text-blue-700 transition-colors"
+          >
             {shortDateRange(destination.start_date!, destination.end_date!)}
-          </p>
-        )}
+          </button>
+        ) : onAddDates ? (
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onAddDates() }}
+            className="text-xs text-blue-500 font-medium mt-0.5 hover:text-blue-700 transition-colors"
+          >
+            + Add Dates
+          </button>
+        ) : null}
         <div className="flex items-center gap-1 mt-1.5 text-gray-400">
           <MapPin className="w-3.5 h-3.5" />
           <span className="text-xs font-medium">
