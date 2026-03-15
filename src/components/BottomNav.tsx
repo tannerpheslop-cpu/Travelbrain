@@ -5,9 +5,15 @@ const navItems = [
     to: '/inbox',
     label: 'Horizon',
     icon: (active: boolean) => (
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-6 h-6 transition-transform ${active ? 'scale-110' : ''}`}>
-        <path d="M3.375 3C2.339 3 1.5 3.84 1.5 4.875v.75c0 1.036.84 1.875 1.875 1.875h17.25c1.035 0 1.875-.84 1.875-1.875v-.75C22.5 3.839 21.66 3 20.625 3H3.375z" />
-        <path fillRule="evenodd" d="M3.087 9l.54 9.176A3 3 0 006.62 21h10.757a3 3 0 002.995-2.824L20.913 9H3.087zM12 10.5a.75.75 0 01.75.75v4.94l1.72-1.72a.75.75 0 111.06 1.06l-3 3a.75.75 0 01-1.06 0l-3-3a.75.75 0 111.06-1.06l1.72 1.72v-4.94a.75.75 0 01.75-.75z" clipRule="evenodd" />
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-6 h-6 transition-transform ${active ? 'scale-110' : ''}`}>
+        <path d="M12 2v8" />
+        <path d="m4.93 10.93 1.41 1.41" />
+        <path d="M2 18h2" />
+        <path d="M20 18h2" />
+        <path d="m19.07 10.93-1.41 1.41" />
+        <path d="M22 22H2" />
+        <path d="m8 6 4-4 4 4" />
+        <path d="M16 18a4 4 0 0 0-8 0" />
       </svg>
     ),
   },
