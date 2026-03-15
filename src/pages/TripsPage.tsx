@@ -1042,8 +1042,18 @@ export default function TripsPage() {
           </div>
           <p className="mt-4 text-gray-800 font-semibold">No trips yet</p>
           <p className="mt-1.5 text-sm text-gray-400 leading-relaxed">
-            Start planning your next adventure — tap <strong className="font-medium text-gray-500">New Trip</strong> to create one.
+            Start planning your next adventure.
           </p>
+          <button
+            type="button"
+            onClick={() => setShowModal(true)}
+            className="mt-5 inline-flex items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:bg-blue-800 transition-colors shadow-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+            </svg>
+            New Trip
+          </button>
         </div>
       )}
 
@@ -1054,6 +1064,18 @@ export default function TripsPage() {
           {featuredTrip && (
             <FeaturedTripHero trip={featuredTrip} index={trips.indexOf(featuredTrip)} />
           )}
+
+          {/* New Trip button */}
+          <button
+            type="button"
+            onClick={() => setShowModal(true)}
+            className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-semibold text-gray-500 hover:text-blue-600 hover:border-blue-300 active:bg-blue-50 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+            </svg>
+            New Trip
+          </button>
 
           {/* Adaptive layout */}
           {!useCarouselLayout ? (
