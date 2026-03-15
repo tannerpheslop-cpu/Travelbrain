@@ -26,6 +26,7 @@ export default function SwipeToDelete({ children, onDelete, enabled = true }: Sw
   const [revealed, setRevealed] = useState(false)
   const lockedRef = useRef<'horizontal' | 'vertical' | null>(null)
   const animatingRef = useRef(false)
+  const didSwipeRef = useRef(false)
 
   const snapClose = useCallback(() => {
     animatingRef.current = true
@@ -50,6 +51,7 @@ export default function SwipeToDelete({ children, onDelete, enabled = true }: Sw
     startYRef.current = touch.clientY
     currentXRef.current = touch.clientX
     lockedRef.current = null
+    didSwipeRef.current = false
 
     // If already revealed and user taps the card area, close it
     if (revealed) {
@@ -80,7 +82,10 @@ export default function SwipeToDelete({ children, onDelete, enabled = true }: Sw
     const newOffset = Math.max(-MAX_SWIPE, Math.min(0, baseOffset + dx))
     currentXRef.current = touch.clientX
     setOffset(newOffset)
-    if (Math.abs(newOffset) > 5) setSwiping(true)
+    if (Math.abs(newOffset) > 5) {
+      setSwiping(true)
+      didSwipeRef.current = true
+    }
   }, [enabled, revealed])
 
   const handleTouchEnd = useCallback(() => {
@@ -122,6 +127,15 @@ export default function SwipeToDelete({ children, onDelete, enabled = true }: Sw
     lockedRef.current = null
   }, [enabled, offset, revealed, snapClose, snapOpen])
 
+  // Suppress click-through after a swipe gesture (prevents Link navigation)
+  const handleClickCapture = useCallback((e: React.MouseEvent) => {
+    if (didSwipeRef.current || revealed) {
+      e.preventDefault()
+      e.stopPropagation()
+      didSwipeRef.current = false
+    }
+  }, [revealed])
+
   const handleDeleteClick = useCallback(() => {
     snapClose()
     onDelete()
@@ -157,6 +171,7 @@ export default function SwipeToDelete({ children, onDelete, enabled = true }: Sw
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onClickCapture={handleClickCapture}
       >
         {children}
       </div>
