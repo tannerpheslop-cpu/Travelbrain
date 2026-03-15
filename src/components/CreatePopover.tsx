@@ -1,6 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { useLocation } from 'react-router-dom'
-import { Plus, Zap, Link as LinkIcon, Camera, FileText, ArrowRight, MapPin, Loader2, Map, Compass, Inbox } from 'lucide-react'
+import { Plus, Link as LinkIcon, Camera, MapPin, ArrowRight, Loader2 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { useRapidCapture } from '../hooks/useRapidCapture'
 import SaveSheet from './SaveSheet'
@@ -17,22 +16,13 @@ function dispatchSaveEvent(name: string, item: SavedItem) {
 
 export default function CreatePopover({ onClose }: Props) {
   const { user } = useAuth()
-  const location = useLocation()
   const inputRef = useRef<HTMLInputElement>(null)
   const popoverRef = useRef<HTMLDivElement>(null)
 
   const [showQuickSave, setShowQuickSave] = useState(false)
   const [input, setInput] = useState('')
   const [recentItems, setRecentItems] = useState<SavedItem[]>([])
-  const [showSaveSheet, setShowSaveSheet] = useState(false)
-
-  // ── Route context ──────────────────────────────────────────────────────
-
-  const isTripsPage = location.pathname === '/trips'
-  const tripDetailMatch = location.pathname.match(/^\/trip\/([^/]+)$/)
-  const isTripDetailPage = !!tripDetailMatch
-  const routePageMatch = location.pathname.match(/^\/trip\/[^/]+\/route\/[^/]+$/)
-  const isRoutePage = !!routePageMatch
+  const [saveSheetMode, setSaveSheetMode] = useState<'link' | 'screenshot' | null>(null)
 
   // ── Rapid capture ──────────────────────────────────────────────────────
 
@@ -124,25 +114,8 @@ export default function CreatePopover({ onClose }: Props) {
   const handleSaveSheetSaved = useCallback((item: SavedItem) => {
     setRecentItems((prev) => [item, ...prev])
     dispatchSaveEvent('horizon-item-created', item)
-    setShowSaveSheet(false)
+    setSaveSheetMode(null)
   }, [])
-
-  // ── Context-aware action handlers ──────────────────────────────────────
-
-  const handleNewTrip = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('youji-create-trip'))
-    onClose()
-  }, [onClose])
-
-  const handleAddDestination = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('youji-add-destination'))
-    onClose()
-  }, [onClose])
-
-  const handleAddFromHorizon = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('youji-add-from-horizon'))
-    onClose()
-  }, [onClose])
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -206,80 +179,31 @@ export default function CreatePopover({ onClose }: Props) {
               )}
             </div>
           ) : (
-            /* Menu options */
+            /* Three universal capture options */
             <div className="py-1">
-              {/* Context-aware options at the top */}
-              {isTripsPage && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleNewTrip}
-                    className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                  >
-                    <Map className="w-4.5 h-4.5 text-blue-500" />
-                    <span className="text-sm font-medium text-gray-800">New trip</span>
-                  </button>
-                  <div className="h-px bg-gray-100 mx-3" />
-                </>
-              )}
-              {(isTripDetailPage || isRoutePage) && (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleAddDestination}
-                    className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                  >
-                    <Compass className="w-4.5 h-4.5 text-emerald-500" />
-                    <span className="text-sm font-medium text-gray-800">
-                      {isRoutePage ? 'Add destination to route' : 'Add destination'}
-                    </span>
-                  </button>
-                  {isTripDetailPage && (
-                    <button
-                      type="button"
-                      onClick={handleAddFromHorizon}
-                      className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
-                    >
-                      <Inbox className="w-4.5 h-4.5 text-indigo-500" />
-                      <span className="text-sm font-medium text-gray-800">Add from your Horizon</span>
-                    </button>
-                  )}
-                  <div className="h-px bg-gray-100 mx-3" />
-                </>
-              )}
-
-              {/* Standard save options */}
+              <button
+                type="button"
+                onClick={() => setSaveSheetMode('link')}
+                className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              >
+                <LinkIcon className="w-4.5 h-4.5 text-blue-500" />
+                <span className="text-sm font-medium text-gray-800">Save a link</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSaveSheetMode('screenshot')}
+                className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+              >
+                <Camera className="w-4.5 h-4.5 text-purple-500" />
+                <span className="text-sm font-medium text-gray-800">Photo</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setShowQuickSave(true)}
                 className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
               >
-                <Zap className="w-4.5 h-4.5 text-amber-500" />
-                <span className="text-sm font-medium text-gray-800">Quick save</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowSaveSheet(true)}
-                className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
-              >
-                <LinkIcon className="w-4.5 h-4.5 text-blue-500" />
-                <span className="text-sm font-medium text-gray-800">Paste URL</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowSaveSheet(true)}
-                className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
-              >
-                <Camera className="w-4.5 h-4.5 text-purple-500" />
-                <span className="text-sm font-medium text-gray-800">Upload screenshot</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowSaveSheet(true)}
-                className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
-              >
-                <FileText className="w-4.5 h-4.5 text-emerald-500" />
-                <span className="text-sm font-medium text-gray-800">Full entry</span>
+                <MapPin className="w-4.5 h-4.5 text-emerald-500" />
+                <span className="text-sm font-medium text-gray-800">Add places</span>
               </button>
             </div>
           )}
@@ -287,10 +211,11 @@ export default function CreatePopover({ onClose }: Props) {
       </div>
 
       {/* SaveSheet sub-modal */}
-      {showSaveSheet && (
+      {saveSheetMode && (
         <SaveSheet
-          onClose={() => setShowSaveSheet(false)}
+          onClose={() => setSaveSheetMode(null)}
           onSaved={handleSaveSheetSaved}
+          initialMode={saveSheetMode}
         />
       )}
     </>
