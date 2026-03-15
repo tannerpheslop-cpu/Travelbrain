@@ -1151,6 +1151,17 @@ export default function TripOverviewPage() {
     await renameRoute(routeId, newName)
   }
 
+  // ── Delete destination (unlinks items back to Horizon) ────────────────────
+
+  const handleDeleteDestination = async (destId: string) => {
+    // 1. Delete destination_items links (items stay in saved_items / Horizon)
+    await supabase.from('destination_items').delete().eq('destination_id', destId)
+    // 2. Delete the destination itself
+    await supabase.from('trip_destinations').delete().eq('id', destId)
+    // 3. Update local state
+    setDestinations(prev => prev.filter(d => d.id !== destId))
+  }
+
   // ── DnD ───────────────────────────────────────────────────────────────────
 
   const sensors = useSensors(
@@ -1436,18 +1447,23 @@ export default function TripOverviewPage() {
                     )}
                     <SortableOverviewEntry entry={entry}>
                       {entry.type === 'destination' ? (
-                        <DestinationCard
-                          destination={entry.destination}
-                          itemCount={entry.destination._count}
-                          tripId={id!}
-                          index={overviewEntries.slice(0, i).filter(e => e.type === 'destination').length}
-                          organizeMode={organizeMode}
-                          isSelected={selectedDestIds.has(entry.destination.id)}
-                          onToggleSelect={() => toggleDestSelection(entry.destination.id)}
-                          onAddDates={() => setDatePickerDestId(entry.destination.id)}
-                          onDatesTap={() => setDatePickerDestId(entry.destination.id)}
-                          onLongPress={() => handleLongPress(entry.destination.id)}
-                        />
+                        <SwipeToDelete
+                          onDelete={() => handleDeleteDestination(entry.destination.id)}
+                          enabled={!organizeMode}
+                        >
+                          <DestinationCard
+                            destination={entry.destination}
+                            itemCount={entry.destination._count}
+                            tripId={id!}
+                            index={overviewEntries.slice(0, i).filter(e => e.type === 'destination').length}
+                            organizeMode={organizeMode}
+                            isSelected={selectedDestIds.has(entry.destination.id)}
+                            onToggleSelect={() => toggleDestSelection(entry.destination.id)}
+                            onAddDates={() => setDatePickerDestId(entry.destination.id)}
+                            onDatesTap={() => setDatePickerDestId(entry.destination.id)}
+                            onLongPress={() => handleLongPress(entry.destination.id)}
+                          />
+                        </SwipeToDelete>
                       ) : (
                         <RouteCard
                           route={entry.route}
