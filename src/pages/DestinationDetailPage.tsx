@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import SavedItemImage from '../components/SavedItemImage'
+import DestinationImage from '../components/DestinationImage'
 import type { TripDestination, SavedItem, Category } from '../types'
 import {
   DndContext,
@@ -1315,15 +1316,15 @@ export default function DestinationDetailPage() {
       </div>
 
       {/* 2. Hero image */}
-      {destination.image_url ? (
-        <div className="mx-4 h-48 rounded-2xl overflow-hidden mb-4">
-          <img src={destination.image_url} alt={city} className="w-full h-full object-cover" />
-        </div>
-      ) : (
-        <div className={`mx-4 h-48 rounded-2xl overflow-hidden mb-4 bg-gradient-to-br ${gradient} flex items-center justify-center`}>
-          <MapPin className="w-12 h-12 text-white/50" />
-        </div>
-      )}
+      <div className="mx-4 h-48 rounded-2xl overflow-hidden mb-4">
+        <DestinationImage
+          destination={destination}
+          index={0}
+          className="w-full h-full"
+          iconSize="w-12 h-12"
+          alt={city}
+        />
+      </div>
 
       {/* 3. Header: name + country + dates + item count */}
       <div className="px-4 mb-4">

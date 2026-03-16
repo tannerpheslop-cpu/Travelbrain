@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Layers, MapPin } from 'lucide-react'
 import type { TripRoute, TripDestination } from '../types'
+import DestinationImage from './DestinationImage'
 
 function shortDateRange(start: string, end: string): string {
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
@@ -29,7 +30,7 @@ export default function RouteCard({
 
   const stopCount = destinations.length
   const totalItems = destinations.reduce((sum, d) => sum + d.itemCount, 0)
-  const firstImage = destinations.find((d) => d.image_url)?.image_url
+  const firstImageDest = destinations.find((d) => d.image_url || d.location_place_id)
 
   // Date range from earliest start to latest end
   const dates = destinations.filter((d) => d.start_date && d.end_date)
@@ -51,8 +52,14 @@ export default function RouteCard({
       <div className="flex items-center gap-3.5">
         {/* Thumbnail */}
         <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 flex-none relative">
-          {firstImage ? (
-            <img src={firstImage} alt={route.name} className="w-full h-full object-cover" loading="lazy" />
+          {firstImageDest ? (
+            <DestinationImage
+              destination={firstImageDest}
+              index={0}
+              className="w-full h-full"
+              iconSize="w-6 h-6"
+              alt={route.name}
+            />
           ) : (
             <div className="w-full h-full bg-gradient-to-br from-violet-400 to-purple-600 flex items-center justify-center">
               <Layers className="w-6 h-6 text-white/70" />

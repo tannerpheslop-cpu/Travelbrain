@@ -3,16 +3,7 @@ import { Link } from 'react-router-dom'
 import { MapPin, Check } from 'lucide-react'
 import type { TripDestination } from '../types'
 import { shortName, shortLocalName } from './BilingualName'
-
-// Gradient palette for destination thumbnails (same as TripsPage)
-const gradients = [
-  'from-blue-400 to-indigo-600',
-  'from-rose-400 to-pink-600',
-  'from-amber-400 to-orange-600',
-  'from-emerald-400 to-teal-600',
-  'from-violet-400 to-purple-600',
-  'from-cyan-400 to-sky-600',
-]
+import DestinationImage from './DestinationImage'
 
 function shortDateRange(start: string, end: string): string {
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
@@ -39,7 +30,6 @@ export default function DestinationCard({
   organizeMode, isSelected, onToggleSelect,
   onAddDates, onDatesTap, onLongPress,
 }: DestinationCardProps) {
-  const gradient = gradients[index % gradients.length]
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const longPressFired = useRef(false)
@@ -101,18 +91,13 @@ export default function DestinationCard({
 
       {/* Thumbnail */}
       <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 flex-none">
-        {destination.image_url ? (
-          <img
-            src={destination.image_url}
-            alt={city}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className={`w-full h-full bg-gradient-to-br ${gradient} flex items-center justify-center`}>
-            <MapPin className="w-6 h-6 text-white/70" />
-          </div>
-        )}
+        <DestinationImage
+          destination={destination}
+          index={index}
+          className="w-full h-full"
+          iconSize="w-6 h-6"
+          alt={city}
+        />
       </div>
 
       {/* Content */}

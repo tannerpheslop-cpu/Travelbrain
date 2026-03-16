@@ -199,16 +199,18 @@ function DestPhotoCard({
   index: number
   showDates: boolean
 }) {
+  const [imgFailed, setImgFailed] = useState(false)
   const gradient = DEST_GRADIENTS[index % DEST_GRADIENTS.length]
   return (
     <div className="rounded-2xl overflow-hidden shadow-md">
       <div className="relative h-52">
-        {dest.image_url ? (
+        {dest.image_url && !imgFailed ? (
           <>
             <img
               src={dest.image_url}
               alt={shortName(dest.location_name)}
               className="absolute inset-0 w-full h-full object-cover"
+              onError={() => setImgFailed(true)}
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/5" />
           </>
@@ -245,6 +247,7 @@ function FullDestSection({
   items: SharedDestItem[]
   index: number
 }) {
+  const [imgFailed, setImgFailed] = useState(false)
   const gradient = DEST_GRADIENTS[index % DEST_GRADIENTS.length]
   const hasSchedule = !!(dest.start_date && dest.end_date)
 
@@ -264,12 +267,13 @@ function FullDestSection({
       {/* Destination photo header */}
       <div className="rounded-2xl overflow-hidden shadow-md mb-6">
         <div className="relative h-56">
-          {dest.image_url ? (
+          {dest.image_url && !imgFailed ? (
             <>
               <img
                 src={dest.image_url}
                 alt={shortName(dest.location_name)}
                 className="absolute inset-0 w-full h-full object-cover"
+                onError={() => setImgFailed(true)}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 to-black/5" />
             </>
