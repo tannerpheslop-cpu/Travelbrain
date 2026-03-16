@@ -7,6 +7,7 @@ import { fetchPlacePhoto } from '../lib/googleMaps'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import { trackEvent } from '../lib/analytics'
 import { selectFeaturedTrip } from '../utils/featuredTrip'
+import { useFirstDestinationImage } from '../hooks/useDestinationImage'
 import type { TripStatus, SavedItem, Category } from '../types'
 import { supabase } from '../lib/supabase'
 
@@ -107,10 +108,11 @@ function TripCard({
   const gradient = gradients[index % gradients.length]
   const status = statusConfig[trip.status]
   const dests = trip.trip_destinations ?? []
+  const resolvedDestImage = useFirstDestinationImage(dests)
 
   // Cover: first destination image → trip cover_image_url → gradient
   const coverImage = !coverImgFailed
-    ? (dests.find((d) => d.image_url)?.image_url ?? trip.cover_image_url ?? null)
+    ? (resolvedDestImage ?? trip.cover_image_url ?? null)
     : null
 
   const handleMenuClick = (e: React.MouseEvent) => {
@@ -806,8 +808,9 @@ function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: 
   const gradient = gradients[index % gradients.length]
   const status = statusConfig[trip.status]
   const dests = trip.trip_destinations ?? []
+  const resolvedDestImage = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed
-    ? (dests.find((d) => d.image_url)?.image_url ?? trip.cover_image_url ?? null)
+    ? (resolvedDestImage ?? trip.cover_image_url ?? null)
     : null
   const destCount = dests.length
 
@@ -882,8 +885,9 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
   const gradient = gradients[index % gradients.length]
   const status = statusConfig[trip.status]
   const dests = trip.trip_destinations ?? []
+  const resolvedDestImage = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed
-    ? (dests.find((d) => d.image_url)?.image_url ?? trip.cover_image_url ?? null)
+    ? (resolvedDestImage ?? trip.cover_image_url ?? null)
     : null
 
   return (
