@@ -76,15 +76,6 @@ interface ItemInteraction {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const DEST_GRADIENTS = [
-  'from-blue-400 to-indigo-600',
-  'from-rose-400 to-pink-600',
-  'from-amber-400 to-orange-600',
-  'from-emerald-400 to-teal-600',
-  'from-violet-400 to-purple-600',
-  'from-cyan-400 to-sky-600',
-]
-
 const categoryColors: Record<Category, { bg: string; text: string }> = {
   restaurant: { bg: 'bg-orange-100', text: 'text-orange-700' },
   activity:   { bg: 'bg-purple-100', text: 'text-purple-700' },
@@ -1276,7 +1267,6 @@ export default function DestinationDetailPage() {
   }
   const unassignedCount = linkedItems.filter((li) => li.day_index === null).length
   const linkedItemIds = new Set(linkedItems.map((li) => li.item_id))
-  const gradient = DEST_GRADIENTS[0]
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
