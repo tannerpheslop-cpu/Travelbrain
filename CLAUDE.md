@@ -4,6 +4,14 @@
 
 ---
 
+## Development Preview
+
+- When previewing the app locally, navigate to `/dev-login` first to authenticate.
+- This route only works in development mode and uses the test account credentials from `.env.local`.
+- Do NOT attempt to sign in via magic link or Google OAuth — use `/dev-login`.
+
+---
+
 ## 1. What This Product Is
 
 Youji is a travel planning platform that transforms unstructured travel inspiration (TikTok links, Instagram posts, screenshots, website URLs, manual notes) into organized travel objects and lets users build destination-based trips that grow organically as users save more content.

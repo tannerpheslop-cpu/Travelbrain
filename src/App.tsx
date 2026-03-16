@@ -13,6 +13,7 @@ import ProfilePage from './pages/ProfilePage'
 import SearchPage from './pages/SearchPage'
 import SharedTripPage from './pages/SharedTripPage'
 import GlobalActions from './components/GlobalActions'
+import DevLoginPage from './pages/DevLoginPage'
 
 function AppLayout() {
   return (
@@ -44,6 +45,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          {import.meta.env.DEV && <Route path="/dev-login" element={<DevLoginPage />} />}
           <Route path="/s/:shareToken" element={<SharedTripPage />} />
           <Route path="/*" element={<AppLayout />} />
         </Routes>
