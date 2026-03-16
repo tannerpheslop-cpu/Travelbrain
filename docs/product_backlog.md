@@ -1,132 +1,169 @@
 # Youji Product Backlog
 
-These are ideas for future development. They should NOT be implemented during MVP development unless explicitly approved. This document is a parking lot, not a to-do list.
+These are ideas for future development organized by strategic priority. They should NOT be implemented during current development unless explicitly approved.
+
+---
+
+## Tier 1 — Next Priority (after current polish work)
+
+### Google Maps Export
+- Export destinations and activities as a Google Maps list or directions URL
+- Bridges Youji (planning) with Google Maps (navigation)
+- Youji does not build its own navigation
+
+### Booking Information Storage
+- Accommodations per destination: hotel name, address, check-in/check-out, confirmation number, booking reference link, notes
+- Transport between destinations: flight/train/bus details, departure/arrival times and locations, confirmation number, booking reference link, notes
+- Transport displayed as connective tissue between destination sections (illustrated dotted pathway with logistics attached)
+- Manual entry initially; Gmail auto-import later
+- Youji stores and displays booking info but does NOT build a booking engine
+
+### Trip Diary / Completion Layer
+- Post-trip rating/tagging of activities ("went here," "skipped," "must go back")
+- Trip summary generation
+- Photo attachment to completed activities
+- Powers the social intelligence layer (completed trips visible to friends)
+- Powers marketplace quality signals
+- IMPORTANT: This is a prerequisite for the marketplace — completed trips with ratings and diary content are the product worth selling. Build this before the marketplace.
 
 ---
 
 ## Tier 2 — Core Loop Enhancements
 
-### Friend Activity Recommendations
+### Social Travel Intelligence — Phase 1
+- Planning-the-same-region matching: notify users when friends are planning trips to the same country/region (not just city/date overlap)
+- Expert friend routing: "Sarah visited Litang in 2025 — view her notes" indicators on destination detail pages
+- "Steal this" from friends' completed trips: browse and pull activities from friends' past trips into your own
+- City-level friend aggregation: "Your friends in Kyoto" showing aggregated activities from friends' completed trips
+- Horizon "Friends' Activity" toggle: separate view showing friends' trip signals (creations, completions, interests) with actions
 
+### Social Travel Intelligence — Phase 2
+- "Friends are going" contextual discovery: ambient signals on Horizon ("3 friends have saves in Japan")
+- Recommendation propagation: friends' ratings on completed trip activities surface on your planned trips for same destinations
+- Prompted friend recommendations: "You know Tokyo — what should we do?" sent to specific friends
+
+### Linked Fork Updates
+- Forked trips remain linked to source trip
+- Pull-based update notifications: "Marcus added a restaurant in Kyoto — add to yours?"
+- Fork owner chooses which updates to pull — never automatic
+- Unlink option to make fork fully independent
+- Applies to both friend forks and marketplace purchases
+
+### Friend Activity Recommendations
 - Companions can submit activity recommendations to a trip (not just comment/vote)
-- Contributed items appear as suggestions (ghost cards) that the trip owner accepts or dismisses
-- Users can cherry-pick individual items from friends' trips into their own (atomic fork, not full trip fork)
-- Prompted recommendations: trip owner can send "You know Tokyo — what should we do?" to a friend
+- Contributed items appear as ghost cards the trip owner accepts or dismisses
+- Atomic item cherry-picking from friends' trips into your own
+- Prompted recommendations flow
 
 ### Accommodations Layer
-
-- Hotels/hostels as a distinct content layer within destinations
-- Own small section at top or bottom of each destination section on trip page
-- Can enter the system two ways: saved inspirationally via Horizon (auto-tagged as accommodation from domain), or configured directly within a destination during planning
-- Typically one accommodation per destination per date range
+- Hotels/hostels as distinct content layer within destinations
+- Own section at top or bottom of destination detail page
+- Two entry paths: saved via Horizon (auto-tagged from domain), or added via "Add a place" in destination
+- Typically one per destination per date range
 
 ### Transport Connectors
-
-- Transport as connective tissue between destinations (flights, trains, buses, drives)
-- Belongs to the transition between two destinations, not to either one
-- Visually represented as illustrated dotted pathway with brief details (e.g., "Train · 12 hours")
-- Text-based entry, not a booking integration
+- Transport between destinations (flights, trains, buses, drives)
+- Belongs to the transition between two destinations
+- Illustrated dotted pathway with logistics details (flight number, duration, times)
+- Text-based entry initially, Gmail auto-import later
 
 ### Visa & Travel Advisories
-
-- Set home country once in user profile
-- Passive awareness of visa requirements per destination country
-- Altitude/health warnings (e.g., supplemental oxygen for high-altitude destinations)
-- Use free data sources (passport index APIs, government travel advisory feeds)
+- Set home country in profile
+- Passive visa requirement awareness per destination country
+- Altitude/health warnings
+- Free data sources (passport index APIs, government advisory feeds)
 
 ### Rapid Capture Enhancements
-
-- Multi-add entry: type destination, press Enter, repeat
-- Multi-line paste: paste a list of place names, auto-split into draft entries
-- Draft-first, resolve-second model for Google Places
-- Designed for blog-driven manual extraction and friend recommendation lists
-
-### Drag-and-Drop Scheduling Redesign
-
-- Replace current day-index-based scheduling with a more intuitive drag-and-drop interface
-- Items within a destination can be dragged between days or to "Unplanned"
-- Visual day timeline with time slots (morning/afternoon/evening)
-- Reorder items within a day via drag handle
-- Batch move: select multiple items and assign to a day at once
+- Multi-add entry improvements
+- Draft-first resolution improvements
+- Blog text extraction via Claude API (paid feature)
 
 ---
 
-## Tier 3 — Monetization & Growth
+## Tier 3 — Marketplace (requires user base + completed trip supply)
 
-### Trip Diary / Completion Layer
+The marketplace should NOT be built until there is a meaningful base of users creating and completing quality trips. The sequence is: polish product → get users → users create and complete trips (using the diary/completion layer from Tier 1) → launch marketplace with real inventory.
 
-- After trip dates pass, prompt user to rate/tag activities ("went here," "skipped," "must go back")
-- Lightweight trip summary generation from tagged activities
-- Photo attachment to completed activities
-- Shareable trip completion stories
-- A completed trip with diary content is more valuable than a planned trip (feeds into marketplace)
-
-### Marketplace
-
-- Users can sell their trip itineraries to strangers via an in-app marketplace
-- Fork/adopt for friends remains free; marketplace is for strangers via creator listings
+### Itinerary Marketplace
+- Users sell trip itineraries to strangers via in-app marketplace
+- Fork/adopt for friends remains free; marketplace is for stranger-to-stranger commerce
 - Creators: influencers, travel bloggers, budget travelers, tastemakers
 - Buyers: people who don't want to plan, want a shortcut to a proven itinerary
-- Purchased trips fork into buyer's account as a living plan (not a PDF)
-- Creators can embed external content (YouTube video, Substack link) as social proof on the listing
-- Rich preview before purchase: destination count, day count, map overview, creator's embedded content, but not the full itinerary
-- Diary entries are NOT required to sell a trip — external social proof (YouTube, blog) is sufficient
+- Purchased trips fork into buyer's account as a living, editable plan
+- Creators embed external social proof (YouTube, Substack links) on listing page
+- Rich preview before purchase: destination count, day count, map overview, creator content — not the full itinerary
+- Diary entries NOT required to sell — external social proof is sufficient
 - Budget travel angle: "I traveled Asia for $30/day, buy my trip for $20"
-- Second growth loop: creator promotes Youji listing on their platform → audience buys → new Youji users
-- Revenue split TBD (industry standard rates)
+- Linked fork model: creator updates propagate as pull-based notifications to buyers
+- Revenue split TBD
+- Competitive context: Mindtrip/Thatch is closest competitor (guide-based, not itinerary-based). Monitor their progress.
 
-### AI Features (Paid Tier)
-
-- Paste travel blog → auto-extract destinations, hotels, activities, restaurants
-- Auto-generate draft trip from long-form content
-- Route optimization suggestions
-- Smart itinerary ordering
+### Creator Tools (requires marketplace scale)
+- Listing analytics (views, conversion, revenue)
+- Promoted placement
+- Creator verification badges
+- Bulk upload tools
 
 ---
 
 ## Tier 4 — Future Exploration
 
-### On-Trip Features
+### Social Travel Intelligence — Phase 3 (requires native app + scale)
+- "Friends nearby" real-time detection during active trips
+- Friend-powered destination ranking ("Top destinations among your friends this year")
+- Collective taste mapping across friend network
 
-- Activities near you (surface closest saved activity to user's current location)
+### On-Trip Features
+- Activities near you (surface closest saved activity to current location)
 - Offline access to itinerary and saved items
 - Booking vault (store confirmations, tickets)
 
 ### Discovery
-
 - Browse public/marketplace trips
 - Trending destinations
-- Pre-populated historical/themed trips (e.g., Silk Road) — editorial content, only if user-generated supply exists
+- Pre-populated historical/themed trips (editorial, only if user-generated supply exists)
 
 ### Onboarding Wow Moment
-
-- Guided first save: prompt user to add 5+ places they dream about visiting
-- System detects geographic cluster and suggests "Looks like you're building a trip in Japan"
+- Guided first save: add 5+ dream destinations rapidly
+- Cluster detection → "Looks like you're building a trip in Japan"
 - One-tap trip creation from cluster
-- This is the moment users understand the product
 
 ### Living Map Cues (Advanced)
+- Visual connectors between nearby Horizon items
+- Journey emergence prompts in Horizon
+- Animated path lines
 
-- Subtle visual connectors between nearby inbox items
-- "You have 4 saves near Lijiang — create a trip?" prompts in Horizon
-- Journey emergence UI that reveals trips forming from saves
-- Animated path lines, directional flow hints
+### Illustrated Icon System
+- Replace Lucide placeholders with custom graphite-style illustrations
+- Tier 1: 25-30 core category icons
+- Tier 2: Regional food/cultural variants
+- Tier 3: Rare landmark-specific easter eggs
 
-### Illustrated Icon System (Full Version)
-
-- Replace Lucide placeholder icons with custom graphite-style illustrations
-- Tier 1: ~25–30 core category icons (mountain, restaurant, temple, hotel, etc.)
-- Tier 2: Regional food/cultural variants (ramen, dumplings, tacos, curry)
-- Tier 3: Rare landmark-specific icons (Great Wall, Eiffel Tower, Mt. Fuji)
-- Generate via AI image tools, curate for consistent style
-- Style: monochrome graphite, consistent line weight, minimal shading
+### Gmail Integration
+- Auto-import flight confirmations, hotel bookings, travel scheduling from Gmail
+- Parse confirmation emails into appropriate trip destinations
 
 ### Other Ideas
-
-- Campsite/hiking API integration with trail connectors
-- Text block parsing via Claude API (simpler version of full blog parsing)
-- Import from Google Maps saved places
-- Overlap detection (notify friends when future trips coincide in same city)
+- Campsite/hiking API integration
 - Calendar export and sync
 - Schedule conflict detection
-- Gmail integration: scan inbox for travel confirmations (flights, hotels, car rentals) and auto-create saves or attach to existing trips. Parse booking emails from airlines, hotels, and OTAs to extract dates, confirmation numbers, and locations. Could use Gmail API with OAuth consent.
+- Import from Google Maps saved places
+- Day numbering without specific dates
+- Route optimization algorithm
+
+---
+
+## Explicitly Out of Scope
+
+These features are deliberately NOT being built. Other tools handle them better and building them would dilute Youji's focus.
+
+- AI recommendation engine (AI is utility only — parsing, extraction — never the source of recommendations)
+- Booking engine (no flight/hotel search, price comparison, or purchase processing)
+- Hourly/minute-level time-slot scheduling
+- Expense tracking / bill splitting
+- Offline map downloads
+- Real-time turn-by-turn navigation
+- GPS journey tracking
+- Social media feed (no infinite scroll, no passive content consumption)
+- Price comparison tools
+- Currency conversion
