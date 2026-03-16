@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
@@ -28,6 +28,8 @@ export default function ItemDetailPage() {
   const { id } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const navLocation = useLocation()
+  const backTo = (navLocation.state as { from?: string })?.from || '/inbox'
 
   const [item, setItem] = useState<SavedItem | null>(null)
   const [loading, setLoading] = useState(true)
@@ -152,7 +154,7 @@ export default function ItemDetailPage() {
       .from('saved_items')
       .update({ is_archived: true })
       .eq('id', id)
-    navigate('/inbox')
+    navigate(backTo)
   }
 
   const handleRefreshImage = async () => {
@@ -200,7 +202,7 @@ export default function ItemDetailPage() {
     return (
       <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
         <button
-          onClick={() => navigate('/inbox')}
+          onClick={() => navigate(backTo)}
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -225,7 +227,7 @@ export default function ItemDetailPage() {
       {/* Header: Back + Save Status */}
       <div className="flex items-center justify-between mb-4">
         <button
-          onClick={() => navigate('/inbox')}
+          onClick={() => navigate(backTo)}
           className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">

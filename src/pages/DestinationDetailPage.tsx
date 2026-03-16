@@ -395,7 +395,7 @@ function CommentThread({
 function DayItemCard({
   linkedItem, activeDayIndex, dayCount, startDate,
   onRemove, onMove, dragHandleAttributes, dragHandleListeners,
-  isDragging, canEdit,
+  isDragging, canEdit, backTo,
 }: {
   linkedItem: LinkedItem
   activeDayIndex: number | null
@@ -407,6 +407,7 @@ function DayItemCard({
   dragHandleListeners?: Record<string, unknown>
   isDragging?: boolean
   canEdit?: boolean
+  backTo?: string
 }) {
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const item = linkedItem.saved_item
@@ -437,10 +438,10 @@ function DayItemCard({
         ) : (
           <div className="w-1" />
         )}
-        <Link to={`/item/${item.id}`} className="shrink-0 select-none" style={{ WebkitTouchCallout: 'none' }}>
+        <Link to={`/item/${item.id}`} state={backTo ? { from: backTo } : undefined} className="shrink-0 select-none" style={{ WebkitTouchCallout: 'none' }}>
           <SavedItemImage item={item} size="sm" className="rounded-lg pointer-events-none" />
         </Link>
-        <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-1">
+        <Link to={`/item/${item.id}`} state={backTo ? { from: backTo } : undefined} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
           {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
           <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
@@ -504,22 +505,23 @@ function SortableDayItem(props: Omit<React.ComponentProps<typeof DayItemCard>, '
 // ── Linked Item Card ───────────────────────────────────────────────────────────
 
 function LinkedItemCardSummary({
-  item, linkId, onRemove, canEdit, hasExpandedContent,
+  item, linkId, onRemove, canEdit, hasExpandedContent, backTo,
 }: {
   item: SavedItem
   linkId: string
   onRemove: (linkId: string) => void
   canEdit?: boolean
   hasExpandedContent?: boolean
+  backTo?: string
 }) {
   const colors = categoryColors[item.category]
   return (
     <div className={`bg-white border border-gray-100 shadow-sm overflow-hidden ${hasExpandedContent ? 'rounded-t-2xl border-b-0' : 'rounded-2xl'}`}>
       <div className="flex items-center gap-0 p-2">
-        <Link to={`/item/${item.id}`} className="shrink-0 select-none" style={{ WebkitTouchCallout: 'none' }}>
+        <Link to={`/item/${item.id}`} state={backTo ? { from: backTo } : undefined} className="shrink-0 select-none" style={{ WebkitTouchCallout: 'none' }}>
           <SavedItemImage item={item} size="md" className="rounded-xl pointer-events-none" />
         </Link>
-        <Link to={`/item/${item.id}`} className="flex-1 min-w-0 px-3 py-1">
+        <Link to={`/item/${item.id}`} state={backTo ? { from: backTo } : undefined} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
           {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
           <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
@@ -730,6 +732,7 @@ export default function DestinationDetailPage() {
   const { id: tripId, destId } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const itemBackTo = `/trip/${tripId}/dest/${destId}`
 
   // Core state
   const [destination, setDestination] = useState<TripDestination | null>(null)
@@ -1406,6 +1409,7 @@ export default function DestinationDetailPage() {
                               onRemove={handleRemoveItem}
                               onMove={handleMoveItem}
                               canEdit={canEdit}
+                              backTo={itemBackTo}
                             />
                           </SwipeToDelete>
                           <LinkedItemExpanded
@@ -1572,7 +1576,7 @@ export default function DestinationDetailPage() {
                       <LinkedItemCardSummary
                         item={li.saved_item} linkId={li.id}
                         onRemove={handleRemoveItem} canEdit={canEdit}
-                        hasExpandedContent
+                        hasExpandedContent backTo={itemBackTo}
                       />
                     </SwipeToDelete>
                     <LinkedItemExpanded
