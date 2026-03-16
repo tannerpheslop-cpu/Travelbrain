@@ -102,18 +102,15 @@ function TripCard({
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [confirming, setConfirming] = useState(false)
-  const [coverImgFailed, setCoverImgFailed] = useState(false)
   const [coverImgLoaded, setCoverImgLoaded] = useState(false)
 
   const gradient = gradients[index % gradients.length]
   const status = statusConfig[trip.status]
   const dests = trip.trip_destinations ?? []
-  const resolvedDestImage = useFirstDestinationImage(dests)
+  const [resolvedDestImage, onDestImageError] = useFirstDestinationImage(dests)
 
   // Cover: first destination image → trip cover_image_url → gradient
-  const coverImage = !coverImgFailed
-    ? (resolvedDestImage ?? trip.cover_image_url ?? null)
-    : null
+  const coverImage = resolvedDestImage ?? trip.cover_image_url ?? null
 
   const handleMenuClick = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation()
@@ -148,7 +145,7 @@ function TripCard({
               alt={trip.title}
               className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
               onLoad={() => setCoverImgLoaded(true)}
-              onError={() => setCoverImgFailed(true)}
+              onError={onDestImageError}
             />
           )}
           {/* Subtle bottom scrim for legibility */}
@@ -803,15 +800,12 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
 // ── Featured Trip Hero ────────────────────────────────────────────────────────
 
 function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: number }) {
-  const [coverImgFailed, setCoverImgFailed] = useState(false)
   const [coverImgLoaded, setCoverImgLoaded] = useState(false)
   const gradient = gradients[index % gradients.length]
   const status = statusConfig[trip.status]
   const dests = trip.trip_destinations ?? []
-  const resolvedDestImage = useFirstDestinationImage(dests)
-  const coverImage = !coverImgFailed
-    ? (resolvedDestImage ?? trip.cover_image_url ?? null)
-    : null
+  const [resolvedDestImage, onDestImageError] = useFirstDestinationImage(dests)
+  const coverImage = resolvedDestImage ?? trip.cover_image_url ?? null
   const destCount = dests.length
 
   return (
@@ -830,7 +824,7 @@ function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: 
             alt={trip.title}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
             onLoad={() => setCoverImgLoaded(true)}
-            onError={() => setCoverImgFailed(true)}
+            onError={onDestImageError}
           />
         )}
         {/* Scrim */}
@@ -880,15 +874,12 @@ function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: 
 // ── Carousel Trip Card ───────────────────────────────────────────────────────
 
 function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: number }) {
-  const [coverImgFailed, setCoverImgFailed] = useState(false)
   const [coverImgLoaded, setCoverImgLoaded] = useState(false)
   const gradient = gradients[index % gradients.length]
   const status = statusConfig[trip.status]
   const dests = trip.trip_destinations ?? []
-  const resolvedDestImage = useFirstDestinationImage(dests)
-  const coverImage = !coverImgFailed
-    ? (resolvedDestImage ?? trip.cover_image_url ?? null)
-    : null
+  const [resolvedDestImage, onDestImageError] = useFirstDestinationImage(dests)
+  const coverImage = resolvedDestImage ?? trip.cover_image_url ?? null
 
   return (
     <Link
@@ -905,7 +896,7 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
             alt={trip.title}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
             onLoad={() => setCoverImgLoaded(true)}
-            onError={() => setCoverImgFailed(true)}
+            onError={onDestImageError}
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
