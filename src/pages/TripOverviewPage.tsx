@@ -909,7 +909,7 @@ export default function TripOverviewPage() {
       trackEvent('destination_added', user?.id ?? null, { trip_id: id, location_name: loc.name, location_type: loc.location_type })
 
       if (photoUrl) {
-        void supabase.from('trip_destinations').update({ image_url: photoUrl }).eq('id', data.id)
+        await supabase.from('trip_destinations').update({ image_url: photoUrl }).eq('id', data.id)
       }
 
       // Nudge trip to planning if aspirational
