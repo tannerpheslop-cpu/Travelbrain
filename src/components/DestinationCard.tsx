@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { MapPin, Check } from 'lucide-react'
 import type { TripDestination } from '../types'
 import { shortName, shortLocalName } from './BilingualName'
+import { useDestinationImage } from '../hooks/useDestinationImage'
 
 // Gradient palette for destination thumbnails (same as TripsPage)
 const gradients = [
@@ -40,6 +41,7 @@ export default function DestinationCard({
   onAddDates, onDatesTap, onLongPress,
 }: DestinationCardProps) {
   const gradient = gradients[index % gradients.length]
+  const resolvedImageUrl = useDestinationImage(destination.id, destination.image_url, destination.location_place_id)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const longPressFired = useRef(false)
@@ -101,9 +103,9 @@ export default function DestinationCard({
 
       {/* Thumbnail */}
       <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 flex-none">
-        {destination.image_url ? (
+        {resolvedImageUrl ? (
           <img
-            src={destination.image_url}
+            src={resolvedImageUrl}
             alt={city}
             className="w-full h-full object-cover"
             loading="lazy"

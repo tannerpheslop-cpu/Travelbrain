@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Layers, MapPin } from 'lucide-react'
 import type { TripRoute, TripDestination } from '../types'
+import { useFirstDestinationImage } from '../hooks/useDestinationImage'
 
 function shortDateRange(start: string, end: string): string {
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
@@ -29,7 +30,7 @@ export default function RouteCard({
 
   const stopCount = destinations.length
   const totalItems = destinations.reduce((sum, d) => sum + d.itemCount, 0)
-  const firstImage = destinations.find((d) => d.image_url)?.image_url
+  const firstImage = useFirstDestinationImage(destinations)
 
   // Date range from earliest start to latest end
   const dates = destinations.filter((d) => d.start_date && d.end_date)

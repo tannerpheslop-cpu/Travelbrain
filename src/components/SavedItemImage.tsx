@@ -15,7 +15,7 @@ export interface SavedItemImageData {
 
 // ── In-memory cache & concurrency control ────────────────────────────────────
 
-const photoCache = new Map<string, string | null>()
+export const photoCache = new Map<string, string | null>()
 const inflight = new Map<string, Promise<string | null>>()
 let activeCount = 0
 const MAX_CONCURRENT = 3
@@ -35,7 +35,7 @@ function releaseSlot() {
   if (next) next()
 }
 
-async function getPlacePhoto(placeId: string): Promise<string | null> {
+export async function getPlacePhoto(placeId: string): Promise<string | null> {
   if (photoCache.has(placeId)) return photoCache.get(placeId)!
 
   // Deduplicate concurrent requests for the same placeId

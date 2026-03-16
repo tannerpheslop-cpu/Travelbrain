@@ -30,6 +30,7 @@ import PlaceSearchInput from '../components/PlaceSearchInput'
 import MarkdownNotes from '../components/MarkdownNotes'
 import SwipeToDelete from '../components/SwipeToDelete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
+import { useDestinationImage } from '../hooks/useDestinationImage'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -739,6 +740,7 @@ export default function DestinationDetailPage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [canEdit, setCanEdit] = useState(false)
+  const heroImageUrl = useDestinationImage(destId, destination?.image_url, destination?.location_place_id)
 
   // Linked items
   const [linkedItems, setLinkedItems] = useState<LinkedItem[]>([])
@@ -1315,9 +1317,9 @@ export default function DestinationDetailPage() {
       </div>
 
       {/* 2. Hero image */}
-      {destination.image_url ? (
+      {heroImageUrl ? (
         <div className="mx-4 h-48 rounded-2xl overflow-hidden mb-4">
-          <img src={destination.image_url} alt={city} className="w-full h-full object-cover" />
+          <img src={heroImageUrl} alt={city} className="w-full h-full object-cover" />
         </div>
       ) : (
         <div className={`mx-4 h-48 rounded-2xl overflow-hidden mb-4 bg-gradient-to-br ${gradient} flex items-center justify-center`}>
