@@ -59,6 +59,12 @@ const gradients = [
   'from-cyan-400 to-sky-600',
 ]
 
+/** Google CDN URLs expire — treat them as stale so we re-fetch and persist to Supabase Storage */
+function isStaleGoogleUrl(url: string | null): boolean {
+  if (!url) return false
+  return url.includes('googleusercontent.com') || url.includes('googleapis.com/maps')
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export interface DestinationImageData {
@@ -89,7 +95,8 @@ export default function DestinationImage({
   alt = '',
   readOnly = false,
 }: Props) {
-  const [photoUrl, setPhotoUrl] = useState<string | null>(destination.image_url)
+  const stableUrl = isStaleGoogleUrl(destination.image_url) ? null : destination.image_url
+  const [photoUrl, setPhotoUrl] = useState<string | null>(stableUrl)
   const [imgFailed, setImgFailed] = useState(false)
   const [refetching, setRefetching] = useState(false)
 
@@ -97,7 +104,7 @@ export default function DestinationImage({
 
   // Reset when destination changes
   useEffect(() => {
-    setPhotoUrl(destination.image_url)
+    setPhotoUrl(isStaleGoogleUrl(destination.image_url) ? null : destination.image_url)
     setImgFailed(false)
     setRefetching(false)
   }, [destination.id, destination.image_url])

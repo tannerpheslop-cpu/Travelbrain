@@ -81,15 +81,22 @@ interface Props {
   readOnly?: boolean
 }
 
+/** Google CDN URLs expire — treat them as stale so we re-fetch and persist to Supabase Storage */
+function isStaleGoogleUrl(url: string | null): boolean {
+  if (!url) return false
+  return url.includes('googleusercontent.com') || url.includes('googleapis.com/maps')
+}
+
 export default function SavedItemImage({ item, size, className = '', readOnly = false }: Props) {
-  const effectiveUrl = item.image_url || ('places_photo_url' in item ? item.places_photo_url ?? null : null)
+  const rawUrl = item.image_url || ('places_photo_url' in item ? item.places_photo_url ?? null : null)
+  const effectiveUrl = isStaleGoogleUrl(rawUrl) ? null : rawUrl
   const [photoUrl, setPhotoUrl] = useState<string | null>(effectiveUrl)
   const [imgFailed, setImgFailed] = useState(false)
 
   // Reset when item changes
   useEffect(() => {
     const url = item.image_url || ('places_photo_url' in item ? item.places_photo_url ?? null : null)
-    setPhotoUrl(url)
+    setPhotoUrl(isStaleGoogleUrl(url) ? null : url)
     setImgFailed(false)
   }, [item.id, item.image_url, 'places_photo_url' in item ? item.places_photo_url ?? null : null])
 

@@ -2,22 +2,29 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { getPlacePhoto, photoCache } from '../components/SavedItemImage'
 
+/** Google CDN URLs expire — treat them as needing re-fetch */
+function isStaleGoogleUrl(url: string | null | undefined): boolean {
+  if (!url) return false
+  return url.includes('googleusercontent.com') || url.includes('googleapis.com/maps')
+}
+
 /**
- * Auto-fetches and persists a destination's image when image_url is null
- * or broken. Returns [resolvedUrl, onError] — call onError from <img> onError
- * to trigger a re-fetch from Google Places.
+ * Auto-fetches and persists a destination's image when image_url is null,
+ * stale (expired Google CDN URL), or broken. Returns [resolvedUrl, onError] —
+ * call onError from <img> onError to trigger a re-fetch from Google Places.
  */
 export function useDestinationImage(
   destId: string | undefined,
   imageUrl: string | null | undefined,
   placeId: string | null | undefined,
 ): [string | null, () => void] {
-  const [url, setUrl] = useState<string | null>(imageUrl ?? null)
+  const stableUrl = isStaleGoogleUrl(imageUrl) ? null : (imageUrl ?? null)
+  const [url, setUrl] = useState<string | null>(stableUrl)
   const [failed, setFailed] = useState(false)
 
   // Sync with prop changes
   useEffect(() => {
-    setUrl(imageUrl ?? null)
+    setUrl(isStaleGoogleUrl(imageUrl) ? null : (imageUrl ?? null))
     setFailed(false)
   }, [imageUrl])
 
@@ -89,11 +96,11 @@ interface DestLike {
 export function useFirstDestinationImage(
   destinations: DestLike[],
 ): [string | null, () => void] {
-  // Find first with existing image
-  const withImage = destinations.find((d) => d.image_url)
-  // Find first candidate for auto-fetch (no image but has place_id)
+  // Find first with existing non-stale image
+  const withImage = destinations.find((d) => d.image_url && !isStaleGoogleUrl(d.image_url))
+  // Find first candidate for auto-fetch (no image / stale image but has place_id)
   const candidate = !withImage
-    ? destinations.find((d) => !d.image_url && d.location_place_id)
+    ? destinations.find((d) => (!d.image_url || isStaleGoogleUrl(d.image_url)) && d.location_place_id)
     : undefined
 
   // When withImage exists, pass its id and placeId so the hook can re-fetch on error

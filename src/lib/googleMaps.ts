@@ -1,3 +1,5 @@
+import { invokeEdgeFunction } from './supabase'
+
 /**
  * Dynamically loads the Google Maps JavaScript API (with Places library)
  * exactly once, even if called from multiple components simultaneously.
@@ -271,12 +273,17 @@ export async function findPlaceByQuery(query: string): Promise<ResolvedLocation 
   }
 }
 
+/**
+ * Fetches a photo for a Google Place, persists it to Supabase Storage
+ * for a permanent URL, and returns that URL. Falls back to the temporary
+ * Google CDN URL if persistence fails.
+ */
 export async function fetchPlacePhoto(placeId: string): Promise<string | null> {
   try {
     await loadGoogleMapsScript()
     if (!window.google?.maps?.places) return null
 
-    return new Promise<string | null>((resolve) => {
+    const tempUrl = await new Promise<string | null>((resolve) => {
       const service = new window.google.maps.places.PlacesService(
         document.createElement('div'),
       )
@@ -297,7 +304,25 @@ export async function fetchPlacePhoto(placeId: string): Promise<string | null> {
         },
       )
     })
+
+    if (!tempUrl) return null
+
+    // Persist to Supabase Storage for a permanent URL
+    try {
+      return await persistPlacePhoto(placeId, tempUrl)
+    } catch (e) {
+      console.warn('[fetchPlacePhoto] persist failed, using temp URL:', e)
+      return tempUrl
+    }
   } catch {
     return null
   }
+}
+
+async function persistPlacePhoto(placeId: string, photoUrl: string): Promise<string> {
+  const result = await invokeEdgeFunction<{ url: string }>('persist-place-photo', {
+    placeId,
+    photoUrl,
+  })
+  return result.url
 }
