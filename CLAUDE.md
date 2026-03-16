@@ -663,3 +663,191 @@ Do NOT build Layers 2 or 3 yet. This section exists so architectural decisions d
 - Not skeuomorphic (no corkboard, paper textures, scrapbook aesthetic)
 - Not a journal product (the journal meaning is metaphor only)
 - Not generic travel branding (no Wander, Atlas, Roam)
+
+---
+
+## Brand Philosophy: Analog
+
+Youji's primary brand pillar is "analog" — not literally analog technology, but the analog ethos. In a world of algorithmic feeds, AI-generated content, and apps designed to maximize screen time, Youji is built for people who want intentional, human, and deliberate technology.
+
+The analog philosophy means:
+- No algorithmic feed. Nothing is pushed to you by an algorithm. Social content is surfaced contextually when relevant, not in an infinite scroll.
+- No AI recommendations. Your trips come from your own inspiration and your friends' real experiences, not from a machine.
+- No attention hijacking. No streak counters, no gamification, no notification spam designed to drive engagement.
+- Human connections over digital ones. The social model mirrors how friends actually share travel advice in real life.
+
+The analog philosophy does NOT mean:
+- The app should still be dynamic, smart, and modern. Rich empty states, autocomplete, auto-save, intelligent suggestions from the user's own data, and all quality-of-life features are fully encouraged.
+- The app uses technology extensively (Google Places API, real-time data, cloud sync, background resolution) — but in service of human decisions, never in place of them.
+- UX should be as smooth, helpful, and polished as possible. Analog is a brand stance, not a UX restriction.
+
+This resonates with a growing cultural movement among young adults (20-35) toward intentional technology: dumbphones, film cameras, physical journals, vinyl records. These people aren't anti-technology — they're anti-attention-economy. They want tools that respect their intelligence and their time. Youji is that tool for travel.
+
+Design principle: when making product decisions, ask "Does this respect the user's agency? Is the content human-sourced? Are we adding this to help the user or to increase engagement metrics?"
+
+---
+
+## Brand Positioning
+
+"Real people, real trips, real recommendations."
+
+Youji rejects AI-generated itineraries in favor of human-sourced travel intelligence. In a market flooded with AI trip planners that generate generic suggestions, Youji takes the opposite stance: the best travel recommendations come from your own inspiration and the people you trust — your friends, your favorite creators, your own saved discoveries.
+
+AI exists in Youji only as a utility accelerator (parsing text, extracting place names, resolving locations) — never as the recommendation engine. The content is always human-sourced and human-curated.
+
+This positions Youji against every AI travel planner (Layla, TriPandoo, Wonderplan, Mindtrip) simultaneously while creating a clear emotional reason to build your network on the platform.
+
+The anti-AI stance and the no-feed social model both flow from the analog philosophy. Youji isn't anti-technology — it uses technology extensively (Google Places API, real-time data, cloud sync). But it uses technology in service of human decisions, never in place of them.
+
+---
+
+## Five Strategic Pillars
+
+All five pillars are expressions of the analog philosophy.
+
+Pillar 1 — Analog Philosophy (Brand Foundation): The primary brand pillar. Intentional, human, deliberate technology. No feeds, no algorithms, no AI recommendations, no attention hijacking. Every feature passes the test: "Does this respect the user's attention and agency?"
+
+Pillar 2 — Inspiration-First Capture (The Horizon): Your year-round travel brain. Save from anywhere — links, photos, text, bulk paste — and inspiration accumulates organically. Trips emerge from saves. No competitor has this. The Horizon is always private — nothing from friends or the platform appears there without explicit user action. This is the analog notebook: you write in it deliberately, it doesn't write itself.
+
+Pillar 3 — Social Travel Intelligence: The app understands your friends' travel and surfaces useful connections — not as a social feed, but as contextual enrichment woven into existing planning surfaces. Includes overlap detection, same-region matching, city-level friend aggregation, friend activity recommendations, and atomic item cherry-picking. This is the analog social model: real friends sharing real experiences, not strangers performing for an audience.
+
+Pillar 4 — Fork/Adopt Social Model: Friends fork trips for free. Every shared trip is potential user acquisition. Forks can remain linked to the source trip for pull-based updates ("Marcus added a restaurant in Kyoto — add to yours?"). This replaces co-editing with an ownership-respecting model. This is analog collaboration: passing your notebook to a friend, not working in a shared Google Doc.
+
+Pillar 5 — Itinerary Marketplace: Creators sell proven trips as living plans (not PDFs). Buyers fork purchased trips into their own account. Creators embed external social proof (YouTube, Substack). Budget travel angle has no platform home today. Marketplace trips can also use the linked fork model for creator updates to propagate to buyers. This is the analog marketplace: real people selling real experiences, not AI generating content for SEO.
+
+---
+
+## Competitive Positioning
+
+Key competitors and how Youji differs:
+- Wanderlog: Best itinerary planner. Plan-first, not inspiration-first. No marketplace. Co-editing social model creates group tension. No friend intelligence.
+- Mindtrip + Thatch: Moving toward creator marketplace (guide-based, not itinerary-based). Lacks capture pipeline and social intelligence layer. Closest competitive threat on marketplace — speed to market matters.
+- TripIt: Organizes what you've booked, not what you're planning. Complementary, not competitive.
+- Layla AI: AI-generated trips, not user-curated. "AI recommends, Youji manages reality."
+- Polarsteps: Owns the tracking/relive phase. Not a planning competitor.
+
+No competitor combines: analog philosophy + inspiration-first capture + social travel intelligence + fork/adopt model + itinerary marketplace.
+
+---
+
+## Social Travel Intelligence Model
+
+Social data enriches existing surfaces rather than living on a separate social page.
+
+How it surfaces:
+- Horizon page: "My Saves" / "Friends' Activity" toggle. My Saves (default) is the pure private Horizon. Friends' Activity shows signals from your network (trip creations, completions, travel interests) with actions on each.
+- Trip overview page: Contextual cards — "Marcus is also planning China," "Sarah visited Litang in 2025."
+- Destination detail page: "Friends" section showing city-level aggregated intelligence from friends' completed trips. Ghost cards you can "+" to add to your own trip.
+- Search page: Friend data enriches results — "Kyoto — 3 friends have been, 1 friend is planning."
+- Trips page: Overlap and coordination notifications.
+
+Key design principle: friend intelligence is always one deliberate action away, never zero actions away. Nothing enters your Horizon without your explicit action.
+
+Three social circles:
+- Friends (people you know): overlap detection, same-region matching, expert routing, "steal this," recommendations
+- Companions (trip collaborators): view, comment, vote, submit activity suggestions
+- Strangers (marketplace): buy/sell itineraries, browse creator profiles
+
+---
+
+## Privacy Model
+
+Privacy is structured as a funnel with increasing visibility at each level:
+
+Level 1 — Always Private: Horizon saves. Never visible to anyone.
+
+Level 2 — Metadata Visible to Friends (default): Planned trips. Friends see THAT you're planning a trip (trip name, destinations, date range, phase). They cannot see WHAT's in it (activities, hotels, notes, schedule). Users can upgrade to share full content with friends, or downgrade to fully hide a trip ("Hide from friends" toggle).
+
+Level 3 — Content Visible to Friends (default): Completed trips. Full trip content (activities, notes, recommendations) visible to friends. Powers the city-level friend intelligence. Users can opt specific trips or activities out.
+
+Level 4 — Fully Public: Marketplace listings. Visible to everyone, purchasable.
+
+Each level requires deliberate user action to move content to a more public state.
+
+---
+
+## Linked Forks
+
+When a trip is forked (by a friend or marketplace buyer), the fork can remain linked to the source trip. Updates from the source are not automatically applied — the fork owner receives pull-based notifications:
+
+"Marcus added a restaurant in Kyoto — add to yours?"
+
+The fork owner chooses which updates to pull in. This preserves ownership while enabling coordination.
+
+Marketplace application: when a creator updates a sold itinerary (adds a new hotel, removes a closed restaurant), buyers receive update notifications and can pull changes into their copy.
+
+Users can unlink a fork at any time to make it fully independent.
+
+---
+
+## Booking Information Storage
+
+Youji stores and displays travel logistics but does NOT build a booking engine (no flight search, no price comparison, no purchase processing).
+
+Accommodations (per destination): hotel/hostel name, address, check-in/check-out dates, confirmation number, booking reference link/URL, notes. Added via Google Places search or manual entry.
+
+Transport (between destinations): flight number or train/bus details, departure/arrival times, departure/arrival locations, confirmation number, booking reference link/URL, notes. Displayed as the connective tissue between destination sections (illustrated dotted pathway with logistics details attached).
+
+Future: Gmail integration could auto-import booking confirmations into the appropriate trip.
+
+---
+
+## Product Boundary
+
+BUILD (Youji's core):
+- Save from anywhere (links, photos, text, bulk entry)
+- Horizon as year-round private travel brain
+- Trip planning: destinations, activities, notes, day-level scheduling, route grouping
+- Social travel intelligence: overlap detection, friend recommendations, city-level aggregation, atomic cherry-picking
+- Fork/adopt with optional linked updates
+- Itinerary marketplace with embedded social proof
+- Booking information storage and display
+- Google Maps export
+- Route optimization (free)
+- Bilingual place names
+- Gmail integration for booking auto-import (future)
+
+DO NOT BUILD:
+- AI recommendation engine (AI is utility only — parsing, extraction, resolution — never the source of recommendations)
+- Booking engine (no flight/hotel search, price comparison, or purchase processing)
+- Hourly time-slot scheduling
+- Expense tracking / bill splitting
+- Offline map downloads
+- Real-time turn-by-turn navigation
+- GPS journey tracking
+- Social media feed (no infinite scroll, no passive content consumption)
+
+---
+
+## Monetization Strategy
+
+Three revenue streams. Pricing TBD — documented here are the streams and what each contains, not specific price points.
+
+Stream 1 — Free Tier (growth engine, no direct revenue):
+The free tier must feel like a complete, premium product. It drives adoption, network effects, habit formation, and long-term retention. Everything needed to plan trips lives here:
+- Unlimited saves and Horizon organization
+- Unlimited trips with destination-based model
+- Full trip planning (destinations, activities, notes, day-level scheduling)
+- Route optimization (free — this is a competitive advantage, Wanderlog charges for it)
+- Sharing links with privacy controls
+- Fork/adopt trips
+- Companion mode (comments, votes)
+- Social travel intelligence (overlap detection, friend recommendations, city-level aggregation)
+- Bilingual place names
+- Google Places data auto-population
+
+Stream 2 — Trip Mode / Paid Tier (primary recurring revenue):
+Unlocks the execution engine — features that become valuable when the user is about to travel or actively on a trip. Time-bound pricing aligned to travel behavior (not monthly subscriptions). Should feel like an entirely new product that activates around actual travel:
+- Google Maps export
+- Calendar export and sync
+- Offline access to itinerary and saved items (requires native iOS app)
+- Booking vault (all confirmations organized in one place)
+- Advanced sharing (custom-branded trip pages, PDF export for visa applications)
+- Schedule conflict detection
+- Itinerary shifting tools ("move all blocks by 1 day")
+
+Stream 3 — Marketplace Transactions (additional revenue):
+Transaction fee on itinerary sales when the marketplace launches. Percentage TBD. This serves a strategic purpose beyond revenue — it attracts creators, which brings their audiences, which grows the user base, which drives paid tier subscriptions.
+
+Future Stream 4 — Creator Tools (long-term):
+Premium features for marketplace creators: listing analytics, promoted placement, creator verification, bulk tools. Only relevant once the marketplace has meaningful scale.

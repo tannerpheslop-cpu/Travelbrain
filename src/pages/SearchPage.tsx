@@ -371,6 +371,7 @@ function SaveRow({ item }: { item: SavedItem }) {
   return (
     <Link
       to={`/item/${item.id}`}
+      state={{ from: '/search' }}
       className="flex items-center gap-2.5 px-2 py-2.5 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors"
     >
       <Icon className={`w-4 h-4 shrink-0 ${categoryIconColors[item.category]}`} />
