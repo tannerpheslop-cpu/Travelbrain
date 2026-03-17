@@ -1,6 +1,6 @@
 # CLAUDE.md — Youji Project Context
 
-> Claude Code: Read this file at the start of every session. It is the source of truth for the product vision, architecture, data model, and design principles. Every feature you build should be consistent with this document.
+> Claude Code: Read this file and DESIGN-SYSTEM.md at the start of every session. This file is the source of truth for the product vision, architecture, data model, and design principles. DESIGN-SYSTEM.md is the authoritative reference for all visual and styling decisions. Every feature you build should be consistent with both documents.
 
 ---
 
@@ -90,6 +90,7 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | Link Parsing | Open Graph metadata extraction (server-side HTML fetch + parse) |
 | Location Autocomplete | Google Places Autocomplete API (cities, regions, and countries) |
 | Hosting | Vercel |
+| Typography | DM Sans + JetBrains Mono (Google Fonts) |
 | Image Storage | Supabase Storage |
 
 ### Why This Stack
@@ -305,7 +306,7 @@ These are non-negotiable and must guide every UI decision:
 1. **Saving must be instant and delightful.** No loading spinners that feel slow. Optimistic UI where possible.
 2. **No required form fields during save.** The only thing the user must do is paste a URL or upload an image. Category, location, notes are all optional and editable later.
 3. **Edits must be one-tap.** Category selection is quick-tap buttons, not dropdowns.
-4. **UI must feel premium and modern.** Clean cards, good spacing, subtle shadows, smooth transitions. Not spreadsheet-like.
+4. **UI must follow the Youji design system — warm copper accent on neutral palette, DM Sans for reading text, JetBrains Mono for metadata and data, traveler's notebook aesthetic at hero moments, clean functional substrate everywhere else. See DESIGN-SYSTEM.md for full spec.**
 5. **Sharing must be beautiful.** The public trip page is the viral surface — it must look polished enough that people want to share it.
 6. **The app must feel fun, not like project management.** No Gantt charts, no heavy admin UI, no complexity.
 7. **Mobile-first always.** Every component is designed for phone screens first, desktop second.
@@ -342,23 +343,11 @@ All location fields use Google Places Autocomplete, configured to accept cities,
 
 ### Horizon Card Layout
 
-The Horizon uses uniform horizontal cards in a responsive grid (1 column mobile, 2 columns desktop), grouped by geography (country → city). Two view modes:
-
-- **Expanded (default):** Full horizontal card with category icon/thumbnail on the left, title + location + category pill on the right.
-- **Compact:** Dense list rows for quick scanning — category icon, title, and location on one line.
-
-Images are optional thumbnails, not the primary layout element. For saves without an `image_url`, the `SavedItemImage` component automatically fetches a Google Places Photo using the item's `location_place_id` (stored as `places_photo_url` on the saved_item).
+The inbox uses a responsive CSS grid (`repeat(auto-fill, minmax(240px, 1fr))`, gap 12px) grouped by country. Items within each country group display as cards with thumbnail area (or source icon placeholder), title, city pill (accent-tinted), category pill, source badge, and date. See DESIGN-SYSTEM.md for full card and grid spec. Grid and list view toggle available.
 
 ### Horizon Filters
 
-The Horizon uses a simplified filter model:
-
-- **Search bar:** Full-width text input above the filter bar. Searches title, location, and notes.
-- **Unplanned chip:** Always-visible toggle button. Filters to items not linked to any trip.
-- **Filter button:** Collapsed by default. Opens a panel with Trip and Location dropdowns. Shows a count badge when filters are active. Active filters display as dismissable pills when the panel is closed.
-- **View mode toggle:** Switches between expanded and compact card layouts.
-
-This replaces the previous inline dropdown design to reduce visual clutter on the primary save surface.
+Unassigned toggle, Trip dropdown, City dropdown. Search bar above filters. Grid/list view toggle. NO category filter pills in the filter bar — categories appear as pills on individual cards only.
 
 ---
 
@@ -588,6 +577,7 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
 - Handle loading states and errors gracefully — never show a blank screen or unhandled error
 - Prefetch images (destination photos) on list pages so they're cached before the user navigates deeper
 - Git commit after each working feature
+- All UI components must reference DESIGN-SYSTEM.md for typography, color, spacing, and component patterns. Use CSS custom properties from the design system. Import DM Sans and JetBrains Mono from Google Fonts.
 
 ---
 
