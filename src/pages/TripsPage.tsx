@@ -776,7 +776,7 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
           {/* Gradient overlay — critical for text readability */}
           <div
             className="absolute inset-0"
-            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.75) 100%)', zIndex: 1 }}
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.85) 100%)', zIndex: 1 }}
           />
         </>
       ) : (
@@ -895,7 +895,7 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
   return (
     <Link
       to={`/trip/${trip.id}`}
-      className="group block w-[260px] shrink-0 snap-start rounded-xl bg-bg-card border border-border overflow-hidden transition-all duration-150 ease-out hover:border-[#c45a2d40] hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
+      className="group block w-[260px] shrink-0 snap-start self-start rounded-xl bg-bg-card border border-border overflow-hidden transition-all duration-150 ease-out hover:border-[#c45a2d40] hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
     >
       {/* Top content area */}
       <div className="relative overflow-hidden" style={{ padding: '16px 16px 12px' }}>
