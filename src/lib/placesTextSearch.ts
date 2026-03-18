@@ -101,7 +101,22 @@ function textSearch(
 const GEO_TYPES = new Set([
   'locality', 'sublocality', 'administrative_area_level_1', 'administrative_area_level_2',
   'country', 'natural_feature', 'colloquial_area', 'neighborhood',
+  'continent', 'archipelago',
 ])
+
+/** Generic words that are not locations — skip detection entirely. */
+const BLOCKLIST = new Set([
+  'food', 'hotel', 'restaurant', 'activity', 'guide', 'tips', 'best', 'top',
+  'things', 'place', 'travel', 'trip', 'plan', 'idea', 'note', 'todo',
+  'reminder', 'booking', 'flight', 'train', 'bus', 'taxi', 'uber', 'car',
+  'museum', 'bar', 'cafe', 'coffee', 'shop', 'store', 'market', 'mall',
+  'park', 'beach', 'hike', 'hostel', 'airbnb', 'spa', 'gym',
+])
+
+interface DetectOptions {
+  /** If true, only accept geographic results (reject businesses). Used for 1-2 word inputs. */
+  geoOnly?: boolean
+}
 
 /**
  * Uses Google Places Text Search to extract structured location data from freeform text.
@@ -109,10 +124,16 @@ const GEO_TYPES = new Set([
  * For short inputs that match a specific place name (e.g. "Ichiran Ramen"),
  * returns the specific place. For descriptive sentences (e.g. "Amazing hotpot
  * in Chengdu"), extracts the geographic location (city) instead of a business.
+ *
+ * When geoOnly is true (used for 1-2 word inputs), only geographic results are accepted.
  */
-export async function detectLocationFromText(text: string): Promise<TextSearchResult | null> {
+export async function detectLocationFromText(text: string, options?: DetectOptions): Promise<TextSearchResult | null> {
   const query = text.trim()
-  if (!query || query.length < 3) return null
+  if (!query || query.length < 2) return null
+
+  // Block common generic words
+  const words = query.toLowerCase().split(/\s+/)
+  if (words.length <= 2 && words.every(w => BLOCKLIST.has(w))) return null
 
   try {
     await loadGoogleMapsScript()
@@ -132,6 +153,17 @@ export async function detectLocationFromText(text: string): Promise<TextSearchRe
     const topAddress = top.formatted_address ?? ''
     const topTypes: string[] = top.types ?? []
     const isGeoResult = topTypes.some(t => GEO_TYPES.has(t))
+
+    // For short inputs (geoOnly mode), reject non-geographic results
+    if (options?.geoOnly && !isGeoResult) {
+      // Check if any other result in the batch is geographic
+      const geoHit = searchResults.find(r => {
+        const types: string[] = r.types ?? []
+        return types.some(t => GEO_TYPES.has(t)) && r.geometry?.location && r.place_id
+      })
+      if (geoHit) return buildResult(geoHit, 'geographic')
+      return null // No geographic results — reject
+    }
 
     // Step 2: Direct place name lookup?
     if (isDirectPlaceLookup(query, topName)) {

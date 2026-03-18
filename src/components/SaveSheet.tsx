@@ -110,22 +110,20 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       setUrlLoading(false)
       setUrlError('')
     }
-    // Clear detected location when input is fully cleared
-    if (!inputText.trim()) {
-      setDetectedLocation(null)
-    }
+    // Clear detected location when input changes (new text = new detection needed)
+    setDetectedLocation(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputText])
 
   // Run location detection and store as suggestion (not auto-applied)
-  const runLocationDetection = useCallback(async (text: string) => {
+  const runLocationDetection = useCallback(async (text: string, geoOnly?: boolean) => {
     if (locationManuallySet || suggestionDismissed) return
     const now = Date.now()
     if (now - lastDetectionTime.current < 3000) return
     lastDetectionTime.current = now
     setLocationDetecting(true)
     try {
-      const result = await detectLocationFromText(text)
+      const result = await detectLocationFromText(text, { geoOnly })
       if (result && !locationManuallySet && !suggestionDismissed) {
         setDetectedLocation({
           name: result.address,
@@ -144,14 +142,18 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     setLocationDetecting(false)
   }, [locationManuallySet, suggestionDismissed])
 
-  // Debounced text detection: 1.5s after typing stops, if 3+ words and no URL
+  // Debounced text detection: 1.5s (3+ words) or 2s (1-2 words) after typing stops
   useEffect(() => {
     if (detectionDebounce.current) clearTimeout(detectionDebounce.current)
-    const words = inputText.trim().split(/\s+/)
-    if (words.length < 3 || detectUrl(inputText) || locationManuallySet || suggestionDismissed) return
+    const trimmed = inputText.trim()
+    if (!trimmed || detectUrl(inputText) || locationManuallySet || suggestionDismissed) return
+    const wordCount = trimmed.split(/\s+/).length
+    if (wordCount < 1) return
+    const delay = wordCount <= 2 ? 2000 : 1500
+    const geoOnly = wordCount <= 2
     detectionDebounce.current = setTimeout(() => {
-      runLocationDetection(inputText)
-    }, 1500)
+      runLocationDetection(inputText, geoOnly)
+    }, delay)
     return () => { if (detectionDebounce.current) clearTimeout(detectionDebounce.current) }
   }, [inputText, locationManuallySet, suggestionDismissed, runLocationDetection])
 
