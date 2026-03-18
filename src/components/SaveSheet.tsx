@@ -138,6 +138,21 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     setUploading(false)
   }, [user])
 
+  // Clipboard paste detection for images
+  useEffect(() => {
+    const input = inputRef.current
+    if (!input) return
+    const handlePaste = (e: ClipboardEvent) => {
+      const files = e.clipboardData?.files
+      if (files && files.length > 0 && files[0].type.startsWith('image/')) {
+        e.preventDefault()
+        handleAttachFile(files[0])
+      }
+    }
+    input.addEventListener('paste', handlePaste)
+    return () => input.removeEventListener('paste', handlePaste)
+  }, [handleAttachFile])
+
   const removeAttachment = () => {
     setAttachedFile(null)
     setAttachedPreview(null)
@@ -152,7 +167,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   }
 
   // Can save?
-  const canSave = !saving && !saved && !uploading && !urlLoading && (inputText.trim() !== '' || !!attachedFile)
+  const canSave = !saving && !saved && !uploading && !urlLoading && (inputText.trim() !== '' || !!attachedFile || !!attachedUrl)
 
   // Save
   const handleSave = async () => {
@@ -162,7 +177,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
 
     const sourceType = getSourceType()
     const itemTitle = title.trim() || inputText.trim() || 'Untitled'
-    const imageUrl = metadata?.image || attachedUrl || null
+    // User-attached image takes priority over OG metadata image
+    const imageUrl = attachedUrl || metadata?.image || null
 
     const { data, error } = await supabase.from('saved_items').insert({
       user_id: user.id,
@@ -191,8 +207,27 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     }
 
     trackEvent('save_created', user.id, { source_type: sourceType, category: category ?? 'general', location_name: location?.name ?? null })
+    onSaved(data as SavedItem)
+
+    // Reset form for rapid successive saves — sheet stays open
+    setSaving(false)
     setSaved(true)
-    setTimeout(() => { onSaved(data as SavedItem); onClose() }, 600)
+    setTimeout(() => {
+      setInputText('')
+      setTitle('')
+      setCategory(null)
+      setLocation(null)
+      setNotes('')
+      setDetectedUrl(null)
+      setMetadata(null)
+      setUrlLoading(false)
+      setUrlError('')
+      setImageFailed(false)
+      removeAttachment()
+      setSaved(false)
+      setSaveError('')
+      inputRef.current?.focus()
+    }, 800)
   }
 
   const previewVisible = !!(detectedUrl && (urlLoading || metadata))

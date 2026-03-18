@@ -320,21 +320,15 @@ These are non-negotiable and must guide every UI decision:
 
 ## 8. Save Flow Details
 
-The save flow is triggered by a floating + button on the Horizon page. It opens as a bottom sheet modal ("Add to your Horizon"). The URL paste input is shown by default, with options to switch to Upload Screenshot or Manual Entry. After saving, the modal closes and the new item appears in the Horizon immediately.
+The save flow uses a single unified input triggered by a floating + button on the Horizon page. It opens as a bottom sheet with all fields visible immediately (category pills, location, notes, save button). Users type text, paste URLs, or attach images — the app auto-detects the content type. URL previews animate smoothly without layout shift. Clipboard paste of images is supported. Save commits the entry, resets the form, and keeps the sheet open for rapid successive saves. To close the sheet, the user swipes down on the drag handle or taps outside.
 
-### URL Save Path
-1. User taps + button, pastes URL into input
-2. App calls extract-metadata Edge Function
-3. Preview card appears with thumbnail, title, source site
-4. User optionally taps category buttons, adds location via Google Places autocomplete, adds notes
-5. Card saves to Horizon
+### How It Works
+1. User taps + button → bottom sheet opens with a single text input and all fields visible
+2. User types or pastes content. If a URL is detected, the app auto-fetches metadata and shows an animated preview card. If plain text, it becomes a manual entry title.
+3. User can attach an image via the ▣ button or by pasting from clipboard. Attached images override OG metadata thumbnails.
+4. User optionally selects a category pill, sets location via Google Places, adds notes
+5. Save button commits the entry, resets the form, and keeps the sheet open for rapid successive saves
 6. If the saved item's location is near a destination in one of the user's trips, show a suggestion to add it
-
-### Screenshot / Manual Save Path
-1. User taps + button, switches to Upload Screenshot or Manual Entry
-2. For screenshots: image is uploaded to Supabase Storage, displayed as thumbnail
-3. User gives it a title (required for screenshots/manual), taps category, optionally adds location and notes
-4. Card saves to Horizon
 
 **There is NO screenshot OCR or ML classification.** Users tag manually. This is a deliberate design decision — it's faster, more accurate, and avoids the frustration of wrong AI guesses.
 
