@@ -878,71 +878,95 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
   )
 }
 
-// ── Carousel Trip Card ───────────────────────────────────────────────────────
+// ── Carousel Trip Card (white card, NO background image) ────────────────────
 
 function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: number }) {
-  const [coverImgFailed, setCoverImgFailed] = useState(false)
-  const [coverImgLoaded, setCoverImgLoaded] = useState(false)
-  const gradient = gradients[index % gradients.length]
   const dests = trip.trip_destinations ?? []
-  const resolvedDestImage = useFirstDestinationImage(dests)
-  const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
-  const countryCode = getTripCountryCode(trip)
-  const chapterNum = String(index + 1).padStart(2, '0')
+  const chapterNum = String(index + 2).padStart(2, '0') // hero is 01
+
+  // Collect unique country codes
+  const countryCodes = [...new Set(dests.map((d) => d.location_country_code).filter(Boolean))] as string[]
+
+  // Build route chain text
+  const destNames = dests.map((d) => shortDestName(d.location_name))
+  const visibleNames = destNames.slice(0, 4)
+  const overflow = destNames.length - 4
 
   return (
     <Link
       to={`/trip/${trip.id}`}
-      className="group block w-[260px] shrink-0 snap-start rounded-xl bg-bg-card border border-border overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
+      className="group block w-[260px] shrink-0 snap-start rounded-xl bg-bg-card border border-border overflow-hidden transition-all duration-150 ease-out hover:border-[#c45a2d40] hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
     >
-      {/* Cover area */}
-      <div className={`relative h-36 bg-gradient-to-br ${gradient} overflow-hidden`}>
-        {coverImage && (
-          <img
-            src={coverImage}
-            alt=""
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
-            onLoad={() => setCoverImgLoaded(true)}
-            onError={() => setCoverImgFailed(true)}
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-
+      {/* Top content area */}
+      <div className="relative overflow-hidden px-4 pt-4 pb-3">
         {/* Watermark number */}
-        <span className="absolute top-2 right-3 font-mono text-[56px] font-extrabold leading-none text-white/10 pointer-events-none select-none group-hover:text-white/20 transition-colors">
+        <span
+          className="absolute pointer-events-none select-none font-mono text-[56px] font-extrabold leading-none text-border-subtle group-hover:text-accent-med transition-colors duration-150"
+          style={{ top: -6, right: 6 }}
+        >
           {chapterNum}
         </span>
 
-        {/* Country code badge */}
-        {countryCode && (
-          <div className="absolute bottom-2 left-3">
-            <CountryCodeBadge code={countryCode} light />
+        {/* Country code badges */}
+        {countryCodes.length > 0 && (
+          <div className="relative flex gap-1 mb-2">
+            {countryCodes.map((code) => (
+              <span
+                key={code}
+                className="inline-block font-mono text-[11px] font-bold tracking-[1px] text-text-tertiary bg-bg-pill rounded px-1.5 py-[2px] leading-none"
+              >
+                {code}
+              </span>
+            ))}
           </div>
         )}
-      </div>
 
-      {/* Content */}
-      <div className="px-3 py-2.5">
-        <h3 className="text-[16px] font-bold text-text-primary truncate group-hover:text-accent transition-colors">{trip.title}</h3>
-        {dests.length > 0 && (
-          <div className="mt-1">
-            <RouteChain
-              destinations={dests.map((d) => shortDestName(d.location_name))}
-              maxVisible={4}
-              truncate
-              className="!text-[11px]"
-            />
+        {/* Trip name — single line, truncate */}
+        <h3
+          className="relative text-[16px] font-bold tracking-[-0.2px] text-text-primary overflow-hidden whitespace-nowrap group-hover:text-accent transition-colors duration-150"
+          style={{ textOverflow: 'ellipsis' }}
+        >
+          {trip.title}
+        </h3>
+
+        {/* Route chain — single line, truncate */}
+        {destNames.length > 0 && (
+          <div
+            className="relative mt-1.5 font-mono text-[11px] text-text-tertiary overflow-hidden whitespace-nowrap"
+            style={{ textOverflow: 'ellipsis' }}
+          >
+            {visibleNames.map((name, i) => (
+              <span key={i}>
+                {i > 0 && <span className="text-text-mist mx-[3px]">→</span>}
+                <span>{name}</span>
+              </span>
+            ))}
+            {overflow > 0 && (
+              <span className="text-text-ghost ml-1">+{overflow}</span>
+            )}
           </div>
         )}
       </div>
 
       {/* Bottom metadata bar */}
-      <div className="flex items-center justify-between px-3 py-2 border-t border-border-subtle bg-bg-page">
-        <MetadataLine items={[
-          `${dests.length} dest`,
-          ...(trip.start_date && trip.end_date ? [formatDateRange(trip.start_date, trip.end_date)] : []),
-        ]} className="!text-[10px]" />
-        <StatusBadge status={trip.status} />
+      <div className="flex items-center justify-between px-4 py-2 border-t border-border-subtle bg-bg-page">
+        <span className="font-mono text-[10px] text-text-tertiary">
+          {trip.start_date && trip.end_date && (
+            <>{Math.round((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / 86400000) + 1}d<span className="text-text-mist mx-1">·</span></>
+          )}
+          {dests.length} save{dests.length !== 1 ? 's' : ''}
+        </span>
+        <div className="flex gap-1">
+          {/* Top 1-2 category pills */}
+          {(() => {
+            const cats = [...new Set(dests.map((d) => d.location_type ?? 'city'))]
+            return cats.slice(0, 2).map((cat) => (
+              <span key={cat} className="font-mono text-[9px] font-medium text-text-tertiary bg-bg-pill-dark rounded px-1.5 py-[2px] leading-none">
+                {cat}
+              </span>
+            ))
+          })()}
+        </div>
       </div>
     </Link>
   )
@@ -961,25 +985,30 @@ function PhaseCarousel({ phaseKey, trips, onNewTrip }: { phaseKey: string; trips
   const config = phaseConfig[phaseKey] ?? { title: phaseKey, description: '' }
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-2">
+      {/* Section header */}
+      <div className="flex items-baseline justify-between mb-3.5">
         <div>
           <h3 className="text-[17px] font-semibold text-text-primary">{config.title}</h3>
-          <p className="font-mono text-[11px] text-text-tertiary">{config.description}</p>
+          <p className="mt-[3px] font-mono text-[11px] text-text-tertiary">{config.description}</p>
         </div>
         <span className="font-mono text-[11px] text-text-faint">{trips.length}</span>
       </div>
+
+      {/* Card row — edge-to-edge scroll, first card aligns with page 20px padding */}
       <div className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-3.5 -mx-5 px-5 pb-1">
         {trips.map((trip, i) => (
           <CarouselTripCard key={trip.id} trip={trip} index={i} />
         ))}
-        {/* Dashed add card */}
-        <DashedCard
+
+        {/* Dashed "New trip" card */}
+        <div
           onClick={onNewTrip}
-          className="w-[260px] shrink-0 snap-start flex flex-col items-center justify-center h-[254px] gap-2 cursor-pointer"
+          className="w-[200px] shrink-0 snap-start rounded-xl border-[1.5px] border-dashed border-border-dashed bg-transparent flex flex-col items-center justify-center cursor-pointer transition-all duration-150 hover:border-accent hover:bg-accent-light"
+          style={{ minHeight: 180 }}
         >
-          <Plus className="w-5 h-5 text-text-faint" />
-          <span className="font-mono text-[11px] font-medium text-text-faint">New trip</span>
-        </DashedCard>
+          <span className="font-mono text-[18px] font-light text-border-dashed">+</span>
+          <span className="font-mono text-[11px] text-text-faint mt-1">New trip</span>
+        </div>
       </div>
     </div>
   )
