@@ -10,6 +10,7 @@ import type { Trip, TripDestination, TripNote, TripRoute, SharePrivacy } from '.
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
+import { BrandMark, StatusBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton } from '../components/ui'
 import DestinationCard from '../components/DestinationCard'
 import CalendarRangePicker from '../components/CalendarRangePicker'
 import RouteCard from '../components/RouteCard'
@@ -151,9 +152,9 @@ function ShareTripModal({ trip, onClose, onUpdated }: { trip: Trip; onClose: () 
             <p className="mt-2 text-xs text-text-faint">{selectedOption.description}</p>
           </div>
           {!shareUrl && (
-            <button type="button" onClick={handleGenerate} disabled={generating} className="w-full py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-50">
+            <PrimaryButton onClick={handleGenerate} disabled={generating} className="w-full py-3 rounded-xl">
               {generating ? 'Generating…' : 'Generate Link'}
-            </button>
+            </PrimaryButton>
           )}
           {shareUrl && (
             <div className="space-y-3">
@@ -161,13 +162,13 @@ function ShareTripModal({ trip, onClose, onUpdated }: { trip: Trip; onClose: () 
                 <p className="flex-1 text-xs text-text-secondary font-mono truncate">{shareUrl}</p>
               </div>
               <div className="flex gap-2">
-                <button type="button" onClick={handleCopy}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${copied ? 'bg-success text-white' : 'bg-accent text-white hover:bg-accent-hover active:bg-accent-hover'}`}>
+                <PrimaryButton onClick={handleCopy}
+                  className={`flex-1 py-2.5 rounded-xl ${copied ? '!bg-success' : ''}`}>
                   {copied ? 'Copied!' : 'Copy Link'}
-                </button>
-                <button type="button" onClick={() => setShareUrl(null)} className="px-4 py-2.5 border border-border text-text-tertiary rounded-xl text-sm font-medium hover:bg-bg-page transition-colors">
+                </PrimaryButton>
+                <SecondaryButton onClick={() => setShareUrl(null)} className="px-4 py-2.5 rounded-xl">
                   Change
-                </button>
+                </SecondaryButton>
               </div>
             </div>
           )}
@@ -234,10 +235,10 @@ function InviteCompanionModal({
                 onKeyDown={(e) => { if (e.key === 'Enter') handleInvite() }}
                 placeholder="friend@example.com"
                 className="flex-1 px-3 py-2.5 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint" />
-              <button type="button" onClick={handleInvite} disabled={status === 'loading' || !email.trim()}
-                className="px-4 py-2.5 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-50 shrink-0">
+              <PrimaryButton onClick={handleInvite} disabled={status === 'loading' || !email.trim()}
+                className="px-4 py-2.5 rounded-xl shrink-0">
                 {status === 'loading' ? '…' : 'Invite'}
-              </button>
+              </PrimaryButton>
             </div>
           </div>
           {status === 'added' && <p className="text-sm text-success font-medium">Companion added!</p>}
@@ -472,14 +473,13 @@ function GeneralSection({
           placeholder="Pack power adapter, check visa…"
           className="flex-1 text-sm px-3 py-2 bg-bg-page border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-text-faint"
         />
-        <button
-          type="button"
+        <PrimaryButton
           onClick={handleSubmit}
           disabled={!draft.trim()}
-          className="px-3 py-2 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-40 shrink-0"
+          className="px-3 py-2 rounded-xl shrink-0"
         >
           Add
-        </button>
+        </PrimaryButton>
       </div>
 
       {/* Checklist */}
@@ -1315,8 +1315,9 @@ export default function TripOverviewPage() {
           </button>
         </div>
 
-        {/* Bottom overlay: title + phase + dates */}
+        {/* Bottom overlay: brand + title + phase + dates */}
         <div className="absolute bottom-0 left-0 right-0 px-4 pb-4">
+          <BrandMark className="text-white/60 mb-1" />
           {editingTitle ? (
             <input
               ref={titleInputRef}
@@ -1339,18 +1340,9 @@ export default function TripOverviewPage() {
             </button>
           )}
           <div className="flex items-center gap-2 mt-1.5">
-            <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-              trip?.status === 'scheduled' ? 'bg-bg-card0/80 text-white' :
-              trip?.status === 'planning'  ? 'bg-accent-light0/80 text-white' :
-                                             'bg-bg-card/20 text-white backdrop-blur-sm'
-            }`}>
-              {trip?.status === 'scheduled' ? 'Upcoming' : trip?.status === 'planning' ? 'Planning' : 'Someday'}
-            </span>
+            {trip && <StatusBadge status={trip.status} />}
             {derivedDateRange && (
-              <>
-                <span className="text-white/40">·</span>
-                <span className="text-sm text-white/70">{derivedDateRange}</span>
-              </>
+              <MetadataLine items={[derivedDateRange]} className="text-white/70" />
             )}
           </div>
         </div>
@@ -1385,7 +1377,7 @@ export default function TripOverviewPage() {
       {/* ── Overview entries ── */}
       {destinations.length === 0 ? (
         /* Empty state with autocomplete + suggestions */
-        <div className="bg-bg-card rounded-2xl border-2 border-dashed border-border p-5 mt-6">
+        <DashedCard className="bg-bg-card p-5 mt-6">
           <div className="text-center mb-5">
             <div className="w-12 h-12 bg-accent-light rounded-2xl flex items-center justify-center mx-auto mb-3">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-accent">
@@ -1417,7 +1409,7 @@ export default function TripOverviewPage() {
             placeholder="e.g. Beijing, Tokyo, France…"
           />
           {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
-        </div>
+        </DashedCard>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
@@ -1521,16 +1513,15 @@ export default function TripOverviewPage() {
               {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
             </div>
           ) : (
-            <button
-              type="button"
+            <DashedCard
               onClick={openAddDest}
-              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-border rounded-2xl text-sm font-semibold text-text-tertiary hover:text-accent hover:border-accent transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold text-text-tertiary"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
               </svg>
               Add destination
-            </button>
+            </DashedCard>
           )}
         </div>
       )}
@@ -1550,21 +1541,19 @@ export default function TripOverviewPage() {
                   className="flex-1 text-sm px-3 py-2 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-text-faint"
                   autoFocus
                 />
-                <button
-                  type="button"
+                <PrimaryButton
                   onClick={handleCreateRoute}
                   disabled={!routeNameInput.trim()}
-                  className="px-4 py-2 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 shrink-0"
+                  className="px-4 py-2 rounded-xl shrink-0"
                 >
                   Create
-                </button>
-                <button
-                  type="button"
+                </PrimaryButton>
+                <SecondaryButton
                   onClick={() => { setShowRouteNameInput(false); setRouteNameInput('') }}
-                  className="px-3 py-2 text-text-tertiary text-sm font-medium hover:bg-bg-muted rounded-xl transition-colors shrink-0"
+                  className="px-3 py-2 rounded-xl shrink-0"
                 >
                   Cancel
-                </button>
+                </SecondaryButton>
               </div>
             ) : (
               <>
@@ -1574,21 +1563,19 @@ export default function TripOverviewPage() {
                     : `${selectedDestIds.size} selected`
                   }
                 </span>
-                <button
-                  type="button"
+                <PrimaryButton
                   onClick={handleGroupAsRoute}
                   disabled={selectedDestIds.size < 2}
-                  className="px-4 py-2 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 shrink-0"
+                  className="px-4 py-2 rounded-xl shrink-0"
                 >
                   Group as Route
-                </button>
-                <button
-                  type="button"
+                </PrimaryButton>
+                <SecondaryButton
                   onClick={toggleOrganizeMode}
-                  className="px-3 py-2 text-text-tertiary text-sm font-medium hover:bg-bg-muted rounded-xl transition-colors shrink-0"
+                  className="px-3 py-2 rounded-xl shrink-0"
                 >
                   Done
-                </button>
+                </SecondaryButton>
               </>
             )}
           </div>

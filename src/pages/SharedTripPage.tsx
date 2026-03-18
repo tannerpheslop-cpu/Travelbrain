@@ -5,7 +5,8 @@ import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import SavedItemImage from '../components/SavedItemImage'
 import { RenderedMarkdown } from '../components/MarkdownNotes'
-import type { Trip, TripDestination, SavedItem, Category } from '../types'
+import { CategoryPill, MetadataLine } from '../components/ui'
+import type { Trip, TripDestination, SavedItem } from '../types'
 
 // ── Local types ────────────────────────────────────────────────────────────────
 
@@ -27,14 +28,6 @@ interface SharedGeneralItem {
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-
-const categoryColors: Record<Category, { bg: string; text: string }> = {
-  restaurant: { bg: 'bg-bg-pill', text: 'text-text-tertiary' },
-  activity:   { bg: 'bg-bg-pill', text: 'text-text-tertiary' },
-  hotel:      { bg: 'bg-accent-light',   text: 'text-accent'   },
-  transit:    { bg: 'bg-bg-pill',  text: 'text-text-tertiary'  },
-  general:    { bg: 'bg-bg-pill',  text: 'text-text-tertiary'  },
-}
 
 const DEST_GRADIENTS = [
   'from-amber-700 to-orange-900',
@@ -67,22 +60,17 @@ function shortName(locationName: string): string {
 // ── Item Card ─────────────────────────────────────────────────────────────────
 
 function SharedItemCard({ item }: { item: SavedItem }) {
-  const colors = categoryColors[item.category]
-
   return (
     <div className="flex gap-4 py-4 border-b border-border-subtle last:border-b-0">
       <SavedItemImage item={item} size="lg" className="rounded-xl" readOnly />
       <div className="flex-1 min-w-0 py-0.5">
         <p className="text-sm font-semibold text-text-primary leading-snug">{item.title}</p>
         <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-          <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
-            {item.category.charAt(0).toUpperCase() + item.category.slice(1)}
-          </span>
+          <CategoryPill label={item.category.charAt(0).toUpperCase() + item.category.slice(1)} dominant={item.category === 'hotel'} />
           {item.location_name && (
-            <span className="text-xs text-text-faint">
-              {shortName(item.location_name)}
-              {item.location_name_local && <span className="ml-1 opacity-60">{item.location_name_local.split(',')[0].trim()}</span>}
-            </span>
+            <MetadataLine items={[
+              shortName(item.location_name) + (item.location_name_local ? ` ${item.location_name_local.split(',')[0].trim()}` : '')
+            ]} />
           )}
         </div>
         {item.notes && (
@@ -367,9 +355,7 @@ function CityOnlyView({
       <div className="px-5 py-8 max-w-2xl mx-auto">
         {destinations.length > 0 ? (
           <>
-            <p className="text-xs font-semibold text-text-faint uppercase tracking-widest mb-4">
-              {destinations.length} Destination{destinations.length !== 1 ? 's' : ''}
-            </p>
+            <MetadataLine items={[`${destinations.length} Destination${destinations.length !== 1 ? 's' : ''}`]} className="mb-4 uppercase tracking-widest" />
             <div className="space-y-3">
               {destinations.map((dest, i) => (
                 <DestPhotoCard key={dest.id} dest={dest} index={i} showDates={false} />
@@ -400,9 +386,7 @@ function CityDatesView({
       <div className="px-5 py-8 max-w-2xl mx-auto">
         {destinations.length > 0 ? (
           <>
-            <p className="text-xs font-semibold text-text-faint uppercase tracking-widest mb-4">
-              {destinations.length} Destination{destinations.length !== 1 ? 's' : ''}
-            </p>
+            <MetadataLine items={[`${destinations.length} Destination${destinations.length !== 1 ? 's' : ''}`]} className="mb-4 uppercase tracking-widest" />
             <div className="space-y-3">
               {destinations.map((dest, i) => (
                 <DestPhotoCard key={dest.id} dest={dest} index={i} showDates />

@@ -1,6 +1,7 @@
 import { useAuth } from '../lib/auth'
 import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { BrandMark } from '../components/ui'
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth()
@@ -27,6 +28,8 @@ export default function ProfilePage() {
 
   return (
     <div className="px-5 pb-32" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+      <BrandMark className="mb-4 block" />
+
       {/* Profile card */}
       <div className="flex flex-col items-center text-center mb-8">
         {avatarUrl ? (

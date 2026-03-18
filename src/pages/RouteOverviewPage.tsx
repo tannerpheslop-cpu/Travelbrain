@@ -9,6 +9,7 @@ import DottedConnector from '../components/DottedConnector'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { ArrowLeft, Plus, Pencil, Check, X } from 'lucide-react'
+import { MetadataLine, PrimaryButton, DashedCard } from '../components/ui'
 import {
   DndContext,
   closestCenter,
@@ -295,9 +296,7 @@ export default function RouteOverviewPage() {
             <Pencil className="w-4 h-4 text-text-ghost group-hover:text-text-tertiary transition-colors" />
           </button>
         )}
-        <p className="text-sm text-text-faint mt-1">
-          {destinations.length} destination{destinations.length !== 1 ? 's' : ''}
-        </p>
+        <MetadataLine items={[`${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`]} className="mt-1" />
       </div>
 
       {/* Destination list */}
@@ -305,14 +304,10 @@ export default function RouteOverviewPage() {
         {destinations.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-text-faint text-sm mb-4">No destinations in this route yet.</p>
-            <button
-              type="button"
-              onClick={() => setShowAddDest(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-accent text-white text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors"
-            >
+            <PrimaryButton onClick={() => setShowAddDest(true)}>
               <Plus className="w-4 h-4" />
               Add destination
-            </button>
+            </PrimaryButton>
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -357,14 +352,10 @@ export default function RouteOverviewPage() {
         ) : destinations.length > 0 ? (
           <div className="mt-4">
             <DottedConnector />
-            <button
-              type="button"
-              onClick={() => setShowAddDest(true)}
-              className="w-full mt-2 py-3 border-2 border-dashed border-border rounded-2xl text-sm text-text-faint font-medium hover:border-accent/50 hover:text-accent transition-colors flex items-center justify-center gap-2"
-            >
+            <DashedCard onClick={() => setShowAddDest(true)} className="mt-2 py-3 flex items-center justify-center gap-2 text-sm text-text-faint font-medium">
               <Plus className="w-4 h-4" />
               Add destination to route
-            </button>
+            </DashedCard>
           </div>
         ) : null}
       </div>

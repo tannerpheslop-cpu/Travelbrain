@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SavedItemImage from '../components/SavedItemImage'
+import { SecondaryButton } from '../components/ui'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import type { SavedItem, Category } from '../types'
 
@@ -307,16 +308,12 @@ export default function ItemDetailPage() {
       )}
 
       {/* Add to Trip */}
-      <button
-        type="button"
-        onClick={() => setShowTripSheet(true)}
-        className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 border border-border-input text-text-secondary rounded-xl text-sm font-medium hover:bg-bg-muted active:bg-bg-muted transition-colors"
-      >
+      <SecondaryButton onClick={() => setShowTripSheet(true)} className="mt-4 w-full">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-accent">
           <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
         </svg>
         Add to Trip
-      </button>
+      </SecondaryButton>
 
       {showTripSheet && item && (
         <AddToTripSheet

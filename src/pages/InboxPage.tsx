@@ -5,8 +5,9 @@ import { useAuth } from '../lib/auth'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SaveSheet from '../components/SaveSheet'
 import SavedItemImage from '../components/SavedItemImage'
-import { getCategoryIcon, categoryPillColors, categoryLabel, categoryIconColors } from '../utils/categoryIcons'
+import { getCategoryIcon, categoryLabel, categoryIconColors } from '../utils/categoryIcons'
 import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react'
+import { BrandMark, CategoryPill, FilterPill } from '../components/ui'
 import { shortLocalName } from '../components/BilingualName'
 import { useLocationResolver } from '../hooks/useLocationResolver'
 import SwipeToDelete from '../components/SwipeToDelete'
@@ -324,33 +325,18 @@ export default function InboxPage() {
   return (
     <>
     <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-      <h1 className="text-2xl font-bold text-text-primary tracking-tight">Horizon</h1>
-      <p className="mt-1 text-sm text-text-tertiary">Your saved travel inspiration</p>
+      <BrandMark className="mb-2 block" />
+      <h1 className="text-[32px] font-bold leading-[1.2] tracking-[-0.5px] text-text-primary">Horizon</h1>
+      <p className="mt-1 font-mono text-[11px] text-text-tertiary">Your saved travel inspiration</p>
 
       {/* Filter Bar + View Toggle */}
       <div className="mt-4 flex gap-2 pb-1 items-center">
-        <button
-          type="button"
-          onClick={() => setUnassignedOnly(!unassignedOnly)}
-          className={`px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0 ${
-            unassignedOnly
-              ? 'bg-accent text-white shadow-sm shadow-accent/25'
-              : 'bg-bg-card text-text-secondary border border-border hover:border-border-input hover:bg-bg-muted'
-          }`}
-        >
+        <FilterPill active={unassignedOnly} onClick={() => setUnassignedOnly(!unassignedOnly)} className="shrink-0">
           Unplanned
-        </button>
+        </FilterPill>
 
         {/* Filter toggle button */}
-        <button
-          type="button"
-          onClick={() => setShowFilters((v) => !v)}
-          className={`relative px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0 flex items-center gap-1.5 ${
-            showFilters || activeFilterCount > 0
-              ? 'bg-accent text-white shadow-sm shadow-accent/25'
-              : 'bg-bg-card text-text-secondary border border-border hover:border-border-input hover:bg-bg-muted'
-          }`}
-        >
+        <FilterPill active={showFilters || activeFilterCount > 0} onClick={() => setShowFilters((v) => !v)} className="shrink-0">
           <SlidersHorizontal className="w-3.5 h-3.5" />
           Filter
           {activeFilterCount > 0 && !showFilters && (
@@ -358,7 +344,7 @@ export default function InboxPage() {
               {activeFilterCount}
             </span>
           )}
-        </button>
+        </FilterPill>
 
         {/* Active filter pills — show when panel is closed but filters are set */}
         {!showFilters && selectedTripId && (
@@ -549,9 +535,9 @@ export default function InboxPage() {
             return (
               <section key={group.country ?? '__unsorted__'}>
                 {/* Country header */}
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-text-faint mb-2">
+                <h2 className="font-mono text-[11px] font-bold uppercase tracking-[2px] text-text-faint mb-2">
                   {group.country
-                    ? `${group.countryCode ? countryCodeToFlag(group.countryCode) + ' ' : ''}${group.country}`
+                    ? `${group.countryCode ? countryCodeToFlag(group.countryCode) + ' ' : ''}${group.country.split('').join(' ')}`
                     : 'Unplaced'}
                 </h2>
 
@@ -631,9 +617,7 @@ function ExpandedCard({
             </p>
           )}
           <div>
-            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${categoryPillColors[item.category]}`}>
-              {categoryLabel[item.category]}
-            </span>
+            <CategoryPill label={categoryLabel[item.category]} />
           </div>
         </div>
       </Link>

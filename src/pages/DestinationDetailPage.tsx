@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import SavedItemImage from '../components/SavedItemImage'
+import { CategoryPill, MetadataLine } from '../components/ui'
 import type { TripDestination, SavedItem, Category } from '../types'
 import {
   DndContext,
@@ -84,14 +85,6 @@ const DEST_GRADIENTS = [
   'from-stone-500 to-stone-700',
   'from-slate-500 to-slate-700',
 ]
-
-const categoryColors: Record<Category, { bg: string; text: string }> = {
-  restaurant: { bg: 'bg-bg-pill', text: 'text-text-tertiary' },
-  activity:   { bg: 'bg-bg-pill', text: 'text-text-tertiary' },
-  hotel:      { bg: 'bg-accent-light',   text: 'text-accent'   },
-  transit:    { bg: 'bg-bg-pill',  text: 'text-text-tertiary'  },
-  general:    { bg: 'bg-bg-pill',  text: 'text-text-tertiary'  },
-}
 
 const categoryLabel: Record<Category, string> = {
   restaurant: 'Restaurant',
@@ -412,7 +405,6 @@ function DayItemCard({
 }) {
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const item = linkedItem.saved_item
-  const colors = categoryColors[item.category]
 
   const moveOptions: Array<{ label: string; dayIndex: number | null }> = []
   if (activeDayIndex !== null) moveOptions.push({ label: 'Unplanned', dayIndex: null })
@@ -445,7 +437,7 @@ function DayItemCard({
         <Link to={`/item/${item.id}`} state={backTo ? { from: backTo } : undefined} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-text-primary truncate leading-snug">{item.title}</p>
           {item.location_name && <p className="text-xs text-text-tertiary mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
-          <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
+          <CategoryPill label={categoryLabel[item.category]} dominant={item.category === 'hotel'} className="mt-1" />
         </Link>
         {canEdit && (
           <div className="flex items-center shrink-0 pr-1">
@@ -515,7 +507,6 @@ function LinkedItemCardSummary({
   hasExpandedContent?: boolean
   backTo?: string
 }) {
-  const colors = categoryColors[item.category]
   return (
     <div className={`bg-bg-card border border-border-subtle shadow-sm overflow-hidden ${hasExpandedContent ? 'rounded-t-2xl border-b-0' : 'rounded-2xl'}`}>
       <div className="flex items-center gap-0 p-2">
@@ -525,7 +516,7 @@ function LinkedItemCardSummary({
         <Link to={`/item/${item.id}`} state={backTo ? { from: backTo } : undefined} className="flex-1 min-w-0 px-3 py-1">
           <p className="text-sm font-semibold text-text-primary truncate leading-snug">{item.title}</p>
           {item.location_name && <p className="text-xs text-text-tertiary mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
-          <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
+          <CategoryPill label={categoryLabel[item.category]} dominant={item.category === 'hotel'} className="mt-1" />
         </Link>
         {canEdit && (
           <button type="button" onClick={() => onRemove(linkId)}
@@ -573,7 +564,6 @@ function LinkedItemExpanded({
 // ── Suggestion Card ────────────────────────────────────────────────────────────
 
 function SuggestionCard({ item, onAdd, onDismiss }: { item: SavedItem; onAdd: (item: SavedItem) => Promise<void>; onDismiss?: () => void }) {
-  const colors = categoryColors[item.category]
   const [adding, setAdding] = useState(false)
 
   const handleAdd = async () => {
@@ -590,7 +580,7 @@ function SuggestionCard({ item, onAdd, onDismiss }: { item: SavedItem; onAdd: (i
       <div className="flex-1 min-w-0 px-3 py-1">
         <p className="text-sm font-semibold text-text-primary truncate leading-snug">{item.title}</p>
         {item.location_name && <p className="text-xs text-text-tertiary mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
-        <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
+        <CategoryPill label={categoryLabel[item.category]} dominant={item.category === 'hotel'} className="mt-1" />
       </div>
       <div className="flex items-center gap-1 mr-3 shrink-0">
         <button type="button" onClick={handleAdd} disabled={adding}
@@ -1359,7 +1349,7 @@ export default function DestinationDetailPage() {
           ) : (
             <span className="text-xs text-text-faint">No dates set</span>
           )}
-          <span className="text-xs text-text-faint font-medium">{linkedItems.length} place{linkedItems.length !== 1 ? 's' : ''}</span>
+          <MetadataLine items={[`${linkedItems.length} place${linkedItems.length !== 1 ? 's' : ''}`]} />
         </div>
       </div>
 
@@ -1499,9 +1489,7 @@ export default function DestinationDetailPage() {
                                 {cityItem.items.map((it) => (
                                   <div key={it.id} className="flex items-center justify-between gap-2 py-0.5">
                                     <p className="text-xs text-text-faint truncate flex-1">{it.title}</p>
-                                    <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full font-medium ${categoryColors[it.category].bg} ${categoryColors[it.category].text}`}>
-                                      {categoryLabel[it.category]}
-                                    </span>
+                                    <CategoryPill label={categoryLabel[it.category]} dominant={it.category === 'hotel'} className="shrink-0" />
                                   </div>
                                 ))}
                               </div>

@@ -8,8 +8,9 @@ import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import { trackEvent } from '../lib/analytics'
 import { selectFeaturedTrip } from '../utils/featuredTrip'
 import { useFirstDestinationImage } from '../hooks/useDestinationImage'
-import type { TripStatus, SavedItem, Category } from '../types'
+import type { SavedItem } from '../types'
 import { supabase } from '../lib/supabase'
+import { BrandMark, StatusBadge, MetadataLine, RouteChain, CategoryPill, DashedCard } from '../components/ui'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -21,12 +22,6 @@ const gradients = [
   'from-warm-gray-500 to-warm-gray-700',
   'from-slate-500 to-slate-700',
 ]
-
-const statusConfig: Record<TripStatus, { label: string; classes: string }> = {
-  aspirational: { label: 'Someday',  classes: 'bg-bg-card/90 text-text-secondary' },
-  planning:     { label: 'Planning', classes: 'bg-accent text-white' },
-  scheduled:    { label: 'Upcoming', classes: 'bg-success text-white' },
-}
 
 /** Keep only the first segment of a Google Places name, e.g. "Chengdu, Sichuan, China" → "Chengdu" */
 function shortDestName(locationName: string): string {
@@ -66,22 +61,6 @@ function clusterSummary(cluster: CountryCluster): string {
   return `${saves} across ${top.join(', ')}${more}`
 }
 
-const categoryColors: Record<Category, { bg: string; text: string }> = {
-  restaurant: { bg: 'bg-bg-pill', text: 'text-text-tertiary' },
-  activity:   { bg: 'bg-bg-pill', text: 'text-text-tertiary' },
-  hotel:      { bg: 'bg-accent-light',   text: 'text-accent'   },
-  transit:    { bg: 'bg-bg-pill',  text: 'text-text-tertiary'  },
-  general:    { bg: 'bg-bg-pill',  text: 'text-text-tertiary'  },
-}
-
-const categoryLabel: Record<Category, string> = {
-  restaurant: 'Restaurant',
-  activity:   'Activity',
-  hotel:      'Hotel',
-  transit:    'Transit',
-  general:    'General',
-}
-
 function buildLocationLabel(names: string[]): string {
   if (names.length === 0) return ''
   if (names.length === 1) return names[0]
@@ -106,7 +85,6 @@ function TripCard({
   const [coverImgLoaded, setCoverImgLoaded] = useState(false)
 
   const gradient = gradients[index % gradients.length]
-  const status = statusConfig[trip.status]
   const dests = trip.trip_destinations ?? []
   const resolvedDestImage = useFirstDestinationImage(dests)
 
@@ -155,9 +133,7 @@ function TripCard({
           <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
           {/* Status badge */}
           <div className="absolute top-3 right-3">
-            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${status.classes}`}>
-              {status.label}
-            </span>
+            <StatusBadge status={trip.status} className="shadow-sm" />
           </div>
         </div>
 
@@ -165,22 +141,13 @@ function TripCard({
         <div className="px-4 pt-3.5 pb-3.5 pr-12">
           <h3 className="text-base font-semibold text-text-primary truncate">{trip.title}</h3>
 
-          {/* Destination chips */}
+          {/* Destination chain */}
           {dests.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5 mt-2.5">
-              {dests.slice(0, 5).map((d) => (
-                <span
-                  key={d.id}
-                  className="px-2.5 py-0.5 bg-bg-muted text-text-secondary rounded-full text-xs font-medium"
-                >
-                  {shortDestName(d.location_name)}
-                </span>
-              ))}
-              {dests.length > 5 && (
-                <span className="px-2.5 py-0.5 bg-bg-muted text-text-faint rounded-full text-xs">
-                  +{dests.length - 5}
-                </span>
-              )}
+            <div className="mt-2.5">
+              <RouteChain
+                destinations={dests.map((d) => shortDestName(d.location_name))}
+                maxVisible={5}
+              />
             </div>
           ) : (
             <p className="mt-1.5 text-xs text-text-faint">No destinations yet</p>
@@ -188,7 +155,7 @@ function TripCard({
 
           {/* Date range (scheduled only) */}
           {trip.status === 'scheduled' && trip.start_date && trip.end_date && (
-            <p className="mt-1.5 text-xs text-text-tertiary">{formatDateRange(trip.start_date, trip.end_date)}</p>
+            <MetadataLine items={[formatDateRange(trip.start_date, trip.end_date)]} className="mt-1.5" />
           )}
         </div>
       </Link>
@@ -592,9 +559,11 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                                   <p className="text-sm text-text-secondary truncate leading-snug">{item.title}</p>
                                   <p className="text-xs text-text-faint leading-snug">{suggScope.locationLabel}</p>
                                 </div>
-                                <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full font-medium ${categoryColors[item.category].bg} ${categoryColors[item.category].text}`}>
-                                  {categoryLabel[item.category]}
-                                </span>
+                                <CategoryPill
+                                  label={item.category.charAt(0).toUpperCase() + item.category.slice(1)}
+                                  dominant={item.category === 'hotel'}
+                                  className="shrink-0"
+                                />
                               </div>
                             ))}
                             {/* Add city row */}
@@ -806,7 +775,6 @@ function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: 
   const [coverImgFailed, setCoverImgFailed] = useState(false)
   const [coverImgLoaded, setCoverImgLoaded] = useState(false)
   const gradient = gradients[index % gradients.length]
-  const status = statusConfig[trip.status]
   const dests = trip.trip_destinations ?? []
   const resolvedDestImage = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed
@@ -850,9 +818,7 @@ function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: 
 
         {/* Status badge */}
         <div className="absolute top-3 right-3">
-          <span className={`px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${status.classes}`}>
-            {status.label}
-          </span>
+          <StatusBadge status={trip.status} className="shadow-sm" />
         </div>
 
         {/* Overlaid info */}
@@ -860,17 +826,15 @@ function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: 
           <h2 className="text-xl font-bold text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.4)] truncate">
             {trip.title}
           </h2>
-          <div className="flex items-center gap-2 mt-1">
-            <span className="text-sm text-white/80">
-              {destCount} destination{destCount !== 1 ? 's' : ''}
-            </span>
-            {trip.status === 'scheduled' && trip.start_date && trip.end_date && (
-              <>
-                <span className="text-white/40">·</span>
-                <span className="text-sm text-white/70">{formatDateRange(trip.start_date, trip.end_date)}</span>
-              </>
-            )}
-          </div>
+          <MetadataLine
+            items={[
+              `${destCount} destination${destCount !== 1 ? 's' : ''}`,
+              ...(trip.status === 'scheduled' && trip.start_date && trip.end_date
+                ? [formatDateRange(trip.start_date, trip.end_date)]
+                : []),
+            ]}
+            className="mt-1 !text-white/80 [&_.text-text-mist]:!text-white/40"
+          />
         </div>
       </div>
     </Link>
@@ -883,7 +847,6 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
   const [coverImgFailed, setCoverImgFailed] = useState(false)
   const [coverImgLoaded, setCoverImgLoaded] = useState(false)
   const gradient = gradients[index % gradients.length]
-  const status = statusConfig[trip.status]
   const dests = trip.trip_destinations ?? []
   const resolvedDestImage = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed
@@ -911,22 +874,20 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         {/* Status badge */}
         <div className="absolute top-2.5 right-2.5">
-          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold shadow-sm ${status.classes}`}>
-            {status.label}
-          </span>
+          <StatusBadge status={trip.status} className="shadow-sm" />
         </div>
       </div>
       <div className="px-3 py-2.5">
         <h3 className="text-sm font-semibold text-text-primary truncate">{trip.title}</h3>
-        <div className="flex items-center gap-1.5 mt-1">
-          <span className="text-xs text-text-tertiary">{dests.length} destination{dests.length !== 1 ? 's' : ''}</span>
-          {trip.status === 'scheduled' && trip.start_date && trip.end_date && (
-            <>
-              <span className="text-text-ghost">·</span>
-              <span className="text-xs text-text-faint">{formatDateRange(trip.start_date, trip.end_date)}</span>
-            </>
-          )}
-        </div>
+        <MetadataLine
+          items={[
+            `${dests.length} destination${dests.length !== 1 ? 's' : ''}`,
+            ...(trip.status === 'scheduled' && trip.start_date && trip.end_date
+              ? [formatDateRange(trip.start_date, trip.end_date)]
+              : []),
+          ]}
+          className="mt-1"
+        />
       </div>
     </Link>
   )
@@ -1000,6 +961,7 @@ export default function TripsPage() {
     <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       {/* Header */}
       <div>
+        <BrandMark className="mb-1" />
         <h1 className="text-2xl font-bold text-text-primary">Trips</h1>
         <p className="mt-1 text-sm text-text-tertiary">Your trip library</p>
       </div>
@@ -1070,16 +1032,12 @@ export default function TripsPage() {
           )}
 
           {/* New Trip button */}
-          <button
-            type="button"
-            onClick={() => setShowModal(true)}
-            className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-border rounded-2xl text-sm font-semibold text-text-tertiary hover:text-accent hover:border-accent/50 active:bg-accent-light transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+          <DashedCard onClick={() => setShowModal(true)} className="w-full flex items-center justify-center gap-2 py-3">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-text-tertiary">
               <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
             </svg>
-            New Trip
-          </button>
+            <span className="text-sm font-semibold text-text-tertiary">New Trip</span>
+          </DashedCard>
 
           {/* Adaptive layout */}
           {!useCarouselLayout ? (

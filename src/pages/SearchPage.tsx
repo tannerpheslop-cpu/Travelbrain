@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Map, Compass, Clock, Sparkles } from 'lucide-react'
+import { BrandMark } from '../components/ui'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
@@ -158,6 +159,8 @@ export default function SearchPage() {
 
   return (
     <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+      <BrandMark className="mb-3 block" />
+
       {/* Search input */}
       <div className="relative">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-faint pointer-events-none" />
