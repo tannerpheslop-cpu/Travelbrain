@@ -63,11 +63,17 @@ export default function LocationAutocomplete({
   const processPlace = useCallback((place: google.maps.places.PlaceResult) => {
     if (!place?.geometry?.location) return
 
+    let country: string | null = null
+    let country_code: string | null = null
+
+    // Try address_components from the place result first
     const countryComponent = place.address_components?.find(
       (c: google.maps.GeocoderAddressComponent) => c.types.includes('country')
     )
-    const country = countryComponent?.long_name ?? null
-    const country_code = countryComponent?.short_name ?? null
+    if (countryComponent) {
+      country = countryComponent.long_name
+      country_code = countryComponent.short_name
+    }
 
     const placeTypes: string[] = place.types ?? []
     let location_type: 'city' | 'country' | 'region' = 'city'
@@ -88,6 +94,31 @@ export default function LocationAutocomplete({
     const defaultName = place.formatted_address || place.name || ''
     const placeId = place.place_id ?? ''
     const shortName = defaultName.split(',')[0].trim()
+
+    // If address_components was missing (API field error), extract country from formatted_address
+    if (!country && defaultName) {
+      const parts = defaultName.split(',').map(s => s.trim())
+      if (parts.length > 0) {
+        country = parts[parts.length - 1]
+        // Try to get country code via Geocoder async (best-effort)
+        if (placeId && window.google?.maps?.Geocoder) {
+          const geocoder = new google.maps.Geocoder()
+          geocoder.geocode({ placeId }, (results, status) => {
+            if (status === google.maps.GeocoderStatus.OK && results && results.length > 0) {
+              const cc = results[0].address_components?.find(c => c.types.includes('country'))
+              if (cc) {
+                // Re-emit the selection with the country code
+                onSelectRef.current({
+                  ...selection,
+                  country: cc.long_name,
+                  country_code: cc.short_name,
+                })
+              }
+            }
+          })
+        }
+      }
+    }
 
     const selection: LocationSelection = {
       name: defaultName,
@@ -141,7 +172,7 @@ export default function LocationAutocomplete({
       }
 
       const ac = new window.google.maps.places.Autocomplete(inputRef.current, {
-        fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components', 'types'],
+        fields: ['formatted_address', 'geometry', 'name', 'place_id', 'addressComponents', 'types'],
         ...(placesTypes ? { types: placesTypes } : {}),
       })
 

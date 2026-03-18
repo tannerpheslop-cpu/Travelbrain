@@ -58,6 +58,9 @@ body {
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { scrollbar-width: none; }
 
+/* Google Places autocomplete dropdown must render above modals/sheets (z-50 = 50) */
+.pac-container { z-index: 9999 !important; }
+
 /* Prevent iOS Safari auto-zoom on input focus (triggers at <16px) */
 input, textarea, select {
   font-size: 16px !important;

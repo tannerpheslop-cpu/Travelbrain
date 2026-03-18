@@ -202,7 +202,7 @@ export async function findPlaceByQuery(query: string): Promise<ResolvedLocation 
       service.findPlaceFromQuery(
         {
           query,
-          fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components', 'types'],
+          fields: ['formatted_address', 'geometry', 'name', 'place_id', 'addressComponents', 'types'],
         },
         (
           results: google.maps.places.PlaceResult[] | null,

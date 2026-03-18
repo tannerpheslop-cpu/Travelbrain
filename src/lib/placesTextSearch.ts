@@ -64,31 +64,44 @@ export async function detectLocationFromText(text: string): Promise<TextSearchRe
     const types: string[] = top.types ?? []
     const isBusiness = types.some(t => BUSINESS_TYPES.has(t))
 
-    // Step 2: Place Details for country info
+    // Step 2: Extract country info
+    // First try from the text search result's address_components (already returned)
     let country = ''
     let countryCode = ''
 
-    try {
-      const details = await new Promise<google.maps.places.PlaceResult>((resolve, reject) => {
-        service.getDetails(
-          { placeId, fields: ['address_components'] },
-          (place, detailStatus) => {
-            if (detailStatus === google.maps.places.PlacesServiceStatus.OK && place) {
-              resolve(place)
-            } else {
-              reject(new Error(`Details failed: ${detailStatus}`))
-            }
-          },
-        )
-      })
+    // The textSearch result may include address_components directly
+    const topComponents = (top as { address_components?: google.maps.GeocoderAddressComponent[] }).address_components
+    if (topComponents) {
+      const cc = topComponents.find(c => c.types.includes('country'))
+      country = cc?.long_name ?? ''
+      countryCode = cc?.short_name ?? ''
+    }
 
-      const countryComponent = details.address_components?.find(
-        (c: google.maps.GeocoderAddressComponent) => c.types.includes('country'),
-      )
-      country = countryComponent?.long_name ?? ''
-      countryCode = countryComponent?.short_name ?? ''
-    } catch {
-      // If details fail, try to extract country from formatted_address
+    // If we didn't get country from search result, try Geocoder (more reliable than getDetails)
+    if (!country && window.google.maps.Geocoder) {
+      try {
+        const geocoder = new google.maps.Geocoder()
+        const geoResult = await new Promise<google.maps.GeocoderResult[]>((resolve, reject) => {
+          geocoder.geocode({ placeId }, (results, status) => {
+            if (status === google.maps.GeocoderStatus.OK && results && results.length > 0) {
+              resolve(results)
+            } else {
+              reject(new Error(`Geocode failed: ${status}`))
+            }
+          })
+        })
+        const cc = geoResult[0]?.address_components?.find(c => c.types.includes('country'))
+        country = cc?.long_name ?? ''
+        countryCode = cc?.short_name ?? ''
+      } catch {
+        // Fall back to parsing formatted_address
+        const parts = address.split(',').map(s => s.trim())
+        if (parts.length > 0) country = parts[parts.length - 1]
+      }
+    }
+
+    // Final fallback: parse from formatted address
+    if (!country) {
       const parts = address.split(',').map(s => s.trim())
       if (parts.length > 0) country = parts[parts.length - 1]
     }
