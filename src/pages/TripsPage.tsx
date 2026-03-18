@@ -94,7 +94,7 @@ function TripCard({
 
   const gradient = gradients[index % gradients.length]
   const dests = trip.trip_destinations ?? []
-  const resolvedDestImage = useFirstDestinationImage(dests)
+  const [resolvedDestImage] = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
   const countryCode = getTripCountryCode(trip)
   const chapterNum = String(index + 2).padStart(2, '0') // hero is 01
@@ -751,7 +751,7 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
   const [imgLoaded, setImgLoaded] = useState(false)
   const [imgFailed, setImgFailed] = useState(false)
   const dests = trip.trip_destinations ?? []
-  const resolvedDestImage = useFirstDestinationImage(dests)
+  const [resolvedDestImage] = useFirstDestinationImage(dests)
   const coverImage = !imgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
   const countryCode = getTripCountryCode(trip)
   const destNames = dests.map((d) => shortDestName(d.location_name))
