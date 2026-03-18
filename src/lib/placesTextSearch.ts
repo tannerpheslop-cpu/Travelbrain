@@ -11,18 +11,104 @@ interface TextSearchResult {
   locationType: 'business' | 'geographic'
 }
 
-const BUSINESS_TYPES = new Set([
-  'restaurant', 'cafe', 'bar', 'food', 'meal_delivery', 'meal_takeaway',
-  'lodging', 'hotel', 'hostel',
-  'tourist_attraction', 'point_of_interest', 'establishment',
-  'shopping_mall', 'store', 'spa', 'gym', 'museum', 'art_gallery',
-  'amusement_park', 'aquarium', 'zoo', 'night_club',
+/**
+ * Calculate word overlap ratio between two strings.
+ * Returns 0–1 where 1 means all words overlap.
+ */
+function wordOverlap(a: string, b: string): number {
+  const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(Boolean))
+  const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(Boolean))
+  if (wordsA.size === 0 || wordsB.size === 0) return 0
+  const intersection = [...wordsA].filter(w => wordsB.has(w))
+  return intersection.length / Math.max(wordsA.size, wordsB.size)
+}
+
+/**
+ * Check if input text is a direct place name lookup (short + matches result name).
+ */
+function isDirectPlaceLookup(input: string, resultName: string): boolean {
+  const wordCount = input.trim().split(/\s+/).length
+  if (wordCount > 3) return false
+
+  const inputLower = input.toLowerCase().trim()
+  const nameLower = resultName.toLowerCase().trim()
+
+  // One contains the other
+  if (inputLower.includes(nameLower) || nameLower.includes(inputLower)) return true
+
+  // High word overlap
+  return wordOverlap(inputLower, nameLower) >= 0.8
+}
+
+/**
+ * Extract country from formatted_address (last comma-separated part).
+ */
+function extractCountryFromAddress(address: string): string {
+  const parts = address.split(',').map(s => s.trim())
+  return parts.length > 0 ? parts[parts.length - 1] : ''
+}
+
+/**
+ * Extract a city-level search term from the original input text.
+ * Looks for recognizable geographic words in the input itself.
+ * Falls back to extracting from the formatted_address.
+ */
+function extractCitySearchTerm(inputText: string, address: string): string | null {
+  // Common prepositions that precede location names in English
+  const locationPrepositions = /\b(?:in|at|near|around|from|of|to|for)\s+(.+?)(?:\s*$|\s*[,.])/i
+  const match = inputText.match(locationPrepositions)
+  if (match) {
+    const candidate = match[1].trim()
+    // If the candidate is 1-3 words and doesn't look like a generic phrase, use it
+    if (candidate.split(/\s+/).length <= 3 && candidate.length >= 2) {
+      return candidate
+    }
+  }
+
+  // Fallback: try address parts (skip very long or non-Latin parts)
+  const parts = address.split(',').map(s => s.trim())
+  // For "Country, Province, City, District, ..." → try each part as a city search
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const part = parts[i]
+    // Skip very short or very long parts, and parts that look like street addresses
+    if (part.length >= 3 && part.length <= 40 && !/\d/.test(part)) {
+      return part
+    }
+  }
+  return null
+}
+
+/**
+ * Run a PlacesService textSearch and return results.
+ */
+function textSearch(
+  service: google.maps.places.PlacesService,
+  query: string,
+): Promise<google.maps.places.PlaceResult[]> {
+  return new Promise((resolve, reject) => {
+    service.textSearch({ query }, (results, status) => {
+      if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
+        resolve(results)
+      } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+        resolve([])
+      } else {
+        reject(new Error(`Text search failed: ${status}`))
+      }
+    })
+  })
+}
+
+const GEO_TYPES = new Set([
+  'locality', 'sublocality', 'administrative_area_level_1', 'administrative_area_level_2',
+  'country', 'natural_feature', 'colloquial_area', 'neighborhood',
 ])
 
 /**
  * Uses Google Places Text Search to extract structured location data from freeform text.
- * Returns the top result with name, address, coordinates, country, and whether it's a
- * business or geographic location. Returns null if no results or on error.
+ *
+ * For short inputs that match a specific place name (e.g. "Ichiran Ramen"),
+ * returns the specific place. For descriptive sentences (e.g. "Amazing hotpot
+ * in Chengdu"), extracts the geographic location (city) instead of a business.
  */
 export async function detectLocationFromText(text: string): Promise<TextSearchResult | null> {
   const query = text.trim()
@@ -32,92 +118,76 @@ export async function detectLocationFromText(text: string): Promise<TextSearchRe
     await loadGoogleMapsScript()
     if (!window.google?.maps?.places) return null
 
-    // Need a DOM element for PlacesService (required by the API)
     const div = document.createElement('div')
     const service = new google.maps.places.PlacesService(div)
 
     // Step 1: Text Search
-    const searchResults = await new Promise<google.maps.places.PlaceResult[]>((resolve, reject) => {
-      service.textSearch({ query }, (results, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK && results && results.length > 0) {
-          resolve(results)
-        } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-          resolve([])
-        } else {
-          reject(new Error(`Text search failed: ${status}`))
-        }
-      })
-    })
-
+    const searchResults = await textSearch(service, query)
     if (searchResults.length === 0) return null
 
     const top = searchResults[0]
     if (!top.geometry?.location || !top.place_id) return null
 
-    const name = top.name ?? ''
-    const address = top.formatted_address ?? ''
-    const lat = top.geometry.location.lat()
-    const lng = top.geometry.location.lng()
-    const placeId = top.place_id
+    const topName = top.name ?? ''
+    const topAddress = top.formatted_address ?? ''
+    const topTypes: string[] = top.types ?? []
+    const isGeoResult = topTypes.some(t => GEO_TYPES.has(t))
 
-    // Determine location type from the search result types
-    const types: string[] = top.types ?? []
-    const isBusiness = types.some(t => BUSINESS_TYPES.has(t))
-
-    // Step 2: Extract country info
-    // First try from the text search result's address_components (already returned)
-    let country = ''
-    let countryCode = ''
-
-    // The textSearch result may include address_components directly
-    const topComponents = (top as { address_components?: google.maps.GeocoderAddressComponent[] }).address_components
-    if (topComponents) {
-      const cc = topComponents.find(c => c.types.includes('country'))
-      country = cc?.long_name ?? ''
-      countryCode = cc?.short_name ?? ''
+    // Step 2: Direct place name lookup?
+    if (isDirectPlaceLookup(query, topName)) {
+      // User typed a specific place name — return it directly
+      return buildResult(top, isGeoResult ? 'geographic' : 'business')
     }
 
-    // If we didn't get country from search result, try Geocoder (more reliable than getDetails)
-    if (!country && window.google.maps.Geocoder) {
-      try {
-        const geocoder = new google.maps.Geocoder()
-        const geoResult = await new Promise<google.maps.GeocoderResult[]>((resolve, reject) => {
-          geocoder.geocode({ placeId }, (results, status) => {
-            if (status === google.maps.GeocoderStatus.OK && results && results.length > 0) {
-              resolve(results)
-            } else {
-              reject(new Error(`Geocode failed: ${status}`))
-            }
-          })
-        })
-        const cc = geoResult[0]?.address_components?.find(c => c.types.includes('country'))
-        country = cc?.long_name ?? ''
-        countryCode = cc?.short_name ?? ''
-      } catch {
-        // Fall back to parsing formatted_address
-        const parts = address.split(',').map(s => s.trim())
-        if (parts.length > 0) country = parts[parts.length - 1]
-      }
+    // Step 3: Descriptive text — extract city-level location
+    // If the top result is already geographic (e.g. "things to do in Chengdu" → Chengdu), use it
+    if (isGeoResult) {
+      return buildResult(top, 'geographic')
     }
 
-    // Final fallback: parse from formatted address
-    if (!country) {
-      const parts = address.split(',').map(s => s.trim())
-      if (parts.length > 0) country = parts[parts.length - 1]
+    // The top result is a business — extract the city from the input or address
+    const cityName = extractCitySearchTerm(query, topAddress)
+    if (!cityName) return buildResult(top, 'geographic') // fallback to whatever we got
+
+    // Look for a geographic result in the existing results first
+    const geoHit = searchResults.find(r => {
+      const types: string[] = r.types ?? []
+      return types.some(t => GEO_TYPES.has(t))
+    })
+    if (geoHit?.geometry?.location && geoHit.place_id) {
+      return buildResult(geoHit, 'geographic')
     }
 
-    return {
-      name,
-      address,
-      lat,
-      lng,
-      placeId,
-      country,
-      countryCode,
-      locationType: isBusiness ? 'business' : 'geographic',
+    // Do a second search for just the city name
+    const cityResults = await textSearch(service, cityName)
+    if (cityResults.length > 0 && cityResults[0].geometry?.location && cityResults[0].place_id) {
+      return buildResult(cityResults[0], 'geographic')
     }
+
+    // Final fallback: return the business result but labeled as geographic
+    return buildResult(top, 'geographic')
   } catch (err) {
     console.warn('[placesTextSearch] Error:', err)
     return null
+  }
+}
+
+/**
+ * Build a TextSearchResult from a PlaceResult.
+ */
+function buildResult(
+  place: google.maps.places.PlaceResult,
+  locationType: 'business' | 'geographic',
+): TextSearchResult {
+  const address = place.formatted_address ?? ''
+  return {
+    name: place.name ?? '',
+    address,
+    lat: place.geometry!.location!.lat(),
+    lng: place.geometry!.location!.lng(),
+    placeId: place.place_id ?? '',
+    country: extractCountryFromAddress(address),
+    countryCode: '', // Will be resolved by Geocoder fallback in SaveSheet
+    locationType,
   }
 }
