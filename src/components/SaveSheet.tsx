@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import { detectLocationFromText } from '../lib/placesTextSearch'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
 import type { Category, SavedItem } from '../types'
 
@@ -75,6 +76,14 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
+  // Auto-location detection state
+  const [locationManuallySet, setLocationManuallySet] = useState(false)
+  const [locationDetecting, setLocationDetecting] = useState(false)
+  const [detectedLocation, setDetectedLocation] = useState<LocationSelection | null>(null)
+  const [suggestionDismissed, setSuggestionDismissed] = useState(false)
+  const lastDetectionTime = useRef(0)
+  const detectionDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Auto-focus input on mount
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 100)
@@ -98,8 +107,60 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       setUrlLoading(false)
       setUrlError('')
     }
+    // Clear detected location when input is fully cleared
+    if (!inputText.trim()) {
+      setDetectedLocation(null)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputText])
+
+  // Run location detection and store as suggestion (not auto-applied)
+  const runLocationDetection = useCallback(async (text: string) => {
+    if (locationManuallySet || suggestionDismissed) return
+    const now = Date.now()
+    if (now - lastDetectionTime.current < 3000) return
+    lastDetectionTime.current = now
+    setLocationDetecting(true)
+    try {
+      const result = await detectLocationFromText(text)
+      if (result && !locationManuallySet && !suggestionDismissed) {
+        setDetectedLocation({
+          name: result.address,
+          lat: result.lat,
+          lng: result.lng,
+          place_id: result.placeId,
+          country: result.country,
+          country_code: result.countryCode,
+          location_type: result.locationType === 'business' ? 'city' : 'city',
+          proximity_radius_km: 50,
+          name_en: result.name,
+          name_local: null,
+        })
+      }
+    } catch { /* ignore */ }
+    setLocationDetecting(false)
+  }, [locationManuallySet, suggestionDismissed])
+
+  // Debounced text detection: 1.5s after typing stops, if 3+ words and no URL
+  useEffect(() => {
+    if (detectionDebounce.current) clearTimeout(detectionDebounce.current)
+    const words = inputText.trim().split(/\s+/)
+    if (words.length < 3 || detectUrl(inputText) || locationManuallySet || suggestionDismissed) return
+    detectionDebounce.current = setTimeout(() => {
+      runLocationDetection(inputText)
+    }, 1500)
+    return () => { if (detectionDebounce.current) clearTimeout(detectionDebounce.current) }
+  }, [inputText, locationManuallySet, suggestionDismissed, runLocationDetection])
+
+  // URL metadata → location detection
+  useEffect(() => {
+    if (!metadata || locationManuallySet || suggestionDismissed) return
+    const text = [metadata.title, metadata.description].filter(Boolean).join(' ')
+    if (text.length > 10) {
+      runLocationDetection(text)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metadata])
 
   const fetchMetadata = async (url: string) => {
     setUrlLoading(true)
@@ -226,6 +287,10 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       removeAttachment()
       setSaved(false)
       setSaveError('')
+      setLocationManuallySet(false)
+      setLocationDetecting(false)
+      setDetectedLocation(null)
+      setSuggestionDismissed(false)
       inputRef.current?.focus()
     }, 800)
   }
@@ -400,16 +465,60 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
             })}
           </div>
 
-          {/* 4. Location input */}
+          {/* 4. Location suggestion pill + input */}
           <div style={{ marginTop: 12 }}>
+            {/* Suggestion pill area — always reserves space */}
+            <div style={{ minHeight: 30, marginBottom: 6 }}>
+              {detectedLocation && !locationManuallySet && !suggestionDismissed && !location && (
+                <div
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    padding: '6px 10px', borderRadius: 8,
+                    background: 'rgba(196,90,45,0.06)', border: '1px solid rgba(196,90,45,0.2)',
+                    transition: 'all 0.15s ease', cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setLocation(detectedLocation)
+                    setLocationManuallySet(true)
+                    setDetectedLocation(null)
+                  }}
+                >
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#c45a2d' }}>↗</span>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, color: '#c45a2d' }}>
+                    {detectedLocation.name_en || detectedLocation.name.split(',').slice(0, 2).join(',')}
+                  </span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#9e9b94' }}>detected</span>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setDetectedLocation(null)
+                      setSuggestionDismissed(true)
+                    }}
+                    style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#b5b2ab', cursor: 'pointer', padding: '0 4px' }}
+                  >×</span>
+                </div>
+              )}
+              {locationDetecting && !detectedLocation && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: 30 }}>
+                  <div style={{
+                    width: 6, height: 6, borderRadius: '50%',
+                    background: 'rgba(196,90,45,0.4)',
+                    animation: 'pulse 1s ease infinite',
+                  }} />
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b5b2ab' }}>detecting location...</span>
+                </div>
+              )}
+            </div>
+            <div style={{ position: 'relative' }}>
             <LocationAutocomplete
               value={location?.name ?? ''}
-              onSelect={setLocation}
+              onSelect={(loc) => { setLocation(loc); if (loc) { setLocationManuallySet(true); setDetectedLocation(null) } }}
               label=""
               optional
               placeholder="Location..."
               className="!py-[10px] !px-3 !rounded-lg !text-[13px]"
             />
+            </div>
           </div>
 
           {/* 5. Notes */}
@@ -448,6 +557,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
           )}
         </div>
       </div>
+      <style>{`@keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
     </>
   )
 }
