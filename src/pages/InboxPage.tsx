@@ -7,7 +7,7 @@ import SaveSheet from '../components/SaveSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { categoryLabel } from '../utils/categoryIcons'
 import { LayoutGrid, List, SlidersHorizontal, Search, X, Plus } from 'lucide-react'
-import { BrandMark, CategoryPill, FilterPill, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
+import { BrandMark, CategoryPill, CountryCodeBadge, FilterPill, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import { shortLocalName } from '../components/BilingualName'
 import { useLocationResolver } from '../hooks/useLocationResolver'
 import SwipeToDelete from '../components/SwipeToDelete'
@@ -18,11 +18,6 @@ import type { SavedItem, Trip } from '../types'
 /** Extract city name (first comma-separated part) from a full location_name. */
 function extractCity(locationName: string): string {
   return locationName.split(',')[0].trim()
-}
-
-/** Convert a two-letter country code to its flag emoji. */
-function countryCodeToFlag(code: string): string {
-  return [...code.toUpperCase()].map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')
 }
 
 /** Format a date to compact string */
@@ -500,10 +495,13 @@ export default function InboxPage() {
           {geoGroups.map((group) => (
             <section key={group.countryCode ?? '__unsorted__'}>
               {/* Country header */}
-              <div className="flex items-baseline gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3">
+                {group.country && group.countryCode && (
+                  <CountryCodeBadge code={group.countryCode} />
+                )}
                 <h2 className="font-mono text-[11px] font-bold uppercase tracking-[2px] text-text-faint">
                   {group.country
-                    ? `${group.countryCode ? countryCodeToFlag(group.countryCode) + '  ' : ''}${group.country.split('').join(' ')}`
+                    ? group.country.split('').join(' ')
                     : 'U N P L A C E D'}
                 </h2>
                 <span className="font-mono text-[10px] text-text-ghost">{group.items.length}</span>
@@ -580,56 +578,97 @@ function GridCard({
         to={`/item/${item.id}`}
         className="block bg-bg-card rounded-xl border border-border overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
       >
-        {/* Thumbnail area */}
         {hasImage ? (
-          <div className="relative h-[120px] bg-bg-muted overflow-hidden">
-            <SavedItemImage item={item} size="full" className="w-full h-[120px] object-cover" />
-            {/* Source badge on thumbnail */}
-            {item.site_name && (
-              <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-black/50 font-mono text-[9px] font-medium text-white/90 backdrop-blur-sm">
-                {item.site_name}
-              </span>
-            )}
-          </div>
+          <>
+            {/* Thumbnail area */}
+            <div className="relative h-[120px] bg-bg-muted overflow-hidden">
+              <SavedItemImage item={item} size="full" className="w-full h-[120px] object-cover" />
+              {item.site_name && (
+                <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-black/50 font-mono text-[9px] font-medium text-white/90 backdrop-blur-sm">
+                  {item.site_name}
+                </span>
+              )}
+            </div>
+            {/* Content area */}
+            <div className="px-3 py-2.5">
+              <p className="text-[13px] font-medium text-text-primary leading-snug line-clamp-2 group-hover:text-accent transition-colors">
+                {item.title}
+              </p>
+              {item.location_name_local && (
+                <p className="mt-0.5 text-[11px] text-text-ghost truncate">{shortLocalName(item.location_name_local)}</p>
+              )}
+              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                {city && (
+                  <span className="inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none">
+                    {city}
+                  </span>
+                )}
+                <CategoryPill label={categoryLabel[item.category]} />
+                <span className="flex-1" />
+                <span className="font-mono text-[10px] text-text-faint shrink-0">
+                  {formatDate(item.created_at)}
+                </span>
+              </div>
+            </div>
+          </>
         ) : (
-          <div className="h-[120px] bg-bg-muted flex items-center justify-center">
-            <SourceIcon source={sourceKey} size={48} className="opacity-30 !rounded-xl !text-2xl" />
-          </div>
+          <>
+            {/* Text-entry card — no image placeholder */}
+            <div className="px-3 pt-3 pb-2.5">
+              {/* Source line */}
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <SourceIcon source={sourceKey} size={24} className="!text-xs" />
+                <span className="font-mono text-[10px] text-text-tertiary truncate">
+                  {item.site_name ?? item.source_type}
+                </span>
+              </div>
+              {/* Title */}
+              <p className="text-[14px] font-semibold text-text-primary leading-snug line-clamp-2 group-hover:text-accent transition-colors">
+                {item.title}
+              </p>
+              {/* Description excerpt */}
+              {item.description && (
+                <p className="mt-1 text-[12px] text-text-secondary leading-relaxed line-clamp-3">
+                  {item.description}
+                </p>
+              )}
+              {item.location_name_local && !item.description && (
+                <p className="mt-0.5 text-[11px] text-text-ghost truncate">{shortLocalName(item.location_name_local)}</p>
+              )}
+              {/* Pills + date row */}
+              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                {city && (
+                  <span className="inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none">
+                    {city}
+                  </span>
+                )}
+                <CategoryPill label={categoryLabel[item.category]} />
+                <span className="flex-1" />
+                <span className="font-mono text-[10px] text-text-faint shrink-0">
+                  {formatDate(item.created_at)}
+                </span>
+              </div>
+              {/* "+ add photo" prompt */}
+              <div className="mt-2 pt-2 border-t border-dashed border-border-light">
+                <span className="font-mono text-[10px] text-text-faint">+ add photo</span>
+              </div>
+            </div>
+          </>
         )}
-
-        {/* Content area */}
-        <div className="px-3 py-2.5">
-          <p className="text-[13px] font-medium text-text-primary leading-snug line-clamp-2 group-hover:text-accent transition-colors">
-            {item.title}
-          </p>
-          {item.location_name_local && (
-            <p className="mt-0.5 text-[11px] text-text-ghost truncate">{shortLocalName(item.location_name_local)}</p>
-          )}
-
-          {/* Pills + date row */}
-          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-            {city && (
-              <span className="inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none">
-                {city}
-              </span>
-            )}
-            <CategoryPill label={categoryLabel[item.category]} />
-            <span className="flex-1" />
-            <span className="font-mono text-[10px] text-text-faint shrink-0">
-              {formatDate(item.created_at)}
-            </span>
-          </div>
-        </div>
       </Link>
 
       {/* Options button */}
       <button
         type="button"
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowSheet(true) }}
-        className="absolute top-2 left-2 z-10 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-black/50 transition-all"
+        className={`absolute top-2 ${hasImage ? 'left-2' : 'right-2'} z-10 w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all ${
+          hasImage
+            ? 'bg-black/30 backdrop-blur-sm hover:bg-black/50'
+            : 'bg-bg-muted hover:bg-bg-pill-dark'
+        }`}
         aria-label="Add to trip"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-3.5 h-3.5 ${hasImage ? 'text-white' : 'text-text-tertiary'}`}>
           <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
         </svg>
       </button>

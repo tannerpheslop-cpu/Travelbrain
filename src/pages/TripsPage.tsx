@@ -11,7 +11,7 @@ import { useFirstDestinationImage } from '../hooks/useDestinationImage'
 import type { SavedItem } from '../types'
 import { supabase } from '../lib/supabase'
 import { Plus } from 'lucide-react'
-import { BrandMark, StatusBadge, MetadataLine, RouteChain, CategoryPill, DashedCard, PrimaryButton } from '../components/ui'
+import { BrandMark, StatusBadge, MetadataLine, RouteChain, CategoryPill, DashedCard, PrimaryButton, CountryCodeBadge } from '../components/ui'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -24,15 +24,10 @@ const gradients = [
   'from-slate-500 to-slate-700',
 ]
 
-/** Convert a two-letter country code to its flag emoji. */
-function countryCodeToFlag(code: string): string {
-  return [...code.toUpperCase()].map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')
-}
-
-/** Get the primary flag for a trip from its first destination's country code */
-function getTripFlag(trip: TripWithDestinations): string {
+/** Get the primary two-letter country code for a trip from its first destination */
+function getTripCountryCode(trip: TripWithDestinations): string | null {
   const code = trip.trip_destinations?.[0]?.location_country_code
-  return code ? countryCodeToFlag(code) : '🌍'
+  return code ?? null
 }
 
 
@@ -101,7 +96,7 @@ function TripCard({
   const dests = trip.trip_destinations ?? []
   const [resolvedDestImage] = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
-  const flag = getTripFlag(trip)
+  const countryCode = getTripCountryCode(trip)
   const chapterNum = String(index + 2).padStart(2, '0') // hero is 01
 
   const handleMenuClick = (e: React.MouseEvent) => {
@@ -146,7 +141,7 @@ function TripCard({
         {/* Right: content */}
         <div className="flex-1 min-w-0 px-3.5 py-3 flex flex-col justify-center">
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-lg">{flag}</span>
+            {countryCode && <CountryCodeBadge code={countryCode} />}
             <StatusBadge status={trip.status} />
           </div>
           <h3 className="text-[16px] font-bold text-text-primary truncate group-hover:text-accent transition-colors">{trip.title}</h3>
@@ -758,17 +753,101 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
   const dests = trip.trip_destinations ?? []
   const [resolvedDestImage] = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
-  const flag = getTripFlag(trip)
+  const countryCode = getTripCountryCode(trip)
   const destNames = dests.map((d) => shortDestName(d.location_name))
+  const gradient = gradients[0]
 
+  // If we have a cover image, use the full-bleed image layout
+  if (coverImage) {
+    return (
+      <Link
+        to={`/trip/${trip.id}`}
+        className="group block relative rounded-2xl overflow-hidden transition-all duration-150 ease-out hover:shadow-[0_8px_28px_rgba(0,0,0,0.10)]"
+        style={{ height: 210 }}
+      >
+        {/* Background image */}
+        <img
+          src={coverImage}
+          alt=""
+          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
+          onLoad={() => setCoverImgLoaded(true)}
+          onError={() => setCoverImgFailed(true)}
+        />
+        {/* Gradient placeholder while loading */}
+        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} ${coverImgLoaded ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`} />
+
+        {/* Bottom gradient scrim */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.65))' }}
+        />
+
+        {/* Watermark "01" top-right */}
+        <span className="absolute top-0 right-3 font-mono text-[100px] font-extrabold leading-none text-white/[0.15] pointer-events-none select-none">
+          01
+        </span>
+
+        {/* Country code badge top-left */}
+        {countryCode && (
+          <div className="absolute top-3 left-3">
+            <CountryCodeBadge code={countryCode} light />
+          </div>
+        )}
+
+        {/* Pin if featured */}
+        {trip.is_featured && (
+          <span className="absolute top-3 left-[60px] flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-accent text-white font-mono text-[8px] font-bold uppercase tracking-wider">
+            ★
+          </span>
+        )}
+
+        {/* Content at bottom */}
+        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-6">
+          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.5px] text-accent">Up next</span>
+
+          <h2 className="mt-1 text-[24px] font-bold leading-[1.2] tracking-[-0.3px] text-white truncate" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
+            {trip.title}
+          </h2>
+
+          <div className="mt-2">
+            <MetadataLine
+              items={[
+                `${dests.length} destination${dests.length !== 1 ? 's' : ''}`,
+                ...(trip.status === 'scheduled' && trip.start_date && trip.end_date
+                  ? [formatDateRange(trip.start_date, trip.end_date)]
+                  : []),
+              ]}
+              className="!text-white/80"
+            />
+          </div>
+
+          {destNames.length > 0 && (
+            <div className="mt-2">
+              <RouteChain
+                destinations={destNames}
+                maxVisible={4}
+                className="[&_span.text-text-secondary]:!text-white/80 [&_span.text-text-mist]:!text-white/40 [&_.text-\\[13px\\]]:!text-white/80 [&_.text-\\[10px\\]]:!text-white/40"
+              />
+            </div>
+          )}
+
+          <div className="mt-3">
+            <StatusBadge status={trip.status} />
+          </div>
+        </div>
+      </Link>
+    )
+  }
+
+  // Fallback: no image — split layout with tinted left panel
   return (
     <Link
       to={`/trip/${trip.id}`}
       className="group flex rounded-2xl border border-border overflow-hidden bg-bg-card transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_8px_28px_rgba(0,0,0,0.06)]"
     >
-      {/* Left panel — flag + watermark */}
+      {/* Left panel — country code + watermark */}
       <div className="relative w-[140px] shrink-0 bg-bg-tinted flex flex-col items-center justify-center overflow-hidden">
-        <span className="text-[44px] leading-none">{flag}</span>
+        {countryCode && <CountryCodeBadge code={countryCode} className="text-[18px] px-2.5 py-1" />}
         <p className="mt-2 font-mono text-[10px] text-text-tertiary">
           {dests.length} {dests.length === 1 ? 'city' : 'cities'}
         </p>
@@ -787,28 +866,13 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
 
       {/* Right panel — trip info */}
       <div className="flex-1 min-w-0 relative">
-        {/* Cover image background */}
-        {coverImage && (
-          <div className="absolute inset-0 overflow-hidden">
-            <img
-              src={coverImage}
-              alt=""
-              className={`w-full h-full object-cover opacity-10 transition-opacity duration-300 ${coverImgLoaded ? 'opacity-10' : 'opacity-0'}`}
-              onLoad={() => setCoverImgLoaded(true)}
-              onError={() => setCoverImgFailed(true)}
-            />
-          </div>
-        )}
-
         <div className="relative px-4 py-4 flex flex-col justify-center min-h-[160px]">
-          {/* "Up next" label */}
           <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.5px] text-accent">Up next</span>
 
           <h2 className="mt-1 text-[24px] font-bold leading-[1.2] tracking-[-0.3px] text-text-primary truncate group-hover:text-accent transition-colors">
             {trip.title}
           </h2>
 
-          {/* Metadata line */}
           <div className="mt-2">
             <MetadataLine items={[
               `${dests.length} destination${dests.length !== 1 ? 's' : ''}`,
@@ -818,14 +882,12 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
             ]} />
           </div>
 
-          {/* Route chain */}
           {destNames.length > 0 && (
             <div className="mt-2">
               <RouteChain destinations={destNames} maxVisible={4} />
             </div>
           )}
 
-          {/* Status badge */}
           <div className="mt-3">
             <StatusBadge status={trip.status} />
           </div>
@@ -844,7 +906,7 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
   const dests = trip.trip_destinations ?? []
   const [resolvedDestImage] = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
-  const flag = getTripFlag(trip)
+  const countryCode = getTripCountryCode(trip)
   const chapterNum = String(index + 1).padStart(2, '0')
 
   return (
@@ -870,8 +932,12 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
           {chapterNum}
         </span>
 
-        {/* Flag */}
-        <span className="absolute bottom-2 left-3 text-lg">{flag}</span>
+        {/* Country code badge */}
+        {countryCode && (
+          <div className="absolute bottom-2 left-3">
+            <CountryCodeBadge code={countryCode} light />
+          </div>
+        )}
       </div>
 
       {/* Content */}
@@ -882,6 +948,7 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
             <RouteChain
               destinations={dests.map((d) => shortDestName(d.location_name))}
               maxVisible={4}
+              truncate
               className="!text-[11px]"
             />
           </div>

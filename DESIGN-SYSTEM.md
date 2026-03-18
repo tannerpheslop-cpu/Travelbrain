@@ -80,6 +80,7 @@ https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Jet
 7. Heading text NEVER uses JetBrains Mono — headings are always DM Sans
 8. All-caps labels (section headers like "ROUTE") are JetBrains Mono 500, 10px, letter-spacing 1.5px, color `--color-text-faint`
 9. Status badges are JetBrains Mono 600, 9px, letter-spacing 0.5px, uppercase
+10. Route chains and location names must truncate with `text-overflow: ellipsis` and `white-space: nowrap` when they exceed their container width. Never let text overflow or wrap to push card dimensions beyond their defined size.
 
 ---
 
@@ -213,6 +214,10 @@ Font: JetBrains Mono 9px 600. Letter-spacing: 0.5px. Uppercase. Padding: 3px 8px
 - Draft: color `--color-text-tertiary`, bg `--color-bg-pill-dark`
 - Aspirational: color `--color-text-faint`, bg `--color-bg-muted`
 
+### Country Code Badge
+
+Country identifiers use two-letter country codes (e.g. JP, CN, TW) rendered in JetBrains Mono 11px 700, letter-spacing 1px, color `--color-text-tertiary`, on a `--color-bg-pill` background, border-radius 3px, padding 2px 6px. **NO flag emojis anywhere in the app.** Country codes are more typographically consistent and avoid cross-platform rendering differences.
+
 ### Source Icon (text-based)
 
 Rendered in JetBrains Mono inside 28-32px square container, bg `--color-bg-pill`, color `--color-text-tertiary`, border-radius 6-7px:
@@ -231,7 +236,7 @@ Hover: border tints copper, shadow increases (`0 4px 16px rgba(0,0,0,0.05)`), `t
 
 ### Card (hero)
 
-Same as standard but: border-radius 16px, larger hover shadow (`0 8px 28px rgba(0,0,0,0.06)`), contains left panel with tinted background for flags/visual identity.
+The hero trip card uses the first destination's image as a full background. Apply a dark gradient overlay (`linear-gradient` from transparent at top to `rgba(0,0,0,0.65)` at bottom) so text remains readable. Trip details (name, metadata, route chain, status badge, category pills) render in white or `--color-bg-page` colored text on top of the overlay. The chapter watermark number renders at reduced opacity (0.15) in white. If no destination image exists, fall back to the `--color-bg-tinted` left panel with country code badge (previous design). Border-radius: 16px. Hover shadow: `0 8px 28px rgba(0,0,0,0.06)`.
 
 ### Card (add/new — dashed)
 
@@ -299,29 +304,30 @@ Centered. Icon in JetBrains Mono 24-32px, color `--color-text-faint`, opacity 0.
 
 - Grid view: CSS grid `repeat(auto-fill, minmax(240px, 1fr))`, gap 12px
 - List view: vertical stack with hover background tint
-- Grouped by country with flag + spaced-uppercase country header (JetBrains Mono 700, 11px, letter-spacing 2px)
+- Grouped by country with country code badge + spaced-uppercase country header (JetBrains Mono 700, 11px, letter-spacing 2px)
 - Search bar at top of header
 - Filters below search: Unassigned, Trip dropdown, City dropdown (NOT category filters — categories appear as pills on individual cards only)
 - Grid/list toggle in top-right of filter row
 - Floating + save button (fixed bottom-right, accent color, circular, 52px, shadow `0 4px 16px rgba(196,90,45,0.35)`)
 - Brand mark "youji 游记" above page title
 - Page metadata line: "{N} saves · {N} countries" in JetBrains Mono
+- Items without images render as text entries — no gray placeholder thumbnail area. Text entries show: source icon + source name at top, title in DM Sans 14px 600, description excerpt in DM Sans 12px 400 `--color-text-secondary` (2-3 lines), city/category pills and date at bottom, and a subtle dashed "+ add photo" prompt (JetBrains Mono 10px, `--color-text-faint`, dashed top border). Text entries should feel intentionally designed, not like missing images.
 
 ### Trips Library
 
 - Brand mark + "Trips" page title + metadata + "+ New Trip" primary button
-- Hero card at top (full-width, taller, left panel with flag + chapter watermark 01, right panel with trip details including route chain, metadata, category pills, "Up next" label in accent)
+- Hero card at top (full-width, taller, left panel with country code badge + chapter watermark 01, right panel with trip details including route chain, metadata, category pills, "Up next" label in accent)
 - Below hero: horizontal carousels grouped by planning stage: "Planning", "Drafts", "Someday"
 - Each carousel has title (DM Sans 17px 600), description (JetBrains Mono 11px), count, scrollable row of 260px-wide cards
 - Each carousel ends with a dashed "+ New trip" card
-- Carousel cards: flag, watermark number, trip name, compact route chain, bottom metadata bar with stats + category pills
+- Carousel cards: country code badge, watermark number, trip name, compact route chain, bottom metadata bar with stats + category pills
 
 ### Trip Overview (single trip)
 
-- Brand mark + trip name + metadata (flag, days, destinations, saves) + action buttons below
+- Brand mark + trip name + metadata (country code badge, days, destinations, saves) + action buttons below
 - Tab navigation: Destinations | Itinerary | Logistics (copper underline on active)
 - Destinations tab: collapsible accordion sections with chapter number panels (72px wide left strip, JetBrains Mono 28px 800). Collapsed: number panel muted, destination name, dates, saves count, category pills, day range, chevron. Expanded: number panel fills copper with white number, items list with source icons, category pills, "Add from Inbox" dashed button
-- Country grouping headers between destination groups (flag + spaced country name)
+- Country grouping headers between destination groups (country code badge + spaced country name)
 - Itinerary tab: timeline view with vertical line, day dots, destination headers with chapter numbers, drop zones per day
 - Logistics tab: empty state with ✎ icon
 - Dashed "+ Add another destination" card at bottom
