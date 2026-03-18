@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
@@ -13,12 +13,10 @@ interface Metadata {
   url: string
 }
 
-type SaveMode = 'link' | 'screenshot' | 'manual'
-
 const categories: { value: Category; label: string }[] = [
-  { value: 'restaurant', label: 'Restaurant' },
+  { value: 'restaurant', label: 'Food' },
   { value: 'activity', label: 'Activity' },
-  { value: 'hotel', label: 'Hotel' },
+  { value: 'hotel', label: 'Stay' },
   { value: 'transit', label: 'Transit' },
   { value: 'general', label: 'General' },
 ]
@@ -26,184 +24,170 @@ const categories: { value: Category; label: string }[] = [
 interface Props {
   onClose: () => void
   onSaved: (item: SavedItem) => void
-  initialMode?: SaveMode
-  initialFile?: File   // Pre-selected file for screenshot mode (from photo capture)
+  initialMode?: 'link' | 'screenshot' | 'manual'
+  initialFile?: File
 }
 
-export default function SaveSheet({ onClose, onSaved, initialMode = 'link', initialFile }: Props) {
-  const { user } = useAuth()
-  const [mode, setMode] = useState<SaveMode>(initialMode)
+// Simple URL detection
+function detectUrl(text: string): string | null {
+  const trimmed = text.trim()
+  if (/^https?:\/\//i.test(trimmed)) return trimmed
+  if (/^[\w-]+\.(com|org|net|io|co|me|tv|app|dev|xyz|info)(\/\S*)?$/i.test(trimmed)) return `https://${trimmed}`
+  return null
+}
 
-  // Shared fields
+// Source icon character
+function sourceChar(siteName: string | null): string {
+  const s = (siteName ?? '').toLowerCase()
+  if (s.includes('tiktok')) return '♫'
+  if (s.includes('instagram')) return '◎'
+  if (s.includes('youtube')) return '▶'
+  return '↗'
+}
+
+export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
+  const { user } = useAuth()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Form state
+  const [inputText, setInputText] = useState('')
   const [title, setTitle] = useState('')
-  const [category, setCategory] = useState<Category>('activity')
+  const [category, setCategory] = useState<Category | null>(null)
   const [location, setLocation] = useState<LocationSelection | null>(null)
   const [notes, setNotes] = useState('')
   const [saveError, setSaveError] = useState('')
 
-  // Link mode
-  const [url, setUrl] = useState('')
-  const [linkStatus, setLinkStatus] = useState<'idle' | 'loading' | 'preview' | 'saving' | 'saved' | 'url_error'>('idle')
+  // URL preview state
+  const [detectedUrl, setDetectedUrl] = useState<string | null>(null)
+  const [urlLoading, setUrlLoading] = useState(false)
   const [metadata, setMetadata] = useState<Metadata | null>(null)
   const [urlError, setUrlError] = useState('')
   const [imageFailed, setImageFailed] = useState(false)
 
-  // Screenshot mode
-  const [screenshotStatus, setScreenshotStatus] = useState<'idle' | 'uploading' | 'preview' | 'saving' | 'saved'>('idle')
-  const [screenshotUrl, setScreenshotUrl] = useState<string | null>(null)
-  const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [dragOver, setDragOver] = useState(false)
+  // Image attachment state
+  const [attachedFile, setAttachedFile] = useState<File | null>(null)
+  const [attachedPreview, setAttachedPreview] = useState<string | null>(null)
+  const [attachedUrl, setAttachedUrl] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
 
-  // Manual mode
-  const [manualStatus, setManualStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  // Save state
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
 
-  // Auto-process initialFile for photo capture flow (skip drag-and-drop area)
+  // Auto-focus input on mount
   useEffect(() => {
-    if (initialFile && mode === 'screenshot' && screenshotStatus === 'idle') {
-      handleFileSelect(initialFile)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    setTimeout(() => inputRef.current?.focus(), 100)
+  }, [])
+
+  // Handle initialFile
+  useEffect(() => {
+    if (initialFile) handleAttachFile(initialFile)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFile])
 
-  const resetAll = () => {
-    setTitle('')
-    setCategory('activity')
-    setLocation(null)
-    setNotes('')
-    setSaveError('')
-    setUrl('')
-    setLinkStatus('idle')
-    setMetadata(null)
-    setUrlError('')
-    setImageFailed(false)
-    setScreenshotStatus('idle')
-    setScreenshotUrl(null)
-    setScreenshotPreview(null)
-    setManualStatus('idle')
-  }
-
-  const handleModeChange = (newMode: SaveMode) => {
-    resetAll()
-    setMode(newMode)
-  }
-
-  // ── Link mode ──────────────────────────────────────────────────────────────
-
-  const handleSubmitUrl = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const trimmed = url.trim()
-    if (!trimmed) return
-
-    let finalUrl = trimmed
-    if (!/^https?:\/\//i.test(finalUrl)) finalUrl = `https://${finalUrl}`
-
-    try { new URL(finalUrl) } catch {
-      setUrlError('Please enter a valid URL')
-      setLinkStatus('url_error')
-      return
+  // URL detection on input change
+  useEffect(() => {
+    const url = detectUrl(inputText)
+    if (url && url !== detectedUrl) {
+      setDetectedUrl(url)
+      fetchMetadata(url)
+    } else if (!url && detectedUrl) {
+      setDetectedUrl(null)
+      setMetadata(null)
+      setUrlLoading(false)
+      setUrlError('')
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputText])
 
-    setLinkStatus('loading')
+  const fetchMetadata = async (url: string) => {
+    setUrlLoading(true)
     setUrlError('')
-
     try {
-      const fetched = await invokeEdgeFunction<Metadata>('extract-metadata', { url: finalUrl })
-      setMetadata({ ...fetched, url: finalUrl })
-      setTitle(fetched.title || '')
+      const fetched = await invokeEdgeFunction<Metadata>('extract-metadata', { url })
+      setMetadata({ ...fetched, url })
+      if (fetched.title && !title) setTitle(fetched.title)
       setImageFailed(false)
-      setLinkStatus('preview')
     } catch {
-      setMetadata({ title: null, image: null, description: null, site_name: null, url: finalUrl })
-      setTitle('')
-      setImageFailed(false)
-      setUrlError('Could not fetch link preview — you can still save it manually below.')
-      setLinkStatus('preview')
+      setMetadata({ title: null, image: null, description: null, site_name: null, url })
+      setUrlError("Couldn't fetch preview — save as link")
     }
+    setUrlLoading(false)
   }
 
-  const handleSaveLink = async () => {
-    if (!user) return
-    const itemTitle = title.trim() || metadata?.url || 'Untitled'
-    setLinkStatus('saving')
-    setSaveError('')
-
-    const { data, error } = await supabase.from('saved_items').insert({
-      user_id: user.id,
-      source_type: 'url',
-      source_url: metadata?.url || null,
-      image_url: metadata?.image || null,
-      title: itemTitle,
-      description: metadata?.description || null,
-      site_name: metadata?.site_name || null,
-      location_name: location?.name ?? null,
-      location_lat: location?.lat ?? null,
-      location_lng: location?.lng ?? null,
-      location_place_id: location?.place_id ?? null,
-      location_country: location?.country ?? null,
-      location_country_code: location?.country_code ?? null,
-      location_name_en: location?.name_en ?? null,
-      location_name_local: location?.name_local ?? null,
-      category,
-      notes: notes.trim() || null,
-    }).select().single()
-
-    if (error) {
-      console.error('[save-sheet] save link error:', error)
-      setSaveError('Failed to save. Please try again.')
-      setLinkStatus('preview')
-      return
-    }
-
-    trackEvent('save_created', user.id, { source_type: 'url', category, location_name: location?.name ?? null })
-    setLinkStatus('saved')
-    setTimeout(() => { onSaved(data as SavedItem); onClose() }, 600)
-  }
-
-  // ── Screenshot mode ────────────────────────────────────────────────────────
-
-  const handleFileSelect = async (file: File) => {
+  // File attachment
+  const handleAttachFile = useCallback(async (file: File) => {
     if (!user || !file.type.startsWith('image/')) return
-    setScreenshotStatus('uploading')
-    setSaveError('')
-
-    const localPreview = URL.createObjectURL(file)
-    setScreenshotPreview(localPreview)
+    setAttachedFile(file)
+    setAttachedPreview(URL.createObjectURL(file))
+    setUploading(true)
 
     const ext = file.name.split('.').pop() || 'jpg'
     const path = `${user.id}/${Date.now()}.${ext}`
-
     const { error } = await supabase.storage.from('screenshots').upload(path, file)
     if (error) {
-      setSaveError('Failed to upload image. Please try again.')
-      setScreenshotStatus('idle')
-      setScreenshotPreview(null)
+      setSaveError('Failed to upload image.')
+      setAttachedFile(null)
+      setAttachedPreview(null)
+      setUploading(false)
       return
     }
-
     const { data: urlData } = supabase.storage.from('screenshots').getPublicUrl(path)
-    setScreenshotUrl(urlData.publicUrl)
-    setScreenshotStatus('preview')
+    setAttachedUrl(urlData.publicUrl)
+    setUploading(false)
+  }, [user])
+
+  // Clipboard paste detection for images
+  useEffect(() => {
+    const input = inputRef.current
+    if (!input) return
+    const handlePaste = (e: ClipboardEvent) => {
+      const files = e.clipboardData?.files
+      if (files && files.length > 0 && files[0].type.startsWith('image/')) {
+        e.preventDefault()
+        handleAttachFile(files[0])
+      }
+    }
+    input.addEventListener('paste', handlePaste)
+    return () => input.removeEventListener('paste', handlePaste)
+  }, [handleAttachFile])
+
+  const removeAttachment = () => {
+    setAttachedFile(null)
+    setAttachedPreview(null)
+    setAttachedUrl(null)
   }
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) handleFileSelect(file)
+  // Determine source type
+  const getSourceType = (): 'url' | 'screenshot' | 'manual' => {
+    if (detectedUrl) return 'url'
+    if (attachedFile) return 'screenshot'
+    return 'manual'
   }
 
-  const handleSaveScreenshot = async () => {
-    if (!user) return
-    if (!title.trim()) { setSaveError('Please add a title for your screenshot.'); return }
-    setScreenshotStatus('saving')
+  // Can save?
+  const canSave = !saving && !saved && !uploading && !urlLoading && (inputText.trim() !== '' || !!attachedFile || !!attachedUrl)
+
+  // Save
+  const handleSave = async () => {
+    if (!user || !canSave) return
+    setSaving(true)
     setSaveError('')
+
+    const sourceType = getSourceType()
+    const itemTitle = title.trim() || inputText.trim() || 'Untitled'
+    // User-attached image takes priority over OG metadata image
+    const imageUrl = attachedUrl || metadata?.image || null
 
     const { data, error } = await supabase.from('saved_items').insert({
       user_id: user.id,
-      source_type: 'screenshot',
-      image_url: screenshotUrl,
-      title: title.trim(),
+      source_type: sourceType,
+      source_url: detectedUrl ?? null,
+      image_url: imageUrl,
+      title: itemTitle,
+      description: metadata?.description ?? null,
+      site_name: metadata?.site_name ?? null,
       location_name: location?.name ?? null,
       location_lat: location?.lat ?? null,
       location_lng: location?.lng ?? null,
@@ -212,408 +196,258 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
       location_country_code: location?.country_code ?? null,
       location_name_en: location?.name_en ?? null,
       location_name_local: location?.name_local ?? null,
-      category,
+      category: category ?? 'general',
       notes: notes.trim() || null,
     }).select().single()
 
     if (error) {
-      console.error('[save-sheet] save screenshot error:', error)
       setSaveError('Failed to save. Please try again.')
-      setScreenshotStatus('preview')
+      setSaving(false)
       return
     }
 
-    trackEvent('save_created', user.id, { source_type: 'screenshot', category, location_name: location?.name ?? null })
-    setScreenshotStatus('saved')
-    setTimeout(() => { onSaved(data as SavedItem); onClose() }, 600)
+    trackEvent('save_created', user.id, { source_type: sourceType, category: category ?? 'general', location_name: location?.name ?? null })
+    onSaved(data as SavedItem)
+
+    // Reset form for rapid successive saves — sheet stays open
+    setSaving(false)
+    setSaved(true)
+    setTimeout(() => {
+      setInputText('')
+      setTitle('')
+      setCategory(null)
+      setLocation(null)
+      setNotes('')
+      setDetectedUrl(null)
+      setMetadata(null)
+      setUrlLoading(false)
+      setUrlError('')
+      setImageFailed(false)
+      removeAttachment()
+      setSaved(false)
+      setSaveError('')
+      inputRef.current?.focus()
+    }, 800)
   }
 
-  // ── Manual mode ────────────────────────────────────────────────────────────
-
-  const handleSaveManual = async () => {
-    if (!user) return
-    if (!title.trim()) { setSaveError('Please add a title.'); return }
-    setManualStatus('saving')
-    setSaveError('')
-
-    const { data, error } = await supabase.from('saved_items').insert({
-      user_id: user.id,
-      source_type: 'manual',
-      title: title.trim(),
-      location_name: location?.name ?? null,
-      location_lat: location?.lat ?? null,
-      location_lng: location?.lng ?? null,
-      location_place_id: location?.place_id ?? null,
-      location_country: location?.country ?? null,
-      location_country_code: location?.country_code ?? null,
-      location_name_en: location?.name_en ?? null,
-      location_name_local: location?.name_local ?? null,
-      category,
-      notes: notes.trim() || null,
-    }).select().single()
-
-    if (error) {
-      console.error('[save-sheet] save manual error:', error)
-      setSaveError('Failed to save. Please try again.')
-      setManualStatus('idle')
-      return
-    }
-
-    trackEvent('save_created', user.id, { source_type: 'manual', category, location_name: location?.name ?? null })
-    setManualStatus('saved')
-    setTimeout(() => { onSaved(data as SavedItem); onClose() }, 600)
-  }
-
-  const isSaving = linkStatus === 'saving' || screenshotStatus === 'saving' || manualStatus === 'saving'
-  const isSaved  = linkStatus === 'saved'  || screenshotStatus === 'saved'  || manualStatus === 'saved'
-
-  // Mode switchers are only visible on the link-idle screen (before URL is submitted)
-  const showModeSwitchers = mode === 'link' && (linkStatus === 'idle' || linkStatus === 'url_error')
+  const previewVisible = !!(detectedUrl && (urlLoading || metadata))
 
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-40 bg-black/50" onClick={isSaving ? undefined : onClose} />
+      <div className="fixed inset-0 z-40 bg-black/50" onClick={saving ? undefined : onClose} />
 
       {/* Sheet */}
       <div
         className="fixed inset-x-0 bottom-0 z-50 bg-bg-card rounded-t-3xl flex flex-col"
-        style={{ maxHeight: '88dvh' }}
+        style={{ maxHeight: '90dvh' }}
       >
         {/* Drag handle */}
-        <div className="flex justify-center pt-3 pb-1 shrink-0">
-          <div className="w-10 h-1 bg-text-ghost rounded-full" />
-        </div>
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 shrink-0">
-          <h2 className="text-lg font-bold text-text-primary">Add to your Horizon</h2>
-          <button
-            type="button"
-            onClick={isSaving ? undefined : onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-muted hover:bg-bg-pill-dark transition-colors"
-            aria-label="Close"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-text-secondary">
-              <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-            </svg>
-          </button>
+        <div className="flex justify-center pt-3 shrink-0">
+          <div style={{ width: 36, height: 4, background: 'var(--color-border-input)', borderRadius: 2 }} />
         </div>
 
         {/* Scrollable content */}
-        <div className="overflow-y-auto flex-1 px-5" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
+        <div className="overflow-y-auto flex-1 px-5 pt-4" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
 
-          {/* ══ LINK MODE ══════════════════════════════════════════════════════ */}
-          {mode === 'link' && (
-            <>
-              {/* URL input — idle / error */}
-              {(linkStatus === 'idle' || linkStatus === 'url_error') && (
-                <form onSubmit={handleSubmitUrl} className="mt-2">
+          {/* 1. Input row */}
+          <div
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              background: '#f5f3f0', borderRadius: 10, padding: '12px 14px',
+              border: '1px solid #e8e6e1', transition: 'border-color 0.15s ease',
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'rgba(196,90,45,0.25)')}
+            onBlur={e => (e.currentTarget.style.borderColor = '#e8e6e1')}
+          >
+            <input
+              ref={inputRef}
+              type="text"
+              value={inputText}
+              onChange={e => setInputText(e.target.value)}
+              placeholder="Type a note, paste a link..."
+              style={{
+                flex: 1, border: 'none', background: 'transparent', outline: 'none',
+                fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#2a2a28',
+              }}
+            />
+            {/* Attachment button or thumbnail */}
+            {attachedPreview ? (
+              <div className="relative shrink-0" style={{ width: 32, height: 32 }}>
+                <img src={attachedPreview} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }} />
+                <button
+                  type="button"
+                  onClick={removeAttachment}
+                  style={{
+                    position: 'absolute', top: -6, right: -6, width: 16, height: 16,
+                    borderRadius: '50%', background: '#2a2a28', color: 'white', border: 'none',
+                    fontSize: 10, lineHeight: 1, cursor: 'pointer', display: 'flex',
+                    alignItems: 'center', justifyContent: 'center',
+                  }}
+                >×</button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  width: 32, height: 32, borderRadius: 8, background: '#f0eeea', border: 'none',
+                  cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 14,
+                  color: '#9e9b94', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}
+              >▣</button>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleAttachFile(f) }}
+            />
+          </div>
+
+          {/* 2. URL preview area — always in DOM, animated height */}
+          <div
+            style={{
+              maxHeight: previewVisible ? 140 : 0,
+              overflow: 'hidden',
+              transition: 'max-height 0.2s ease',
+              marginTop: previewVisible ? 12 : 0,
+            }}
+          >
+            {urlLoading && (
+              <div className="animate-pulse" style={{ borderRadius: 10, border: '1px solid #eceae5', overflow: 'hidden' }}>
+                <div style={{ display: 'flex' }}>
+                  <div style={{ width: 100, height: 80, background: '#f5f3f0' }} />
+                  <div style={{ flex: 1, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div style={{ height: 10, background: '#f0eeea', borderRadius: 4, width: '40%' }} />
+                    <div style={{ height: 14, background: '#f0eeea', borderRadius: 4, width: '80%' }} />
+                    <div style={{ height: 10, background: '#f0eeea', borderRadius: 4, width: '60%' }} />
+                  </div>
+                </div>
+              </div>
+            )}
+            {!urlLoading && metadata && (
+              <div style={{ borderRadius: 10, border: '1px solid #eceae5', overflow: 'hidden', display: 'flex' }}>
+                {/* Thumbnail */}
+                {(metadata.image && !imageFailed) ? (
+                  <img
+                    src={metadata.image}
+                    alt=""
+                    style={{ width: 100, height: 80, objectFit: 'cover', background: '#f5f3f0', flexShrink: 0 }}
+                    onError={() => setImageFailed(true)}
+                  />
+                ) : attachedPreview ? (
+                  <img src={attachedPreview} alt="" style={{ width: 100, height: 80, objectFit: 'cover', flexShrink: 0 }} />
+                ) : null}
+                {/* Content */}
+                <div style={{ flex: 1, padding: 10, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#9e9b94' }}>
+                      {sourceChar(metadata.site_name)}
+                    </span>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#9e9b94' }}>
+                      {metadata.site_name || 'Link'}
+                    </span>
+                  </div>
                   <input
                     type="text"
-                    value={url}
-                    onChange={(e) => { setUrl(e.target.value); if (linkStatus === 'url_error') setLinkStatus('idle') }}
-                    placeholder="Paste a link..."
-                    autoFocus
-                    className="w-full px-4 py-4 text-base border border-border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint"
+                    value={title || metadata.title || ''}
+                    onChange={e => setTitle(e.target.value)}
+                    placeholder="Title..."
+                    style={{
+                      marginTop: 2, border: 'none', background: 'transparent', outline: 'none',
+                      fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
+                      color: '#2a2a28', width: '100%',
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}
                   />
-                  {linkStatus === 'url_error' && urlError && (
-                    <p className="mt-2 text-sm text-error">{urlError}</p>
+                  {metadata.description && (
+                    <p style={{
+                      fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#6b6860',
+                      marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>{metadata.description}</p>
                   )}
-                  <button
-                    type="submit"
-                    disabled={!url.trim()}
-                    className="w-full mt-3 px-4 py-3.5 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Fetch Preview
-                  </button>
-                </form>
-              )}
-
-              {/* Loading skeleton */}
-              {linkStatus === 'loading' && (
-                <div className="mt-4 animate-pulse">
-                  <div className="bg-bg-pill-dark rounded-xl h-44 w-full" />
-                  <div className="mt-3 space-y-2">
-                    <div className="bg-bg-pill-dark rounded-lg h-5 w-3/4" />
-                    <div className="bg-bg-pill-dark rounded-lg h-4 w-1/3" />
-                  </div>
-                </div>
-              )}
-
-              {/* Preview + tag form */}
-              {(linkStatus === 'preview' || linkStatus === 'saving' || linkStatus === 'saved') && metadata && (
-                <div className="mt-4 space-y-5">
                   {urlError && (
-                    <p className="text-sm text-accent bg-accent-light border border-accent rounded-xl px-4 py-3">
-                      {urlError}
-                    </p>
+                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b5b2ab', marginTop: 4 }}>{urlError}</p>
                   )}
-                  <div className="bg-bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-                    {metadata.image && !imageFailed ? (
-                      <img
-                        src={metadata.image}
-                        alt={title || 'Preview'}
-                        className="w-full h-44 object-cover bg-bg-muted"
-                        onError={() => setImageFailed(true)}
-                      />
-                    ) : (
-                      <SheetImagePlaceholder />
-                    )}
-                    <div className="p-4">
-                      <input
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="Add a title..."
-                        className="w-full text-base font-semibold text-text-primary placeholder:text-text-faint focus:outline-none"
-                      />
-                      {metadata.site_name && (
-                        <p className="mt-1 text-sm text-text-tertiary">{metadata.site_name}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  <SheetCategoryButtons category={category} onChange={setCategory} />
-                  <LocationAutocomplete value={location?.name ?? ''} onSelect={setLocation} label="Location" optional />
-                  <SheetNotesInput notes={notes} onChange={setNotes} />
-                  <SheetSaveButton onClick={handleSaveLink} saving={linkStatus === 'saving'} saved={linkStatus === 'saved'} />
-                  {linkStatus !== 'saving' && linkStatus !== 'saved' && <SheetResetButton onClick={resetAll} />}
-                  {saveError && <p className="text-sm text-error text-center">{saveError}</p>}
                 </div>
-              )}
-
-              {/* Mode switchers — only shown while URL input is idle */}
-              {showModeSwitchers && (
-                <div className="flex gap-3 mt-5">
-                  <button
-                    type="button"
-                    onClick={() => handleModeChange('screenshot')}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-border rounded-xl text-sm font-medium text-text-secondary hover:bg-bg-muted hover:border-border-input transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-text-faint">
-                      <path fillRule="evenodd" d="M1 8a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 018.07 3h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0016.07 6H17a2 2 0 012 2v7a2 2 0 01-2 2H3a2 2 0 01-2-2V8zm13.5 3a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM10 14a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                    </svg>
-                    Upload Screenshot
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleModeChange('manual')}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-border rounded-xl text-sm font-medium text-text-secondary hover:bg-bg-muted hover:border-border-input transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-text-faint">
-                      <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
-                    </svg>
-                    Manual Entry
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ══ SCREENSHOT MODE ════════════════════════════════════════════════ */}
-          {mode === 'screenshot' && (
-            <div className="mt-4 space-y-5">
-              <BackToLinkButton onClick={() => handleModeChange('link')} />
-
-              {(screenshotStatus === 'idle' || screenshotStatus === 'uploading') && (
-                <>
-                  <div
-                    onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-                    onDragLeave={() => setDragOver(false)}
-                    onDrop={handleDrop}
-                    onClick={() => fileInputRef.current?.click()}
-                    className={`w-full h-44 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                      dragOver ? 'border-accent bg-accent-light' : 'border-border-input bg-bg-muted hover:border-text-faint hover:bg-bg-muted'
-                    }`}
-                  >
-                    {screenshotStatus === 'uploading' ? (
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent" />
-                    ) : (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 text-text-faint mb-2">
-                          <path fillRule="evenodd" d="M11.47 2.47a.75.75 0 011.06 0l4.5 4.5a.75.75 0 01-1.06 1.06l-3.22-3.22V16.5a.75.75 0 01-1.5 0V4.81L8.03 8.03a.75.75 0 01-1.06-1.06l4.5-4.5z" clipRule="evenodd" />
-                          <path fillRule="evenodd" d="M1.5 15a.75.75 0 01.75.75V18a1.5 1.5 0 001.5 1.5h16.5a1.5 1.5 0 001.5-1.5v-2.25a.75.75 0 011.5 0V18a3 3 0 01-3 3H3.75a3 3 0 01-3-3v-2.25A.75.75 0 011.5 15z" clipRule="evenodd" />
-                        </svg>
-                        <p className="text-sm font-medium text-text-secondary">Tap to select an image</p>
-                        <p className="text-xs text-text-faint mt-1">or drag and drop</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileSelect(file) }}
-                  />
-                  {saveError && <p className="text-sm text-error text-center">{saveError}</p>}
-                </>
-              )}
-
-              {(screenshotStatus === 'preview' || screenshotStatus === 'saving' || screenshotStatus === 'saved') && (
-                <>
-                  <div className="bg-bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
-                    {screenshotPreview && (
-                      <img src={screenshotPreview} alt="Screenshot" className="w-full h-44 object-cover bg-bg-muted" />
-                    )}
-                    <div className="p-4">
-                      <input
-                        type="text"
-                        value={title}
-                        onChange={(e) => setTitle(e.target.value)}
-                        placeholder="Add a title (required)..."
-                        className="w-full text-base font-semibold text-text-primary placeholder:text-text-faint focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                  <SheetCategoryButtons category={category} onChange={setCategory} />
-                  <LocationAutocomplete value={location?.name ?? ''} onSelect={setLocation} label="Location" optional />
-                  <SheetNotesInput notes={notes} onChange={setNotes} />
-                  <SheetSaveButton
-                    onClick={handleSaveScreenshot}
-                    saving={screenshotStatus === 'saving'}
-                    saved={screenshotStatus === 'saved'}
-                    disabled={!title.trim()}
-                  />
-                  {screenshotStatus !== 'saving' && screenshotStatus !== 'saved' && <SheetResetButton onClick={resetAll} />}
-                  {saveError && <p className="text-sm text-error text-center">{saveError}</p>}
-                </>
-              )}
-            </div>
-          )}
-
-          {/* ══ MANUAL MODE ════════════════════════════════════════════════════ */}
-          {mode === 'manual' && (
-            <div className="mt-4 space-y-5">
-              <BackToLinkButton onClick={() => handleModeChange('link')} />
-
-              <div>
-                <label htmlFor="sheet-manual-title" className="block text-sm font-medium text-text-secondary mb-1.5">
-                  Title
-                </label>
-                <input
-                  id="sheet-manual-title"
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. That ramen place near Shibuya..."
-                  autoFocus
-                  className="w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint"
-                />
               </div>
+            )}
+          </div>
 
-              <SheetCategoryButtons category={category} onChange={setCategory} />
-              <LocationAutocomplete value={location?.name ?? ''} onSelect={setLocation} label="Location" optional />
-              <SheetNotesInput notes={notes} onChange={setNotes} />
-              <SheetSaveButton onClick={handleSaveManual} saving={isSaving} saved={isSaved} disabled={!title.trim()} />
-              {saveError && <p className="text-sm text-error text-center">{saveError}</p>}
-            </div>
+          {/* 3. Category pills */}
+          <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {categories.map(cat => {
+              const active = category === cat.value
+              return (
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => setCategory(active ? null : cat.value)}
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                    fontWeight: active ? 600 : 400,
+                    padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
+                    border: active ? '1.5px solid #c45a2d' : '1px solid #e0ddd7',
+                    background: active ? 'rgba(196,90,45,0.06)' : 'transparent',
+                    color: active ? '#c45a2d' : '#6b6860',
+                    transition: 'all 0.1s ease',
+                  }}
+                >{cat.label}</button>
+              )
+            })}
+          </div>
+
+          {/* 4. Location input */}
+          <div style={{ marginTop: 12 }}>
+            <LocationAutocomplete
+              value={location?.name ?? ''}
+              onSelect={setLocation}
+              label=""
+              optional
+              placeholder="Location..."
+              className="!py-[10px] !px-3 !rounded-lg !text-[13px]"
+            />
+          </div>
+
+          {/* 5. Notes */}
+          <textarea
+            value={notes}
+            onChange={e => setNotes(e.target.value)}
+            placeholder="Notes (optional)"
+            style={{
+              marginTop: 12, width: '100%', padding: '10px 12px', border: '1px solid #e0ddd7',
+              borderRadius: 8, fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+              color: '#2a2a28', background: 'transparent', outline: 'none', resize: 'vertical',
+              minHeight: 40,
+            }}
+            onFocus={e => (e.currentTarget.style.borderColor = 'rgba(196,90,45,0.4)')}
+            onBlur={e => (e.currentTarget.style.borderColor = '#e0ddd7')}
+          />
+
+          {/* 6. Save button */}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!canSave}
+            style={{
+              marginTop: 14, width: '100%', padding: 12,
+              fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
+              background: saved ? '#2d9c5e' : '#c45a2d',
+              color: 'white', border: 'none', borderRadius: 10, cursor: canSave ? 'pointer' : 'not-allowed',
+              opacity: canSave || saved ? 1 : 0.5,
+              boxShadow: '0 1px 4px rgba(196,90,45,0.25)',
+              transition: 'all 0.15s ease',
+            }}
+          >{saving ? 'Saving...' : saved ? 'Saved!' : 'Save to Horizon'}</button>
+
+          {saveError && (
+            <p style={{ marginTop: 8, fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#c0392b', textAlign: 'center' }}>{saveError}</p>
           )}
-
         </div>
       </div>
     </>
-  )
-}
-
-// ── Sub-components ─────────────────────────────────────────────────────────────
-
-function SheetImagePlaceholder() {
-  return (
-    <div className="w-full h-44 bg-bg-muted flex items-center justify-center">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 text-text-ghost">
-        <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
-      </svg>
-    </div>
-  )
-}
-
-function SheetCategoryButtons({ category, onChange }: { category: Category; onChange: (c: Category) => void }) {
-  return (
-    <div>
-      <label className="block text-sm font-medium text-text-secondary mb-2">Category</label>
-      <div className="flex flex-wrap gap-2">
-        {categories.map((cat) => (
-          <button
-            key={cat.value}
-            type="button"
-            onClick={() => onChange(cat.value)}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-              category === cat.value
-                ? 'bg-accent text-white'
-                : 'bg-bg-muted text-text-secondary hover:bg-bg-pill-dark active:bg-bg-pill-dark'
-            }`}
-          >
-            {cat.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function SheetNotesInput({ notes, onChange }: { notes: string; onChange: (v: string) => void }) {
-  return (
-    <div>
-      <label htmlFor="sheet-notes" className="block text-sm font-medium text-text-secondary mb-1.5">
-        Notes <span className="text-text-faint font-normal">(optional)</span>
-      </label>
-      <textarea
-        id="sheet-notes"
-        value={notes}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="Any notes about this place..."
-        rows={3}
-        className="w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint resize-none"
-      />
-    </div>
-  )
-}
-
-function SheetSaveButton({ onClick, saving, saved, disabled }: {
-  onClick: () => void
-  saving: boolean
-  saved: boolean
-  disabled?: boolean
-}) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={saving || saved || disabled}
-      className={`w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-colors ${
-        saved
-          ? 'bg-success text-white'
-          : 'bg-accent text-white hover:bg-accent-hover active:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed'
-      }`}
-    >
-      {saving ? 'Saving...' : saved ? 'Saved! ✓' : 'Save to my Horizon'}
-    </button>
-  )
-}
-
-function SheetResetButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className="w-full text-center text-sm text-text-tertiary hover:text-text-secondary transition-colors"
-    >
-      Start over
-    </button>
-  )
-}
-
-function BackToLinkButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors"
-    >
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-        <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
-      </svg>
-      Paste a link instead
-    </button>
   )
 }
