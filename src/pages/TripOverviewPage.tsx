@@ -16,6 +16,8 @@ import CalendarRangePicker from '../components/CalendarRangePicker'
 import RouteCard from '../components/RouteCard'
 import DottedConnector from '../components/DottedConnector'
 import SwipeToDelete from '../components/SwipeToDelete'
+import { shortName } from '../components/BilingualName'
+import { Plus, Share2, ChevronDown } from 'lucide-react'
 import {
   DndContext,
   closestCenter,
@@ -43,6 +45,8 @@ type OverviewEntry =
   | { type: 'destination'; destination: DestWithCount; sortKey: number }
   | { type: 'route'; route: TripRoute; destinations: DestWithCount[]; sortKey: number }
 
+type TabId = 'destinations' | 'itinerary' | 'logistics'
+
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function countryCodeToFlag(code: string): string {
@@ -57,6 +61,17 @@ function formatDateRange(start: string, end: string): string {
   const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts)
   const e = new Date(end + 'T00:00:00').toLocaleDateString('en-US', opts)
   return `${s} – ${e}`
+}
+
+function shortDateRange(start: string, end: string): string {
+  const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
+  const s = new Date(start + 'T00:00:00').toLocaleDateString('en-US', opts)
+  const e = new Date(end + 'T00:00:00').toLocaleDateString('en-US', opts)
+  return `${s} – ${e}`
+}
+
+function spacedCountryName(name: string): string {
+  return name.toUpperCase().split('').join(' ')
 }
 
 function getEntryCountry(entry: OverviewEntry): string {
@@ -598,6 +613,114 @@ function SortableOverviewEntry({ entry, children }: { entry: OverviewEntry; chil
   )
 }
 
+// ── Tab Navigation ─────────────────────────────────────────────────────────────
+
+const tabs: { id: TabId; label: string }[] = [
+  { id: 'destinations', label: 'Destinations' },
+  { id: 'itinerary', label: 'Itinerary' },
+  { id: 'logistics', label: 'Logistics' },
+]
+
+function TabNav({ activeTab, onTabChange }: { activeTab: TabId; onTabChange: (tab: TabId) => void }) {
+  return (
+    <div className="flex gap-6 border-b border-border">
+      {tabs.map(tab => (
+        <button
+          key={tab.id}
+          type="button"
+          onClick={() => onTabChange(tab.id)}
+          className={`pb-2.5 text-[13px] font-medium transition-colors ${
+            activeTab === tab.id
+              ? 'text-text-primary font-semibold border-b-2 border-accent -mb-px'
+              : 'text-text-faint hover:text-text-tertiary'
+          }`}
+        >
+          {tab.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ── Itinerary Tab (stub) ───────────────────────────────────────────────────────
+
+function ItineraryTab({ destinations }: { destinations: DestWithCount[] }) {
+  const datedDests = destinations
+    .filter(d => d.start_date && d.end_date)
+    .sort((a, b) => a.start_date!.localeCompare(b.start_date!))
+
+  if (datedDests.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        <span className="font-mono text-[28px] text-text-faint opacity-25 mb-3">📅</span>
+        <p className="text-sm text-text-faint">No dates set yet</p>
+        <p className="font-mono text-xs text-text-ghost mt-1">Set dates on your destinations to see the timeline</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative pl-8 pt-4">
+      {/* Vertical timeline line */}
+      <div className="absolute left-3 top-4 bottom-0 w-px bg-border-dashed" />
+
+      {datedDests.map((dest, destIdx) => {
+        const city = shortName(dest.location_name)
+        const chapterNum = String(destIdx + 1).padStart(2, '0')
+        const days = dest.start_date && dest.end_date
+          ? Math.ceil((new Date(dest.end_date + 'T00:00:00').getTime() - new Date(dest.start_date + 'T00:00:00').getTime()) / 86400000) + 1
+          : 0
+
+        return (
+          <div key={dest.id} className="mb-8 last:mb-0">
+            {/* Destination header */}
+            <div className="flex items-center gap-3 -ml-8 mb-4">
+              <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center shrink-0 z-10">
+                <span className="font-mono text-[10px] font-bold text-white">{chapterNum}</span>
+              </div>
+              <div>
+                <p className="text-[17px] font-semibold text-text-primary leading-snug">{city}</p>
+                {dest.start_date && dest.end_date && (
+                  <span className="font-mono text-[11px] text-text-tertiary">
+                    {shortDateRange(dest.start_date, dest.end_date)}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Day entries */}
+            {Array.from({ length: days }, (_, dayIdx) => (
+              <div key={dayIdx} className="flex items-start gap-3 -ml-8 mb-3 last:mb-0">
+                <div className="w-6 h-6 flex items-center justify-center shrink-0 z-10">
+                  <div className="w-2 h-2 rounded-full bg-border-dashed" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-mono text-[11px] font-semibold text-text-tertiary">
+                    Day {dayIdx + 1}
+                  </p>
+                  <p className="text-xs text-text-ghost mt-0.5">No activities planned</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Logistics Tab (empty state) ────────────────────────────────────────────────
+
+function LogisticsTab() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16">
+      <span className="font-mono text-[28px] text-text-faint opacity-25 mb-3">✎</span>
+      <p className="text-sm text-text-faint">No logistics added yet</p>
+      <p className="font-mono text-xs text-text-ghost mt-1">Transport, accommodation, and visa info will appear here</p>
+    </div>
+  )
+}
+
 // ── Trip Overview Page ─────────────────────────────────────────────────────────
 
 export default function TripOverviewPage() {
@@ -615,6 +738,9 @@ export default function TripOverviewPage() {
 
   const [tripNotes, setTripNotes] = useState<TripNote[]>([])
 
+  // Active tab
+  const [activeTab, setActiveTab] = useState<TabId>('destinations')
+
   // Editable title
   const [editingTitle, setEditingTitle] = useState(false)
   const [titleDraft, setTitleDraft] = useState('')
@@ -624,6 +750,9 @@ export default function TripOverviewPage() {
   const [showAddDest, setShowAddDest] = useState(false)
   const [addingDest, setAddingDest] = useState(false)
   const [addDestKey, setAddDestKey] = useState(0)
+
+  // Expanded accordion destination
+  const [expandedDestId, setExpandedDestId] = useState<string | null>(null)
 
   // Clusters
   const inboxClustersRef = useRef<CountryCluster[]>([])
@@ -773,6 +902,25 @@ export default function TripOverviewPage() {
     const countries = new Set(overviewEntries.map(getEntryCountry))
     return countries.size > 1
   }, [overviewEntries])
+
+  // Primary country for the metadata line
+  const primaryCountry = useMemo(() => {
+    const countries = new Set<string>()
+    const codes = new Set<string>()
+    for (const d of destinations) {
+      if (d.location_country) countries.add(d.location_country)
+      if (d.location_country_code) codes.add(d.location_country_code)
+    }
+    if (countries.size === 1) {
+      const country = Array.from(countries)[0]
+      const code = Array.from(codes)[0]
+      return { name: country, flag: countryCodeToFlag(code) }
+    }
+    if (countries.size > 1) {
+      return { name: `${countries.size} countries`, flag: '' }
+    }
+    return null
+  }, [destinations])
 
   // ── Global event listener ─────────────────────────────────────────────────
 
@@ -1214,6 +1362,7 @@ export default function TripOverviewPage() {
   // ── Computed values (must be before early returns to satisfy Rules of Hooks) ──
 
   const coverImage = destinations.find(d => d.image_url)?.image_url ?? trip?.cover_image_url ?? null
+  void coverImage // preserved for future use
 
   const derivedDateRange = useMemo(() => {
     const starts = destinations.filter(d => d.start_date).map(d => d.start_date!)
@@ -1226,7 +1375,7 @@ export default function TripOverviewPage() {
 
   if (!tripLoading && notFound) {
     return (
-      <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+      <div className="px-5 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
         <button onClick={() => navigate('/trips')} className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" /></svg>
           Trips
@@ -1241,290 +1390,424 @@ export default function TripOverviewPage() {
 
   if (tripLoading || destsLoading) {
     return (
-      <div className="px-4 pb-24 animate-pulse" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-        <div className="h-4 w-12 bg-bg-muted rounded-lg mb-6" />
-        <div className="h-7 w-2/3 bg-bg-muted rounded-lg mb-2" />
-        <div className="h-4 w-1/3 bg-bg-muted rounded-lg mb-6" />
+      <div className="px-5 pb-24 animate-pulse" style={{ paddingTop: 'calc(2.25rem + env(safe-area-inset-top))' }}>
+        <div className="h-3 w-16 bg-bg-muted rounded mb-4" />
+        <div className="h-8 w-3/4 bg-bg-muted rounded-lg mb-2" />
+        <div className="h-4 w-1/2 bg-bg-muted rounded mb-4" />
         <div className="flex gap-2 mb-6">
-          <div className="h-10 flex-1 bg-bg-muted rounded-xl" />
-          <div className="h-10 flex-1 bg-bg-muted rounded-xl" />
-          <div className="h-10 w-12 bg-bg-muted rounded-xl" />
+          <div className="h-10 w-40 bg-bg-muted rounded-lg" />
+          <div className="h-10 w-24 bg-bg-muted rounded-lg" />
         </div>
+        <div className="h-px bg-bg-muted mb-4" />
         <div className="space-y-3">
           {[1, 2].map((i) => (
-            <div key={i} className="bg-bg-card rounded-2xl border border-border-subtle overflow-hidden shadow-sm p-3">
-              <div className="flex items-center gap-3.5">
-                <div className="w-20 h-20 rounded-xl bg-bg-muted shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-bg-muted rounded w-1/2" />
-                  <div className="h-3 bg-bg-muted rounded w-1/3" />
-                </div>
-              </div>
-            </div>
+            <div key={i} className="h-20 bg-bg-muted rounded-xl" />
           ))}
         </div>
       </div>
     )
   }
 
+  // ── Build metadata items for the header ──────────────────────────────────
+
+  const metadataItems: string[] = []
+  if (primaryCountry) {
+    metadataItems.push(primaryCountry.flag ? `${primaryCountry.flag} ${primaryCountry.name}` : primaryCountry.name)
+  }
+  if (destinations.length > 0) {
+    metadataItems.push(`${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`)
+  }
+  if (derivedDateRange) {
+    metadataItems.push(derivedDateRange)
+  }
+
+  // ── Accordion toggle ─────────────────────────────────────────────────────
+
+  const handleAccordionToggle = (destId: string) => {
+    setExpandedDestId(prev => prev === destId ? null : destId)
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────
+
   return (
-    <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-      {/* Back button */}
-      <button onClick={() => navigate('/trips')} className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" /></svg>
-        Trips
-      </button>
+    <div className="px-5 pb-24 max-w-[860px] mx-auto" style={{ paddingTop: 'calc(2.25rem + env(safe-area-inset-top))' }}>
+      {/* ── Header ── */}
+      <div className="mb-6">
+        {/* Back + Brand */}
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={() => navigate('/trips')} className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" /></svg>
+            Trips
+          </button>
+          <BrandMark />
+        </div>
 
-      {/* Hero image header */}
-      <div className="relative -mx-4 mt-3 mb-5 h-48 overflow-hidden">
-        {coverImage ? (
-          <img src={coverImage} alt={trip?.title ?? 'Trip'} className="w-full h-full object-cover" />
+        {/* Trip title */}
+        {editingTitle ? (
+          <input
+            ref={titleInputRef}
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={handleSaveTitle}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSaveTitle()
+              if (e.key === 'Escape') setEditingTitle(false)
+            }}
+            className="text-[32px] font-bold text-text-primary leading-[1.2] tracking-[-0.5px] bg-transparent border-b-2 border-accent focus:outline-none w-full pb-0.5"
+          />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-amber-700 to-orange-900" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-
-        {/* Top-right action icons */}
-        <div className="absolute top-3 right-3 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setShowShareModal(true)}
-            className={`relative w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
-              trip?.share_token ? 'bg-accent-light0/50 backdrop-blur-sm' : 'bg-black/30 backdrop-blur-sm'
-            }`}
-            aria-label="Share trip"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-white">
-              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+          <button type="button" onClick={handleStartEditTitle} className="group flex items-center gap-2 text-left">
+            <h1 className="text-[32px] font-bold text-text-primary leading-[1.2] tracking-[-0.5px]">{trip?.title}</h1>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+              className="w-4 h-4 text-text-ghost group-hover:text-text-tertiary transition-colors shrink-0 mt-2">
+              <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
             </svg>
           </button>
-          <button
-            type="button"
-            onClick={() => setShowInviteModal(true)}
-            className="relative w-9 h-9 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center"
-            aria-label="Invite companions"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-white">
+        )}
+
+        {/* Metadata line + status badge */}
+        <div className="flex items-center gap-2 mt-1.5">
+          {trip && <StatusBadge status={trip.status} />}
+          {metadataItems.length > 0 && <MetadataLine items={metadataItems} />}
+        </div>
+
+        {/* Action buttons (below metadata) */}
+        <div className="flex items-center gap-2 mt-5">
+          <PrimaryButton onClick={openAddDest} className="flex items-center gap-1.5 px-4 py-2 rounded-lg">
+            <Plus className="w-4 h-4" />
+            Add Destination
+          </PrimaryButton>
+          <SecondaryButton onClick={() => setShowShareModal(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg">
+            <Share2 className="w-4 h-4" />
+            Share
+          </SecondaryButton>
+          <SecondaryButton onClick={() => setShowInviteModal(true)} className="relative px-3 py-2 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
               <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
             </svg>
             {companions.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-bg-card0 rounded-full text-[10px] text-white font-bold flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full text-[10px] text-white font-bold flex items-center justify-center">
                 {companions.length}
               </span>
             )}
-          </button>
-        </div>
-
-        {/* Bottom overlay: brand + title + phase + dates */}
-        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4">
-          <BrandMark className="text-white/60 mb-1" />
-          {editingTitle ? (
-            <input
-              ref={titleInputRef}
-              value={titleDraft}
-              onChange={(e) => setTitleDraft(e.target.value)}
-              onBlur={handleSaveTitle}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSaveTitle()
-                if (e.key === 'Escape') setEditingTitle(false)
-              }}
-              className="text-2xl font-bold text-white bg-transparent border-b-2 border-white/60 focus:outline-none w-full [text-shadow:0_1px_4px_rgba(0,0,0,0.4)] pb-0.5"
-            />
-          ) : (
-            <button type="button" onClick={handleStartEditTitle} className="group flex items-center gap-2 text-left">
-              <h1 className="text-2xl font-bold text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.4)] leading-tight">{trip?.title}</h1>
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                className="w-4 h-4 text-white/50 group-hover:text-white/80 transition-colors shrink-0">
-                <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
-              </svg>
-            </button>
-          )}
-          <div className="flex items-center gap-2 mt-1.5">
-            {trip && <StatusBadge status={trip.status} />}
-            {derivedDateRange && (
-              <MetadataLine items={[derivedDateRange]} className="text-white/70" />
-            )}
-          </div>
+          </SecondaryButton>
         </div>
       </div>
 
-      {/* Trip notes (General section) */}
-      <GeneralSection
-        notes={tripNotes}
-        onAddNote={handleAddNote}
-        onDeleteNote={handleDeleteNote}
-        onUpdateNote={handleUpdateNote}
-        onReorderNotes={handleReorderNotes}
-        onClearCompleted={handleClearCompleted}
-      />
+      {/* ── Tab Navigation ── */}
+      <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
 
-      {/* Section header with organize toggle */}
-      {destinations.length >= 2 && (
-        <div className="flex items-center justify-between mt-8 mb-3">
-          <p className="text-sm font-semibold text-text-tertiary">{destinations.length} destinations</p>
-          <button
-            type="button"
-            onClick={toggleOrganizeMode}
-            className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-              organizeMode ? 'text-accent bg-accent-light' : 'text-text-faint hover:text-text-secondary'
-            }`}
-          >
-            {organizeMode ? 'Done' : 'Organize'}
-          </button>
-        </div>
-      )}
-
-      {/* ── Overview entries ── */}
-      {destinations.length === 0 ? (
-        /* Empty state with autocomplete + suggestions */
-        <DashedCard className="bg-bg-card p-5 mt-6">
-          <div className="text-center mb-5">
-            <div className="w-12 h-12 bg-accent-light rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-accent">
-                <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <p className="text-base font-semibold text-text-primary">Where are you headed?</p>
-            <p className="text-sm text-text-faint mt-1">Add a city, country, or region to get started</p>
-          </div>
-          {tripPageSuggestions.length > 0 && (
-            <div className="mb-4">
-              <p className="text-xs font-semibold text-text-faint uppercase tracking-wider mb-2">
-                Suggested from your saves
-              </p>
-              <AddDestSuggestionList
-                suggestions={tripPageSuggestions}
-                onSelect={handleAddFromSuggestion}
-                disabled={addingDest}
-              />
-              <p className="mt-3 text-xs text-text-faint font-medium">Or add a destination manually</p>
-            </div>
-          )}
-          <LocationAutocomplete
-            key={addDestKey}
-            value=""
-            onSelect={handleAddDestination}
-            label=""
-            optional={false}
-            placeholder="e.g. Beijing, Tokyo, France…"
-          />
-          {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
-        </DashedCard>
-      ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
-            <div className="space-y-0 mt-6">
-              {overviewEntries.map((entry, i) => {
-                const country = getEntryCountry(entry)
-                const countryCode = getEntryCountryCode(entry)
-                const prevCountry = i > 0 ? getEntryCountry(overviewEntries[i - 1]) : null
-                const showCountryHeader = hasMultipleCountries && country !== prevCountry
-                const showConnector = i > 0
-                const showUnscheduledDivider = i === firstUndatedIndex
-                const entryId = getEntryId(entry)
-
-                return (
-                  <div key={entryId}>
-                    {showUnscheduledDivider && (
-                      <p className="text-xs font-semibold text-text-faint uppercase tracking-wider mt-4 mb-2">Unscheduled</p>
-                    )}
-                    {showCountryHeader && (
-                      <div className={`flex items-center gap-2 ${i > 0 ? 'mt-4' : ''} mb-2`}>
-                        <span className="text-lg leading-none">{countryCodeToFlag(countryCode)}</span>
-                        <span className="text-sm font-semibold text-text-secondary">{country}</span>
-                      </div>
-                    )}
-                    {showConnector && !showUnscheduledDivider && (
-                      <DottedConnector longer={showCountryHeader} />
-                    )}
-                    <SortableOverviewEntry entry={entry}>
-                      {entry.type === 'destination' ? (
-                        <SwipeToDelete
-                          onDelete={() => handleDeleteDestination(entry.destination.id)}
-                          enabled={!organizeMode}
-                        >
-                          <DestinationCard
-                            destination={entry.destination}
-                            itemCount={entry.destination._count}
-                            tripId={id!}
-                            index={overviewEntries.slice(0, i).filter(e => e.type === 'destination').length}
-                            organizeMode={organizeMode}
-                            isSelected={selectedDestIds.has(entry.destination.id)}
-                            onToggleSelect={() => toggleDestSelection(entry.destination.id)}
-                            onAddDates={() => setDatePickerDestId(entry.destination.id)}
-                            onDatesTap={() => setDatePickerDestId(entry.destination.id)}
-                            onLongPress={() => handleLongPress(entry.destination.id)}
-                          />
-                        </SwipeToDelete>
-                      ) : (
-                        <RouteCard
-                          route={entry.route}
-                          destinations={entry.destinations.map(d => ({ ...d, itemCount: d._count }))}
-                          tripId={id!}
-                          organizeMode={organizeMode}
-                          onUngroup={() => handleUngroupRoute(entry.route.id)}
-                          onRename={(newName) => handleRenameRoute(entry.route.id, newName)}
-                        />
-                      )}
-                    </SortableOverviewEntry>
-                  </div>
-                )
-              })}
-            </div>
-          </SortableContext>
-        </DndContext>
-      )}
-
-      {/* Add destination section */}
-      {destinations.length > 0 && (
-        <div className="mt-6">
-          {showAddDest ? (
-            <div className="bg-bg-card rounded-2xl border border-border p-4 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-text-secondary">Add destination</p>
-                <button type="button" onClick={() => { setShowAddDest(false); setAddDestKey(k => k + 1) }}
-                  className="p-1 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors" aria-label="Close">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                    <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-                  </svg>
+      {/* ── Tab Content ── */}
+      <div className="mt-5">
+        {/* ── Destinations Tab ── */}
+        {activeTab === 'destinations' && (
+          <>
+            {/* Organize toggle */}
+            {destinations.length >= 2 && (
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-mono text-[11px] font-medium text-text-tertiary">
+                  {destinations.length} destination{destinations.length !== 1 ? 's' : ''}
+                </p>
+                <button
+                  type="button"
+                  onClick={toggleOrganizeMode}
+                  className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
+                    organizeMode ? 'text-accent bg-accent-light' : 'text-text-faint hover:text-text-secondary'
+                  }`}
+                >
+                  {organizeMode ? 'Done' : 'Organize'}
                 </button>
               </div>
-              {frozenSuggestions.length > 0 && (
-                <div className="mb-3">
-                  <p className="text-xs font-semibold text-text-faint uppercase tracking-wider mb-2">
-                    Suggested from your saves
-                  </p>
-                  <AddDestSuggestionList
-                    suggestions={frozenSuggestions}
-                    onSelect={handleAddFromSuggestion}
-                    disabled={addingDest}
-                  />
-                  <p className="mt-3 text-xs text-text-faint font-medium">Or search manually</p>
+            )}
+
+            {/* ── Overview entries ── */}
+            {destinations.length === 0 ? (
+              /* Empty state with autocomplete + suggestions */
+              <DashedCard className="bg-bg-card p-5">
+                <div className="text-center mb-5">
+                  <div className="w-12 h-12 bg-accent-light rounded-2xl flex items-center justify-center mx-auto mb-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-accent">
+                      <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <p className="text-base font-semibold text-text-primary">Where are you headed?</p>
+                  <p className="text-sm text-text-faint mt-1">Add a city, country, or region to get started</p>
                 </div>
-              )}
-              <LocationAutocomplete
-                key={addDestKey}
-                value=""
-                onSelect={handleAddDestination}
-                label=""
-                optional={false}
-                placeholder="e.g. Beijing, Tokyo, France…"
-              />
-              {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
-            </div>
-          ) : (
-            <DashedCard
-              onClick={openAddDest}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl text-sm font-semibold text-text-tertiary"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-              </svg>
-              Add destination
-            </DashedCard>
-          )}
-        </div>
-      )}
+                {tripPageSuggestions.length > 0 && (
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold text-text-faint uppercase tracking-wider mb-2">
+                      Suggested from your saves
+                    </p>
+                    <AddDestSuggestionList
+                      suggestions={tripPageSuggestions}
+                      onSelect={handleAddFromSuggestion}
+                      disabled={addingDest}
+                    />
+                    <p className="mt-3 text-xs text-text-faint font-medium">Or add a destination manually</p>
+                  </div>
+                )}
+                <LocationAutocomplete
+                  key={addDestKey}
+                  value=""
+                  onSelect={handleAddDestination}
+                  label=""
+                  optional={false}
+                  placeholder="e.g. Beijing, Tokyo, France…"
+                />
+                {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
+              </DashedCard>
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+                <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-0">
+                    {overviewEntries.map((entry, i) => {
+                      const country = getEntryCountry(entry)
+                      const countryCode = getEntryCountryCode(entry)
+                      const prevCountry = i > 0 ? getEntryCountry(overviewEntries[i - 1]) : null
+                      const showCountryHeader = hasMultipleCountries && country !== prevCountry
+                      const showConnector = i > 0
+                      const showUnscheduledDivider = i === firstUndatedIndex
+                      const entryId = getEntryId(entry)
+
+                      // Chapter number: count destination entries up to this point
+                      const destIndex = overviewEntries.slice(0, i).filter(e => e.type === 'destination').length
+                      const chapterNum = entry.type === 'destination' ? String(destIndex + 1).padStart(2, '0') : null
+
+                      const isExpanded = entry.type === 'destination' && expandedDestId === entry.destination.id
+
+                      return (
+                        <div key={entryId}>
+                          {showUnscheduledDivider && (
+                            <p className="font-mono text-[10px] font-medium tracking-[1.5px] text-text-faint uppercase mt-5 mb-2">UNSCHEDULED</p>
+                          )}
+                          {showCountryHeader && (
+                            <div className={`flex items-center gap-2 ${i > 0 ? 'mt-5' : ''} mb-3`}>
+                              <span className="text-lg leading-none">{countryCodeToFlag(countryCode)}</span>
+                              <span className="font-mono text-[11px] font-bold tracking-[2px] text-text-faint">
+                                {spacedCountryName(country)}
+                              </span>
+                            </div>
+                          )}
+                          {showConnector && !showUnscheduledDivider && !showCountryHeader && (
+                            <DottedConnector longer={false} />
+                          )}
+                          <SortableOverviewEntry entry={entry}>
+                            {entry.type === 'destination' ? (
+                              organizeMode ? (
+                                /* Organize mode: use existing DestinationCard with selection */
+                                <SwipeToDelete
+                                  onDelete={() => handleDeleteDestination(entry.destination.id)}
+                                  enabled={false}
+                                >
+                                  <DestinationCard
+                                    destination={entry.destination}
+                                    itemCount={entry.destination._count}
+                                    tripId={id!}
+                                    index={destIndex}
+                                    organizeMode={organizeMode}
+                                    isSelected={selectedDestIds.has(entry.destination.id)}
+                                    onToggleSelect={() => toggleDestSelection(entry.destination.id)}
+                                    onAddDates={() => setDatePickerDestId(entry.destination.id)}
+                                    onDatesTap={() => setDatePickerDestId(entry.destination.id)}
+                                    onLongPress={() => handleLongPress(entry.destination.id)}
+                                  />
+                                </SwipeToDelete>
+                              ) : (
+                                /* Accordion destination card */
+                                <SwipeToDelete
+                                  onDelete={() => handleDeleteDestination(entry.destination.id)}
+                                  enabled
+                                >
+                                  <div
+                                    className={`flex overflow-hidden rounded-xl border transition-all duration-150 ${
+                                      isExpanded
+                                        ? 'border-accent/25 shadow-md'
+                                        : 'border-border hover:border-accent/25 hover:shadow-sm'
+                                    }`}
+                                  >
+                                    {/* Chapter number panel */}
+                                    <div
+                                      className={`w-[72px] shrink-0 flex items-center justify-center transition-colors duration-150 ${
+                                        isExpanded ? 'bg-accent' : 'bg-bg-muted'
+                                      }`}
+                                    >
+                                      <span
+                                        className={`font-mono text-[28px] font-extrabold leading-none transition-colors duration-150 ${
+                                          isExpanded ? 'text-white' : 'text-border-dashed'
+                                        }`}
+                                      >
+                                        {chapterNum}
+                                      </span>
+                                    </div>
+
+                                    {/* Content panel */}
+                                    <div className="flex-1 min-w-0 bg-bg-card">
+                                      {/* Collapsed header (always visible) */}
+                                      <button
+                                        type="button"
+                                        onClick={() => handleAccordionToggle(entry.destination.id)}
+                                        className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
+                                      >
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-[18px] font-semibold text-text-primary leading-snug truncate">
+                                            {shortName(entry.destination.location_name)}
+                                          </p>
+                                          <div className="flex items-center gap-0 mt-1">
+                                            <MetadataLine items={[
+                                              ...(entry.destination.start_date && entry.destination.end_date
+                                                ? [shortDateRange(entry.destination.start_date, entry.destination.end_date)]
+                                                : []),
+                                              `${entry.destination._count} place${entry.destination._count !== 1 ? 's' : ''}`,
+                                            ]} />
+                                          </div>
+                                        </div>
+                                        <ChevronDown
+                                          className={`w-5 h-5 text-text-ghost shrink-0 transition-transform duration-150 ${
+                                            isExpanded ? 'rotate-180' : ''
+                                          }`}
+                                        />
+                                      </button>
+
+                                      {/* Expanded content */}
+                                      {isExpanded && (
+                                        <div className="px-4 pb-4 border-t border-border-subtle">
+                                          {/* Item count summary */}
+                                          {entry.destination._count === 0 ? (
+                                            <p className="text-sm text-text-faint py-3">No places added yet</p>
+                                          ) : (
+                                            <p className="font-mono text-[11px] text-text-tertiary pt-3 pb-2">
+                                              {entry.destination._count} place{entry.destination._count !== 1 ? 's' : ''} saved
+                                            </p>
+                                          )}
+
+                                          {/* Date button */}
+                                          <div className="flex gap-2 mt-2">
+                                            {entry.destination.start_date && entry.destination.end_date ? (
+                                              <button
+                                                type="button"
+                                                onClick={() => setDatePickerDestId(entry.destination.id)}
+                                                className="text-xs text-accent font-medium hover:text-accent transition-colors"
+                                              >
+                                                {shortDateRange(entry.destination.start_date, entry.destination.end_date)} (edit)
+                                              </button>
+                                            ) : (
+                                              <button
+                                                type="button"
+                                                onClick={() => setDatePickerDestId(entry.destination.id)}
+                                                className="text-xs text-accent font-medium hover:text-accent transition-colors"
+                                              >
+                                                + Add Dates
+                                              </button>
+                                            )}
+                                          </div>
+
+                                          {/* View full destination link */}
+                                          <button
+                                            type="button"
+                                            onClick={() => navigate(`/trip/${id}/dest/${entry.destination.id}`)}
+                                            className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-border-input text-sm font-medium text-text-secondary hover:bg-bg-muted transition-colors"
+                                          >
+                                            View destination
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                                              <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                                            </svg>
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </SwipeToDelete>
+                              )
+                            ) : (
+                              <RouteCard
+                                route={entry.route}
+                                destinations={entry.destinations.map(d => ({ ...d, itemCount: d._count }))}
+                                tripId={id!}
+                                organizeMode={organizeMode}
+                                onUngroup={() => handleUngroupRoute(entry.route.id)}
+                                onRename={(newName) => handleRenameRoute(entry.route.id, newName)}
+                              />
+                            )}
+                          </SortableOverviewEntry>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            )}
+
+            {/* Dashed "+ Add another destination" card */}
+            {destinations.length > 0 && (
+              <div className="mt-5">
+                {showAddDest ? (
+                  <div className="bg-bg-card rounded-xl border border-border p-4 shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-semibold text-text-secondary">Add destination</p>
+                      <button type="button" onClick={() => { setShowAddDest(false); setAddDestKey(k => k + 1) }}
+                        className="p-1 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors" aria-label="Close">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                          <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                        </svg>
+                      </button>
+                    </div>
+                    {frozenSuggestions.length > 0 && (
+                      <div className="mb-3">
+                        <p className="text-xs font-semibold text-text-faint uppercase tracking-wider mb-2">
+                          Suggested from your saves
+                        </p>
+                        <AddDestSuggestionList
+                          suggestions={frozenSuggestions}
+                          onSelect={handleAddFromSuggestion}
+                          disabled={addingDest}
+                        />
+                        <p className="mt-3 text-xs text-text-faint font-medium">Or search manually</p>
+                      </div>
+                    )}
+                    <LocationAutocomplete
+                      key={addDestKey}
+                      value=""
+                      onSelect={handleAddDestination}
+                      label=""
+                      optional={false}
+                      placeholder="e.g. Beijing, Tokyo, France…"
+                    />
+                    {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
+                  </div>
+                ) : (
+                  <DashedCard
+                    onClick={openAddDest}
+                    className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold text-text-tertiary"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add another destination
+                  </DashedCard>
+                )}
+              </div>
+            )}
+
+            {/* Trip notes (General section) */}
+            <GeneralSection
+              notes={tripNotes}
+              onAddNote={handleAddNote}
+              onDeleteNote={handleDeleteNote}
+              onUpdateNote={handleUpdateNote}
+              onReorderNotes={handleReorderNotes}
+              onClearCompleted={handleClearCompleted}
+            />
+          </>
+        )}
+
+        {/* ── Itinerary Tab ── */}
+        {activeTab === 'itinerary' && (
+          <ItineraryTab destinations={destinations} />
+        )}
+
+        {/* ── Logistics Tab ── */}
+        {activeTab === 'logistics' && (
+          <LogisticsTab />
+        )}
+      </div>
 
       {/* Organize mode bottom bar */}
       {organizeMode && (
