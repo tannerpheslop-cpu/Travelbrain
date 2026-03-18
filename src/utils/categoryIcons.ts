@@ -20,14 +20,6 @@ export function getCategoryIcon(category: Category): LucideIcon {
   return categoryIconMap[category] ?? MapPin
 }
 
-/** Neutral pill style — used on individual cards */
-export const categoryPillColors: Record<Category, string> = {
-  restaurant: 'bg-bg-pill text-text-tertiary',
-  activity: 'bg-bg-pill text-text-tertiary',
-  hotel: 'bg-bg-pill text-text-tertiary',
-  transit: 'bg-bg-pill text-text-tertiary',
-  general: 'bg-bg-pill text-text-tertiary',
-}
 
 export const categoryLabel: Record<Category, string> = {
   restaurant: 'Restaurant',

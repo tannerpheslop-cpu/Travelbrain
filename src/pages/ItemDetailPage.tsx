@@ -18,11 +18,11 @@ const categories: { value: Category; label: string }[] = [
 ]
 
 const categoryPlaceholderColors: Record<Category, { bg: string; icon: string }> = {
-  restaurant: { bg: 'bg-bg-card', icon: 'text-text-faint' },
-  activity:   { bg: 'bg-bg-pill', icon: 'text-text-faint' },
-  hotel:      { bg: 'bg-sky-50',    icon: 'text-sky-300'    },
-  transit:    { bg: 'bg-bg-pill',  icon: 'text-text-faint'  },
-  general:    { bg: 'bg-slate-50',  icon: 'text-slate-300'  },
+  restaurant: { bg: 'bg-bg-card',  icon: 'text-text-faint' },
+  activity:   { bg: 'bg-bg-pill',  icon: 'text-text-faint' },
+  hotel:      { bg: 'bg-bg-muted', icon: 'text-text-faint' },
+  transit:    { bg: 'bg-bg-pill',  icon: 'text-text-faint' },
+  general:    { bg: 'bg-bg-muted', icon: 'text-text-faint' },
 }
 
 export default function ItemDetailPage() {
