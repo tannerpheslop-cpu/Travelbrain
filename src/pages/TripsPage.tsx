@@ -10,7 +10,8 @@ import { selectFeaturedTrip } from '../utils/featuredTrip'
 import { useFirstDestinationImage } from '../hooks/useDestinationImage'
 import type { SavedItem } from '../types'
 import { supabase } from '../lib/supabase'
-import { BrandMark, StatusBadge, MetadataLine, RouteChain, CategoryPill, DashedCard } from '../components/ui'
+import { Plus } from 'lucide-react'
+import { BrandMark, StatusBadge, MetadataLine, RouteChain, CategoryPill, DashedCard, PrimaryButton } from '../components/ui'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -22,6 +23,29 @@ const gradients = [
   'from-warm-gray-500 to-warm-gray-700',
   'from-slate-500 to-slate-700',
 ]
+
+/** Convert a two-letter country code to its flag emoji. */
+function countryCodeToFlag(code: string): string {
+  return [...code.toUpperCase()].map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')
+}
+
+/** Get the primary flag for a trip from its first destination's country code */
+function getTripFlag(trip: TripWithDestinations): string {
+  const code = trip.trip_destinations?.[0]?.location_country_code
+  return code ? countryCodeToFlag(code) : '🌍'
+}
+
+/** Count unique countries in a trip */
+function getTripCountryCount(trip: TripWithDestinations): number {
+  const codes = new Set(trip.trip_destinations?.map(d => d.location_country_code).filter(Boolean) ?? [])
+  return codes.size
+}
+
+/** Get total saves across all destinations */
+function getTripSaveCount(trips: TripWithDestinations[]): number {
+  // This is approximate — we don't have save counts on the client here
+  return trips.reduce((sum, t) => sum + (t.trip_destinations?.length ?? 0), 0)
+}
 
 /** Keep only the first segment of a Google Places name, e.g. "Chengdu, Sichuan, China" → "Chengdu" */
 function shortDestName(locationName: string): string {
@@ -68,7 +92,7 @@ function buildLocationLabel(names: string[]): string {
   return `${names.length} destinations`
 }
 
-// ── Trip Card ─────────────────────────────────────────────────────────────────
+// ── Stacked Trip Card (< 4 remaining trips) ─────────────────────────────────
 
 function TripCard({
   trip,
@@ -87,11 +111,9 @@ function TripCard({
   const gradient = gradients[index % gradients.length]
   const dests = trip.trip_destinations ?? []
   const resolvedDestImage = useFirstDestinationImage(dests)
-
-  // Cover: first destination image → trip cover_image_url → gradient
-  const coverImage = !coverImgFailed
-    ? (resolvedDestImage ?? trip.cover_image_url ?? null)
-    : null
+  const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
+  const flag = getTripFlag(trip)
+  const chapterNum = String(index + 2).padStart(2, '0') // hero is 01
 
   const handleMenuClick = (e: React.MouseEvent) => {
     e.preventDefault(); e.stopPropagation()
@@ -110,52 +132,44 @@ function TripCard({
   }
 
   return (
-    <div className="relative">
+    <div className="relative group">
       <Link
         to={`/trip/${trip.id}`}
-        className="block bg-bg-card rounded-2xl border border-border-subtle overflow-hidden shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
+        className="flex bg-bg-card rounded-xl border border-border overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
       >
-        {/* Cover image / gradient */}
-        <div className={`h-44 bg-gradient-to-br ${gradient} relative overflow-hidden`}>
-          {coverImage && !coverImgLoaded && (
-            <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-          )}
+        {/* Left: cover image or gradient */}
+        <div className={`relative w-28 shrink-0 bg-gradient-to-br ${gradient} overflow-hidden`}>
           {coverImage && (
             <img
               src={coverImage}
-              alt={trip.title}
+              alt=""
               className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
               onLoad={() => setCoverImgLoaded(true)}
               onError={() => setCoverImgFailed(true)}
             />
           )}
-          {/* Subtle bottom scrim for legibility */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
-          {/* Status badge */}
-          <div className="absolute top-3 right-3">
-            <StatusBadge status={trip.status} className="shadow-sm" />
-          </div>
+          {/* Watermark number */}
+          <span className="absolute bottom-1 right-1.5 font-mono text-[48px] font-extrabold leading-none text-white/10 pointer-events-none select-none group-hover:text-white/20 transition-colors">
+            {chapterNum}
+          </span>
         </div>
 
-        {/* Card body */}
-        <div className="px-4 pt-3.5 pb-3.5 pr-12">
-          <h3 className="text-base font-semibold text-text-primary truncate">{trip.title}</h3>
-
-          {/* Destination chain */}
+        {/* Right: content */}
+        <div className="flex-1 min-w-0 px-3.5 py-3 flex flex-col justify-center">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-lg">{flag}</span>
+            <StatusBadge status={trip.status} />
+          </div>
+          <h3 className="text-[16px] font-bold text-text-primary truncate group-hover:text-accent transition-colors">{trip.title}</h3>
           {dests.length > 0 ? (
-            <div className="mt-2.5">
-              <RouteChain
-                destinations={dests.map((d) => shortDestName(d.location_name))}
-                maxVisible={5}
-              />
+            <div className="mt-1.5">
+              <RouteChain destinations={dests.map((d) => shortDestName(d.location_name))} maxVisible={4} />
             </div>
           ) : (
-            <p className="mt-1.5 text-xs text-text-faint">No destinations yet</p>
+            <p className="mt-1 font-mono text-[11px] text-text-faint">No destinations yet</p>
           )}
-
-          {/* Date range (scheduled only) */}
           {trip.status === 'scheduled' && trip.start_date && trip.end_date && (
-            <MetadataLine items={[formatDateRange(trip.start_date, trip.end_date)]} className="mt-1.5" />
+            <MetadataLine items={[formatDateRange(trip.start_date, trip.end_date)]} className="mt-1" />
           )}
         </div>
       </Link>
@@ -164,10 +178,10 @@ function TripCard({
       <button
         type="button"
         onClick={handleMenuClick}
-        className="absolute bottom-3 right-3 p-1.5 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors"
+        className="absolute top-2 right-2 p-1.5 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors opacity-0 group-hover:opacity-100"
         aria-label="Trip options"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
           <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zm5.5 0a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zm5.5 0a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z" />
         </svg>
       </button>
@@ -175,40 +189,18 @@ function TripCard({
       {/* Dropdown */}
       {menuOpen && (
         <>
-          <div
-            className="fixed inset-0 z-10"
-            onClick={(e) => { e.stopPropagation(); setMenuOpen(false); setConfirming(false) }}
-          />
-          <div className="absolute bottom-10 right-3 z-20 bg-bg-card border border-border rounded-xl shadow-lg overflow-hidden min-w-[160px]">
+          <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); setConfirming(false) }} />
+          <div className="absolute top-10 right-2 z-20 bg-bg-card border border-border rounded-xl shadow-lg overflow-hidden min-w-[160px]">
             {!confirming ? (
-              <button
-                type="button"
-                onClick={handleDeleteClick}
-                className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-error hover:bg-error-bg transition-colors text-left"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0">
-                  <path fillRule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.584.176-2.365.298a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clipRule="evenodd" />
-                </svg>
+              <button type="button" onClick={handleDeleteClick} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-error hover:bg-error-bg transition-colors text-left">
                 Delete trip
               </button>
             ) : (
               <div className="px-4 py-3">
                 <p className="text-xs font-medium text-text-secondary mb-2">Delete this trip?</p>
                 <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={handleCancelDelete}
-                    className="flex-1 py-1.5 text-xs border border-border-input text-text-secondary rounded-lg hover:bg-bg-page transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleConfirmDelete}
-                    className="flex-1 py-1.5 text-xs bg-error text-white rounded-lg hover:bg-error transition-colors font-medium"
-                  >
-                    Delete
-                  </button>
+                  <button type="button" onClick={handleCancelDelete} className="flex-1 py-1.5 text-xs border border-border-input text-text-secondary rounded-lg hover:bg-bg-page transition-colors">Cancel</button>
+                  <button type="button" onClick={handleConfirmDelete} className="flex-1 py-1.5 text-xs bg-error text-white rounded-lg font-medium">Delete</button>
                 </div>
               </div>
             )}
@@ -771,70 +763,83 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
 
 // ── Featured Trip Hero ────────────────────────────────────────────────────────
 
-function FeaturedTripHero({ trip, index }: { trip: TripWithDestinations; index: number }) {
+function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
   const [coverImgFailed, setCoverImgFailed] = useState(false)
   const [coverImgLoaded, setCoverImgLoaded] = useState(false)
-  const gradient = gradients[index % gradients.length]
   const dests = trip.trip_destinations ?? []
   const resolvedDestImage = useFirstDestinationImage(dests)
-  const coverImage = !coverImgFailed
-    ? (resolvedDestImage ?? trip.cover_image_url ?? null)
-    : null
-  const destCount = dests.length
+  const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
+  const flag = getTripFlag(trip)
+  const destNames = dests.map((d) => shortDestName(d.location_name))
 
   return (
     <Link
       to={`/trip/${trip.id}`}
-      className="block rounded-2xl overflow-hidden shadow-md hover:shadow-lg active:scale-[0.99] transition-all"
+      className="group flex rounded-2xl border border-border overflow-hidden bg-bg-card transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_8px_28px_rgba(0,0,0,0.06)]"
     >
-      <div className={`relative h-56 bg-gradient-to-br ${gradient}`}>
-        {/* Shimmer skeleton while image loads */}
-        {coverImage && !coverImgLoaded && (
-          <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-        )}
-        {coverImage && (
-          <img
-            src={coverImage}
-            alt={trip.title}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
-            onLoad={() => setCoverImgLoaded(true)}
-            onError={() => setCoverImgFailed(true)}
-          />
-        )}
-        {/* Scrim */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+      {/* Left panel — flag + watermark */}
+      <div className="relative w-[140px] shrink-0 bg-bg-tinted flex flex-col items-center justify-center overflow-hidden">
+        <span className="text-[44px] leading-none">{flag}</span>
+        <p className="mt-2 font-mono text-[10px] text-text-tertiary">
+          {dests.length} {dests.length === 1 ? 'city' : 'cities'}
+        </p>
+        {/* Watermark 01 */}
+        <span className="absolute bottom-0 right-0 font-mono text-[110px] font-extrabold leading-none text-border-subtle pointer-events-none select-none group-hover:text-accent-med transition-colors -mb-4 -mr-2">
+          01
+        </span>
 
-        {/* Pin icon if user-featured */}
+        {/* Pin if featured */}
         {trip.is_featured && (
-          <div className="absolute top-3 left-3">
-            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent text-white text-[10px] font-bold uppercase tracking-wider shadow-sm">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
-                <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
-              </svg>
-              Featured
-            </span>
+          <span className="absolute top-2.5 left-2.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-accent text-white font-mono text-[8px] font-bold uppercase tracking-wider">
+            ★
+          </span>
+        )}
+      </div>
+
+      {/* Right panel — trip info */}
+      <div className="flex-1 min-w-0 relative">
+        {/* Cover image background */}
+        {coverImage && (
+          <div className="absolute inset-0 overflow-hidden">
+            <img
+              src={coverImage}
+              alt=""
+              className={`w-full h-full object-cover opacity-10 transition-opacity duration-300 ${coverImgLoaded ? 'opacity-10' : 'opacity-0'}`}
+              onLoad={() => setCoverImgLoaded(true)}
+              onError={() => setCoverImgFailed(true)}
+            />
           </div>
         )}
 
-        {/* Status badge */}
-        <div className="absolute top-3 right-3">
-          <StatusBadge status={trip.status} className="shadow-sm" />
-        </div>
+        <div className="relative px-4 py-4 flex flex-col justify-center min-h-[160px]">
+          {/* "Up next" label */}
+          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.5px] text-accent">Up next</span>
 
-        {/* Overlaid info */}
-        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4">
-          <h2 className="text-xl font-bold text-white [text-shadow:0_1px_4px_rgba(0,0,0,0.4)] truncate">
+          <h2 className="mt-1 text-[24px] font-bold leading-[1.2] tracking-[-0.3px] text-text-primary truncate group-hover:text-accent transition-colors">
             {trip.title}
           </h2>
-          <MetadataLine
-            items={[
-              `${destCount} destination${destCount !== 1 ? 's' : ''}`,
+
+          {/* Metadata line */}
+          <div className="mt-2">
+            <MetadataLine items={[
+              `${dests.length} destination${dests.length !== 1 ? 's' : ''}`,
               ...(trip.status === 'scheduled' && trip.start_date && trip.end_date
                 ? [formatDateRange(trip.start_date, trip.end_date)]
                 : []),
-            ]}
-            className="mt-1 !text-white/80 [&_.text-text-mist]:!text-white/40"
-          />
+            ]} />
+          </div>
+
+          {/* Route chain */}
+          {destNames.length > 0 && (
+            <div className="mt-2">
+              <RouteChain destinations={destNames} maxVisible={4} />
+            </div>
+          )}
+
+          {/* Status badge */}
+          <div className="mt-3">
+            <StatusBadge status={trip.status} />
+          </div>
         </div>
       </div>
     </Link>
@@ -849,45 +854,58 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
   const gradient = gradients[index % gradients.length]
   const dests = trip.trip_destinations ?? []
   const resolvedDestImage = useFirstDestinationImage(dests)
-  const coverImage = !coverImgFailed
-    ? (resolvedDestImage ?? trip.cover_image_url ?? null)
-    : null
+  const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
+  const flag = getTripFlag(trip)
+  const chapterNum = String(index + 1).padStart(2, '0')
 
   return (
     <Link
       to={`/trip/${trip.id}`}
-      className="block w-[260px] shrink-0 snap-start rounded-2xl overflow-hidden bg-bg-card border border-border-subtle shadow-sm hover:shadow-md active:scale-[0.99] transition-all"
+      className="group block w-[260px] shrink-0 snap-start rounded-xl bg-bg-card border border-border overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
     >
-      <div className={`relative h-36 bg-gradient-to-br ${gradient}`}>
-        {coverImage && !coverImgLoaded && (
-          <div className="absolute inset-0 animate-pulse bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-        )}
+      {/* Cover area */}
+      <div className={`relative h-36 bg-gradient-to-br ${gradient} overflow-hidden`}>
         {coverImage && (
           <img
             src={coverImage}
-            alt={trip.title}
+            alt=""
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
             onLoad={() => setCoverImgLoaded(true)}
             onError={() => setCoverImgFailed(true)}
           />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-        {/* Status badge */}
-        <div className="absolute top-2.5 right-2.5">
-          <StatusBadge status={trip.status} className="shadow-sm" />
-        </div>
+
+        {/* Watermark number */}
+        <span className="absolute top-2 right-3 font-mono text-[56px] font-extrabold leading-none text-white/10 pointer-events-none select-none group-hover:text-white/20 transition-colors">
+          {chapterNum}
+        </span>
+
+        {/* Flag */}
+        <span className="absolute bottom-2 left-3 text-lg">{flag}</span>
       </div>
+
+      {/* Content */}
       <div className="px-3 py-2.5">
-        <h3 className="text-sm font-semibold text-text-primary truncate">{trip.title}</h3>
-        <MetadataLine
-          items={[
-            `${dests.length} destination${dests.length !== 1 ? 's' : ''}`,
-            ...(trip.status === 'scheduled' && trip.start_date && trip.end_date
-              ? [formatDateRange(trip.start_date, trip.end_date)]
-              : []),
-          ]}
-          className="mt-1"
-        />
+        <h3 className="text-[16px] font-bold text-text-primary truncate group-hover:text-accent transition-colors">{trip.title}</h3>
+        {dests.length > 0 && (
+          <div className="mt-1">
+            <RouteChain
+              destinations={dests.map((d) => shortDestName(d.location_name))}
+              maxVisible={4}
+              className="!text-[11px]"
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Bottom metadata bar */}
+      <div className="flex items-center justify-between px-3 py-2 border-t border-border-subtle bg-bg-page">
+        <MetadataLine items={[
+          `${dests.length} dest`,
+          ...(trip.start_date && trip.end_date ? [formatDateRange(trip.start_date, trip.end_date)] : []),
+        ]} className="!text-[10px]" />
+        <StatusBadge status={trip.status} />
       </div>
     </Link>
   )
@@ -895,15 +913,36 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
 
 // ── Phase Carousel ───────────────────────────────────────────────────────────
 
-function PhaseCarousel({ label, trips }: { label: string; trips: TripWithDestinations[] }) {
+const phaseConfig: Record<string, { title: string; description: string }> = {
+  scheduled:    { title: 'Upcoming',  description: 'Dates set and ready to go' },
+  planning:     { title: 'Planning',  description: 'Actively building these trips' },
+  aspirational: { title: 'Someday',   description: 'Ideas for future adventures' },
+}
+
+function PhaseCarousel({ phaseKey, trips, onNewTrip }: { phaseKey: string; trips: TripWithDestinations[]; onNewTrip: () => void }) {
   if (trips.length === 0) return null
+  const config = phaseConfig[phaseKey] ?? { title: phaseKey, description: '' }
   return (
     <div>
-      <h3 className="text-xs font-semibold text-text-faint uppercase tracking-wide mb-2.5">{label}</h3>
-      <div className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-3 -mx-4 px-4 pb-1" style={{ scrollPaddingInlineStart: '1rem' }}>
+      <div className="flex items-baseline justify-between mb-2">
+        <div>
+          <h3 className="text-[17px] font-semibold text-text-primary">{config.title}</h3>
+          <p className="font-mono text-[11px] text-text-tertiary">{config.description}</p>
+        </div>
+        <span className="font-mono text-[11px] text-text-faint">{trips.length}</span>
+      </div>
+      <div className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-3.5 -mx-5 px-5 pb-1">
         {trips.map((trip, i) => (
           <CarouselTripCard key={trip.id} trip={trip} index={i} />
         ))}
+        {/* Dashed add card */}
+        <DashedCard
+          onClick={onNewTrip}
+          className="w-[260px] shrink-0 snap-start flex flex-col items-center justify-center h-[254px] gap-2 cursor-pointer"
+        >
+          <Plus className="w-5 h-5 text-text-faint" />
+          <span className="font-mono text-[11px] font-medium text-text-faint">New trip</span>
+        </DashedCard>
       </div>
     </div>
   )
@@ -957,104 +996,86 @@ export default function TripsPage() {
     }
   }, [trips, loading])
 
+  // Count unique countries across all trips
+  const totalCountries = useMemo(() => {
+    const codes = new Set<string>()
+    trips.forEach((t) => t.trip_destinations?.forEach((d) => { if (d.location_country_code) codes.add(d.location_country_code) }))
+    return codes.size
+  }, [trips])
+
+  const totalDests = useMemo(() => trips.reduce((s, t) => s + (t.trip_destinations?.length ?? 0), 0), [trips])
+
   return (
-    <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-      {/* Header */}
-      <div>
-        <BrandMark className="mb-1" />
-        <h1 className="text-2xl font-bold text-text-primary">Trips</h1>
-        <p className="mt-1 text-sm text-text-tertiary">Your trip library</p>
+    <div className="px-5 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+      {/* ── Header ── */}
+      <BrandMark className="mb-2 block" />
+      <h1 className="text-[32px] font-bold leading-[1.2] tracking-[-0.5px] text-text-primary">Trips</h1>
+      {trips.length > 0 && (
+        <div className="mt-1">
+          <MetadataLine items={[
+            `${trips.length} trip${trips.length !== 1 ? 's' : ''}`,
+            `${totalCountries} ${totalCountries === 1 ? 'country' : 'countries'}`,
+            `${totalDests} destination${totalDests !== 1 ? 's' : ''}`,
+          ]} />
+        </div>
+      )}
+
+      {/* Action button */}
+      <div className="mt-5">
+        <PrimaryButton onClick={() => setShowModal(true)}>
+          <Plus className="w-4 h-4" />
+          New Trip
+        </PrimaryButton>
       </div>
 
-      {/* Loading Skeletons */}
+      {/* ── Divider ── */}
+      <div className="mt-4 mb-4 border-t border-border" />
+
+      {/* ── Loading Skeletons ── */}
       {loading && (
-        <div className="mt-5 space-y-4">
-          {/* Hero skeleton */}
-          <div className="animate-pulse rounded-2xl overflow-hidden">
-            <div className="h-56 bg-gradient-to-br from-blue-300 to-indigo-400 opacity-60" />
-          </div>
-          {/* Card skeletons */}
+        <div className="space-y-4">
+          <div className="flex rounded-2xl overflow-hidden bg-bg-muted animate-pulse h-[160px]" />
           {[0, 1].map((i) => (
-            <div key={i} className="animate-pulse bg-bg-card rounded-2xl border border-border-subtle overflow-hidden shadow-sm">
-              <div className={`h-44 bg-gradient-to-br ${i === 0 ? 'from-stone-300 to-stone-400' : 'from-neutral-300 to-neutral-400'} opacity-60`} />
-              <div className="px-4 py-3 space-y-2.5">
-                <div className="h-4 bg-bg-pill-dark rounded-full w-2/5" />
-                <div className="flex gap-2">
-                  <div className="h-5 bg-bg-muted rounded-full w-16" />
-                  <div className="h-5 bg-bg-muted rounded-full w-14" />
-                </div>
-              </div>
-            </div>
+            <div key={i} className="flex rounded-xl bg-bg-muted animate-pulse h-[100px]" />
           ))}
         </div>
       )}
 
-      {/* Empty State */}
+      {/* ── Empty State ── */}
       {!loading && trips.length === 0 && (
-        <div className="mt-20 text-center px-6">
-          <div className="w-16 h-16 bg-accent-light rounded-2xl flex items-center justify-center mx-auto">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="w-8 h-8 text-accent"
-            >
-              <path
-                fillRule="evenodd"
-                d="M8.161 2.58a1.875 1.875 0 011.678 0l4.993 2.498c.106.052.23.052.336 0l3.869-1.935A1.875 1.875 0 0121.75 4.82v12.485c0 .71-.401 1.36-1.037 1.677l-4.875 2.437a1.875 1.875 0 01-1.676 0l-4.994-2.497a.375.375 0 00-.336 0l-3.868 1.934A1.875 1.875 0 012.25 19.18V6.695c0-.71.401-1.36 1.036-1.677l4.875-2.437zM9 6a.75.75 0 01.75.75V15a.75.75 0 01-1.5 0V6.75A.75.75 0 019 6zm6.75 3a.75.75 0 00-1.5 0v8.25a.75.75 0 001.5 0V9z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </div>
-          <p className="mt-4 text-text-primary font-semibold">No trips yet</p>
-          <p className="mt-1.5 text-sm text-text-faint leading-relaxed">
-            Start planning your next adventure.
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowModal(true)}
-            className="mt-5 inline-flex items-center gap-1.5 px-5 py-2.5 bg-accent text-white text-sm font-semibold rounded-xl hover:bg-accent-hover active:bg-accent-hover transition-colors shadow-sm"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-            </svg>
+        <div className="mt-12 text-center py-16">
+          <span className="font-mono text-[28px] text-text-faint opacity-30 block mb-3">🗺</span>
+          <p className="text-sm text-text-faint">No trips yet</p>
+          <p className="mt-1 font-mono text-xs text-text-ghost">Start planning your next adventure</p>
+          <PrimaryButton onClick={() => setShowModal(true)} className="mt-5">
+            <Plus className="w-4 h-4" />
             New Trip
-          </button>
+          </PrimaryButton>
         </div>
       )}
 
-      {/* Trip content */}
+      {/* ── Trip Content ── */}
       {!loading && trips.length > 0 && (
-        <div className="mt-5 space-y-5">
+        <div className="space-y-6">
           {/* Featured Trip Hero */}
-          {featuredTrip && (
-            <FeaturedTripHero trip={featuredTrip} index={trips.indexOf(featuredTrip)} />
-          )}
-
-          {/* New Trip button */}
-          <DashedCard onClick={() => setShowModal(true)} className="w-full flex items-center justify-center gap-2 py-3">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-text-tertiary">
-              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-            </svg>
-            <span className="text-sm font-semibold text-text-tertiary">New Trip</span>
-          </DashedCard>
+          {featuredTrip && <FeaturedTripHero trip={featuredTrip} />}
 
           {/* Adaptive layout */}
           {!useCarouselLayout ? (
-            /* State 1: Stacked cards */
+            /* Stacked cards */
             <div className="space-y-3">
               {remainingTrips.map((trip, index) => (
                 <TripCard key={trip.id} trip={trip} index={index} onDelete={deleteTrip} />
               ))}
             </div>
           ) : (
-            /* State 2: Phase carousels */
-            <div className="space-y-5">
+            /* Phase carousels */
+            <div className="space-y-6">
               {groupedTrips && (
                 <>
-                  <PhaseCarousel label="Upcoming" trips={groupedTrips.scheduled} />
-                  <PhaseCarousel label="Planning" trips={groupedTrips.planning} />
-                  <PhaseCarousel label="Someday" trips={groupedTrips.aspirational} />
+                  <PhaseCarousel phaseKey="scheduled" trips={groupedTrips.scheduled} onNewTrip={() => setShowModal(true)} />
+                  <PhaseCarousel phaseKey="planning" trips={groupedTrips.planning} onNewTrip={() => setShowModal(true)} />
+                  <PhaseCarousel phaseKey="aspirational" trips={groupedTrips.aspirational} onNewTrip={() => setShowModal(true)} />
                 </>
               )}
             </div>
