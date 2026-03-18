@@ -780,6 +780,9 @@ export default function TripOverviewPage() {
   // Modals
   const [showShareModal, setShowShareModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showActionMenu, setShowActionMenu] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [datePickerDestId, setDatePickerDestId] = useState<string | null>(null)
 
   // Organize mode
@@ -1535,8 +1538,103 @@ export default function TripOverviewPage() {
               </span>
             )}
           </SecondaryButton>
+
+          {/* Action menu (three-dot) */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowActionMenu(o => !o)}
+              style={{
+                background: '#ffffff', border: '1px solid var(--color-border-input)',
+                borderRadius: 8, padding: '9px 12px', cursor: 'pointer',
+                fontSize: 13, color: 'var(--color-text-secondary)', fontFamily: "'DM Sans', sans-serif",
+                lineHeight: 1, letterSpacing: 2,
+              }}
+            >···</button>
+            {showActionMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowActionMenu(false)} />
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
+                  background: '#ffffff', border: '1px solid var(--color-border)', borderRadius: 8,
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.08)', padding: '4px 0', minWidth: 160,
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => { setShowActionMenu(false); setShowDeleteConfirm(true) }}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px',
+                      fontSize: 13, color: '#c0392b', cursor: 'pointer', border: 'none',
+                      background: 'transparent', fontFamily: "'DM Sans', sans-serif",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'var(--color-bg-muted)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >Delete trip</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* ── Delete Confirmation Modal ── */}
+      {showDeleteConfirm && trip && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false) }}
+        >
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.3)' }} />
+          <div style={{
+            position: 'relative', background: '#ffffff', borderRadius: 14,
+            maxWidth: 340, width: '90%', padding: 24,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              Delete {trip.title}?
+            </h2>
+            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginTop: 8, lineHeight: 1.5 }}>
+              This will permanently delete this trip and remove all destination links. Your saved items in the inbox won't be affected.
+            </p>
+            <div style={{ marginTop: 20, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                style={{
+                  background: '#ffffff', border: '1px solid var(--color-border-input)',
+                  borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 500,
+                  color: 'var(--color-text-secondary)', cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif",
+                }}
+              >Cancel</button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true)
+                  // Delete in FK order: destination_items, trip_general_items, comments, votes, companions, destinations, trip
+                  const destIds = destinations.map(d => d.id)
+                  if (destIds.length > 0) {
+                    await supabase.from('destination_items').delete().in('destination_id', destIds)
+                  }
+                  await supabase.from('trip_general_items').delete().eq('trip_id', trip.id)
+                  await supabase.from('comments').delete().eq('trip_id', trip.id)
+                  await supabase.from('votes').delete().eq('trip_id', trip.id)
+                  await supabase.from('companions').delete().eq('trip_id', trip.id)
+                  await supabase.from('trip_destinations').delete().eq('trip_id', trip.id)
+                  await supabase.from('trips').delete().eq('id', trip.id)
+                  navigate('/trips')
+                }}
+                style={{
+                  background: '#c0392b', border: 'none', borderRadius: 8,
+                  padding: '9px 20px', fontSize: 13, fontWeight: 600,
+                  color: 'white', cursor: deleting ? 'not-allowed' : 'pointer',
+                  opacity: deleting ? 0.6 : 1, fontFamily: "'DM Sans', sans-serif",
+                }}
+              >{deleting ? 'Deleting…' : 'Delete'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Tab Navigation ── */}
       <TabNav activeTab={activeTab} onTabChange={setActiveTab} />
