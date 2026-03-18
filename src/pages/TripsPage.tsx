@@ -94,7 +94,7 @@ function TripCard({
 
   const gradient = gradients[index % gradients.length]
   const dests = trip.trip_destinations ?? []
-  const [resolvedDestImage] = useFirstDestinationImage(dests)
+  const resolvedDestImage = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
   const countryCode = getTripCountryCode(trip)
   const chapterNum = String(index + 2).padStart(2, '0') // hero is 01
@@ -748,220 +748,225 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
 // ── Featured Trip Hero ────────────────────────────────────────────────────────
 
 function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
-  const [coverImgFailed, setCoverImgFailed] = useState(false)
-  const [coverImgLoaded, setCoverImgLoaded] = useState(false)
+  const [imgLoaded, setImgLoaded] = useState(false)
+  const [imgFailed, setImgFailed] = useState(false)
   const dests = trip.trip_destinations ?? []
-  const [resolvedDestImage] = useFirstDestinationImage(dests)
-  const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
+  const resolvedDestImage = useFirstDestinationImage(dests)
+  const coverImage = !imgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
   const countryCode = getTripCountryCode(trip)
   const destNames = dests.map((d) => shortDestName(d.location_name))
-  const gradient = gradients[0]
+  const hasBgImage = !!coverImage
 
-  // If we have a cover image, use the full-bleed image layout
-  if (coverImage) {
-    return (
-      <Link
-        to={`/trip/${trip.id}`}
-        className="group block relative rounded-2xl overflow-hidden transition-all duration-150 ease-out hover:shadow-[0_8px_28px_rgba(0,0,0,0.10)]"
-        style={{ height: 210 }}
-      >
-        {/* Background image */}
-        <img
-          src={coverImage}
-          alt=""
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
-          onLoad={() => setCoverImgLoaded(true)}
-          onError={() => setCoverImgFailed(true)}
-        />
-        {/* Gradient placeholder while loading */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} ${coverImgLoaded ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`} />
-
-        {/* Bottom gradient scrim */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.65))' }}
-        />
-
-        {/* Watermark "01" top-right */}
-        <span className="absolute top-0 right-3 font-mono text-[100px] font-extrabold leading-none text-white/[0.15] pointer-events-none select-none">
-          01
-        </span>
-
-        {/* Country code badge top-left */}
-        {countryCode && (
-          <div className="absolute top-3 left-3">
-            <CountryCodeBadge code={countryCode} light />
-          </div>
-        )}
-
-        {/* Pin if featured */}
-        {trip.is_featured && (
-          <span className="absolute top-3 left-[60px] flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-accent text-white font-mono text-[8px] font-bold uppercase tracking-wider">
-            ★
-          </span>
-        )}
-
-        {/* Content at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-6">
-          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.5px] text-accent">Up next</span>
-
-          <h2 className="mt-1 text-[24px] font-bold leading-[1.2] tracking-[-0.3px] text-white truncate" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
-            {trip.title}
-          </h2>
-
-          <div className="mt-2">
-            <MetadataLine
-              items={[
-                `${dests.length} destination${dests.length !== 1 ? 's' : ''}`,
-                ...(trip.status === 'scheduled' && trip.start_date && trip.end_date
-                  ? [formatDateRange(trip.start_date, trip.end_date)]
-                  : []),
-              ]}
-              className="!text-white/80"
-            />
-          </div>
-
-          {destNames.length > 0 && (
-            <div className="mt-2">
-              <RouteChain
-                destinations={destNames}
-                maxVisible={4}
-                className="[&_span.text-text-secondary]:!text-white/80 [&_span.text-text-mist]:!text-white/40 [&_.text-\\[13px\\]]:!text-white/80 [&_.text-\\[10px\\]]:!text-white/40"
-              />
-            </div>
-          )}
-
-          <div className="mt-3">
-            <StatusBadge status={trip.status} />
-          </div>
-        </div>
-      </Link>
-    )
-  }
-
-  // Fallback: no image — split layout with tinted left panel
   return (
     <Link
       to={`/trip/${trip.id}`}
-      className="group flex rounded-2xl border border-border overflow-hidden bg-bg-card transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_8px_28px_rgba(0,0,0,0.06)]"
+      className="group block relative rounded-2xl overflow-hidden cursor-pointer"
+      style={{ height: 210 }}
     >
-      {/* Left panel — country code + watermark */}
-      <div className="relative w-[140px] shrink-0 bg-bg-tinted flex flex-col items-center justify-center overflow-hidden">
-        {countryCode && <CountryCodeBadge code={countryCode} className="text-[18px] px-2.5 py-1" />}
-        <p className="mt-2 font-mono text-[10px] text-text-tertiary">
-          {dests.length} {dests.length === 1 ? 'city' : 'cities'}
-        </p>
-        {/* Watermark 01 */}
-        <span className="absolute bottom-0 right-0 font-mono text-[110px] font-extrabold leading-none text-border-subtle pointer-events-none select-none group-hover:text-accent-med transition-colors -mb-4 -mr-2">
-          01
+      {/* Background: image or tinted fallback */}
+      {hasBgImage ? (
+        <>
+          <img
+            src={coverImage!}
+            alt=""
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgFailed(true)}
+          />
+          {/* Gradient overlay — critical for text readability */}
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.7) 100%)' }}
+          />
+        </>
+      ) : (
+        <div className="absolute inset-0 bg-bg-tinted" />
+      )}
+
+      {/* Watermark "01" */}
+      <span
+        className="absolute pointer-events-none select-none font-mono text-[100px] font-extrabold leading-none"
+        style={{ top: -10, right: 10, color: hasBgImage ? 'rgba(255,255,255,0.15)' : 'var(--color-border-subtle)', zIndex: 1 }}
+      >
+        01
+      </span>
+
+      {/* Country code badge — top-left */}
+      {countryCode && (
+        <span
+          className="absolute font-mono text-[11px] font-bold tracking-[1px]"
+          style={{
+            top: 14, left: 14, zIndex: 2,
+            color: hasBgImage ? 'white' : 'var(--color-text-tertiary)',
+            background: hasBgImage ? 'rgba(255,255,255,0.2)' : 'var(--color-bg-pill)',
+            borderRadius: 4, padding: '3px 8px',
+          }}
+        >
+          {countryCode}
+        </span>
+      )}
+
+      {/* Content block — bottom */}
+      <div className="absolute bottom-0 left-0 right-0 p-5" style={{ zIndex: 2 }}>
+        {/* "UP NEXT" label */}
+        <span className="font-mono text-[9px] font-semibold uppercase tracking-[1px] text-accent">
+          UP NEXT
         </span>
 
-        {/* Pin if featured */}
-        {trip.is_featured && (
-          <span className="absolute top-2.5 left-2.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-accent text-white font-mono text-[8px] font-bold uppercase tracking-wider">
-            ★
-          </span>
-        )}
-      </div>
+        {/* Trip name */}
+        <h2
+          className="mt-1 text-[24px] font-bold leading-[1.2] tracking-[-0.3px] truncate"
+          style={{ color: hasBgImage ? 'white' : 'var(--color-text-primary)' }}
+        >
+          {trip.title}
+        </h2>
 
-      {/* Right panel — trip info */}
-      <div className="flex-1 min-w-0 relative">
-        <div className="relative px-4 py-4 flex flex-col justify-center min-h-[160px]">
-          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.5px] text-accent">Up next</span>
-
-          <h2 className="mt-1 text-[24px] font-bold leading-[1.2] tracking-[-0.3px] text-text-primary truncate group-hover:text-accent transition-colors">
-            {trip.title}
-          </h2>
-
-          <div className="mt-2">
-            <MetadataLine items={[
-              `${dests.length} destination${dests.length !== 1 ? 's' : ''}`,
-              ...(trip.status === 'scheduled' && trip.start_date && trip.end_date
-                ? [formatDateRange(trip.start_date, trip.end_date)]
-                : []),
-            ]} />
-          </div>
-
-          {destNames.length > 0 && (
-            <div className="mt-2">
-              <RouteChain destinations={destNames} maxVisible={4} />
-            </div>
+        {/* Metadata */}
+        <p
+          className="mt-1 font-mono text-[11px]"
+          style={{ color: hasBgImage ? 'rgba(255,255,255,0.7)' : 'var(--color-text-tertiary)' }}
+        >
+          {dests.length} destination{dests.length !== 1 ? 's' : ''}
+          {trip.status === 'scheduled' && trip.start_date && trip.end_date && (
+            <>
+              <span style={{ color: hasBgImage ? 'rgba(255,255,255,0.4)' : 'var(--color-text-mist)', margin: '0 6px' }}>·</span>
+              {formatDateRange(trip.start_date, trip.end_date)}
+            </>
           )}
+        </p>
 
-          <div className="mt-3">
-            <StatusBadge status={trip.status} />
+        {/* Route chain */}
+        {destNames.length > 0 && (
+          <div className="mt-2 overflow-hidden whitespace-nowrap" style={{ textOverflow: 'ellipsis' }}>
+            {destNames.slice(0, 4).map((name, i) => (
+              <span key={i}>
+                {i > 0 && (
+                  <span
+                    className="font-mono text-[9px] mx-[5px]"
+                    style={{ color: hasBgImage ? 'rgba(255,255,255,0.4)' : 'var(--color-text-mist)' }}
+                  >→</span>
+                )}
+                <span
+                  className="text-[12px] font-medium"
+                  style={{ color: hasBgImage ? 'rgba(255,255,255,0.85)' : 'var(--color-text-secondary)' }}
+                >{name}</span>
+              </span>
+            ))}
+            {destNames.length > 4 && (
+              <span
+                className="font-mono text-[10px] ml-1.5"
+                style={{ color: hasBgImage ? 'rgba(255,255,255,0.4)' : 'var(--color-text-ghost)' }}
+              >+{destNames.length - 4}</span>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* Status badge */}
+        <span
+          className="inline-block mt-2 font-mono text-[9px] font-semibold uppercase tracking-[0.5px]"
+          style={{
+            padding: '3px 8px',
+            borderRadius: 4,
+            background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'var(--color-accent-med)',
+            color: hasBgImage ? 'white' : 'var(--color-accent)',
+          }}
+        >
+          {trip.status === 'scheduled' ? 'Upcoming' : trip.status === 'planning' ? 'Planning' : 'Someday'}
+        </span>
       </div>
     </Link>
   )
 }
 
-// ── Carousel Trip Card ───────────────────────────────────────────────────────
+// ── Carousel Trip Card (white card, NO background image) ────────────────────
 
 function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: number }) {
-  const [coverImgFailed, setCoverImgFailed] = useState(false)
-  const [coverImgLoaded, setCoverImgLoaded] = useState(false)
-  const gradient = gradients[index % gradients.length]
   const dests = trip.trip_destinations ?? []
-  const [resolvedDestImage] = useFirstDestinationImage(dests)
-  const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
-  const countryCode = getTripCountryCode(trip)
-  const chapterNum = String(index + 1).padStart(2, '0')
+  const chapterNum = String(index + 2).padStart(2, '0') // hero is 01
+
+  // Collect unique country codes
+  const countryCodes = [...new Set(dests.map((d) => d.location_country_code).filter(Boolean))] as string[]
+
+  // Build route chain text
+  const destNames = dests.map((d) => shortDestName(d.location_name))
+  const visibleNames = destNames.slice(0, 4)
+  const overflow = destNames.length - 4
 
   return (
     <Link
       to={`/trip/${trip.id}`}
-      className="group block w-[260px] shrink-0 snap-start rounded-xl bg-bg-card border border-border overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
+      className="group block w-[260px] shrink-0 snap-start rounded-xl bg-bg-card border border-border overflow-hidden transition-all duration-150 ease-out hover:border-[#c45a2d40] hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
     >
-      {/* Cover area */}
-      <div className={`relative h-36 bg-gradient-to-br ${gradient} overflow-hidden`}>
-        {coverImage && (
-          <img
-            src={coverImage}
-            alt=""
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
-            onLoad={() => setCoverImgLoaded(true)}
-            onError={() => setCoverImgFailed(true)}
-          />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-
+      {/* Top content area */}
+      <div className="relative overflow-hidden px-4 pt-4 pb-3">
         {/* Watermark number */}
-        <span className="absolute top-2 right-3 font-mono text-[56px] font-extrabold leading-none text-white/10 pointer-events-none select-none group-hover:text-white/20 transition-colors">
+        <span
+          className="absolute pointer-events-none select-none font-mono text-[56px] font-extrabold leading-none text-border-subtle group-hover:text-accent-med transition-colors duration-150"
+          style={{ top: -6, right: 6 }}
+        >
           {chapterNum}
         </span>
 
-        {/* Country code badge */}
-        {countryCode && (
-          <div className="absolute bottom-2 left-3">
-            <CountryCodeBadge code={countryCode} light />
+        {/* Country code badges */}
+        {countryCodes.length > 0 && (
+          <div className="relative flex gap-1 mb-2">
+            {countryCodes.map((code) => (
+              <span
+                key={code}
+                className="inline-block font-mono text-[11px] font-bold tracking-[1px] text-text-tertiary bg-bg-pill rounded px-1.5 py-[2px] leading-none"
+              >
+                {code}
+              </span>
+            ))}
           </div>
         )}
-      </div>
 
-      {/* Content */}
-      <div className="px-3 py-2.5">
-        <h3 className="text-[16px] font-bold text-text-primary truncate group-hover:text-accent transition-colors">{trip.title}</h3>
-        {dests.length > 0 && (
-          <div className="mt-1">
-            <RouteChain
-              destinations={dests.map((d) => shortDestName(d.location_name))}
-              maxVisible={4}
-              truncate
-              className="!text-[11px]"
-            />
+        {/* Trip name — single line, truncate */}
+        <h3
+          className="relative text-[16px] font-bold tracking-[-0.2px] text-text-primary overflow-hidden whitespace-nowrap group-hover:text-accent transition-colors duration-150"
+          style={{ textOverflow: 'ellipsis' }}
+        >
+          {trip.title}
+        </h3>
+
+        {/* Route chain — single line, truncate */}
+        {destNames.length > 0 && (
+          <div
+            className="relative mt-1.5 font-mono text-[11px] text-text-tertiary overflow-hidden whitespace-nowrap"
+            style={{ textOverflow: 'ellipsis' }}
+          >
+            {visibleNames.map((name, i) => (
+              <span key={i}>
+                {i > 0 && <span className="text-text-mist mx-[3px]">→</span>}
+                <span>{name}</span>
+              </span>
+            ))}
+            {overflow > 0 && (
+              <span className="text-text-ghost ml-1">+{overflow}</span>
+            )}
           </div>
         )}
       </div>
 
       {/* Bottom metadata bar */}
-      <div className="flex items-center justify-between px-3 py-2 border-t border-border-subtle bg-bg-page">
-        <MetadataLine items={[
-          `${dests.length} dest`,
-          ...(trip.start_date && trip.end_date ? [formatDateRange(trip.start_date, trip.end_date)] : []),
-        ]} className="!text-[10px]" />
-        <StatusBadge status={trip.status} />
+      <div className="flex items-center justify-between px-4 py-2 border-t border-border-subtle bg-bg-page">
+        <span className="font-mono text-[10px] text-text-tertiary">
+          {trip.start_date && trip.end_date && (
+            <>{Math.round((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / 86400000) + 1}d<span className="text-text-mist mx-1">·</span></>
+          )}
+          {dests.length} save{dests.length !== 1 ? 's' : ''}
+        </span>
+        <div className="flex gap-1">
+          {/* Top 1-2 category pills */}
+          {(() => {
+            const cats = [...new Set(dests.map((d) => d.location_type ?? 'city'))]
+            return cats.slice(0, 2).map((cat) => (
+              <span key={cat} className="font-mono text-[9px] font-medium text-text-tertiary bg-bg-pill-dark rounded px-1.5 py-[2px] leading-none">
+                {cat}
+              </span>
+            ))
+          })()}
+        </div>
       </div>
     </Link>
   )
@@ -980,25 +985,30 @@ function PhaseCarousel({ phaseKey, trips, onNewTrip }: { phaseKey: string; trips
   const config = phaseConfig[phaseKey] ?? { title: phaseKey, description: '' }
   return (
     <div>
-      <div className="flex items-baseline justify-between mb-2">
+      {/* Section header */}
+      <div className="flex items-baseline justify-between mb-3.5">
         <div>
           <h3 className="text-[17px] font-semibold text-text-primary">{config.title}</h3>
-          <p className="font-mono text-[11px] text-text-tertiary">{config.description}</p>
+          <p className="mt-[3px] font-mono text-[11px] text-text-tertiary">{config.description}</p>
         </div>
         <span className="font-mono text-[11px] text-text-faint">{trips.length}</span>
       </div>
+
+      {/* Card row — edge-to-edge scroll, first card aligns with page 20px padding */}
       <div className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-3.5 -mx-5 px-5 pb-1">
         {trips.map((trip, i) => (
           <CarouselTripCard key={trip.id} trip={trip} index={i} />
         ))}
-        {/* Dashed add card */}
-        <DashedCard
+
+        {/* Dashed "New trip" card */}
+        <div
           onClick={onNewTrip}
-          className="w-[260px] shrink-0 snap-start flex flex-col items-center justify-center h-[254px] gap-2 cursor-pointer"
+          className="w-[200px] shrink-0 snap-start rounded-xl border-[1.5px] border-dashed border-border-dashed bg-transparent flex flex-col items-center justify-center cursor-pointer transition-all duration-150 hover:border-accent hover:bg-accent-light"
+          style={{ minHeight: 180 }}
         >
-          <Plus className="w-5 h-5 text-text-faint" />
-          <span className="font-mono text-[11px] font-medium text-text-faint">New trip</span>
-        </DashedCard>
+          <span className="font-mono text-[18px] font-light text-border-dashed">+</span>
+          <span className="font-mono text-[11px] text-text-faint mt-1">New trip</span>
+        </div>
       </div>
     </div>
   )
@@ -1062,12 +1072,12 @@ export default function TripsPage() {
   const totalDests = useMemo(() => trips.reduce((s, t) => s + (t.trip_destinations?.length ?? 0), 0), [trips])
 
   return (
-    <div className="px-5 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+    <div className="max-w-[860px] mx-auto px-5 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       {/* ── Header ── */}
       <BrandMark className="mb-2 block" />
       <h1 className="text-[32px] font-bold leading-[1.2] tracking-[-0.5px] text-text-primary">Trips</h1>
       {trips.length > 0 && (
-        <div className="mt-1">
+        <div className="mt-1.5">
           <MetadataLine items={[
             `${trips.length} trip${trips.length !== 1 ? 's' : ''}`,
             `${totalCountries} ${totalCountries === 1 ? 'country' : 'countries'}`,
@@ -1076,7 +1086,7 @@ export default function TripsPage() {
         </div>
       )}
 
-      {/* Action button */}
+      {/* Action button — below metadata, never inline with title */}
       <div className="mt-5">
         <PrimaryButton onClick={() => setShowModal(true)}>
           <Plus className="w-4 h-4" />
@@ -1085,7 +1095,7 @@ export default function TripsPage() {
       </div>
 
       {/* ── Divider ── */}
-      <div className="mt-4 mb-4 border-t border-border" />
+      <div className="mt-5 mb-5 border-t border-border" />
 
       {/* ── Loading Skeletons ── */}
       {loading && (
@@ -1101,7 +1111,7 @@ export default function TripsPage() {
       {!loading && trips.length === 0 && (
         <div className="mt-4" onClick={() => setShowModal(true)}>
           <DashedCard className="flex flex-col items-center justify-center py-20 px-6 cursor-pointer text-center">
-            <span className="font-mono text-[32px] text-text-faint opacity-25 block mb-3">🗺</span>
+            <span className="font-mono text-[28px] text-text-faint opacity-25 block mb-3">↗</span>
             <p className="text-[15px] font-semibold text-text-secondary">Plan your first trip</p>
             <p className="mt-1.5 font-mono text-xs text-text-ghost max-w-xs">
               Create a trip to start organizing your destinations and saves
@@ -1112,7 +1122,7 @@ export default function TripsPage() {
 
       {/* ── Trip Content ── */}
       {!loading && trips.length > 0 && (
-        <div className="space-y-6">
+        <div className="space-y-7">
           {/* Featured Trip Hero */}
           {featuredTrip && <FeaturedTripHero trip={featuredTrip} />}
 
