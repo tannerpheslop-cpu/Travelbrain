@@ -11,7 +11,6 @@ import LocationAutocomplete, { type LocationSelection } from '../components/Loca
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import { BrandMark, CountryCodeBadge, StatusBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton } from '../components/ui'
-import TripContextMenu from '../components/TripContextMenu'
 import DestinationCard from '../components/DestinationCard'
 import CalendarRangePicker from '../components/CalendarRangePicker'
 import RouteCard from '../components/RouteCard'
@@ -781,6 +780,7 @@ export default function TripOverviewPage() {
   // Modals
   const [showShareModal, setShowShareModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
+  const [showActionMenu, setShowActionMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [datePickerDestId, setDatePickerDestId] = useState<string | null>(null)
@@ -1458,18 +1458,7 @@ export default function TripOverviewPage() {
           <BrandMark />
         </div>
 
-        {/* Trip title — context menu for pin/delete */}
-        <TripContextMenu
-          isPinned={trip?.is_favorited ?? false}
-          onPin={async () => {
-            if (!trip) return
-            const newVal = !trip.is_favorited
-            setTrip({ ...trip, is_favorited: newVal })
-            await supabase.from('trips').update({ is_favorited: false }).eq('owner_id', trip.owner_id).eq('is_favorited', true)
-            if (newVal) await supabase.from('trips').update({ is_favorited: true }).eq('id', trip.id)
-          }}
-          onDelete={() => setShowDeleteConfirm(true)}
-        >
+        {/* Trip title */}
         {editingTitle ? (
           <input
             ref={titleInputRef}
@@ -1497,7 +1486,6 @@ export default function TripOverviewPage() {
           {trip && <StatusBadge status={trip.status} />}
           {metadataItems.length > 0 && <MetadataLine items={metadataItems} />}
         </div>
-        </TripContextMenu>
 
         {/* Action buttons (below metadata) */}
         <div className="flex items-center gap-2 mt-5">
@@ -1521,6 +1509,59 @@ export default function TripOverviewPage() {
               </span>
             )}
           </SecondaryButton>
+
+          {/* ··· action menu */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowActionMenu(o => !o)}
+              style={{
+                background: '#ffffff', border: '1px solid #e0ddd7', borderRadius: 8,
+                padding: '9px 14px', cursor: 'pointer', fontSize: 16, fontWeight: 500,
+                color: '#6b6860', letterSpacing: 2, fontFamily: "'DM Sans', sans-serif", lineHeight: 1,
+              }}
+            >···</button>
+            {showActionMenu && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowActionMenu(false)} />
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
+                  background: '#ffffff', border: '1px solid #e8e6e1', borderRadius: 10,
+                  boxShadow: '0 4px 20px rgba(0,0,0,0.1)', padding: '6px 0', minWidth: 180,
+                }}>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setShowActionMenu(false)
+                      if (!trip) return
+                      const newVal = !trip.is_favorited
+                      setTrip({ ...trip, is_favorited: newVal })
+                      await supabase.from('trips').update({ is_favorited: false }).eq('owner_id', trip.owner_id).eq('is_favorited', true)
+                      if (newVal) await supabase.from('trips').update({ is_favorited: true }).eq('id', trip.id)
+                    }}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
+                      fontSize: 14, color: '#2a2a28', cursor: 'pointer', border: 'none',
+                      background: 'transparent', fontFamily: "'DM Sans', sans-serif",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#f5f3f0')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >{trip?.is_favorited ? 'Unpin' : 'Pin to top'}</button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowActionMenu(false); setShowDeleteConfirm(true) }}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
+                      fontSize: 14, color: '#c0392b', cursor: 'pointer', border: 'none',
+                      background: 'transparent', fontFamily: "'DM Sans', sans-serif",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#fdf0ef')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >Delete trip</button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
