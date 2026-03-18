@@ -335,6 +335,7 @@ export default function RouteOverviewPage() {
                 value=""
                 onSelect={handleAddDest}
                 placeholder="Search for a city or country…"
+                placesTypes={['(regions)']}
               />
               {addingDest && (
                 <div className="flex items-center gap-2 mt-2 text-xs text-text-faint">
