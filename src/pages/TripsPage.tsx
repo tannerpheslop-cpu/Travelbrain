@@ -35,17 +35,6 @@ function getTripFlag(trip: TripWithDestinations): string {
   return code ? countryCodeToFlag(code) : '🌍'
 }
 
-/** Count unique countries in a trip */
-function getTripCountryCount(trip: TripWithDestinations): number {
-  const codes = new Set(trip.trip_destinations?.map(d => d.location_country_code).filter(Boolean) ?? [])
-  return codes.size
-}
-
-/** Get total saves across all destinations */
-function getTripSaveCount(trips: TripWithDestinations[]): number {
-  // This is approximate — we don't have save counts on the client here
-  return trips.reduce((sum, t) => sum + (t.trip_destinations?.length ?? 0), 0)
-}
 
 /** Keep only the first segment of a Google Places name, e.g. "Chengdu, Sichuan, China" → "Chengdu" */
 function shortDestName(locationName: string): string {
@@ -110,7 +99,7 @@ function TripCard({
 
   const gradient = gradients[index % gradients.length]
   const dests = trip.trip_destinations ?? []
-  const resolvedDestImage = useFirstDestinationImage(dests)
+  const [resolvedDestImage] = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
   const flag = getTripFlag(trip)
   const chapterNum = String(index + 2).padStart(2, '0') // hero is 01
@@ -767,7 +756,7 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
   const [coverImgFailed, setCoverImgFailed] = useState(false)
   const [coverImgLoaded, setCoverImgLoaded] = useState(false)
   const dests = trip.trip_destinations ?? []
-  const resolvedDestImage = useFirstDestinationImage(dests)
+  const [resolvedDestImage] = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
   const flag = getTripFlag(trip)
   const destNames = dests.map((d) => shortDestName(d.location_name))
@@ -853,7 +842,7 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
   const [coverImgLoaded, setCoverImgLoaded] = useState(false)
   const gradient = gradients[index % gradients.length]
   const dests = trip.trip_destinations ?? []
-  const resolvedDestImage = useFirstDestinationImage(dests)
+  const [resolvedDestImage] = useFirstDestinationImage(dests)
   const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
   const flag = getTripFlag(trip)
   const chapterNum = String(index + 1).padStart(2, '0')

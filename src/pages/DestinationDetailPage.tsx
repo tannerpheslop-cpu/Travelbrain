@@ -730,7 +730,7 @@ export default function DestinationDetailPage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [canEdit, setCanEdit] = useState(false)
-  const heroImageUrl = useDestinationImage(destId, destination?.image_url, destination?.location_place_id)
+  const [heroImageUrl] = useDestinationImage(destId, destination?.image_url, destination?.location_place_id)
 
   // Linked items
   const [linkedItems, setLinkedItems] = useState<LinkedItem[]>([])

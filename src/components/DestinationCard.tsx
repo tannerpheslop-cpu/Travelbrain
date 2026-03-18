@@ -41,7 +41,7 @@ export default function DestinationCard({
   onAddDates, onDatesTap, onLongPress,
 }: DestinationCardProps) {
   const gradient = gradients[index % gradients.length]
-  const resolvedImageUrl = useDestinationImage(destination.id, destination.image_url, destination.location_place_id)
+  const [resolvedImageUrl] = useDestinationImage(destination.id, destination.image_url, destination.location_place_id)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const touchStart = useRef<{ x: number; y: number } | null>(null)
   const longPressFired = useRef(false)
