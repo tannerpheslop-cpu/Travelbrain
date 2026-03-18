@@ -898,7 +898,7 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
       className="group block w-[260px] shrink-0 snap-start rounded-xl bg-bg-card border border-border overflow-hidden transition-all duration-150 ease-out hover:border-[#c45a2d40] hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
     >
       {/* Top content area */}
-      <div className="relative overflow-hidden px-4 pt-4 pb-3">
+      <div className="relative overflow-hidden" style={{ padding: '16px 16px 12px' }}>
         {/* Watermark number */}
         <span
           className="absolute pointer-events-none select-none font-mono text-[56px] font-extrabold leading-none text-border-subtle group-hover:text-accent-med transition-colors duration-150"
@@ -909,7 +909,7 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
 
         {/* Country code badges */}
         {countryCodes.length > 0 && (
-          <div className="relative flex gap-1 mb-2">
+          <div className="relative flex gap-1" style={{ marginBottom: 10 }}>
             {countryCodes.map((code) => (
               <span
                 key={code}
@@ -932,8 +932,8 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
         {/* Route chain — single line, truncate */}
         {destNames.length > 0 && (
           <div
-            className="relative mt-1.5 font-mono text-[11px] text-text-tertiary overflow-hidden whitespace-nowrap"
-            style={{ textOverflow: 'ellipsis' }}
+            className="relative font-mono text-[11px] text-text-tertiary overflow-hidden whitespace-nowrap"
+            style={{ textOverflow: 'ellipsis', marginTop: 8 }}
           >
             {visibleNames.map((name, i) => (
               <span key={i}>
@@ -948,8 +948,8 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
         )}
       </div>
 
-      {/* Bottom metadata bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-t border-border-subtle bg-bg-page">
+      {/* Bottom metadata bar — thin footer strip */}
+      <div className="flex items-center justify-between border-t border-border-subtle bg-bg-page" style={{ padding: '8px 16px' }}>
         <span className="font-mono text-[10px] text-text-tertiary">
           {trip.start_date && trip.end_date && (
             <>{Math.round((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / 86400000) + 1}d<span className="text-text-mist mx-1">·</span></>
