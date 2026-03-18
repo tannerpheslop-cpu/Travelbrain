@@ -23,6 +23,9 @@ interface Props {
   className?: string
   label?: string
   optional?: boolean
+  /** Google Places types filter. Use ['(regions)'] for destinations (cities/countries only).
+   *  Leave undefined for item locations (allows businesses + regions). */
+  placesTypes?: string[]
 }
 
 export default function LocationAutocomplete({
@@ -32,6 +35,7 @@ export default function LocationAutocomplete({
   className = '',
   label = 'Location',
   optional = true,
+  placesTypes,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
@@ -56,7 +60,7 @@ export default function LocationAutocomplete({
 
       const ac = new window.google.maps.places.Autocomplete(inputRef.current, {
         fields: ['formatted_address', 'geometry', 'name', 'place_id', 'address_components', 'types'],
-        // No 'types' filter — accepts countries, regions, and cities
+        ...(placesTypes ? { types: placesTypes } : {}),
       })
 
       ac.addListener('place_changed', () => {
@@ -138,7 +142,7 @@ export default function LocationAutocomplete({
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [placesTypes])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputValue(e.target.value)

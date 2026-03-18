@@ -1680,6 +1680,7 @@ export default function TripOverviewPage() {
                   key={addDestKey}
                   value=""
                   onSelect={handleAddDestination}
+                  placesTypes={['(regions)']}
                   label=""
                   optional={false}
                   placeholder="e.g. Beijing, Tokyo, France…"
@@ -1907,6 +1908,7 @@ export default function TripOverviewPage() {
                       label=""
                       optional={false}
                       placeholder="e.g. Beijing, Tokyo, France…"
+                      placesTypes={['(regions)']}
                     />
                     {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
                   </div>

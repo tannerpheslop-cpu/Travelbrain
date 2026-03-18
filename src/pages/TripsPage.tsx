@@ -364,6 +364,7 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                   label=""
                   optional={false}
                   placeholder="Search destinations..."
+                  placesTypes={['(regions)']}
                   className={clustersLoading || suggScope !== null ? 'rounded-t-xl rounded-b-none' : ''}
                 />
 
