@@ -80,6 +80,7 @@ export interface TripDestination {
   location_type: 'city' | 'country' | 'region'
   proximity_radius_km: number
   image_url: string | null
+  image_source: string | null
   start_date: string | null
   end_date: string | null
   notes: string | null
