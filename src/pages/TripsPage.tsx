@@ -748,150 +748,131 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
 // ── Featured Trip Hero ────────────────────────────────────────────────────────
 
 function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
-  const [coverImgFailed, setCoverImgFailed] = useState(false)
-  const [coverImgLoaded, setCoverImgLoaded] = useState(false)
+  const [imgLoaded, setImgLoaded] = useState(false)
+  const [imgFailed, setImgFailed] = useState(false)
   const dests = trip.trip_destinations ?? []
   const resolvedDestImage = useFirstDestinationImage(dests)
-  const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
+  const coverImage = !imgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
   const countryCode = getTripCountryCode(trip)
   const destNames = dests.map((d) => shortDestName(d.location_name))
-  const gradient = gradients[0]
+  const hasBgImage = !!coverImage
 
-  // If we have a cover image, use the full-bleed image layout
-  if (coverImage) {
-    return (
-      <Link
-        to={`/trip/${trip.id}`}
-        className="group block relative rounded-2xl overflow-hidden transition-all duration-150 ease-out hover:shadow-[0_8px_28px_rgba(0,0,0,0.10)]"
-        style={{ height: 210 }}
-      >
-        {/* Background image */}
-        <img
-          src={coverImage}
-          alt=""
-          className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
-          onLoad={() => setCoverImgLoaded(true)}
-          onError={() => setCoverImgFailed(true)}
-        />
-        {/* Gradient placeholder while loading */}
-        <div className={`absolute inset-0 bg-gradient-to-br ${gradient} ${coverImgLoaded ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`} />
-
-        {/* Bottom gradient scrim */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.65))' }}
-        />
-
-        {/* Watermark "01" top-right */}
-        <span className="absolute top-0 right-3 font-mono text-[100px] font-extrabold leading-none text-white/[0.15] pointer-events-none select-none">
-          01
-        </span>
-
-        {/* Country code badge top-left */}
-        {countryCode && (
-          <div className="absolute top-3 left-3">
-            <CountryCodeBadge code={countryCode} light />
-          </div>
-        )}
-
-        {/* Pin if featured */}
-        {trip.is_featured && (
-          <span className="absolute top-3 left-[60px] flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-accent text-white font-mono text-[8px] font-bold uppercase tracking-wider">
-            ★
-          </span>
-        )}
-
-        {/* Content at bottom */}
-        <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-6">
-          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.5px] text-accent">Up next</span>
-
-          <h2 className="mt-1 text-[24px] font-bold leading-[1.2] tracking-[-0.3px] text-white truncate" style={{ textShadow: '0 1px 4px rgba(0,0,0,0.3)' }}>
-            {trip.title}
-          </h2>
-
-          <div className="mt-2">
-            <MetadataLine
-              items={[
-                `${dests.length} destination${dests.length !== 1 ? 's' : ''}`,
-                ...(trip.status === 'scheduled' && trip.start_date && trip.end_date
-                  ? [formatDateRange(trip.start_date, trip.end_date)]
-                  : []),
-              ]}
-              className="!text-white/80"
-            />
-          </div>
-
-          {destNames.length > 0 && (
-            <div className="mt-2">
-              <RouteChain
-                destinations={destNames}
-                maxVisible={4}
-                className="[&_span.text-text-secondary]:!text-white/80 [&_span.text-text-mist]:!text-white/40 [&_.text-\\[13px\\]]:!text-white/80 [&_.text-\\[10px\\]]:!text-white/40"
-              />
-            </div>
-          )}
-
-          <div className="mt-3">
-            <StatusBadge status={trip.status} />
-          </div>
-        </div>
-      </Link>
-    )
-  }
-
-  // Fallback: no image — split layout with tinted left panel
   return (
     <Link
       to={`/trip/${trip.id}`}
-      className="group flex rounded-2xl border border-border overflow-hidden bg-bg-card transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_8px_28px_rgba(0,0,0,0.06)]"
+      className="group block relative rounded-2xl overflow-hidden cursor-pointer"
+      style={{ height: 210 }}
     >
-      {/* Left panel — country code + watermark */}
-      <div className="relative w-[140px] shrink-0 bg-bg-tinted flex flex-col items-center justify-center overflow-hidden">
-        {countryCode && <CountryCodeBadge code={countryCode} className="text-[18px] px-2.5 py-1" />}
-        <p className="mt-2 font-mono text-[10px] text-text-tertiary">
-          {dests.length} {dests.length === 1 ? 'city' : 'cities'}
-        </p>
-        {/* Watermark 01 */}
-        <span className="absolute bottom-0 right-0 font-mono text-[110px] font-extrabold leading-none text-border-subtle pointer-events-none select-none group-hover:text-accent-med transition-colors -mb-4 -mr-2">
-          01
+      {/* Background: image or tinted fallback */}
+      {hasBgImage ? (
+        <>
+          <img
+            src={coverImage!}
+            alt=""
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgFailed(true)}
+          />
+          {/* Gradient overlay — critical for text readability */}
+          <div
+            className="absolute inset-0"
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.7) 100%)' }}
+          />
+        </>
+      ) : (
+        <div className="absolute inset-0 bg-bg-tinted" />
+      )}
+
+      {/* Watermark "01" */}
+      <span
+        className="absolute pointer-events-none select-none font-mono text-[100px] font-extrabold leading-none"
+        style={{ top: -10, right: 10, color: hasBgImage ? 'rgba(255,255,255,0.15)' : 'var(--color-border-subtle)', zIndex: 1 }}
+      >
+        01
+      </span>
+
+      {/* Country code badge — top-left */}
+      {countryCode && (
+        <span
+          className="absolute font-mono text-[11px] font-bold tracking-[1px]"
+          style={{
+            top: 14, left: 14, zIndex: 2,
+            color: hasBgImage ? 'white' : 'var(--color-text-tertiary)',
+            background: hasBgImage ? 'rgba(255,255,255,0.2)' : 'var(--color-bg-pill)',
+            borderRadius: 4, padding: '3px 8px',
+          }}
+        >
+          {countryCode}
+        </span>
+      )}
+
+      {/* Content block — bottom */}
+      <div className="absolute bottom-0 left-0 right-0 p-5" style={{ zIndex: 2 }}>
+        {/* "UP NEXT" label */}
+        <span className="font-mono text-[9px] font-semibold uppercase tracking-[1px] text-accent">
+          UP NEXT
         </span>
 
-        {/* Pin if featured */}
-        {trip.is_featured && (
-          <span className="absolute top-2.5 left-2.5 flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-accent text-white font-mono text-[8px] font-bold uppercase tracking-wider">
-            ★
-          </span>
-        )}
-      </div>
+        {/* Trip name */}
+        <h2
+          className="mt-1 text-[24px] font-bold leading-[1.2] tracking-[-0.3px] truncate"
+          style={{ color: hasBgImage ? 'white' : 'var(--color-text-primary)' }}
+        >
+          {trip.title}
+        </h2>
 
-      {/* Right panel — trip info */}
-      <div className="flex-1 min-w-0 relative">
-        <div className="relative px-4 py-4 flex flex-col justify-center min-h-[160px]">
-          <span className="font-mono text-[9px] font-semibold uppercase tracking-[0.5px] text-accent">Up next</span>
-
-          <h2 className="mt-1 text-[24px] font-bold leading-[1.2] tracking-[-0.3px] text-text-primary truncate group-hover:text-accent transition-colors">
-            {trip.title}
-          </h2>
-
-          <div className="mt-2">
-            <MetadataLine items={[
-              `${dests.length} destination${dests.length !== 1 ? 's' : ''}`,
-              ...(trip.status === 'scheduled' && trip.start_date && trip.end_date
-                ? [formatDateRange(trip.start_date, trip.end_date)]
-                : []),
-            ]} />
-          </div>
-
-          {destNames.length > 0 && (
-            <div className="mt-2">
-              <RouteChain destinations={destNames} maxVisible={4} />
-            </div>
+        {/* Metadata */}
+        <p
+          className="mt-1 font-mono text-[11px]"
+          style={{ color: hasBgImage ? 'rgba(255,255,255,0.7)' : 'var(--color-text-tertiary)' }}
+        >
+          {dests.length} destination{dests.length !== 1 ? 's' : ''}
+          {trip.status === 'scheduled' && trip.start_date && trip.end_date && (
+            <>
+              <span style={{ color: hasBgImage ? 'rgba(255,255,255,0.4)' : 'var(--color-text-mist)', margin: '0 6px' }}>·</span>
+              {formatDateRange(trip.start_date, trip.end_date)}
+            </>
           )}
+        </p>
 
-          <div className="mt-3">
-            <StatusBadge status={trip.status} />
+        {/* Route chain */}
+        {destNames.length > 0 && (
+          <div className="mt-2 overflow-hidden whitespace-nowrap" style={{ textOverflow: 'ellipsis' }}>
+            {destNames.slice(0, 4).map((name, i) => (
+              <span key={i}>
+                {i > 0 && (
+                  <span
+                    className="font-mono text-[9px] mx-[5px]"
+                    style={{ color: hasBgImage ? 'rgba(255,255,255,0.4)' : 'var(--color-text-mist)' }}
+                  >→</span>
+                )}
+                <span
+                  className="text-[12px] font-medium"
+                  style={{ color: hasBgImage ? 'rgba(255,255,255,0.85)' : 'var(--color-text-secondary)' }}
+                >{name}</span>
+              </span>
+            ))}
+            {destNames.length > 4 && (
+              <span
+                className="font-mono text-[10px] ml-1.5"
+                style={{ color: hasBgImage ? 'rgba(255,255,255,0.4)' : 'var(--color-text-ghost)' }}
+              >+{destNames.length - 4}</span>
+            )}
           </div>
-        </div>
+        )}
+
+        {/* Status badge */}
+        <span
+          className="inline-block mt-2 font-mono text-[9px] font-semibold uppercase tracking-[0.5px]"
+          style={{
+            padding: '3px 8px',
+            borderRadius: 4,
+            background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'var(--color-accent-med)',
+            color: hasBgImage ? 'white' : 'var(--color-accent)',
+          }}
+        >
+          {trip.status === 'scheduled' ? 'Upcoming' : trip.status === 'planning' ? 'Planning' : 'Someday'}
+        </span>
       </div>
     </Link>
   )
@@ -1112,7 +1093,7 @@ export default function TripsPage() {
 
       {/* ── Trip Content ── */}
       {!loading && trips.length > 0 && (
-        <div className="space-y-6">
+        <div className="space-y-7">
           {/* Featured Trip Hero */}
           {featuredTrip && <FeaturedTripHero trip={featuredTrip} />}
 
