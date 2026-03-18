@@ -776,7 +776,7 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
           {/* Gradient overlay — critical for text readability */}
           <div
             className="absolute inset-0"
-            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.1) 0%, rgba(0,0,0,0.7) 100%)' }}
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.75) 100%)', zIndex: 1 }}
           />
         </>
       ) : (
@@ -786,7 +786,7 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
       {/* Watermark "01" */}
       <span
         className="absolute pointer-events-none select-none font-mono text-[100px] font-extrabold leading-none"
-        style={{ top: -10, right: 10, color: hasBgImage ? 'rgba(255,255,255,0.15)' : 'var(--color-border-subtle)', zIndex: 1 }}
+        style={{ top: -10, right: 10, color: hasBgImage ? 'rgba(255,255,255,0.15)' : 'var(--color-border-subtle)', zIndex: 2 }}
       >
         01
       </span>
@@ -796,7 +796,7 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
         <span
           className="absolute font-mono text-[11px] font-bold tracking-[1px]"
           style={{
-            top: 14, left: 14, zIndex: 2,
+            top: 14, left: 14, zIndex: 3,
             color: hasBgImage ? 'white' : 'var(--color-text-tertiary)',
             background: hasBgImage ? 'rgba(255,255,255,0.2)' : 'var(--color-bg-pill)',
             borderRadius: 4, padding: '3px 8px',
@@ -807,7 +807,7 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
       )}
 
       {/* Content block — bottom */}
-      <div className="absolute bottom-0 left-0 right-0 p-5" style={{ zIndex: 2 }}>
+      <div className="absolute bottom-0 left-0 right-0 p-5" style={{ zIndex: 3 }}>
         {/* "UP NEXT" label */}
         <span className="font-mono text-[9px] font-semibold uppercase tracking-[1px] text-accent">
           UP NEXT
