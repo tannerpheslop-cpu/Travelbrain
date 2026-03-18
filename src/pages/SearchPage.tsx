@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Map, Compass, Clock, Sparkles } from 'lucide-react'
-import { BrandMark } from '../components/ui'
+import { BrandMark, CountryCodeBadge } from '../components/ui'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
@@ -11,11 +11,6 @@ import type { SavedItem, Trip, TripDestination } from '../types'
 
 interface TripWithDestinations extends Trip {
   trip_destinations: TripDestination[]
-}
-
-/** Convert a two-letter country code to its flag emoji. */
-function countryCodeToFlag(code: string): string {
-  return [...code.toUpperCase()].map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')
 }
 
 const RECENT_SEARCHES_KEY = 'youji-recent-searches'
@@ -238,8 +233,9 @@ export default function SearchPage() {
                     >
                       <Sparkles className="w-5 h-5 text-accent shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-text-primary">
-                          {countryCodeToFlag(cluster.country_code)} You have {cluster.item_count} saves in {cluster.country}
+                        <p className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+                          <CountryCodeBadge code={cluster.country_code} />
+                          <span>You have {cluster.item_count} saves in {cluster.country}</span>
                         </p>
                         <p className="text-xs text-text-tertiary mt-0.5">
                           {cluster.cities.map((c) => c.name).join(', ')} — Create a trip?

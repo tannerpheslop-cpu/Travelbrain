@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import SavedItemImage from '../components/SavedItemImage'
 import { RenderedMarkdown } from '../components/MarkdownNotes'
-import { BrandMark, CategoryPill, MetadataLine, PrimaryButton, SecondaryButton } from '../components/ui'
+import { BrandMark, CategoryPill, CountryCodeBadge, MetadataLine, PrimaryButton, SecondaryButton } from '../components/ui'
 import type { Trip, TripDestination, SavedItem } from '../types'
 
 // ── Local types ────────────────────────────────────────────────────────────────
@@ -28,13 +28,6 @@ interface SharedGeneralItem {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function countryCodeToFlag(code: string): string {
-  if (!code || code.length !== 2) return ''
-  return code.toUpperCase().split('').map(c =>
-    String.fromCodePoint(c.charCodeAt(0) - 0x41 + 0x1F1E6)
-  ).join('')
-}
 
 function formatDateRange(start: string, end: string): string {
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
@@ -97,7 +90,6 @@ function DestRow({
   itemCount: number
   showDates: boolean
 }) {
-  const flag = dest.location_country_code ? countryCodeToFlag(dest.location_country_code) : ''
   const num = String(index + 1).padStart(2, '0')
 
   return (
@@ -109,7 +101,7 @@ function DestRow({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-1.5">
-          {flag && <span className="text-sm">{flag}</span>}
+          {dest.location_country_code && <CountryCodeBadge code={dest.location_country_code} />}
           <span className="text-[14px] font-semibold text-text-primary truncate">
             {shortName(dest.location_name)}
           </span>
@@ -264,7 +256,7 @@ function ShareCard({
 
   // Metadata items
   const meta: string[] = []
-  if (firstCountryCode) meta.push(`${countryCodeToFlag(firstCountryCode)} ${countries.size === 1 ? [...countries][0] : `${countries.size} countries`}`)
+  if (firstCountryCode) meta.push(`[${firstCountryCode.toUpperCase()}] ${countries.size === 1 ? [...countries][0] : `${countries.size} countries`}`)
   meta.push(`${destCount} destination${destCount !== 1 ? 's' : ''}`)
   if (showDates && trip.start_date && trip.end_date) {
     meta.push(`${dayCount(trip.start_date, trip.end_date)} days`)
@@ -516,7 +508,7 @@ export default function SharedTripPage() {
   if (notFound || !trip) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen px-6 bg-bg-page text-center">
-        <span className="font-mono text-[32px] text-text-faint opacity-25 block mb-4">✈</span>
+        <span className="font-mono text-[32px] text-text-faint opacity-25 block mb-4">--</span>
         <h1 className="text-[24px] font-bold text-text-primary">Trip not found</h1>
         <p className="mt-2 text-sm text-text-faint max-w-xs leading-relaxed">
           This share link is invalid or has expired.

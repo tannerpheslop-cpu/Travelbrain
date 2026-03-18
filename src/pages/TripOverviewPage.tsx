@@ -10,7 +10,7 @@ import type { Trip, TripDestination, TripNote, TripRoute, SharePrivacy } from '.
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
-import { BrandMark, StatusBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton } from '../components/ui'
+import { BrandMark, CountryCodeBadge, StatusBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton } from '../components/ui'
 import DestinationCard from '../components/DestinationCard'
 import CalendarRangePicker from '../components/CalendarRangePicker'
 import RouteCard from '../components/RouteCard'
@@ -48,13 +48,6 @@ type OverviewEntry =
 type TabId = 'destinations' | 'itinerary' | 'logistics'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-function countryCodeToFlag(code: string): string {
-  if (!code || code.length !== 2) return ''
-  return code.toUpperCase().split('').map(c =>
-    String.fromCodePoint(c.charCodeAt(0) - 0x41 + 0x1F1E6)
-  ).join('')
-}
 
 function formatDateRange(start: string, end: string): string {
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric', year: 'numeric' }
@@ -96,10 +89,10 @@ function getEntryId(entry: OverviewEntry): string {
 
 // ── Share Trip Modal ───────────────────────────────────────────────────────────
 
-const privacyOptions: { value: SharePrivacy; label: string; emoji: string; description: string }[] = [
-  { value: 'city_only',  label: 'City Only',      emoji: '🏙️', description: 'Trip name and cities only — no dates or items' },
-  { value: 'city_dates', label: 'City + Dates',   emoji: '📅', description: 'Trip name, cities, and date range' },
-  { value: 'full',       label: 'Full Itinerary', emoji: '✈️', description: 'Everything — all items and the day-by-day plan' },
+const privacyOptions: { value: SharePrivacy; label: string; icon: string; description: string }[] = [
+  { value: 'city_only',  label: 'City Only',      icon: 'C', description: 'Trip name and cities only — no dates or items' },
+  { value: 'city_dates', label: 'City + Dates',   icon: 'D', description: 'Trip name, cities, and date range' },
+  { value: 'full',       label: 'Full Itinerary', icon: 'F', description: 'Everything — all items and the day-by-day plan' },
 ]
 
 function ShareTripModal({ trip, onClose, onUpdated }: { trip: Trip; onClose: () => void; onUpdated: (updated: Trip) => void }) {
@@ -159,7 +152,7 @@ function ShareTripModal({ trip, onClose, onUpdated }: { trip: Trip; onClose: () 
                 <button key={opt.value} type="button" onClick={() => { setPrivacy(opt.value); setShareUrl(null) }}
                   className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border text-xs font-medium transition-colors ${privacy === opt.value ? 'border-accent bg-accent-light text-accent' : 'border-border text-text-secondary hover:bg-bg-page'}`}
                 >
-                  <span className="text-base">{opt.emoji}</span>
+                  <span className="font-mono text-[11px] font-bold text-text-faint">{opt.icon}</span>
                   {opt.label}
                 </button>
               ))}
@@ -582,7 +575,7 @@ function AddDestSuggestionList({
   onSelect,
   disabled = false,
 }: {
-  suggestions: Array<{ key: string; label: string; flag: string; itemCount: number; loc: LocationSelection }>
+  suggestions: Array<{ key: string; label: string; countryCode: string; itemCount: number; loc: LocationSelection }>
   onSelect: (loc: LocationSelection) => void
   disabled?: boolean
 }) {
@@ -595,7 +588,7 @@ function AddDestSuggestionList({
           className={`flex items-center justify-between px-3 py-2 ${i > 0 ? 'border-t border-border-subtle' : ''}`}
         >
           <span className="flex items-center gap-1.5 text-sm text-text-secondary min-w-0">
-            <span className="text-base leading-none shrink-0">{s.flag}</span>
+            <CountryCodeBadge code={s.countryCode} />
             <span className="truncate">{s.label}</span>
             <span className="text-xs text-text-faint shrink-0">· {s.itemCount}</span>
           </span>
@@ -672,7 +665,7 @@ function ItineraryTab({ destinations }: { destinations: DestWithCount[] }) {
   if (datedDests.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16">
-        <span className="font-mono text-[28px] text-text-faint opacity-25 mb-3">📅</span>
+        <span className="font-mono text-[28px] text-text-faint opacity-25 mb-3">--</span>
         <p className="text-sm text-text-faint">No dates set yet</p>
         <p className="font-mono text-xs text-text-ghost mt-1">Set dates on your destinations to see the timeline</p>
       </div>
@@ -778,10 +771,10 @@ export default function TripOverviewPage() {
   const inboxClustersRef = useRef<CountryCluster[]>([])
   const [clustersLoaded, setClustersLoaded] = useState(false)
   const [frozenSuggestions, setFrozenSuggestions] = useState<Array<{
-    key: string; label: string; flag: string; itemCount: number; loc: LocationSelection
+    key: string; label: string; countryCode: string; itemCount: number; loc: LocationSelection
   }>>([])
   const [tripPageSuggestions, setTripPageSuggestions] = useState<Array<{
-    key: string; label: string; flag: string; itemCount: number; loc: LocationSelection
+    key: string; label: string; countryCode: string; itemCount: number; loc: LocationSelection
   }>>([])
 
   // Modals
@@ -811,14 +804,14 @@ export default function TripOverviewPage() {
       const clusters = inboxClustersRef.current
       if (!clusters.length) return []
       const existingCodes = new Set(currentDests.map((d) => d.location_country_code))
-      const suggs: Array<{ key: string; label: string; flag: string; itemCount: number; loc: LocationSelection }> = []
+      const suggs: Array<{ key: string; label: string; countryCode: string; itemCount: number; loc: LocationSelection }> = []
       for (const cluster of clusters) {
         if (!existingCodes.has(cluster.country_code)) {
           const singleCity = cluster.cities.length === 1 ? cluster.cities[0] : null
           suggs.push({
             key: `country-${cluster.country_code}`,
             label: singleCity ? singleCity.name : cluster.country,
-            flag: countryCodeToFlag(cluster.country_code),
+            countryCode: cluster.country_code,
             itemCount: cluster.item_count,
             loc: {
               name: singleCity ? singleCity.name : cluster.country,
@@ -844,7 +837,7 @@ export default function TripOverviewPage() {
               suggs.push({
                 key: `city-${city.place_id}`,
                 label: city.name,
-                flag: countryCodeToFlag(cluster.country_code),
+                countryCode: cluster.country_code,
                 itemCount: city.item_count,
                 loc: {
                   name: city.name,
@@ -934,10 +927,10 @@ export default function TripOverviewPage() {
     if (countries.size === 1) {
       const country = Array.from(countries)[0]
       const code = Array.from(codes)[0]
-      return { name: country, flag: countryCodeToFlag(code) }
+      return { name: country, code }
     }
     if (countries.size > 1) {
-      return { name: `${countries.size} countries`, flag: '' }
+      return { name: `${countries.size} countries`, code: '' }
     }
     return null
   }, [destinations])
@@ -1108,7 +1101,7 @@ export default function TripOverviewPage() {
           suggestions.push({
             key: `country-${cluster.country_code}`,
             label: singleCity ? singleCity.name : cluster.country,
-            flag: countryCodeToFlag(cluster.country_code),
+            countryCode: cluster.country_code,
             itemCount: cluster.item_count,
             loc: {
               name: singleCity ? singleCity.name : cluster.country,
@@ -1134,7 +1127,7 @@ export default function TripOverviewPage() {
               suggestions.push({
                 key: `city-${city.place_id}`,
                 label: city.name,
-                flag: countryCodeToFlag(cluster.country_code),
+                countryCode: cluster.country_code,
                 itemCount: city.item_count,
                 loc: {
                   name: city.name,
@@ -1432,7 +1425,7 @@ export default function TripOverviewPage() {
 
   const metadataItems: string[] = []
   if (primaryCountry) {
-    metadataItems.push(primaryCountry.flag ? `${primaryCountry.flag} ${primaryCountry.name}` : primaryCountry.name)
+    metadataItems.push(primaryCountry.code ? `[${primaryCountry.code}] ${primaryCountry.name}` : primaryCountry.name)
   }
   if (destinations.length > 0) {
     metadataItems.push(`${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`)
@@ -1604,7 +1597,7 @@ export default function TripOverviewPage() {
                           )}
                           {showCountryHeader && (
                             <div className={`flex items-center gap-2 ${i > 0 ? 'mt-5' : ''} mb-3`}>
-                              <span className="text-lg leading-none">{countryCodeToFlag(countryCode)}</span>
+                              <CountryCodeBadge code={countryCode} />
                               <span className="font-mono text-[11px] font-bold tracking-[2px] text-text-faint">
                                 {spacedCountryName(country)}
                               </span>
