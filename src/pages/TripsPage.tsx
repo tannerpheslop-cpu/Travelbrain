@@ -995,7 +995,10 @@ function PhaseCarousel({ phaseKey, trips, onNewTrip }: { phaseKey: string; trips
       </div>
 
       {/* Card row — edge-to-edge scroll, first card aligns with page 20px padding */}
-      <div className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory gap-3.5 -mx-5 px-5 pb-1">
+      <div
+        className="flex overflow-x-auto scrollbar-hide gap-3.5 pb-1"
+        style={{ marginLeft: -20, marginRight: -20, paddingLeft: 20, paddingRight: 20, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
+      >
         {trips.map((trip, i) => (
           <CarouselTripCard key={trip.id} trip={trip} index={i} />
         ))}
