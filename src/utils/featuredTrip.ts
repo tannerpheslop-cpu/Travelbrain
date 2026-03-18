@@ -2,15 +2,20 @@ import type { TripWithDestinations } from '../hooks/useTrips'
 
 /**
  * Select the featured trip using priority cascade:
- * 1. User-pinned (is_featured = true)
- * 2. Nearest upcoming (scheduled) trip by start_date
- * 3. Most recently edited planning trip
- * 4. Most recently edited someday (aspirational) trip
+ * 1. User-favorited (is_favorited = true) — always wins
+ * 2. User-pinned (is_featured = true)
+ * 3. Nearest upcoming (scheduled) trip by start_date
+ * 4. Most recently edited planning trip
+ * 5. Most recently edited someday (aspirational) trip
  */
 export function selectFeaturedTrip(trips: TripWithDestinations[]): TripWithDestinations | null {
   if (trips.length === 0) return null
 
-  // 1. User-pinned
+  // 1. User-favorited — always the hero card
+  const favorited = trips.find((t) => t.is_favorited)
+  if (favorited) return favorited
+
+  // 2. User-pinned
   const pinned = trips.find((t) => t.is_featured)
   if (pinned) return pinned
 

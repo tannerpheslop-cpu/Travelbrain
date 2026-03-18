@@ -12,6 +12,7 @@ import type { SavedItem } from '../types'
 import { supabase } from '../lib/supabase'
 import { Plus } from 'lucide-react'
 import { CategoryPill, DashedCard } from '../components/ui'
+import TripContextMenu from '../components/TripContextMenu'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -732,6 +733,14 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
               background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'rgba(196,90,45,0.13)',
               color: hasBgImage ? 'white' : '#c45a2d',
             }}>{statusLabel(trip.status)}</span>
+            {trip.is_favorited && (
+              <span style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
+                letterSpacing: 0.5, textTransform: 'uppercase' as const, padding: '3px 8px', borderRadius: 4,
+                background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'rgba(196,90,45,0.13)',
+                color: hasBgImage ? 'white' : '#c45a2d', marginLeft: 6,
+              }}>PINNED</span>
+            )}
           </div>
         </div>
         {/* Unsplash attribution */}
@@ -749,7 +758,7 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
 
 // ── Carousel Card (white, NO background image) ──────────────────────────────
 
-function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalNum: number }) {
+function CarouselCard({ trip, globalNum, onPin, onDelete }: { trip: TripWithDestinations; globalNum: number; onPin: () => void; onDelete: () => void }) {
   const dests = trip.trip_destinations ?? []
   const num = String(globalNum).padStart(2, '0')
   const countryCodes = [...new Set(dests.map(d => d.location_country_code).filter(Boolean))] as string[]
@@ -758,6 +767,7 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
   const overflow = destNames.length - 4
 
   return (
+    <TripContextMenu isPinned={trip.is_favorited} onPin={onPin} onDelete={onDelete}>
     <Link
       to={`/trip/${trip.id}`}
       className="group"
@@ -820,6 +830,12 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
           {dests.length} dest · {dests.length} saves
         </span>
         <div style={{ display: 'flex', gap: 3 }}>
+          {trip.is_favorited && (
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 500,
+              padding: '2px 5px', borderRadius: 3, background: '#c45a2d22', color: '#c45a2d',
+            }}>PINNED</span>
+          )}
           {[...new Set(dests.map(d => d.location_type ?? 'city'))].slice(0, 2).map(cat => (
             <span key={cat} style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 500,
@@ -829,6 +845,7 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
         </div>
       </div>
     </Link>
+    </TripContextMenu>
   )
 }
 
@@ -840,8 +857,9 @@ const phaseConfig: Record<string, { title: string; description: string }> = {
   aspirational: { title: 'Someday',   description: 'Ideas for future adventures' },
 }
 
-function PhaseCarousel({ phaseKey, trips, startNum, onNewTrip }: {
+function PhaseCarousel({ phaseKey, trips, startNum, onNewTrip, onPin, onDelete }: {
   phaseKey: string; trips: TripWithDestinations[]; startNum: number; onNewTrip: () => void
+  onPin: (trip: TripWithDestinations) => void; onDelete: (trip: TripWithDestinations) => void
 }) {
   if (trips.length === 0) return null
   const config = phaseConfig[phaseKey] ?? { title: phaseKey, description: '' }
@@ -861,7 +879,7 @@ function PhaseCarousel({ phaseKey, trips, startNum, onNewTrip }: {
         scrollbarWidth: 'none' as const, WebkitOverflowScrolling: 'touch' as const,
       }}>
         {trips.map((trip, i) => (
-          <CarouselCard key={trip.id} trip={trip} globalNum={startNum + i} />
+          <CarouselCard key={trip.id} trip={trip} globalNum={startNum + i} onPin={() => onPin(trip)} onDelete={() => onDelete(trip)} />
         ))}
         {/* Dashed "New trip" */}
         <div
@@ -887,9 +905,31 @@ function PhaseCarousel({ phaseKey, trips, startNum, onNewTrip }: {
 // ══════════════════════════════════════════════════════════════════════════════
 
 export default function TripsPage() {
-  const { trips, loading, createTrip, createDestination } = useTrips()
+  const { trips, loading, createTrip, createDestination, toggleFavorite } = useTrips()
   const [showModal, setShowModal] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<TripWithDestinations | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const navigate = useNavigate()
+
+  const handlePin = useCallback(async (trip: TripWithDestinations) => {
+    await toggleFavorite(trip.id, !trip.is_favorited)
+  }, [toggleFavorite])
+
+  const handleDeleteConfirm = useCallback(async () => {
+    if (!deleteTarget) return
+    setDeleting(true)
+    const destIds = (deleteTarget.trip_destinations ?? []).map(d => d.id)
+    if (destIds.length > 0) await supabase.from('destination_items').delete().in('destination_id', destIds)
+    await supabase.from('trip_general_items').delete().eq('trip_id', deleteTarget.id)
+    await supabase.from('comments').delete().eq('trip_id', deleteTarget.id)
+    await supabase.from('votes').delete().eq('trip_id', deleteTarget.id)
+    await supabase.from('companions').delete().eq('trip_id', deleteTarget.id)
+    await supabase.from('trip_destinations').delete().eq('trip_id', deleteTarget.id)
+    await supabase.from('trips').delete().eq('id', deleteTarget.id)
+    setDeleting(false)
+    setDeleteTarget(null)
+    window.location.reload()
+  }, [deleteTarget])
 
   useEffect(() => {
     const handler = () => setShowModal(true)
@@ -985,15 +1025,38 @@ export default function TripsPage() {
           {/* Hero card */}
           {featuredTrip && (
             <div style={{ padding: '0 20px' }}>
-              <HeroCard trip={featuredTrip} />
+              <TripContextMenu
+                isPinned={featuredTrip.is_favorited}
+                onPin={() => handlePin(featuredTrip)}
+                onDelete={() => setDeleteTarget(featuredTrip)}
+              >
+                <HeroCard trip={featuredTrip} />
+              </TripContextMenu>
             </div>
           )}
 
           {/* Phase carousels */}
-          <PhaseCarousel phaseKey="scheduled" trips={grouped.scheduled} startNum={scheduledStart} onNewTrip={() => setShowModal(true)} />
-          <PhaseCarousel phaseKey="planning" trips={grouped.planning} startNum={planningStart} onNewTrip={() => setShowModal(true)} />
-          <PhaseCarousel phaseKey="aspirational" trips={grouped.aspirational} startNum={aspirationalStart} onNewTrip={() => setShowModal(true)} />
+          <PhaseCarousel phaseKey="scheduled" trips={grouped.scheduled} startNum={scheduledStart} onNewTrip={() => setShowModal(true)} onPin={handlePin} onDelete={setDeleteTarget} />
+          <PhaseCarousel phaseKey="planning" trips={grouped.planning} startNum={planningStart} onNewTrip={() => setShowModal(true)} onPin={handlePin} onDelete={setDeleteTarget} />
+          <PhaseCarousel phaseKey="aspirational" trips={grouped.aspirational} startNum={aspirationalStart} onNewTrip={() => setShowModal(true)} onPin={handlePin} onDelete={setDeleteTarget} />
         </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" onClick={e => { if (e.target === e.currentTarget) setDeleteTarget(null) }}>
+          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.3)' }} />
+          <div style={{ position: 'relative', background: '#ffffff', borderRadius: 14, maxWidth: 340, width: '90%', padding: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.12)' }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600, color: '#2a2a28' }}>Delete {deleteTarget.title}?</h2>
+            <p style={{ fontSize: 14, color: '#6b6860', marginTop: 8, lineHeight: 1.5 }}>
+              This will permanently delete this trip and remove all destination links. Your saved items in the inbox won't be affected.
+            </p>
+            <div style={{ marginTop: 20, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setDeleteTarget(null)} style={{ background: '#ffffff', border: '1px solid #e0ddd7', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 500, color: '#6b6860', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Cancel</button>
+              <button type="button" disabled={deleting} onClick={handleDeleteConfirm} style={{ background: '#c0392b', border: 'none', borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 600, color: 'white', cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1, fontFamily: "'DM Sans', sans-serif" }}>{deleting ? 'Deleting…' : 'Delete'}</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Create Trip Modal */}

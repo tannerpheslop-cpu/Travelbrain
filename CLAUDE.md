@@ -442,6 +442,10 @@ Trips naturally progress through three states:
 - User adds dates to the trip and/or individual destinations
 - Day-by-day itinerary builder becomes available within each destination's expanded section
 
+### Favorite Trip
+
+Users can favorite one trip at a time via a star icon on the Trip Overview page. The favorited trip always appears as the hero card on the Trips Library page, overriding the default selection logic. Only one trip can be favorited at a time — favoriting a new trip automatically unfavorites the previous one.
+
 ### General Section
 
 Below all destination sections, a collapsible "General" section holds trip-wide items not tied to a destination (packing lists, visa guides, etc.). Stored in trip_general_items.
