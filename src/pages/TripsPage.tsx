@@ -4,6 +4,7 @@ import { useTrips, type TripWithDestinations } from '../hooks/useTrips'
 import { useAuth } from '../lib/auth'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
+import { fetchDestinationPhoto } from '../lib/unsplash'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import { trackEvent } from '../lib/analytics'
 import { selectFeaturedTrip } from '../utils/featuredTrip'
@@ -85,7 +86,7 @@ interface CreateTripModalProps {
   onClose: () => void
   onCreated: (tripId: string) => void
   createTrip: (input: { title: string }) => Promise<{ trip: TripWithDestinations | null; error: string | null }>
-  createDestination: (tripId: string, location: LocationSelection, sortOrder: number, imageUrl?: string) => Promise<{ destination: unknown; error: string | null }>
+  createDestination: (tripId: string, location: LocationSelection, sortOrder: number, imageUrl?: string, imageSource?: string) => Promise<{ destination: unknown; error: string | null }>
 }
 
 function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: CreateTripModalProps) {
@@ -172,9 +173,18 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
     setSaving(true)
     setError(null)
 
-    const [tripResult, photoUrls] = await Promise.all([
+    // Fetch photos: try Unsplash first, fall back to Google Places
+    const [tripResult, photoResults] = await Promise.all([
       createTrip({ title }),
-      Promise.all(destinations.map((d) => fetchPlacePhoto(d.place_id).catch(() => null))),
+      Promise.all(destinations.map(async (d) => {
+        // Try Unsplash first
+        const unsplash = await fetchDestinationPhoto(d.name).catch(() => null)
+        if (unsplash?.url) return { url: unsplash.url, source: 'unsplash' as const }
+        // Fall back to Google Places
+        const gPhoto = await fetchPlacePhoto(d.place_id).catch(() => null)
+        if (gPhoto) return { url: gPhoto, source: 'google_places' as const }
+        return null
+      })),
     ])
 
     const { trip, error: tripError } = tripResult
@@ -187,7 +197,8 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
     // Save destinations sequentially to avoid stale-state race conditions
     // in the useTrips hook's setTrips updater
     for (let i = 0; i < destinations.length; i++) {
-      await createDestination(trip.id, destinations[i], i, photoUrls[i] ?? undefined)
+      const photo = photoResults[i]
+      await createDestination(trip.id, destinations[i], i, photo?.url, photo?.source)
     }
     onCreated(trip.id)
   }
@@ -635,7 +646,9 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
 
 function HeroCard({ trip }: { trip: TripWithDestinations }) {
   const dests = trip.trip_destinations ?? []
-  const coverImage = dests.find(d => d.image_url)?.image_url ?? trip.cover_image_url ?? null
+  const imageDest = dests.find(d => d.image_url)
+  const coverImage = imageDest?.image_url ?? trip.cover_image_url ?? null
+  const isUnsplash = imageDest?.image_source === 'unsplash'
   const countryCode = getTripCountryCode(trip)
   const destNames = dests.map(d => shortDestName(d.location_name))
   const hasBgImage = !!coverImage
@@ -721,6 +734,14 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
             }}>{statusLabel(trip.status)}</span>
           </div>
         </div>
+        {/* Unsplash attribution */}
+        {hasBgImage && isUnsplash && (
+          <div style={{
+            position: 'absolute', bottom: 6, right: 12, zIndex: 2,
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+            color: 'rgba(255,255,255,0.4)',
+          }}>Photo: Unsplash</div>
+        )}
       </div>
     </Link>
   )
