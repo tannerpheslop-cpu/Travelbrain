@@ -7,22 +7,12 @@ import { fetchPlacePhoto } from '../lib/googleMaps'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import { trackEvent } from '../lib/analytics'
 import { selectFeaturedTrip } from '../utils/featuredTrip'
-import { useFirstDestinationImage } from '../hooks/useDestinationImage'
 import type { SavedItem } from '../types'
 import { supabase } from '../lib/supabase'
 import { Plus } from 'lucide-react'
-import { BrandMark, StatusBadge, MetadataLine, RouteChain, CategoryPill, DashedCard, PrimaryButton, CountryCodeBadge } from '../components/ui'
+import { CategoryPill, DashedCard } from '../components/ui'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-const gradients = [
-  'from-amber-700 to-orange-900',
-  'from-stone-500 to-stone-700',
-  'from-zinc-500 to-zinc-700',
-  'from-neutral-500 to-neutral-700',
-  'from-warm-gray-500 to-warm-gray-700',
-  'from-slate-500 to-slate-700',
-]
 
 /** Get the primary two-letter country code for a trip from its first destination */
 function getTripCountryCode(trip: TripWithDestinations): string | null {
@@ -76,123 +66,15 @@ function buildLocationLabel(names: string[]): string {
   return `${names.length} destinations`
 }
 
-// ── Stacked Trip Card (< 4 remaining trips) ─────────────────────────────────
+// ── Status label helper ──────────────────────────────────────────────────────
 
-function TripCard({
-  trip,
-  index,
-  onDelete,
-}: {
-  trip: TripWithDestinations
-  index: number
-  onDelete: (id: string) => void
-}) {
-  const [menuOpen, setMenuOpen] = useState(false)
-  const [confirming, setConfirming] = useState(false)
-  const [coverImgFailed, setCoverImgFailed] = useState(false)
-  const [coverImgLoaded, setCoverImgLoaded] = useState(false)
-
-  const gradient = gradients[index % gradients.length]
-  const dests = trip.trip_destinations ?? []
-  const resolvedDestImage = useFirstDestinationImage(dests)
-  const coverImage = !coverImgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
-  const countryCode = getTripCountryCode(trip)
-  const chapterNum = String(index + 2).padStart(2, '0') // hero is 01
-
-  const handleMenuClick = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation()
-    setMenuOpen((o) => !o); setConfirming(false)
+function statusLabel(status: string): string {
+  switch (status) {
+    case 'scheduled': return 'UPCOMING'
+    case 'planning': return 'PLANNING'
+    case 'aspirational': return 'SOMEDAY'
+    default: return status.toUpperCase()
   }
-  const handleDeleteClick = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation(); setConfirming(true)
-  }
-  const handleConfirmDelete = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation()
-    setMenuOpen(false); setConfirming(false); onDelete(trip.id)
-  }
-  const handleCancelDelete = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation()
-    setConfirming(false); setMenuOpen(false)
-  }
-
-  return (
-    <div className="relative group">
-      <Link
-        to={`/trip/${trip.id}`}
-        className="flex bg-bg-card rounded-xl border border-border overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
-      >
-        {/* Left: cover image or gradient */}
-        <div className={`relative w-28 shrink-0 bg-gradient-to-br ${gradient} overflow-hidden`}>
-          {coverImage && (
-            <img
-              src={coverImage}
-              alt=""
-              className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${coverImgLoaded ? 'opacity-100' : 'opacity-0'}`}
-              onLoad={() => setCoverImgLoaded(true)}
-              onError={() => setCoverImgFailed(true)}
-            />
-          )}
-          {/* Watermark number */}
-          <span className="absolute bottom-1 right-1.5 font-mono text-[48px] font-extrabold leading-none text-white/10 pointer-events-none select-none group-hover:text-white/20 transition-colors">
-            {chapterNum}
-          </span>
-        </div>
-
-        {/* Right: content */}
-        <div className="flex-1 min-w-0 px-3.5 py-3 flex flex-col justify-center">
-          <div className="flex items-center gap-2 mb-1">
-            {countryCode && <CountryCodeBadge code={countryCode} />}
-            <StatusBadge status={trip.status} />
-          </div>
-          <h3 className="text-[16px] font-bold text-text-primary truncate group-hover:text-accent transition-colors">{trip.title}</h3>
-          {dests.length > 0 ? (
-            <div className="mt-1.5">
-              <RouteChain destinations={dests.map((d) => shortDestName(d.location_name))} maxVisible={4} />
-            </div>
-          ) : (
-            <p className="mt-1 font-mono text-[11px] text-text-faint">No destinations yet</p>
-          )}
-          {trip.status === 'scheduled' && trip.start_date && trip.end_date && (
-            <MetadataLine items={[formatDateRange(trip.start_date, trip.end_date)]} className="mt-1" />
-          )}
-        </div>
-      </Link>
-
-      {/* ··· menu button */}
-      <button
-        type="button"
-        onClick={handleMenuClick}
-        className="absolute top-2 right-2 p-1.5 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors opacity-0 group-hover:opacity-100"
-        aria-label="Trip options"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-          <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zm5.5 0a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zm5.5 0a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0z" />
-        </svg>
-      </button>
-
-      {/* Dropdown */}
-      {menuOpen && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setMenuOpen(false); setConfirming(false) }} />
-          <div className="absolute top-10 right-2 z-20 bg-bg-card border border-border rounded-xl shadow-lg overflow-hidden min-w-[160px]">
-            {!confirming ? (
-              <button type="button" onClick={handleDeleteClick} className="w-full flex items-center gap-2.5 px-4 py-3 text-sm text-error hover:bg-error-bg transition-colors text-left">
-                Delete trip
-              </button>
-            ) : (
-              <div className="px-4 py-3">
-                <p className="text-xs font-medium text-text-secondary mb-2">Delete this trip?</p>
-                <div className="flex gap-2">
-                  <button type="button" onClick={handleCancelDelete} className="flex-1 py-1.5 text-xs border border-border-input text-text-secondary rounded-lg hover:bg-bg-page transition-colors">Cancel</button>
-                  <button type="button" onClick={handleConfirmDelete} className="flex-1 py-1.5 text-xs bg-error text-white rounded-lg font-medium">Delete</button>
-                </div>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  )
 }
 
 // ── Create Trip Modal (2-step) ────────────────────────────────────────────────
@@ -745,240 +627,191 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
   )
 }
 
-// ── Featured Trip Hero ────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// DISPLAY COMPONENTS — Rebuilt from spec
+// ══════════════════════════════════════════════════════════════════════════════
 
-function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
-  const [imgLoaded, setImgLoaded] = useState(false)
-  const [imgFailed, setImgFailed] = useState(false)
+// ── Hero Card ────────────────────────────────────────────────────────────────
+
+function HeroCard({ trip }: { trip: TripWithDestinations }) {
   const dests = trip.trip_destinations ?? []
-  const resolvedDestImage = useFirstDestinationImage(dests)
-  const coverImage = !imgFailed ? (resolvedDestImage ?? trip.cover_image_url ?? null) : null
+  const coverImage = dests.find(d => d.image_url)?.image_url ?? trip.cover_image_url ?? null
   const countryCode = getTripCountryCode(trip)
-  const destNames = dests.map((d) => shortDestName(d.location_name))
+  const destNames = dests.map(d => shortDestName(d.location_name))
   const hasBgImage = !!coverImage
 
+  // Hero card with bg image
   return (
-    <Link
-      to={`/trip/${trip.id}`}
-      className="group block relative rounded-2xl overflow-hidden cursor-pointer"
-      style={{ height: 210 }}
-    >
-      {/* Background: image or tinted fallback */}
-      {hasBgImage ? (
-        <>
-          <img
-            src={coverImage!}
-            alt=""
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${imgLoaded ? 'opacity-100' : 'opacity-0'}`}
-            onLoad={() => setImgLoaded(true)}
-            onError={() => setImgFailed(true)}
-          />
-          {/* Gradient overlay — critical for text readability */}
-          <div
-            className="absolute inset-0"
-            style={{ background: 'linear-gradient(to bottom, rgba(255,255,255,0.5) 0%, rgba(0,0,0,0.7) 100%)', zIndex: 1 }}
-          />
-        </>
-      ) : (
-        <div className="absolute inset-0 bg-bg-tinted" />
-      )}
-
-      {/* Watermark "01" */}
-      <span
-        className="absolute pointer-events-none select-none font-mono text-[100px] font-extrabold leading-none"
-        style={{ top: -10, right: 10, color: hasBgImage ? 'rgba(0,0,0,0.08)' : 'var(--color-border-subtle)', zIndex: 2 }}
-      >
-        01
-      </span>
-
-      {/* Country code badge — top-left */}
-      {countryCode && (
-        <span
-          className="absolute font-mono text-[11px] font-bold tracking-[1px]"
-          style={{
-            top: 14, left: 14, zIndex: 3,
-            color: hasBgImage ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)',
-            background: hasBgImage ? 'rgba(255,255,255,0.7)' : 'var(--color-bg-pill)',
+    <Link to={`/trip/${trip.id}`} className="block" style={{ marginBottom: 28 }}>
+      <div style={{
+        borderRadius: 16, overflow: 'hidden', position: 'relative', height: 220,
+        cursor: 'pointer', background: hasBgImage ? '#1a1a1a' : '#f8f7f4',
+      }}>
+        {/* Background image */}
+        {hasBgImage && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundImage: `url(${coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center',
+          }} />
+        )}
+        {/* Gradient overlay */}
+        {hasBgImage && (
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.72) 100%)',
+            zIndex: 1,
+          }} />
+        )}
+        {/* Watermark 01 */}
+        <div style={{
+          position: 'absolute', top: -12, right: 12,
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 100, fontWeight: 800,
+          color: hasBgImage ? 'rgba(255,255,255,0.12)' : '#f0eeea',
+          lineHeight: 1, pointerEvents: 'none', zIndex: 2,
+        }}>01</div>
+        {/* Country code badge */}
+        {countryCode && (
+          <div style={{
+            position: 'absolute', top: 14, left: 14, zIndex: 2,
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: 1,
+            color: hasBgImage ? 'white' : '#9e9b94',
+            background: hasBgImage ? 'rgba(255,255,255,0.18)' : '#f0eeea',
             borderRadius: 4, padding: '3px 8px',
-          }}
-        >
-          {countryCode}
-        </span>
-      )}
-
-      {/* Content block — bottom */}
-      <div className="absolute bottom-0 left-0 right-0 p-5" style={{ zIndex: 3 }}>
-        {/* "UP NEXT" label */}
-        <span className="font-mono text-[9px] font-semibold uppercase tracking-[1px] text-accent">
-          UP NEXT
-        </span>
-
-        {/* Trip name */}
-        <h2
-          className="mt-1 text-[24px] font-bold leading-[1.2] tracking-[-0.3px] truncate"
-          style={{ color: hasBgImage ? 'white' : 'var(--color-text-primary)' }}
-        >
-          {trip.title}
-        </h2>
-
-        {/* Metadata */}
-        <p
-          className="mt-1 font-mono text-[11px]"
-          style={{ color: hasBgImage ? 'rgba(255,255,255,0.7)' : 'var(--color-text-tertiary)' }}
-        >
-          {dests.length} destination{dests.length !== 1 ? 's' : ''}
-          {trip.status === 'scheduled' && trip.start_date && trip.end_date && (
-            <>
-              <span style={{ color: hasBgImage ? 'rgba(255,255,255,0.4)' : 'var(--color-text-mist)', margin: '0 6px' }}>·</span>
-              {formatDateRange(trip.start_date, trip.end_date)}
-            </>
+          }}>{countryCode}</div>
+        )}
+        {/* Content at bottom */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: 20, zIndex: 2 }}>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
+            letterSpacing: 1, textTransform: 'uppercase' as const,
+            color: '#c45a2d', marginBottom: 4,
+          }}>Up next</div>
+          <div style={{
+            fontSize: 24, fontWeight: 700, letterSpacing: -0.3,
+            color: hasBgImage ? 'white' : '#2a2a28',
+          }}>{trip.title}</div>
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+            color: hasBgImage ? 'rgba(255,255,255,0.65)' : '#9e9b94', marginTop: 5,
+          }}>
+            {dests.length} destination{dests.length !== 1 ? 's' : ''}
+            {trip.start_date && trip.end_date && (
+              <><span style={{ color: hasBgImage ? 'rgba(255,255,255,0.35)' : '#d5d2cb', margin: '0 6px' }}>·</span>{formatDateRange(trip.start_date, trip.end_date)}</>
+            )}
+          </div>
+          {/* Route chain */}
+          {destNames.length > 0 && (
+            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap' as const }}>
+              {destNames.slice(0, 4).map((name, i) => (
+                <span key={i}>
+                  {i > 0 && <span style={{ margin: '0 5px', fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: hasBgImage ? 'rgba(255,255,255,0.35)' : '#d5d2cb' }}>→</span>}
+                  <span style={{ fontSize: 12, fontWeight: 500, color: hasBgImage ? 'rgba(255,255,255,0.85)' : '#6b6860' }}>{name}</span>
+                </span>
+              ))}
+              {destNames.length > 4 && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: hasBgImage ? 'rgba(255,255,255,0.35)' : '#c5c2bb', marginLeft: 6 }}>+{destNames.length - 4}</span>}
+            </div>
           )}
-        </p>
-
-        {/* Route chain */}
-        {destNames.length > 0 && (
-          <div className="mt-2 overflow-hidden whitespace-nowrap" style={{ textOverflow: 'ellipsis' }}>
-            {destNames.slice(0, 4).map((name, i) => (
-              <span key={i}>
-                {i > 0 && (
-                  <span
-                    className="font-mono text-[9px] mx-[5px]"
-                    style={{ color: hasBgImage ? 'rgba(255,255,255,0.4)' : 'var(--color-text-mist)' }}
-                  >→</span>
-                )}
-                <span
-                  className="text-[12px] font-medium"
-                  style={{ color: hasBgImage ? 'rgba(255,255,255,0.85)' : 'var(--color-text-secondary)' }}
-                >{name}</span>
-              </span>
-            ))}
-            {destNames.length > 4 && (
-              <span
-                className="font-mono text-[10px] ml-1.5"
-                style={{ color: hasBgImage ? 'rgba(255,255,255,0.4)' : 'var(--color-text-ghost)' }}
-              >+{destNames.length - 4}</span>
-            )}
+          {/* Status badge */}
+          <div style={{ marginTop: 10 }}>
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
+              letterSpacing: 0.5, textTransform: 'uppercase' as const, padding: '3px 8px', borderRadius: 4,
+              background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'rgba(196,90,45,0.13)',
+              color: hasBgImage ? 'white' : '#c45a2d',
+            }}>{statusLabel(trip.status)}</span>
           </div>
-        )}
-
-        {/* Status badge */}
-        <span
-          className="inline-block mt-2 font-mono text-[9px] font-semibold uppercase tracking-[0.5px]"
-          style={{
-            padding: '3px 8px',
-            borderRadius: 4,
-            background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'var(--color-accent-med)',
-            color: hasBgImage ? 'white' : 'var(--color-accent)',
-          }}
-        >
-          {trip.status === 'scheduled' ? 'Upcoming' : trip.status === 'planning' ? 'Planning' : 'Someday'}
-        </span>
-      </div>
-    </Link>
-  )
-}
-
-// ── Carousel Trip Card (white card, NO background image) ────────────────────
-
-function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: number }) {
-  const dests = trip.trip_destinations ?? []
-  const chapterNum = String(index + 2).padStart(2, '0') // hero is 01
-
-  // Collect unique country codes
-  const countryCodes = [...new Set(dests.map((d) => d.location_country_code).filter(Boolean))] as string[]
-
-  // Build route chain text
-  const destNames = dests.map((d) => shortDestName(d.location_name))
-  const visibleNames = destNames.slice(0, 4)
-  const overflow = destNames.length - 4
-
-  return (
-    <Link
-      to={`/trip/${trip.id}`}
-      className="group block w-[260px] shrink-0 snap-start self-start rounded-xl bg-bg-card border border-border overflow-hidden transition-all duration-150 ease-out hover:border-[#c45a2d40] hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
-    >
-      {/* Top content area */}
-      <div className="relative overflow-hidden" style={{ padding: '16px 16px 12px' }}>
-        {/* Watermark number */}
-        <span
-          className="absolute pointer-events-none select-none font-mono text-[56px] font-extrabold leading-none text-border-subtle group-hover:text-accent-med transition-colors duration-150"
-          style={{ top: -6, right: 6 }}
-        >
-          {chapterNum}
-        </span>
-
-        {/* Country code badges */}
-        {countryCodes.length > 0 && (
-          <div className="relative flex gap-1" style={{ marginBottom: 10 }}>
-            {countryCodes.map((code) => (
-              <span
-                key={code}
-                className="inline-block font-mono text-[11px] font-bold tracking-[1px] text-text-tertiary bg-bg-pill rounded px-1.5 py-[2px] leading-none"
-              >
-                {code}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Trip name — single line, truncate */}
-        <h3
-          className="relative text-[16px] font-bold tracking-[-0.2px] text-text-primary overflow-hidden whitespace-nowrap group-hover:text-accent transition-colors duration-150"
-          style={{ textOverflow: 'ellipsis' }}
-        >
-          {trip.title}
-        </h3>
-
-        {/* Route chain — single line, truncate */}
-        {destNames.length > 0 && (
-          <div
-            className="relative font-mono text-[11px] text-text-tertiary overflow-hidden whitespace-nowrap"
-            style={{ textOverflow: 'ellipsis', marginTop: 8 }}
-          >
-            {visibleNames.map((name, i) => (
-              <span key={i}>
-                {i > 0 && <span className="text-text-mist mx-[3px]">→</span>}
-                <span>{name}</span>
-              </span>
-            ))}
-            {overflow > 0 && (
-              <span className="text-text-ghost ml-1">+{overflow}</span>
-            )}
-          </div>
-        )}
-
-        {/* Date range */}
-        {trip.start_date && trip.end_date && (
-          <p className="relative font-mono text-[10px] text-text-faint" style={{ marginTop: 6 }}>
-            {formatDateRange(trip.start_date, trip.end_date)}
-          </p>
-        )}
-      </div>
-
-      {/* Bottom metadata bar — thin footer strip */}
-      <div className="flex items-center justify-between border-t border-border-subtle bg-bg-page" style={{ padding: '8px 16px' }}>
-        <span className="font-mono text-[10px] text-text-tertiary">
-          {dests.length} destination{dests.length !== 1 ? 's' : ''}
-          <span className="text-text-mist mx-1">·</span>
-          {dests.reduce((n, d) => n + (d.location_lat ? 1 : 0), 0)} save{dests.length !== 1 ? 's' : ''}
-        </span>
-        <div className="flex gap-1">
-          {/* Top 1-2 category pills */}
-          {(() => {
-            const cats = [...new Set(dests.map((d) => d.location_type ?? 'city'))]
-            return cats.slice(0, 2).map((cat) => (
-              <span key={cat} className="font-mono text-[9px] font-medium text-text-tertiary bg-bg-pill-dark rounded px-1.5 py-[2px] leading-none">
-                {cat}
-              </span>
-            ))
-          })()}
         </div>
       </div>
     </Link>
   )
 }
 
-// ── Phase Carousel ───────────────────────────────────────────────────────────
+// ── Carousel Card (white, NO background image) ──────────────────────────────
+
+function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalNum: number }) {
+  const dests = trip.trip_destinations ?? []
+  const num = String(globalNum).padStart(2, '0')
+  const countryCodes = [...new Set(dests.map(d => d.location_country_code).filter(Boolean))] as string[]
+  const destNames = dests.map(d => shortDestName(d.location_name))
+  const visibleNames = destNames.slice(0, 4)
+  const overflow = destNames.length - 4
+
+  return (
+    <Link
+      to={`/trip/${trip.id}`}
+      className="group"
+      style={{ width: 260, flexShrink: 0, borderRadius: 12, overflow: 'hidden', background: '#ffffff', border: '1px solid #e8e6e1', cursor: 'pointer', transition: 'all 0.15s ease', display: 'block', alignSelf: 'start' }}
+      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.border = '1px solid rgba(196,90,45,0.25)'; el.style.boxShadow = '0 4px 16px rgba(0,0,0,0.05)'; el.style.transform = 'translateY(-2px)' }}
+      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.border = '1px solid #e8e6e1'; el.style.boxShadow = 'none'; el.style.transform = 'none' }}
+    >
+      {/* Top content */}
+      <div style={{ padding: '16px 16px 12px', position: 'relative', overflow: 'hidden', minHeight: 100 }}>
+        {/* Watermark */}
+        <div className="group-hover:!text-[rgba(196,90,45,0.13)]" style={{
+          position: 'absolute', top: -6, right: 6,
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 56, fontWeight: 800,
+          color: '#f0eeea', lineHeight: 1, pointerEvents: 'none', transition: 'color 0.15s ease',
+        }}>{num}</div>
+        {/* Country badges */}
+        {countryCodes.length > 0 && (
+          <div style={{ display: 'flex', gap: 4, marginBottom: 10, position: 'relative' }}>
+            {countryCodes.map(code => (
+              <span key={code} style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: 1,
+                color: '#9e9b94', background: '#f0eeea', borderRadius: 3, padding: '2px 6px',
+              }}>{code}</span>
+            ))}
+          </div>
+        )}
+        {/* Trip name */}
+        <div className="group-hover:!text-[#c45a2d]" style={{
+          fontSize: 16, fontWeight: 700, letterSpacing: -0.2, position: 'relative',
+          whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis',
+          color: '#2a2a28', transition: 'color 0.15s ease',
+        }}>{trip.title}</div>
+        {/* Route chain */}
+        {destNames.length > 0 && (
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#9e9b94',
+            marginTop: 6, position: 'relative', whiteSpace: 'nowrap' as const,
+            overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {visibleNames.map((name, i) => (
+              <span key={i}>{i > 0 && <span style={{ color: '#d5d2cb', margin: '0 3px' }}>→</span>}{name}</span>
+            ))}
+            {overflow > 0 && <span style={{ color: '#c5c2bb', marginLeft: 4 }}>+{overflow}</span>}
+          </div>
+        )}
+        {/* Date range */}
+        {trip.start_date && trip.end_date && (
+          <div style={{
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b5b2ab',
+            marginTop: 4, position: 'relative',
+          }}>{formatDateRange(trip.start_date, trip.end_date)}</div>
+        )}
+      </div>
+      {/* Bottom bar */}
+      <div style={{
+        padding: '8px 16px', borderTop: '1px solid #f0eeea', background: '#faf9f7',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#9e9b94' }}>
+          {dests.length} dest · {dests.length} saves
+        </span>
+        <div style={{ display: 'flex', gap: 3 }}>
+          {[...new Set(dests.map(d => d.location_type ?? 'city'))].slice(0, 2).map(cat => (
+            <span key={cat} style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 500,
+              padding: '2px 5px', borderRadius: 3, background: '#eeece8', color: '#9e9b94',
+            }}>{cat}</span>
+          ))}
+        </div>
+      </div>
+    </Link>
+  )
+}
+
+// ── Phase Carousel Section ───────────────────────────────────────────────────
 
 const phaseConfig: Record<string, { title: string; description: string }> = {
   scheduled:    { title: 'Upcoming',  description: 'Dates set and ready to go' },
@@ -986,51 +819,57 @@ const phaseConfig: Record<string, { title: string; description: string }> = {
   aspirational: { title: 'Someday',   description: 'Ideas for future adventures' },
 }
 
-function PhaseCarousel({ phaseKey, trips, onNewTrip }: { phaseKey: string; trips: TripWithDestinations[]; onNewTrip: () => void }) {
+function PhaseCarousel({ phaseKey, trips, startNum, onNewTrip }: {
+  phaseKey: string; trips: TripWithDestinations[]; startNum: number; onNewTrip: () => void
+}) {
   if (trips.length === 0) return null
   const config = phaseConfig[phaseKey] ?? { title: phaseKey, description: '' }
   return (
-    <div>
+    <div style={{ marginTop: 28 }}>
       {/* Section header */}
-      <div className="flex items-baseline justify-between mb-3.5">
+      <div style={{ padding: '0 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
         <div>
-          <h3 className="text-[17px] font-semibold text-text-primary">{config.title}</h3>
-          <p className="mt-[3px] font-mono text-[11px] text-text-tertiary">{config.description}</p>
+          <div style={{ fontSize: 17, fontWeight: 600 }}>{config.title}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#9e9b94', marginTop: 3 }}>{config.description}</div>
         </div>
-        <span className="font-mono text-[11px] text-text-faint">{trips.length}</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b5b2ab' }}>{trips.length}</span>
       </div>
-
-      {/* Card row — edge-to-edge scroll, first card aligns with page 20px padding */}
-      <div
-        className="flex overflow-x-auto scrollbar-hide gap-3.5 pb-1"
-        style={{ marginLeft: -20, marginRight: -20, paddingLeft: 20, paddingRight: 20, scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}
-      >
+      {/* Scroll container */}
+      <div className="scrollbar-hide" style={{
+        display: 'flex', gap: 14, overflowX: 'auto', padding: '0 20px 4px',
+        scrollbarWidth: 'none' as const, WebkitOverflowScrolling: 'touch' as const,
+      }}>
         {trips.map((trip, i) => (
-          <CarouselTripCard key={trip.id} trip={trip} index={i} />
+          <CarouselCard key={trip.id} trip={trip} globalNum={startNum + i} />
         ))}
-
-        {/* Dashed "New trip" card */}
+        {/* Dashed "New trip" */}
         <div
           onClick={onNewTrip}
-          className="w-[200px] shrink-0 snap-start rounded-xl border-[1.5px] border-dashed border-border-dashed bg-transparent flex flex-col items-center justify-center cursor-pointer transition-all duration-150 hover:border-accent hover:bg-accent-light"
-          style={{ minHeight: 180 }}
+          style={{
+            width: 180, flexShrink: 0, borderRadius: 12, border: '1.5px dashed #d5d2cb',
+            display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', gap: 3, minHeight: 140, transition: 'all 0.15s ease',
+          }}
+          onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = '#c45a2d'; el.style.background = 'rgba(196,90,45,0.06)' }}
+          onMouseLeave={e => { const el = e.currentTarget; el.style.borderColor = '#d5d2cb'; el.style.background = 'transparent' }}
         >
-          <span className="font-mono text-[18px] font-light text-border-dashed">+</span>
-          <span className="font-mono text-[11px] text-text-faint mt-1">New trip</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, color: '#d5d2cb', fontWeight: 300 }}>+</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b5b2ab' }}>New trip</span>
         </div>
       </div>
     </div>
   )
 }
 
-// ── Trips Page ────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// MAIN PAGE
+// ══════════════════════════════════════════════════════════════════════════════
 
 export default function TripsPage() {
-  const { trips, loading, createTrip, createDestination, deleteTrip } = useTrips()
+  const { trips, loading, createTrip, createDestination } = useTrips()
   const [showModal, setShowModal] = useState(false)
   const navigate = useNavigate()
 
-  // Listen for create-trip event from global FAB
   useEffect(() => {
     const handler = () => setShowModal(true)
     window.addEventListener('youji-create-trip', handler)
@@ -1038,124 +877,102 @@ export default function TripsPage() {
   }, [])
 
   const featuredTrip = useMemo(() => selectFeaturedTrip(trips), [trips])
+  const remainingTrips = useMemo(() => trips.filter(t => t.id !== featuredTrip?.id), [trips, featuredTrip])
 
-  const remainingTrips = useMemo(
-    () => trips.filter((t) => t.id !== featuredTrip?.id),
-    [trips, featuredTrip],
-  )
+  // Group by phase for carousels
+  const grouped = useMemo(() => ({
+    scheduled: remainingTrips.filter(t => t.status === 'scheduled'),
+    planning: remainingTrips.filter(t => t.status === 'planning'),
+    aspirational: remainingTrips.filter(t => t.status === 'aspirational'),
+  }), [remainingTrips])
 
-  const useCarouselLayout = remainingTrips.length >= 4
-
-  // Group remaining trips by phase for carousel layout
-  const groupedTrips = useMemo(() => {
-    if (!useCarouselLayout) return null
-    return {
-      scheduled: remainingTrips.filter((t) => t.status === 'scheduled'),
-      planning: remainingTrips.filter((t) => t.status === 'planning'),
-      aspirational: remainingTrips.filter((t) => t.status === 'aspirational'),
-    }
-  }, [remainingTrips, useCarouselLayout])
-
-  // Preload destination cover images
+  // Preload destination images
   useEffect(() => {
     if (loading) return
     for (const trip of trips) {
-      const coverUrl =
-        trip.trip_destinations?.find((d) => d.image_url)?.image_url ??
-        trip.cover_image_url ??
-        null
-      if (coverUrl) {
-        const img = new Image()
-        img.src = coverUrl
-      }
+      const url = trip.trip_destinations?.find(d => d.image_url)?.image_url ?? trip.cover_image_url
+      if (url) { const img = new Image(); img.src = url }
     }
   }, [trips, loading])
 
-  // Count unique countries across all trips
   const totalCountries = useMemo(() => {
     const codes = new Set<string>()
-    trips.forEach((t) => t.trip_destinations?.forEach((d) => { if (d.location_country_code) codes.add(d.location_country_code) }))
+    trips.forEach(t => t.trip_destinations?.forEach(d => { if (d.location_country_code) codes.add(d.location_country_code) }))
     return codes.size
   }, [trips])
-
   const totalDests = useMemo(() => trips.reduce((s, t) => s + (t.trip_destinations?.length ?? 0), 0), [trips])
+  // Global numbering: hero=01, then sequential across all carousels
+  let globalNum = 2 // hero is 01
+  const scheduledStart = globalNum; globalNum += grouped.scheduled.length
+  const planningStart = globalNum; globalNum += grouped.planning.length
+  const aspirationalStart = globalNum
 
   return (
-    <div className="max-w-[860px] mx-auto px-5 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+    <div style={{ maxWidth: 860, margin: '0 auto', paddingBottom: 96, background: '#faf9f7' }}>
       {/* ── Header ── */}
-      <BrandMark className="mb-2 block" />
-      <h1 className="text-[32px] font-bold leading-[1.2] tracking-[-0.5px] text-text-primary">Trips</h1>
-      {trips.length > 0 && (
-        <div className="mt-1.5">
-          <MetadataLine items={[
-            `${trips.length} trip${trips.length !== 1 ? 's' : ''}`,
-            `${totalCountries} ${totalCountries === 1 ? 'country' : 'countries'}`,
-            `${totalDests} destination${totalDests !== 1 ? 's' : ''}`,
-          ]} />
+      <div style={{ padding: '28px 20px 0' }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 500, letterSpacing: 3, textTransform: 'uppercase' as const, color: '#b5b2ab', marginBottom: 4 }}>
+          youji 游记
         </div>
-      )}
-
-      {/* Action button — below metadata, never inline with title */}
-      <div className="mt-5">
-        <PrimaryButton onClick={() => setShowModal(true)}>
-          <Plus className="w-4 h-4" />
-          New Trip
-        </PrimaryButton>
+        <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5, margin: 0, color: '#2a2a28' }}>Trips</h1>
+        {trips.length > 0 && (
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: '#9e9b94', marginTop: 5, display: 'flex', gap: 10 }}>
+            <span>{trips.length} trips</span>
+            <span style={{ color: '#d5d2cb' }}>·</span>
+            <span>{totalCountries} countries</span>
+            <span style={{ color: '#d5d2cb' }}>·</span>
+            <span>{totalDests} destinations</span>
+          </div>
+        )}
+        <button
+          onClick={() => setShowModal(true)}
+          style={{
+            marginTop: 14, padding: '9px 20px', fontSize: 13, fontWeight: 600,
+            border: 'none', borderRadius: 8, background: '#c45a2d', color: 'white',
+            fontFamily: "'DM Sans', sans-serif", boxShadow: '0 1px 4px rgba(196,90,45,0.25)',
+            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+          }}
+        >
+          <Plus size={14} /> New trip
+        </button>
+        <div style={{ height: 1, background: '#e8e6e1', margin: '18px 0 20px' }} />
       </div>
 
-      {/* ── Divider ── */}
-      <div className="mt-5 mb-5 border-t border-border" />
-
-      {/* ── Loading Skeletons ── */}
+      {/* ── Loading ── */}
       {loading && (
-        <div className="space-y-4">
-          <div className="flex rounded-2xl overflow-hidden bg-bg-muted animate-pulse h-[160px]" />
-          {[0, 1].map((i) => (
-            <div key={i} className="flex rounded-xl bg-bg-muted animate-pulse h-[100px]" />
-          ))}
+        <div style={{ padding: '0 20px' }}>
+          <div style={{ height: 160, borderRadius: 16, background: '#f5f3f0' }} className="animate-pulse" />
         </div>
       )}
 
-      {/* ── Empty State — interactive DashedCard ── */}
+      {/* ── Empty state ── */}
       {!loading && trips.length === 0 && (
-        <div className="mt-4" onClick={() => setShowModal(true)}>
+        <div style={{ padding: '0 20px' }} onClick={() => setShowModal(true)}>
           <DashedCard className="flex flex-col items-center justify-center py-20 px-6 cursor-pointer text-center">
-            <span className="font-mono text-[28px] text-text-faint opacity-25 block mb-3">↗</span>
-            <p className="text-[15px] font-semibold text-text-secondary">Plan your first trip</p>
-            <p className="mt-1.5 font-mono text-xs text-text-ghost max-w-xs">
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 28, color: '#b5b2ab', opacity: 0.25, display: 'block', marginBottom: 12 }}>↗</span>
+            <p style={{ fontSize: 15, fontWeight: 600, color: '#6b6860' }}>Plan your first trip</p>
+            <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#c5c2bb', marginTop: 6, maxWidth: 280 }}>
               Create a trip to start organizing your destinations and saves
             </p>
           </DashedCard>
         </div>
       )}
 
-      {/* ── Trip Content ── */}
+      {/* ── Content ── */}
       {!loading && trips.length > 0 && (
-        <div className="space-y-7">
-          {/* Featured Trip Hero */}
-          {featuredTrip && <FeaturedTripHero trip={featuredTrip} />}
-
-          {/* Adaptive layout */}
-          {!useCarouselLayout ? (
-            /* Stacked cards */
-            <div className="space-y-3">
-              {remainingTrips.map((trip, index) => (
-                <TripCard key={trip.id} trip={trip} index={index} onDelete={deleteTrip} />
-              ))}
-            </div>
-          ) : (
-            /* Phase carousels */
-            <div className="space-y-6">
-              {groupedTrips && (
-                <>
-                  <PhaseCarousel phaseKey="scheduled" trips={groupedTrips.scheduled} onNewTrip={() => setShowModal(true)} />
-                  <PhaseCarousel phaseKey="planning" trips={groupedTrips.planning} onNewTrip={() => setShowModal(true)} />
-                  <PhaseCarousel phaseKey="aspirational" trips={groupedTrips.aspirational} onNewTrip={() => setShowModal(true)} />
-                </>
-              )}
+        <>
+          {/* Hero card */}
+          {featuredTrip && (
+            <div style={{ padding: '0 20px' }}>
+              <HeroCard trip={featuredTrip} />
             </div>
           )}
-        </div>
+
+          {/* Phase carousels */}
+          <PhaseCarousel phaseKey="scheduled" trips={grouped.scheduled} startNum={scheduledStart} onNewTrip={() => setShowModal(true)} />
+          <PhaseCarousel phaseKey="planning" trips={grouped.planning} startNum={planningStart} onNewTrip={() => setShowModal(true)} />
+          <PhaseCarousel phaseKey="aspirational" trips={grouped.aspirational} startNum={aspirationalStart} onNewTrip={() => setShowModal(true)} />
+        </>
       )}
 
       {/* Create Trip Modal */}
