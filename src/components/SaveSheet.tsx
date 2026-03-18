@@ -84,6 +84,9 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const lastDetectionTime = useRef(0)
   const detectionDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Track pending background location updates for already-saved items
+  const pendingLocationUpdates = useRef<Map<string, AbortController>>(new Map())
+
   // Auto-focus input on mount
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 100)
@@ -268,7 +271,40 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     }
 
     trackEvent('save_created', user.id, { source_type: sourceType, category: category ?? 'general', location_name: location?.name ?? null })
-    onSaved(data as SavedItem)
+
+    const savedItem = data as SavedItem
+
+    // If no location was set and the input had 3+ words, fire background detection
+    const savedWithoutLocation = !location
+    const textForDetection = inputText.trim()
+    const metadataText = metadata ? [metadata.title, metadata.description].filter(Boolean).join(' ') : ''
+    const detectionInput = detectedUrl ? metadataText : textForDetection
+    const wordCount = detectionInput.split(/\s+/).length
+
+    if (savedWithoutLocation && wordCount >= 3 && !locationManuallySet) {
+      // Run detection in background and update the item silently
+      const itemId = savedItem.id
+      const controller = new AbortController()
+      pendingLocationUpdates.current.set(itemId, controller)
+
+      detectLocationFromText(detectionInput).then(async (result) => {
+        if (controller.signal.aborted || !result) return
+        // Update the saved item with detected location
+        await supabase.from('saved_items').update({
+          location_name: result.address,
+          location_lat: result.lat,
+          location_lng: result.lng,
+          location_place_id: result.placeId,
+          location_country: result.country,
+          location_country_code: result.countryCode,
+          location_name_en: result.name,
+        }).eq('id', itemId)
+      }).catch(() => { /* silent */ }).finally(() => {
+        pendingLocationUpdates.current.delete(itemId)
+      })
+    }
+
+    onSaved(savedItem)
 
     // Reset form for rapid successive saves — sheet stays open
     setSaving(false)
