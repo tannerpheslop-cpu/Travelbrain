@@ -87,6 +87,8 @@ export function useTrips() {
       sortOrder: number,
       imageUrl?: string,
       imageSource?: string,
+      imageCreditName?: string,
+      imageCreditUrl?: string,
     ): Promise<{ destination: TripDestination | null; error: string | null }> => {
       if (!user) return { destination: null, error: 'Not authenticated' }
 
@@ -105,7 +107,7 @@ export function useTrips() {
           location_name_en: location.name_en ?? null,
           location_name_local: location.name_local ?? null,
           sort_order: sortOrder,
-          ...(imageUrl ? { image_url: imageUrl, image_source: imageSource ?? null } : {}),
+          ...(imageUrl ? { image_url: imageUrl, image_source: imageSource ?? null, image_credit_name: imageCreditName ?? null, image_credit_url: imageCreditUrl ?? null } : {}),
         })
         .select()
         .single()
