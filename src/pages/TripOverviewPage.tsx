@@ -427,6 +427,8 @@ function GeneralSection({
   onClearCompleted: () => void
 }) {
   const [draft, setDraft] = useState('')
+  const [showInput, setShowInput] = useState(false)
+  const noteInputRef = useRef<HTMLInputElement>(null)
 
   const handleSubmit = () => {
     const text = draft.trim()
@@ -471,6 +473,11 @@ function GeneralSection({
     onReorderNotes(all)
   }
 
+  const handleOpenInput = () => {
+    setShowInput(true)
+    setTimeout(() => noteInputRef.current?.focus(), 50)
+  }
+
   return (
     <div className="mt-8">
       <div className="flex items-center gap-2 mb-3">
@@ -478,29 +485,40 @@ function GeneralSection({
         <span className="text-sm text-text-faint">Trip-wide notes</span>
       </div>
 
-      {/* Note input */}
-      <div className="flex items-center gap-2 mb-3">
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit() }}
-          placeholder="Pack power adapter, check visa…"
-          className="flex-1 text-sm px-3 py-2 bg-bg-page border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-text-faint"
-        />
-        <PrimaryButton
-          onClick={handleSubmit}
-          disabled={!draft.trim()}
-          className="px-3 py-2 rounded-xl shrink-0"
-        >
-          Add
-        </PrimaryButton>
-      </div>
-
       {/* Checklist */}
-      {notes.length === 0 ? (
-        <p className="text-sm text-text-faint py-1">No notes yet — add packing reminders, visa info, or anything trip-wide.</p>
+      {notes.length === 0 && !showInput ? (
+        <DashedCard
+          onClick={handleOpenInput}
+          className="flex items-center justify-center gap-2 py-4 text-sm font-semibold text-text-tertiary"
+        >
+          <Plus className="w-4 h-4" />
+          Add trip-wide items like packing lists or visa guides
+        </DashedCard>
       ) : (
+        <>
+          {/* Note input */}
+          <div className="flex items-center gap-2 mb-3">
+            <input
+              ref={noteInputRef}
+              type="text"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit() }}
+              placeholder="Pack power adapter, check visa…"
+              className="flex-1 text-sm px-3 py-2 bg-bg-page border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-text-faint"
+            />
+            <PrimaryButton
+              onClick={handleSubmit}
+              disabled={!draft.trim()}
+              className="px-3 py-2 rounded-xl shrink-0"
+            >
+              Add
+            </PrimaryButton>
+          </div>
+
+          {notes.length === 0 ? (
+            <p className="text-sm text-text-faint py-1">Type above and press Enter to add your first note.</p>
+          ) : (
         <>
           <DndContext sensors={noteSensors} collisionDetection={closestCenter} onDragEnd={handleNoteDragEnd}>
             <SortableContext items={uncheckedIds} strategy={verticalListSortingStrategy}>
@@ -549,6 +567,8 @@ function GeneralSection({
               Clear completed
             </button>
           )}
+        </>
+      )}
         </>
       )}
     </div>
@@ -1473,10 +1493,12 @@ export default function TripOverviewPage() {
 
         {/* Action buttons (below metadata) */}
         <div className="flex items-center gap-2 mt-5">
-          <PrimaryButton onClick={openAddDest} className="flex items-center gap-1.5 px-4 py-2 rounded-lg">
-            <Plus className="w-4 h-4" />
-            Add Destination
-          </PrimaryButton>
+          {destinations.length > 0 && (
+            <PrimaryButton onClick={openAddDest} className="flex items-center gap-1.5 px-4 py-2 rounded-lg">
+              <Plus className="w-4 h-4" />
+              Add Destination
+            </PrimaryButton>
+          )}
           <SecondaryButton onClick={() => setShowShareModal(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg">
             <Share2 className="w-4 h-4" />
             Share
@@ -1673,7 +1695,13 @@ export default function TripOverviewPage() {
                                         <div className="px-4 pb-4 border-t border-border-subtle">
                                           {/* Item count summary */}
                                           {entry.destination._count === 0 ? (
-                                            <p className="text-sm text-text-faint py-3">No places added yet</p>
+                                            <DashedCard
+                                              onClick={() => navigate(`/trip/${id}/dest/${entry.destination.id}`)}
+                                              className="flex items-center justify-center gap-2 py-3 mt-3 text-sm font-semibold text-text-tertiary"
+                                            >
+                                              <Plus className="w-4 h-4" />
+                                              Add places from your Horizon
+                                            </DashedCard>
                                           ) : (
                                             <p className="font-mono text-[11px] text-text-tertiary pt-3 pb-2">
                                               {entry.destination._count} place{entry.destination._count !== 1 ? 's' : ''} saved

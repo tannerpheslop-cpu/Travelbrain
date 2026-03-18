@@ -1041,16 +1041,16 @@ export default function TripsPage() {
         </div>
       )}
 
-      {/* ── Empty State ── */}
+      {/* ── Empty State — interactive DashedCard ── */}
       {!loading && trips.length === 0 && (
-        <div className="mt-12 text-center py-16">
-          <span className="font-mono text-[28px] text-text-faint opacity-30 block mb-3">🗺</span>
-          <p className="text-sm text-text-faint">No trips yet</p>
-          <p className="mt-1 font-mono text-xs text-text-ghost">Start planning your next adventure</p>
-          <PrimaryButton onClick={() => setShowModal(true)} className="mt-5">
-            <Plus className="w-4 h-4" />
-            New Trip
-          </PrimaryButton>
+        <div className="mt-4" onClick={() => setShowModal(true)}>
+          <DashedCard className="flex flex-col items-center justify-center py-20 px-6 cursor-pointer text-center">
+            <span className="font-mono text-[32px] text-text-faint opacity-25 block mb-3">🗺</span>
+            <p className="text-[15px] font-semibold text-text-secondary">Plan your first trip</p>
+            <p className="mt-1.5 font-mono text-xs text-text-ghost max-w-xs">
+              Create a trip to start organizing your destinations and saves
+            </p>
+          </DashedCard>
         </div>
       )}
 

@@ -7,7 +7,7 @@ import SaveSheet from '../components/SaveSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { categoryLabel } from '../utils/categoryIcons'
 import { LayoutGrid, List, SlidersHorizontal, Search, X, Plus } from 'lucide-react'
-import { BrandMark, CategoryPill, FilterPill, MetadataLine, SourceIcon, PrimaryButton } from '../components/ui'
+import { BrandMark, CategoryPill, FilterPill, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import { shortLocalName } from '../components/BilingualName'
 import { useLocationResolver } from '../hooks/useLocationResolver'
 import SwipeToDelete from '../components/SwipeToDelete'
@@ -472,16 +472,16 @@ export default function InboxPage() {
         </div>
       )}
 
-      {/* ── Empty State ── */}
+      {/* ── Empty State — interactive DashedCard ── */}
       {!loading && !error && items.length === 0 && (
-        <div className="mt-16 text-center py-16">
-          <span className="font-mono text-[28px] text-text-faint opacity-30 block mb-3">↗</span>
-          <p className="text-sm text-text-faint">Your horizon is empty</p>
-          <p className="mt-1 font-mono text-xs text-text-ghost">Paste a link, upload a screenshot, or add a place manually</p>
-          <PrimaryButton onClick={() => setShowSaveSheet(true)} className="mt-5">
-            <Plus className="w-4 h-4" />
-            Save your first place
-          </PrimaryButton>
+        <div className="mt-8" onClick={() => setShowSaveSheet(true)}>
+          <DashedCard className="flex flex-col items-center justify-center py-20 px-6 cursor-pointer text-center">
+            <span className="font-mono text-[32px] text-text-faint opacity-25 block mb-3">↗</span>
+            <p className="text-[15px] font-semibold text-text-secondary">Save your first travel inspiration</p>
+            <p className="mt-1.5 font-mono text-xs text-text-ghost max-w-xs">
+              Paste a link, upload a screenshot, or add a place manually
+            </p>
+          </DashedCard>
         </div>
       )}
 
