@@ -533,7 +533,7 @@ export default function InboxPage() {
     <button
       type="button"
       onClick={() => setShowSaveSheet(true)}
-      className="fixed bottom-20 right-5 z-40 w-[52px] h-[52px] rounded-full bg-accent text-white flex items-center justify-center shadow-[0_4px_16px_rgba(196,90,45,0.35)] hover:bg-accent-hover active:scale-95 transition-all"
+      className="fixed bottom-20 right-5 z-40 w-[52px] h-[52px] rounded-full bg-accent text-white flex items-center justify-center shadow-[0_4px_16px_rgba(196,90,45,0.35)] hover:scale-105 active:scale-95 transition-transform"
       aria-label="Add save"
     >
       <Plus className="w-6 h-6" />

@@ -187,7 +187,7 @@ export default function ItemDetailPage() {
       <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
         <div className="animate-pulse">
           <div className="h-5 w-14 bg-bg-pill-dark rounded-full mb-6" />
-          <div className="h-56 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl" />
+          <div className="h-56 bg-bg-muted rounded-2xl" />
           <div className="mt-5 space-y-3">
             <div className="h-6 bg-bg-pill-dark rounded-full w-3/4" />
             <div className="h-4 bg-bg-muted rounded-full w-1/3" />

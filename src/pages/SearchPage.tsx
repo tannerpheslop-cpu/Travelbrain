@@ -265,8 +265,10 @@ export default function SearchPage() {
 
         {/* Search results (with query) */}
         {!loading && hasQuery && !hasResults && (
-          <div className="text-center py-12">
-            <p className="text-sm text-text-tertiary">No results for &ldquo;{query}&rdquo;</p>
+          <div className="text-center py-16">
+            <span className="font-mono text-[28px] text-text-faint opacity-25 block mb-3">⌕</span>
+            <p className="text-sm text-text-faint">No results for &ldquo;{query}&rdquo;</p>
+            <p className="mt-1 font-mono text-xs text-text-ghost">Try a different search term</p>
           </div>
         )}
 

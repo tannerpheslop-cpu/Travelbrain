@@ -302,8 +302,10 @@ export default function RouteOverviewPage() {
       {/* Destination list */}
       <div className="px-4">
         {destinations.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-text-faint text-sm mb-4">No destinations in this route yet.</p>
+          <div className="text-center py-16">
+            <span className="font-mono text-[28px] text-text-faint opacity-25 block mb-3">📍</span>
+            <p className="text-sm text-text-faint">No destinations in this route yet</p>
+            <p className="mt-1 font-mono text-xs text-text-ghost mb-4">Add your first stop</p>
             <PrimaryButton onClick={() => setShowAddDest(true)}>
               <Plus className="w-4 h-4" />
               Add destination
