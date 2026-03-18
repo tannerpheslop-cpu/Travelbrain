@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import { detectLocationFromText } from '../lib/placesTextSearch'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
 import type { Category, SavedItem } from '../types'
 
@@ -75,6 +76,12 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
+  // Auto-location detection state
+  const [locationManuallySet, setLocationManuallySet] = useState(false)
+  const [locationDetecting, setLocationDetecting] = useState(false)
+  const lastDetectionTime = useRef(0)
+  const detectionDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // Auto-focus input on mount
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 100)
@@ -100,6 +107,54 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputText])
+
+  // Run location detection and apply result if no manual location set
+  const runLocationDetection = useCallback(async (text: string) => {
+    if (locationManuallySet) return
+    const now = Date.now()
+    if (now - lastDetectionTime.current < 3000) return // Rate limit: max 1 call per 3s
+    lastDetectionTime.current = now
+    setLocationDetecting(true)
+    try {
+      const result = await detectLocationFromText(text)
+      if (result && !locationManuallySet) {
+        setLocation({
+          name: result.address,
+          lat: result.lat,
+          lng: result.lng,
+          place_id: result.placeId,
+          country: result.country,
+          country_code: result.countryCode,
+          location_type: result.locationType === 'business' ? 'city' : 'city',
+          proximity_radius_km: 50,
+          name_en: result.name,
+          name_local: null,
+        })
+      }
+    } catch { /* ignore */ }
+    setLocationDetecting(false)
+  }, [locationManuallySet])
+
+  // Debounced text detection: 1.5s after typing stops, if 3+ words and no URL
+  useEffect(() => {
+    if (detectionDebounce.current) clearTimeout(detectionDebounce.current)
+    const words = inputText.trim().split(/\s+/)
+    if (words.length < 3 || detectUrl(inputText) || locationManuallySet) return
+    detectionDebounce.current = setTimeout(() => {
+      runLocationDetection(inputText)
+    }, 1500)
+    return () => { if (detectionDebounce.current) clearTimeout(detectionDebounce.current) }
+  }, [inputText, locationManuallySet, runLocationDetection])
+
+  // URL metadata → location detection
+  useEffect(() => {
+    if (!metadata || locationManuallySet) return
+    const text = [metadata.title, metadata.description].filter(Boolean).join(' ')
+    if (text.length > 10) {
+      runLocationDetection(text)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metadata])
 
   const fetchMetadata = async (url: string) => {
     setUrlLoading(true)
@@ -226,6 +281,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       removeAttachment()
       setSaved(false)
       setSaveError('')
+      setLocationManuallySet(false)
+      setLocationDetecting(false)
       inputRef.current?.focus()
     }, 800)
   }
@@ -401,10 +458,18 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
           </div>
 
           {/* 4. Location input */}
-          <div style={{ marginTop: 12 }}>
+          <div style={{ marginTop: 12, position: 'relative' }}>
+            {locationDetecting && (
+              <div style={{
+                position: 'absolute', top: 14, right: 14, zIndex: 1,
+                width: 6, height: 6, borderRadius: '50%',
+                background: 'rgba(196,90,45,0.4)',
+                animation: 'pulse 1s ease infinite',
+              }} />
+            )}
             <LocationAutocomplete
               value={location?.name ?? ''}
-              onSelect={setLocation}
+              onSelect={(loc) => { setLocation(loc); if (loc) setLocationManuallySet(true) }}
               label=""
               optional
               placeholder="Location..."
@@ -448,6 +513,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
           )}
         </div>
       </div>
+      <style>{`@keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }`}</style>
     </>
   )
 }
