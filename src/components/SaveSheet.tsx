@@ -84,6 +84,9 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const lastDetectionTime = useRef(0)
   const detectionDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Track pending background location updates for already-saved items
+  const pendingLocationUpdates = useRef<Map<string, AbortController>>(new Map())
+
   // Auto-focus input on mount
   useEffect(() => {
     setTimeout(() => inputRef.current?.focus(), 100)
@@ -107,22 +110,20 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       setUrlLoading(false)
       setUrlError('')
     }
-    // Clear detected location when input is fully cleared
-    if (!inputText.trim()) {
-      setDetectedLocation(null)
-    }
+    // Clear detected location when input changes (new text = new detection needed)
+    setDetectedLocation(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inputText])
 
   // Run location detection and store as suggestion (not auto-applied)
-  const runLocationDetection = useCallback(async (text: string) => {
+  const runLocationDetection = useCallback(async (text: string, geoOnly?: boolean) => {
     if (locationManuallySet || suggestionDismissed) return
     const now = Date.now()
     if (now - lastDetectionTime.current < 3000) return
     lastDetectionTime.current = now
     setLocationDetecting(true)
     try {
-      const result = await detectLocationFromText(text)
+      const result = await detectLocationFromText(text, { geoOnly })
       if (result && !locationManuallySet && !suggestionDismissed) {
         setDetectedLocation({
           name: result.address,
@@ -141,14 +142,18 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     setLocationDetecting(false)
   }, [locationManuallySet, suggestionDismissed])
 
-  // Debounced text detection: 1.5s after typing stops, if 3+ words and no URL
+  // Debounced text detection: 1.5s (3+ words) or 2s (1-2 words) after typing stops
   useEffect(() => {
     if (detectionDebounce.current) clearTimeout(detectionDebounce.current)
-    const words = inputText.trim().split(/\s+/)
-    if (words.length < 3 || detectUrl(inputText) || locationManuallySet || suggestionDismissed) return
+    const trimmed = inputText.trim()
+    if (!trimmed || detectUrl(inputText) || locationManuallySet || suggestionDismissed) return
+    const wordCount = trimmed.split(/\s+/).length
+    if (wordCount < 1) return
+    const delay = wordCount <= 2 ? 2000 : 1500
+    const geoOnly = wordCount <= 2
     detectionDebounce.current = setTimeout(() => {
-      runLocationDetection(inputText)
-    }, 1500)
+      runLocationDetection(inputText, geoOnly)
+    }, delay)
     return () => { if (detectionDebounce.current) clearTimeout(detectionDebounce.current) }
   }, [inputText, locationManuallySet, suggestionDismissed, runLocationDetection])
 
@@ -268,7 +273,40 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     }
 
     trackEvent('save_created', user.id, { source_type: sourceType, category: category ?? 'general', location_name: location?.name ?? null })
-    onSaved(data as SavedItem)
+
+    const savedItem = data as SavedItem
+
+    // If no location was set and the input had 3+ words, fire background detection
+    const savedWithoutLocation = !location
+    const textForDetection = inputText.trim()
+    const metadataText = metadata ? [metadata.title, metadata.description].filter(Boolean).join(' ') : ''
+    const detectionInput = detectedUrl ? metadataText : textForDetection
+    const wordCount = detectionInput.split(/\s+/).length
+
+    if (savedWithoutLocation && wordCount >= 3 && !locationManuallySet) {
+      // Run detection in background and update the item silently
+      const itemId = savedItem.id
+      const controller = new AbortController()
+      pendingLocationUpdates.current.set(itemId, controller)
+
+      detectLocationFromText(detectionInput).then(async (result) => {
+        if (controller.signal.aborted || !result) return
+        // Update the saved item with detected location
+        await supabase.from('saved_items').update({
+          location_name: result.address,
+          location_lat: result.lat,
+          location_lng: result.lng,
+          location_place_id: result.placeId,
+          location_country: result.country,
+          location_country_code: result.countryCode,
+          location_name_en: result.name,
+        }).eq('id', itemId)
+      }).catch(() => { /* silent */ }).finally(() => {
+        pendingLocationUpdates.current.delete(itemId)
+      })
+    }
+
+    onSaved(savedItem)
 
     // Reset form for rapid successive saves — sheet stays open
     setSaving(false)
