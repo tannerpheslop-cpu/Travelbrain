@@ -86,7 +86,7 @@ interface CreateTripModalProps {
   onClose: () => void
   onCreated: (tripId: string) => void
   createTrip: (input: { title: string }) => Promise<{ trip: TripWithDestinations | null; error: string | null }>
-  createDestination: (tripId: string, location: LocationSelection, sortOrder: number, imageUrl?: string, imageSource?: string) => Promise<{ destination: unknown; error: string | null }>
+  createDestination: (tripId: string, location: LocationSelection, sortOrder: number, imageUrl?: string, imageSource?: string, imageCreditName?: string, imageCreditUrl?: string) => Promise<{ destination: unknown; error: string | null }>
 }
 
 function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: CreateTripModalProps) {
@@ -179,10 +179,10 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
       Promise.all(destinations.map(async (d) => {
         // Try Unsplash first
         const unsplash = await fetchDestinationPhoto(d.name).catch(() => null)
-        if (unsplash?.url) return { url: unsplash.url, source: 'unsplash' as const }
+        if (unsplash?.url) return { url: unsplash.url, source: 'unsplash' as const, creditName: unsplash.photographer, creditUrl: unsplash.profileUrl }
         // Fall back to Google Places
         const gPhoto = await fetchPlacePhoto(d.place_id).catch(() => null)
-        if (gPhoto) return { url: gPhoto, source: 'google_places' as const }
+        if (gPhoto) return { url: gPhoto, source: 'google_places' as const, creditName: undefined, creditUrl: undefined }
         return null
       })),
     ])
@@ -198,7 +198,7 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
     // in the useTrips hook's setTrips updater
     for (let i = 0; i < destinations.length; i++) {
       const photo = photoResults[i]
-      await createDestination(trip.id, destinations[i], i, photo?.url, photo?.source)
+      await createDestination(trip.id, destinations[i], i, photo?.url, photo?.source, photo?.creditName, photo?.creditUrl)
     }
     onCreated(trip.id)
   }
@@ -743,13 +743,21 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
             )}
           </div>
         </div>
-        {/* Unsplash attribution */}
-        {hasBgImage && isUnsplash && (
-          <div style={{
-            position: 'absolute', bottom: 6, right: 12, zIndex: 2,
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-            color: 'rgba(255,255,255,0.4)',
-          }}>Photo: Unsplash</div>
+        {/* Photographer credit (Unsplash only) */}
+        {hasBgImage && isUnsplash && imageDest?.image_credit_name && (
+          <a
+            href={`${imageDest.image_credit_url ?? '#'}?utm_source=youji&utm_medium=referral`}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            style={{
+              position: 'absolute', bottom: 8, right: 12, zIndex: 2,
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 400,
+              color: 'rgba(255,255,255,0.25)', textDecoration: 'none', transition: 'color 0.15s ease',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.5)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.25)')}
+          >Photo: {imageDest.image_credit_name}</a>
         )}
       </div>
     </Link>

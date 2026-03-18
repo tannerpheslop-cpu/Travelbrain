@@ -82,6 +82,8 @@ export interface TripDestination {
   proximity_radius_km: number
   image_url: string | null
   image_source: string | null
+  image_credit_name: string | null
+  image_credit_url: string | null
   start_date: string | null
   end_date: string | null
   notes: string | null
