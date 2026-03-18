@@ -65,7 +65,7 @@ export default function PlaceSearchInput({ userId, biasLat, biasLng, onPlaceAdde
       if (cancelled || !inputRef.current || !window.google?.maps?.places) return
 
       const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, {
-        fields: ['place_id', 'name', 'formatted_address', 'geometry', 'types', 'address_components', 'photos'],
+        fields: ['place_id', 'name', 'formatted_address', 'geometry', 'types', 'addressComponents', 'photos'],
         types: ['establishment'],
       })
 
