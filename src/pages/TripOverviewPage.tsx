@@ -1681,6 +1681,7 @@ export default function TripOverviewPage() {
                   value=""
                   onSelect={handleAddDestination}
                   placesTypes={['(regions)']}
+                  clearOnSelect
                   label=""
                   optional={false}
                   placeholder="e.g. Beijing, Tokyo, France…"
@@ -1909,6 +1910,7 @@ export default function TripOverviewPage() {
                       optional={false}
                       placeholder="e.g. Beijing, Tokyo, France…"
                       placesTypes={['(regions)']}
+                      clearOnSelect
                     />
                     {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
                   </div>
