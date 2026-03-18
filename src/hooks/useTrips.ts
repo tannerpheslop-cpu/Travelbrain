@@ -41,6 +41,7 @@ export function useTrips() {
         ...t,
         // Graceful defaults before migration adds these columns
         is_featured: t.is_featured ?? false,
+        is_favorited: t.is_favorited ?? false,
         updated_at: t.updated_at ?? t.created_at,
         trip_destinations: (t.trip_destinations ?? []).sort((a, b) => a.sort_order - b.sort_order),
       }))
@@ -71,7 +72,7 @@ export function useTrips() {
       if (insertError) return { trip: null, error: insertError.message }
 
       const raw = data as Trip
-      const newTrip: TripWithDestinations = { ...raw, is_featured: raw.is_featured ?? false, updated_at: raw.updated_at ?? raw.created_at, trip_destinations: [] }
+      const newTrip: TripWithDestinations = { ...raw, is_featured: raw.is_featured ?? false, is_favorited: raw.is_favorited ?? false, updated_at: raw.updated_at ?? raw.created_at, trip_destinations: [] }
       trackEvent('trip_created', user.id, { trip_id: newTrip.id, status: newTrip.status })
       setTrips((prev) => [newTrip, ...prev])
       return { trip: newTrip, error: null }
@@ -177,5 +178,40 @@ export function useTrips() {
     [user, fetchTrips],
   )
 
-  return { trips, loading, createTrip, createDestination, deleteTrip, toggleFeatured, refetch: fetchTrips }
+  const toggleFavorite = useCallback(
+    async (tripId: string, favorite: boolean): Promise<{ error: string | null }> => {
+      if (!user) return { error: 'Not authenticated' }
+
+      // Optimistic: set this trip favorited, clear all others
+      setTrips((prev) =>
+        prev.map((t) => ({
+          ...t,
+          is_favorited: favorite ? t.id === tripId : t.id === tripId ? false : t.is_favorited,
+        })),
+      )
+
+      // Clear any existing favorited trip
+      const { error: clearError } = await supabase
+        .from('trips')
+        .update({ is_favorited: false })
+        .eq('owner_id', user.id)
+        .eq('is_favorited', true)
+
+      if (clearError) { fetchTrips(); return { error: clearError.message } }
+
+      if (favorite) {
+        const { error: setError } = await supabase
+          .from('trips')
+          .update({ is_favorited: true })
+          .eq('id', tripId)
+
+        if (setError) { fetchTrips(); return { error: setError.message } }
+      }
+
+      return { error: null }
+    },
+    [user, fetchTrips],
+  )
+
+  return { trips, loading, createTrip, createDestination, deleteTrip, toggleFeatured, toggleFavorite, refetch: fetchTrips }
 }
