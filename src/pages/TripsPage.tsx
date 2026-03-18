@@ -1062,12 +1062,12 @@ export default function TripsPage() {
   const totalDests = useMemo(() => trips.reduce((s, t) => s + (t.trip_destinations?.length ?? 0), 0), [trips])
 
   return (
-    <div className="px-5 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+    <div className="max-w-[860px] mx-auto px-5 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       {/* ── Header ── */}
       <BrandMark className="mb-2 block" />
       <h1 className="text-[32px] font-bold leading-[1.2] tracking-[-0.5px] text-text-primary">Trips</h1>
       {trips.length > 0 && (
-        <div className="mt-1">
+        <div className="mt-1.5">
           <MetadataLine items={[
             `${trips.length} trip${trips.length !== 1 ? 's' : ''}`,
             `${totalCountries} ${totalCountries === 1 ? 'country' : 'countries'}`,
@@ -1076,7 +1076,7 @@ export default function TripsPage() {
         </div>
       )}
 
-      {/* Action button */}
+      {/* Action button — below metadata, never inline with title */}
       <div className="mt-5">
         <PrimaryButton onClick={() => setShowModal(true)}>
           <Plus className="w-4 h-4" />
@@ -1085,7 +1085,7 @@ export default function TripsPage() {
       </div>
 
       {/* ── Divider ── */}
-      <div className="mt-4 mb-4 border-t border-border" />
+      <div className="mt-5 mb-5 border-t border-border" />
 
       {/* ── Loading Skeletons ── */}
       {loading && (
@@ -1101,7 +1101,7 @@ export default function TripsPage() {
       {!loading && trips.length === 0 && (
         <div className="mt-4" onClick={() => setShowModal(true)}>
           <DashedCard className="flex flex-col items-center justify-center py-20 px-6 cursor-pointer text-center">
-            <span className="font-mono text-[32px] text-text-faint opacity-25 block mb-3">🗺</span>
+            <span className="font-mono text-[28px] text-text-faint opacity-25 block mb-3">↗</span>
             <p className="text-[15px] font-semibold text-text-secondary">Plan your first trip</p>
             <p className="mt-1.5 font-mono text-xs text-text-ghost max-w-xs">
               Create a trip to start organizing your destinations and saves
