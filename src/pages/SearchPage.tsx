@@ -160,7 +160,7 @@ export default function SearchPage() {
     <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       {/* Search input */}
       <div className="relative">
-        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-faint pointer-events-none" />
         <input
           ref={inputRef}
           type="text"
@@ -168,7 +168,7 @@ export default function SearchPage() {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search saves, trips, destinations..."
-          className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+          className="w-full pl-10 pr-4 py-3 bg-bg-card border border-border rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint"
         />
       </div>
 
@@ -176,7 +176,7 @@ export default function SearchPage() {
       <div className="mt-4">
         {loading && (
           <div className="flex items-center justify-center py-12">
-            <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
           </div>
         )}
 
@@ -186,7 +186,7 @@ export default function SearchPage() {
             {/* Recent searches */}
             {recentSearches.length > 0 && (
               <section className="mb-6">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2 px-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint mb-2 px-1">
                   Recent searches
                 </p>
                 <div className="flex flex-wrap gap-2">
@@ -195,9 +195,9 @@ export default function SearchPage() {
                       key={term}
                       type="button"
                       onClick={() => handleRecentSearchTap(term)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 rounded-full text-sm text-gray-600 hover:bg-gray-200 active:bg-gray-300 transition-colors"
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-bg-muted rounded-full text-sm text-text-secondary hover:bg-bg-pill-dark active:bg-bg-pill-dark transition-colors"
                     >
-                      <Clock className="w-3 h-3 text-gray-400" />
+                      <Clock className="w-3 h-3 text-text-faint" />
                       {term}
                     </button>
                   ))}
@@ -208,7 +208,7 @@ export default function SearchPage() {
             {/* Recently added saves */}
             {recentSaves.length > 0 && (
               <section className="mb-6">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2 px-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint mb-2 px-1">
                   Recently added
                 </p>
                 <div className="flex flex-col">
@@ -222,7 +222,7 @@ export default function SearchPage() {
             {/* Suggested trips from clusters */}
             {suggestedClusters.length > 0 && (
               <section className="mb-6">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2 px-1">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint mb-2 px-1">
                   Suggested trips
                 </p>
                 <div className="flex flex-col gap-2">
@@ -231,14 +231,14 @@ export default function SearchPage() {
                       key={cluster.country}
                       type="button"
                       onClick={() => navigate('/trips')}
-                      className="flex items-center gap-3 px-3 py-3 bg-blue-50 rounded-xl hover:bg-blue-100 active:bg-blue-150 transition-colors text-left w-full"
+                      className="flex items-center gap-3 px-3 py-3 bg-accent-light rounded-xl hover:bg-accent-light active:bg-accent-light transition-colors text-left w-full"
                     >
-                      <Sparkles className="w-5 h-5 text-blue-500 shrink-0" />
+                      <Sparkles className="w-5 h-5 text-accent shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">
+                        <p className="text-sm font-medium text-text-primary">
                           {countryCodeToFlag(cluster.country_code)} You have {cluster.item_count} saves in {cluster.country}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">
+                        <p className="text-xs text-text-tertiary mt-0.5">
                           {cluster.cities.map((c) => c.name).join(', ')} — Create a trip?
                         </p>
                       </div>
@@ -251,8 +251,8 @@ export default function SearchPage() {
             {/* Empty state when nothing to show */}
             {recentSearches.length === 0 && recentSaves.length === 0 && (
               <div className="text-center py-12">
-                <Search className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-                <p className="text-sm text-gray-400">
+                <Search className="w-8 h-8 text-text-ghost mx-auto mb-3" />
+                <p className="text-sm text-text-faint">
                   Search your saves, trips, and destinations
                 </p>
               </div>
@@ -263,14 +263,14 @@ export default function SearchPage() {
         {/* Search results (with query) */}
         {!loading && hasQuery && !hasResults && (
           <div className="text-center py-12">
-            <p className="text-sm text-gray-500">No results for &ldquo;{query}&rdquo;</p>
+            <p className="text-sm text-text-tertiary">No results for &ldquo;{query}&rdquo;</p>
           </div>
         )}
 
         {/* Saves section */}
         {filteredSaves.length > 0 && (
           <section className="mb-5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2 px-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint mb-2 px-1">
               Saves
             </p>
             <div className="flex flex-col">
@@ -282,7 +282,7 @@ export default function SearchPage() {
               <button
                 type="button"
                 onClick={() => setShowAllSaves(true)}
-                className="text-xs text-blue-600 font-medium px-1 mt-1 hover:underline"
+                className="text-xs text-accent font-medium px-1 mt-1 hover:underline"
               >
                 Show all {filteredSaves.length} saves
               </button>
@@ -293,7 +293,7 @@ export default function SearchPage() {
         {/* Trips section */}
         {filteredTrips.length > 0 && (
           <section className="mb-5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2 px-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint mb-2 px-1">
               Trips
             </p>
             <div className="flex flex-col">
@@ -301,12 +301,12 @@ export default function SearchPage() {
                 <Link
                   key={trip.id}
                   to={`/trip/${trip.id}`}
-                  className="flex items-center gap-2.5 px-2 py-2.5 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  className="flex items-center gap-2.5 px-2 py-2.5 rounded-lg hover:bg-bg-muted active:bg-bg-muted transition-colors"
                 >
-                  <Map className="w-4 h-4 shrink-0 text-blue-500" />
+                  <Map className="w-4 h-4 shrink-0 text-accent" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 truncate">{trip.title}</p>
-                    <p className="text-xs text-gray-400 truncate">
+                    <p className="text-sm text-text-primary truncate">{trip.title}</p>
+                    <p className="text-xs text-text-faint truncate">
                       {trip.trip_destinations?.length || 0} destination
                       {(trip.trip_destinations?.length || 0) !== 1 ? 's' : ''}
                     </p>
@@ -318,7 +318,7 @@ export default function SearchPage() {
               <button
                 type="button"
                 onClick={() => setShowAllTrips(true)}
-                className="text-xs text-blue-600 font-medium px-1 mt-1 hover:underline"
+                className="text-xs text-accent font-medium px-1 mt-1 hover:underline"
               >
                 Show all {filteredTrips.length} trips
               </button>
@@ -329,7 +329,7 @@ export default function SearchPage() {
         {/* Destinations section */}
         {filteredDestinations.length > 0 && (
           <section className="mb-5">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 mb-2 px-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint mb-2 px-1">
               Destinations
             </p>
             <div className="flex flex-col">
@@ -337,12 +337,12 @@ export default function SearchPage() {
                 <Link
                   key={dest.id}
                   to={`/trip/${dest.trip_id}`}
-                  className="flex items-center gap-2.5 px-2 py-2.5 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                  className="flex items-center gap-2.5 px-2 py-2.5 rounded-lg hover:bg-bg-muted active:bg-bg-muted transition-colors"
                 >
-                  <Compass className="w-4 h-4 shrink-0 text-emerald-500" />
+                  <Compass className="w-4 h-4 shrink-0 text-text-tertiary" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-900 truncate">{dest.location_name}</p>
-                    <p className="text-xs text-gray-400 truncate">in {tripTitle}</p>
+                    <p className="text-sm text-text-primary truncate">{dest.location_name}</p>
+                    <p className="text-xs text-text-faint truncate">in {tripTitle}</p>
                   </div>
                 </Link>
               ))}
@@ -351,7 +351,7 @@ export default function SearchPage() {
               <button
                 type="button"
                 onClick={() => setShowAllDests(true)}
-                className="text-xs text-blue-600 font-medium px-1 mt-1 hover:underline"
+                className="text-xs text-accent font-medium px-1 mt-1 hover:underline"
               >
                 Show all {filteredDestinations.length} destinations
               </button>
@@ -372,12 +372,12 @@ function SaveRow({ item }: { item: SavedItem }) {
     <Link
       to={`/item/${item.id}`}
       state={{ from: '/search' }}
-      className="flex items-center gap-2.5 px-2 py-2.5 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors"
+      className="flex items-center gap-2.5 px-2 py-2.5 rounded-lg hover:bg-bg-muted active:bg-bg-muted transition-colors"
     >
       <Icon className={`w-4 h-4 shrink-0 ${categoryIconColors[item.category]}`} />
-      <span className="text-sm text-gray-900 truncate flex-1 min-w-0">{item.title}</span>
+      <span className="text-sm text-text-primary truncate flex-1 min-w-0">{item.title}</span>
       {item.location_name && (
-        <span className="text-xs text-gray-400 truncate shrink-0 max-w-[140px]">
+        <span className="text-xs text-text-faint truncate shrink-0 max-w-[140px]">
           {item.location_name.split(',')[0].trim()}
           {item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}
         </span>

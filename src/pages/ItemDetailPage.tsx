@@ -17,10 +17,10 @@ const categories: { value: Category; label: string }[] = [
 ]
 
 const categoryPlaceholderColors: Record<Category, { bg: string; icon: string }> = {
-  restaurant: { bg: 'bg-orange-50', icon: 'text-orange-300' },
-  activity:   { bg: 'bg-purple-50', icon: 'text-purple-300' },
+  restaurant: { bg: 'bg-bg-card', icon: 'text-text-faint' },
+  activity:   { bg: 'bg-bg-pill', icon: 'text-text-faint' },
   hotel:      { bg: 'bg-sky-50',    icon: 'text-sky-300'    },
-  transit:    { bg: 'bg-amber-50',  icon: 'text-amber-300'  },
+  transit:    { bg: 'bg-bg-pill',  icon: 'text-text-faint'  },
   general:    { bg: 'bg-slate-50',  icon: 'text-slate-300'  },
 }
 
@@ -185,13 +185,13 @@ export default function ItemDetailPage() {
     return (
       <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
         <div className="animate-pulse">
-          <div className="h-5 w-14 bg-gray-200 rounded-full mb-6" />
+          <div className="h-5 w-14 bg-bg-pill-dark rounded-full mb-6" />
           <div className="h-56 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl" />
           <div className="mt-5 space-y-3">
-            <div className="h-6 bg-gray-200 rounded-full w-3/4" />
-            <div className="h-4 bg-gray-100 rounded-full w-1/3" />
-            <div className="h-11 bg-gray-100 rounded-xl mt-4" />
-            <div className="h-24 bg-gray-100 rounded-xl" />
+            <div className="h-6 bg-bg-pill-dark rounded-full w-3/4" />
+            <div className="h-4 bg-bg-muted rounded-full w-1/3" />
+            <div className="h-11 bg-bg-muted rounded-xl mt-4" />
+            <div className="h-24 bg-bg-muted rounded-xl" />
           </div>
         </div>
       </div>
@@ -203,7 +203,7 @@ export default function ItemDetailPage() {
       <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
         <button
           onClick={() => navigate(backTo)}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
             <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
@@ -211,8 +211,8 @@ export default function ItemDetailPage() {
           Back
         </button>
         <div className="mt-16 text-center">
-          <p className="text-gray-500 font-medium">Item not found</p>
-          <p className="mt-1 text-sm text-gray-400">It may have been deleted or archived</p>
+          <p className="text-text-tertiary font-medium">Item not found</p>
+          <p className="mt-1 text-sm text-text-faint">It may have been deleted or archived</p>
         </div>
       </div>
     )
@@ -228,7 +228,7 @@ export default function ItemDetailPage() {
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={() => navigate(backTo)}
-          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
             <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
@@ -236,7 +236,7 @@ export default function ItemDetailPage() {
           Back
         </button>
         {saveStatus !== 'idle' && (
-          <span className={`text-xs font-medium ${saveStatus === 'saving' ? 'text-gray-400' : 'text-green-600'}`}>
+          <span className={`text-xs font-medium ${saveStatus === 'saving' ? 'text-text-faint' : 'text-success'}`}>
             {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
           </span>
         )}
@@ -258,11 +258,11 @@ export default function ItemDetailPage() {
               type="button"
               onClick={handleRefreshImage}
               disabled={refreshingImage}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-white/80 hover:bg-white text-gray-700 text-xs font-medium rounded-full shadow-sm transition-colors disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-bg-card/80 hover:bg-bg-card text-text-secondary text-xs font-medium rounded-full shadow-sm transition-colors disabled:opacity-50"
             >
               {refreshingImage ? (
                 <>
-                  <svg className="animate-spin w-3.5 h-3.5 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin w-3.5 h-3.5 text-text-tertiary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
@@ -287,7 +287,7 @@ export default function ItemDetailPage() {
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Add a title..."
-        className="w-full mt-4 text-xl font-bold text-gray-900 placeholder:text-gray-400 focus:outline-none"
+        className="w-full mt-4 text-xl font-bold text-text-primary placeholder:text-text-faint focus:outline-none"
       />
 
       {/* Source Link */}
@@ -296,7 +296,7 @@ export default function ItemDetailPage() {
           href={item.source_url}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 mt-2 text-sm text-blue-600 hover:text-blue-700 transition-colors"
+          className="inline-flex items-center gap-1.5 mt-2 text-sm text-accent hover:text-accent transition-colors"
         >
           {item.site_name || 'Source'}
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
@@ -310,9 +310,9 @@ export default function ItemDetailPage() {
       <button
         type="button"
         onClick={() => setShowTripSheet(true)}
-        className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl text-sm font-medium hover:bg-gray-50 active:bg-gray-100 transition-colors"
+        className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-3 border border-border-input text-text-secondary rounded-xl text-sm font-medium hover:bg-bg-muted active:bg-bg-muted transition-colors"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-blue-500">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-accent">
           <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
         </svg>
         Add to Trip
@@ -327,7 +327,7 @@ export default function ItemDetailPage() {
       )}
 
       {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gray-800 text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
           {toast}
         </div>
       )}
@@ -335,7 +335,7 @@ export default function ItemDetailPage() {
       <div className="mt-5 space-y-5">
         {/* Category */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+          <label className="block text-sm font-medium text-text-secondary mb-2">Category</label>
           <div className="flex flex-wrap gap-2">
             {categories.map((cat) => (
               <button
@@ -344,8 +344,8 @@ export default function ItemDetailPage() {
                 onClick={() => handleCategoryChange(cat.value)}
                 className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
                   category === cat.value
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
+                    ? 'bg-accent text-white'
+                    : 'bg-bg-muted text-text-secondary hover:bg-bg-pill-dark active:bg-bg-pill-dark'
                 }`}
               >
                 {cat.label}
@@ -364,7 +364,7 @@ export default function ItemDetailPage() {
 
         {/* Notes */}
         <div>
-          <label htmlFor="detail-notes" className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor="detail-notes" className="block text-sm font-medium text-text-secondary mb-1.5">
             Notes
           </label>
           <textarea
@@ -373,14 +373,14 @@ export default function ItemDetailPage() {
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Any notes about this place..."
             rows={3}
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 resize-none"
+            className="w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint resize-none"
           />
         </div>
 
         {/* Tags */}
         <div>
-          <label htmlFor="detail-tags" className="block text-sm font-medium text-gray-700 mb-1.5">
-            Tags <span className="text-gray-400 font-normal">(comma-separated)</span>
+          <label htmlFor="detail-tags" className="block text-sm font-medium text-text-secondary mb-1.5">
+            Tags <span className="text-text-faint font-normal">(comma-separated)</span>
           </label>
           <input
             id="detail-tags"
@@ -388,7 +388,7 @@ export default function ItemDetailPage() {
             value={tags}
             onChange={(e) => setTags(e.target.value)}
             placeholder="e.g. must-try, rooftop, budget"
-            className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+            className="w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint"
           />
         </div>
 
@@ -396,7 +396,7 @@ export default function ItemDetailPage() {
         <button
           onClick={handleArchive}
           disabled={archiving}
-          className="w-full px-4 py-3 border border-red-200 text-red-600 rounded-xl text-sm font-medium hover:bg-red-50 active:bg-red-100 transition-colors disabled:opacity-50"
+          className="w-full px-4 py-3 border border-error/25 text-error rounded-xl text-sm font-medium hover:bg-error-bg active:bg-error-bg transition-colors disabled:opacity-50"
         >
           {archiving ? 'Archiving...' : 'Archive Item'}
         </button>

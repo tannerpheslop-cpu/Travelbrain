@@ -40,7 +40,7 @@ export default function GlobalActions() {
         <button
           type="button"
           onClick={() => setShowCreate((v) => !v)}
-          className="pointer-events-auto w-13 h-13 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-200/50 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
+          className="pointer-events-auto w-13 h-13 rounded-full bg-accent text-white shadow-lg shadow-accent/25 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
           aria-label={showCreate ? 'Close' : 'Add save'}
         >
           <div className={`transition-transform duration-200 ${showCreate ? 'rotate-0' : 'rotate-0'}`}>

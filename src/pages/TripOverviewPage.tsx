@@ -127,51 +127,51 @@ function ShareTripModal({ trip, onClose, onUpdated }: { trip: Trip; onClose: () 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
-        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-900">Share Trip</h2>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close">
+      <div className="relative w-full max-w-lg bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
+        <div className="w-10 h-1 bg-border-input rounded-full mx-auto mt-3 sm:hidden" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
+          <h2 className="text-base font-semibold text-text-primary">Share Trip</h2>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors" aria-label="Close">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" /></svg>
           </button>
         </div>
         <div className="px-5 py-5 space-y-4">
           <div>
-            <p className="text-sm font-medium text-gray-700 mb-2">Who can see what?</p>
+            <p className="text-sm font-medium text-text-secondary mb-2">Who can see what?</p>
             <div className="flex gap-2">
               {privacyOptions.map((opt) => (
                 <button key={opt.value} type="button" onClick={() => { setPrivacy(opt.value); setShareUrl(null) }}
-                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border text-xs font-medium transition-colors ${privacy === opt.value ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                  className={`flex-1 flex flex-col items-center gap-1 py-2.5 px-1 rounded-xl border text-xs font-medium transition-colors ${privacy === opt.value ? 'border-accent bg-accent-light text-accent' : 'border-border text-text-secondary hover:bg-bg-page'}`}
                 >
                   <span className="text-base">{opt.emoji}</span>
                   {opt.label}
                 </button>
               ))}
             </div>
-            <p className="mt-2 text-xs text-gray-400">{selectedOption.description}</p>
+            <p className="mt-2 text-xs text-text-faint">{selectedOption.description}</p>
           </div>
           {!shareUrl && (
-            <button type="button" onClick={handleGenerate} disabled={generating} className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50">
+            <button type="button" onClick={handleGenerate} disabled={generating} className="w-full py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-50">
               {generating ? 'Generating…' : 'Generate Link'}
             </button>
           )}
           {shareUrl && (
             <div className="space-y-3">
-              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5">
-                <p className="flex-1 text-xs text-gray-600 font-mono truncate">{shareUrl}</p>
+              <div className="flex items-center gap-2 bg-bg-page border border-border rounded-xl px-3 py-2.5">
+                <p className="flex-1 text-xs text-text-secondary font-mono truncate">{shareUrl}</p>
               </div>
               <div className="flex gap-2">
                 <button type="button" onClick={handleCopy}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${copied ? 'bg-green-600 text-white' : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'}`}>
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-sm font-semibold transition-colors ${copied ? 'bg-success text-white' : 'bg-accent text-white hover:bg-accent-hover active:bg-accent-hover'}`}>
                   {copied ? 'Copied!' : 'Copy Link'}
                 </button>
-                <button type="button" onClick={() => setShareUrl(null)} className="px-4 py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
+                <button type="button" onClick={() => setShareUrl(null)} className="px-4 py-2.5 border border-border text-text-tertiary rounded-xl text-sm font-medium hover:bg-bg-page transition-colors">
                   Change
                 </button>
               </div>
             </div>
           )}
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-error">{error}</p>}
         </div>
       </div>
     </div>
@@ -218,51 +218,51 @@ function InviteCompanionModal({
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden max-h-[85vh] flex flex-col">
-        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden shrink-0" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <h2 className="text-base font-semibold text-gray-900">Invite Companions</h2>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close">
+      <div className="relative w-full max-w-lg bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden max-h-[85vh] flex flex-col">
+        <div className="w-10 h-1 bg-border-input rounded-full mx-auto mt-3 sm:hidden shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle shrink-0">
+          <h2 className="text-base font-semibold text-text-primary">Invite Companions</h2>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors" aria-label="Close">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" /></svg>
           </button>
         </div>
         <div className="overflow-y-auto flex-1 px-5 py-5 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Invite by email</label>
+            <label className="block text-sm font-medium text-text-secondary mb-1.5">Invite by email</label>
             <div className="flex gap-2">
               <input ref={emailRef} type="email" value={email} onChange={(e) => { setEmail(e.target.value); setStatus('idle') }}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleInvite() }}
                 placeholder="friend@example.com"
-                className="flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400" />
+                className="flex-1 px-3 py-2.5 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint" />
               <button type="button" onClick={handleInvite} disabled={status === 'loading' || !email.trim()}
-                className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50 shrink-0">
+                className="px-4 py-2.5 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-50 shrink-0">
                 {status === 'loading' ? '…' : 'Invite'}
               </button>
             </div>
           </div>
-          {status === 'added' && <p className="text-sm text-green-700 font-medium">Companion added!</p>}
+          {status === 'added' && <p className="text-sm text-success font-medium">Companion added!</p>}
           {status === 'invited' && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-              <p className="text-sm font-medium text-amber-800">No account found</p>
-              <p className="mt-0.5 text-sm text-amber-700">They'll need to sign up first. Share the trip link with them!</p>
+            <div className="bg-accent-light border border-accent rounded-xl px-4 py-3">
+              <p className="text-sm font-medium text-accent">No account found</p>
+              <p className="mt-0.5 text-sm text-text-tertiary">They'll need to sign up first. Share the trip link with them!</p>
             </div>
           )}
-          {status === 'error' && <p className="text-sm text-red-600">{errorMsg}</p>}
+          {status === 'error' && <p className="text-sm text-error">{errorMsg}</p>}
           {companions.length > 0 && (
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Companions</p>
+              <p className="text-sm font-medium text-text-secondary mb-2">Companions</p>
               <div className="space-y-2">
                 {companions.map((c) => {
                   const name = c.user.display_name ?? c.user.email
                   const initials = name.split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('')
                   return (
                     <div key={c.id} className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-semibold shrink-0">{initials || '?'}</div>
+                      <div className="w-8 h-8 rounded-full bg-accent-light text-accent flex items-center justify-center text-sm font-semibold shrink-0">{initials || '?'}</div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{name}</p>
-                        {c.user.display_name && <p className="text-xs text-gray-400 truncate">{c.user.email}</p>}
+                        <p className="text-sm font-medium text-text-primary truncate">{name}</p>
+                        {c.user.display_name && <p className="text-xs text-text-faint truncate">{c.user.email}</p>}
                       </div>
-                      <button type="button" onClick={() => onRemove(c.id)} className="text-xs text-gray-400 hover:text-red-500 transition-colors shrink-0">Remove</button>
+                      <button type="button" onClick={() => onRemove(c.id)} className="text-xs text-text-faint hover:text-error transition-colors shrink-0">Remove</button>
                     </div>
                   )
                 })}
@@ -271,27 +271,27 @@ function InviteCompanionModal({
           )}
           {pendingInvites.length > 0 && (
             <div>
-              <p className="text-sm font-medium text-gray-700 mb-2">Pending invitations</p>
+              <p className="text-sm font-medium text-text-secondary mb-2">Pending invitations</p>
               <div className="space-y-2">
                 {pendingInvites.map((p) => (
                   <div key={p.id} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400">
+                    <div className="w-8 h-8 rounded-full bg-bg-muted flex items-center justify-center shrink-0">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-text-faint">
                         <path d="M3 4a2 2 0 00-2 2v1.161l8.441 4.221a1.25 1.25 0 001.118 0L19 7.162V6a2 2 0 00-2-2H3z" />
                         <path d="M19 8.839l-7.77 3.885a2.75 2.75 0 01-2.46 0L1 8.839V14a2 2 0 002 2h14a2 2 0 002-2V8.839z" />
                       </svg>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-gray-700 truncate">{p.email}</p>
-                      <p className="text-xs text-gray-400">Invitation sent</p>
+                      <p className="text-sm text-text-secondary truncate">{p.email}</p>
+                      <p className="text-xs text-text-faint">Invitation sent</p>
                     </div>
-                    <button type="button" onClick={() => onRemovePending(p.id)} className="text-xs text-gray-400 hover:text-red-500 transition-colors shrink-0">Revoke</button>
+                    <button type="button" onClick={() => onRemovePending(p.id)} className="text-xs text-text-faint hover:text-error transition-colors shrink-0">Revoke</button>
                   </div>
                 ))}
               </div>
             </div>
           )}
-          {!hasAny && <p className="text-sm text-gray-400">No companions yet. Invite someone above!</p>}
+          {!hasAny && <p className="text-sm text-text-faint">No companions yet. Invite someone above!</p>}
         </div>
       </div>
     </div>
@@ -343,8 +343,8 @@ function SortableChecklistItem({
     <div ref={setNodeRef} style={style}>
       <SwipeToDelete onDelete={onDelete} enabled>
         <div
-          className={`flex items-center gap-2.5 bg-white rounded-xl border border-gray-100 px-3 py-2.5 shadow-sm transition-colors ${
-            isDragging ? 'ring-2 ring-blue-200' : ''
+          className={`flex items-center gap-2.5 bg-bg-card rounded-xl border border-border-subtle px-3 py-2.5 shadow-sm transition-colors ${
+            isDragging ? 'ring-2 ring-accent/25' : ''
           }`}
           {...attributes}
           {...(listeners as React.HTMLAttributes<HTMLDivElement>)}
@@ -355,8 +355,8 @@ function SortableChecklistItem({
             onClick={(e) => { e.stopPropagation(); onToggle() }}
             className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${
               note.completed
-                ? 'bg-blue-600 border-blue-600'
-                : 'border-gray-300 hover:border-blue-400'
+                ? 'bg-accent border-accent'
+                : 'border-border-input hover:border-accent'
             }`}
             aria-label={note.completed ? 'Uncheck' : 'Check'}
           >
@@ -379,7 +379,7 @@ function SortableChecklistItem({
                 if (e.key === 'Enter') handleSaveEdit()
                 if (e.key === 'Escape') { setEditing(false); setEditText(note.text) }
               }}
-              className="flex-1 text-sm bg-transparent border-b border-blue-300 focus:outline-none py-0 min-w-0"
+              className="flex-1 text-sm bg-transparent border-b border-accent focus:outline-none py-0 min-w-0"
             />
           ) : (
             <button
@@ -387,8 +387,8 @@ function SortableChecklistItem({
               onClick={handleStartEdit}
               className={`flex-1 text-left text-sm min-w-0 truncate transition-colors ${
                 note.completed
-                  ? 'line-through text-gray-400'
-                  : 'text-gray-800 hover:text-gray-600'
+                  ? 'line-through text-text-faint'
+                  : 'text-text-primary hover:text-text-secondary'
               }`}
             >
               {note.text}
@@ -458,8 +458,8 @@ function GeneralSection({
   return (
     <div className="mt-8">
       <div className="flex items-center gap-2 mb-3">
-        <h2 className="text-base font-semibold text-gray-900">Notes</h2>
-        <span className="text-sm text-gray-400">Trip-wide notes</span>
+        <h2 className="text-base font-semibold text-text-primary">Notes</h2>
+        <span className="text-sm text-text-faint">Trip-wide notes</span>
       </div>
 
       {/* Note input */}
@@ -470,13 +470,13 @@ function GeneralSection({
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSubmit() }}
           placeholder="Pack power adapter, check visa…"
-          className="flex-1 text-sm px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400"
+          className="flex-1 text-sm px-3 py-2 bg-bg-page border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-text-faint"
         />
         <button
           type="button"
           onClick={handleSubmit}
           disabled={!draft.trim()}
-          className="px-3 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-40 shrink-0"
+          className="px-3 py-2 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-40 shrink-0"
         >
           Add
         </button>
@@ -484,7 +484,7 @@ function GeneralSection({
 
       {/* Checklist */}
       {notes.length === 0 ? (
-        <p className="text-sm text-gray-400 py-1">No notes yet — add packing reminders, visa info, or anything trip-wide.</p>
+        <p className="text-sm text-text-faint py-1">No notes yet — add packing reminders, visa info, or anything trip-wide.</p>
       ) : (
         <>
           <DndContext sensors={noteSensors} collisionDetection={closestCenter} onDragEnd={handleNoteDragEnd}>
@@ -507,18 +507,18 @@ function GeneralSection({
           {hasCompleted && (
             <div className="space-y-1.5 mt-2">
               {sortedNotes.filter(n => n.completed).map(note => (
-                <div key={note.id} className="flex items-center gap-2.5 bg-white rounded-xl border border-gray-100 px-3 py-2.5 shadow-sm opacity-60">
+                <div key={note.id} className="flex items-center gap-2.5 bg-bg-card rounded-xl border border-border-subtle px-3 py-2.5 shadow-sm opacity-60">
                   <button
                     type="button"
                     onClick={() => onUpdateNote(note.id, { completed: false })}
-                    className="w-5 h-5 rounded-md border-2 bg-blue-600 border-blue-600 flex items-center justify-center shrink-0"
+                    className="w-5 h-5 rounded-md border-2 bg-accent border-accent flex items-center justify-center shrink-0"
                     aria-label="Uncheck"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white">
                       <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
                     </svg>
                   </button>
-                  <span className="flex-1 text-sm text-gray-400 line-through min-w-0 truncate">{note.text}</span>
+                  <span className="flex-1 text-sm text-text-faint line-through min-w-0 truncate">{note.text}</span>
                 </div>
               ))}
             </div>
@@ -529,7 +529,7 @@ function GeneralSection({
             <button
               type="button"
               onClick={onClearCompleted}
-              className="mt-2 text-xs text-gray-400 hover:text-red-500 font-medium transition-colors"
+              className="mt-2 text-xs text-text-faint hover:text-error font-medium transition-colors"
             >
               Clear completed
             </button>
@@ -553,22 +553,22 @@ function AddDestSuggestionList({
 }) {
   if (!suggestions.length) return null
   return (
-    <div className="mt-2 border border-gray-100 rounded-xl overflow-hidden">
+    <div className="mt-2 border border-border-subtle rounded-xl overflow-hidden">
       {suggestions.map((s, i) => (
         <div
           key={s.key}
-          className={`flex items-center justify-between px-3 py-2 ${i > 0 ? 'border-t border-gray-100' : ''}`}
+          className={`flex items-center justify-between px-3 py-2 ${i > 0 ? 'border-t border-border-subtle' : ''}`}
         >
-          <span className="flex items-center gap-1.5 text-sm text-gray-600 min-w-0">
+          <span className="flex items-center gap-1.5 text-sm text-text-secondary min-w-0">
             <span className="text-base leading-none shrink-0">{s.flag}</span>
             <span className="truncate">{s.label}</span>
-            <span className="text-xs text-gray-400 shrink-0">· {s.itemCount}</span>
+            <span className="text-xs text-text-faint shrink-0">· {s.itemCount}</span>
           </span>
           <button
             type="button"
             onClick={() => onSelect(s.loc)}
             disabled={disabled}
-            className="ml-2 w-6 h-6 flex items-center justify-center rounded-full bg-gray-100 hover:bg-blue-100 text-gray-500 hover:text-blue-600 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="ml-2 w-6 h-6 flex items-center justify-center rounded-full bg-bg-muted hover:bg-accent-light text-text-tertiary hover:text-accent transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label={`Add ${s.label}`}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
@@ -1227,13 +1227,13 @@ export default function TripOverviewPage() {
   if (!tripLoading && notFound) {
     return (
       <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-        <button onClick={() => navigate('/trips')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+        <button onClick={() => navigate('/trips')} className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" /></svg>
           Trips
         </button>
         <div className="mt-16 text-center">
-          <p className="text-gray-500 font-medium">Trip not found</p>
-          <p className="mt-1 text-sm text-gray-400">It may have been deleted.</p>
+          <p className="text-text-tertiary font-medium">Trip not found</p>
+          <p className="mt-1 text-sm text-text-faint">It may have been deleted.</p>
         </div>
       </div>
     )
@@ -1242,22 +1242,22 @@ export default function TripOverviewPage() {
   if (tripLoading || destsLoading) {
     return (
       <div className="px-4 pb-24 animate-pulse" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-        <div className="h-4 w-12 bg-gray-100 rounded-lg mb-6" />
-        <div className="h-7 w-2/3 bg-gray-100 rounded-lg mb-2" />
-        <div className="h-4 w-1/3 bg-gray-100 rounded-lg mb-6" />
+        <div className="h-4 w-12 bg-bg-muted rounded-lg mb-6" />
+        <div className="h-7 w-2/3 bg-bg-muted rounded-lg mb-2" />
+        <div className="h-4 w-1/3 bg-bg-muted rounded-lg mb-6" />
         <div className="flex gap-2 mb-6">
-          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
-          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
-          <div className="h-10 w-12 bg-gray-100 rounded-xl" />
+          <div className="h-10 flex-1 bg-bg-muted rounded-xl" />
+          <div className="h-10 flex-1 bg-bg-muted rounded-xl" />
+          <div className="h-10 w-12 bg-bg-muted rounded-xl" />
         </div>
         <div className="space-y-3">
           {[1, 2].map((i) => (
-            <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm p-3">
+            <div key={i} className="bg-bg-card rounded-2xl border border-border-subtle overflow-hidden shadow-sm p-3">
               <div className="flex items-center gap-3.5">
-                <div className="w-20 h-20 rounded-xl bg-gray-100 shrink-0" />
+                <div className="w-20 h-20 rounded-xl bg-bg-muted shrink-0" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-4 bg-gray-100 rounded w-1/2" />
-                  <div className="h-3 bg-gray-100 rounded w-1/3" />
+                  <div className="h-4 bg-bg-muted rounded w-1/2" />
+                  <div className="h-3 bg-bg-muted rounded w-1/3" />
                 </div>
               </div>
             </div>
@@ -1270,7 +1270,7 @@ export default function TripOverviewPage() {
   return (
     <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
       {/* Back button */}
-      <button onClick={() => navigate('/trips')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+      <button onClick={() => navigate('/trips')} className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" /></svg>
         Trips
       </button>
@@ -1280,7 +1280,7 @@ export default function TripOverviewPage() {
         {coverImage ? (
           <img src={coverImage} alt={trip?.title ?? 'Trip'} className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full bg-gradient-to-br from-blue-400 to-indigo-600" />
+          <div className="w-full h-full bg-gradient-to-br from-amber-700 to-orange-900" />
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
 
@@ -1290,7 +1290,7 @@ export default function TripOverviewPage() {
             type="button"
             onClick={() => setShowShareModal(true)}
             className={`relative w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
-              trip?.share_token ? 'bg-blue-500/50 backdrop-blur-sm' : 'bg-black/30 backdrop-blur-sm'
+              trip?.share_token ? 'bg-accent-light0/50 backdrop-blur-sm' : 'bg-black/30 backdrop-blur-sm'
             }`}
             aria-label="Share trip"
           >
@@ -1308,7 +1308,7 @@ export default function TripOverviewPage() {
               <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
             </svg>
             {companions.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-violet-500 rounded-full text-[10px] text-white font-bold flex items-center justify-center">
+              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-bg-card0 rounded-full text-[10px] text-white font-bold flex items-center justify-center">
                 {companions.length}
               </span>
             )}
@@ -1340,9 +1340,9 @@ export default function TripOverviewPage() {
           )}
           <div className="flex items-center gap-2 mt-1.5">
             <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
-              trip?.status === 'scheduled' ? 'bg-emerald-500/80 text-white' :
-              trip?.status === 'planning'  ? 'bg-blue-500/80 text-white' :
-                                             'bg-white/20 text-white backdrop-blur-sm'
+              trip?.status === 'scheduled' ? 'bg-bg-card0/80 text-white' :
+              trip?.status === 'planning'  ? 'bg-accent-light0/80 text-white' :
+                                             'bg-bg-card/20 text-white backdrop-blur-sm'
             }`}>
               {trip?.status === 'scheduled' ? 'Upcoming' : trip?.status === 'planning' ? 'Planning' : 'Someday'}
             </span>
@@ -1369,12 +1369,12 @@ export default function TripOverviewPage() {
       {/* Section header with organize toggle */}
       {destinations.length >= 2 && (
         <div className="flex items-center justify-between mt-8 mb-3">
-          <p className="text-sm font-semibold text-gray-500">{destinations.length} destinations</p>
+          <p className="text-sm font-semibold text-text-tertiary">{destinations.length} destinations</p>
           <button
             type="button"
             onClick={toggleOrganizeMode}
             className={`text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors ${
-              organizeMode ? 'text-blue-700 bg-blue-50' : 'text-gray-400 hover:text-gray-600'
+              organizeMode ? 'text-accent bg-accent-light' : 'text-text-faint hover:text-text-secondary'
             }`}
           >
             {organizeMode ? 'Done' : 'Organize'}
@@ -1385,19 +1385,19 @@ export default function TripOverviewPage() {
       {/* ── Overview entries ── */}
       {destinations.length === 0 ? (
         /* Empty state with autocomplete + suggestions */
-        <div className="bg-white rounded-2xl border-2 border-dashed border-gray-200 p-5 mt-6">
+        <div className="bg-bg-card rounded-2xl border-2 border-dashed border-border p-5 mt-6">
           <div className="text-center mb-5">
-            <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-blue-400">
+            <div className="w-12 h-12 bg-accent-light rounded-2xl flex items-center justify-center mx-auto mb-3">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 text-accent">
                 <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
               </svg>
             </div>
-            <p className="text-base font-semibold text-gray-800">Where are you headed?</p>
-            <p className="text-sm text-gray-400 mt-1">Add a city, country, or region to get started</p>
+            <p className="text-base font-semibold text-text-primary">Where are you headed?</p>
+            <p className="text-sm text-text-faint mt-1">Add a city, country, or region to get started</p>
           </div>
           {tripPageSuggestions.length > 0 && (
             <div className="mb-4">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              <p className="text-xs font-semibold text-text-faint uppercase tracking-wider mb-2">
                 Suggested from your saves
               </p>
               <AddDestSuggestionList
@@ -1405,7 +1405,7 @@ export default function TripOverviewPage() {
                 onSelect={handleAddFromSuggestion}
                 disabled={addingDest}
               />
-              <p className="mt-3 text-xs text-gray-400 font-medium">Or add a destination manually</p>
+              <p className="mt-3 text-xs text-text-faint font-medium">Or add a destination manually</p>
             </div>
           )}
           <LocationAutocomplete
@@ -1416,7 +1416,7 @@ export default function TripOverviewPage() {
             optional={false}
             placeholder="e.g. Beijing, Tokyo, France…"
           />
-          {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
+          {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
         </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -1434,12 +1434,12 @@ export default function TripOverviewPage() {
                 return (
                   <div key={entryId}>
                     {showUnscheduledDivider && (
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-4 mb-2">Unscheduled</p>
+                      <p className="text-xs font-semibold text-text-faint uppercase tracking-wider mt-4 mb-2">Unscheduled</p>
                     )}
                     {showCountryHeader && (
                       <div className={`flex items-center gap-2 ${i > 0 ? 'mt-4' : ''} mb-2`}>
                         <span className="text-lg leading-none">{countryCodeToFlag(countryCode)}</span>
-                        <span className="text-sm font-semibold text-gray-600">{country}</span>
+                        <span className="text-sm font-semibold text-text-secondary">{country}</span>
                       </div>
                     )}
                     {showConnector && !showUnscheduledDivider && (
@@ -1487,11 +1487,11 @@ export default function TripOverviewPage() {
       {destinations.length > 0 && (
         <div className="mt-6">
           {showAddDest ? (
-            <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+            <div className="bg-bg-card rounded-2xl border border-border p-4 shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold text-gray-700">Add destination</p>
+                <p className="text-sm font-semibold text-text-secondary">Add destination</p>
                 <button type="button" onClick={() => { setShowAddDest(false); setAddDestKey(k => k + 1) }}
-                  className="p-1 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close">
+                  className="p-1 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors" aria-label="Close">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                     <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
                   </svg>
@@ -1499,7 +1499,7 @@ export default function TripOverviewPage() {
               </div>
               {frozenSuggestions.length > 0 && (
                 <div className="mb-3">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                  <p className="text-xs font-semibold text-text-faint uppercase tracking-wider mb-2">
                     Suggested from your saves
                   </p>
                   <AddDestSuggestionList
@@ -1507,7 +1507,7 @@ export default function TripOverviewPage() {
                     onSelect={handleAddFromSuggestion}
                     disabled={addingDest}
                   />
-                  <p className="mt-3 text-xs text-gray-400 font-medium">Or search manually</p>
+                  <p className="mt-3 text-xs text-text-faint font-medium">Or search manually</p>
                 </div>
               )}
               <LocationAutocomplete
@@ -1518,13 +1518,13 @@ export default function TripOverviewPage() {
                 optional={false}
                 placeholder="e.g. Beijing, Tokyo, France…"
               />
-              {addingDest && <p className="mt-2 text-xs text-gray-500 text-center">Adding destination…</p>}
+              {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
             </div>
           ) : (
             <button
               type="button"
               onClick={openAddDest}
-              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm font-semibold text-gray-500 hover:text-blue-600 hover:border-blue-300 transition-colors"
+              className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-border rounded-2xl text-sm font-semibold text-text-tertiary hover:text-accent hover:border-accent transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
@@ -1538,7 +1538,7 @@ export default function TripOverviewPage() {
       {/* Organize mode bottom bar */}
       {organizeMode && (
         <div className="fixed bottom-20 left-0 right-0 z-40 px-4 pb-2">
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-lg px-4 py-3 flex items-center gap-3">
+          <div className="bg-bg-card border border-border rounded-2xl shadow-lg px-4 py-3 flex items-center gap-3">
             {showRouteNameInput ? (
               <div className="flex-1 flex items-center gap-2">
                 <input
@@ -1547,28 +1547,28 @@ export default function TripOverviewPage() {
                   onChange={(e) => setRouteNameInput(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleCreateRoute(); if (e.key === 'Escape') { setShowRouteNameInput(false); setRouteNameInput('') } }}
                   placeholder="Route name…"
-                  className="flex-1 text-sm px-3 py-2 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 placeholder:text-gray-400"
+                  className="flex-1 text-sm px-3 py-2 border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent placeholder:text-text-faint"
                   autoFocus
                 />
                 <button
                   type="button"
                   onClick={handleCreateRoute}
                   disabled={!routeNameInput.trim()}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 shrink-0"
+                  className="px-4 py-2 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 shrink-0"
                 >
                   Create
                 </button>
                 <button
                   type="button"
                   onClick={() => { setShowRouteNameInput(false); setRouteNameInput('') }}
-                  className="px-3 py-2 text-gray-500 text-sm font-medium hover:bg-gray-100 rounded-xl transition-colors shrink-0"
+                  className="px-3 py-2 text-text-tertiary text-sm font-medium hover:bg-bg-muted rounded-xl transition-colors shrink-0"
                 >
                   Cancel
                 </button>
               </div>
             ) : (
               <>
-                <span className="text-sm text-gray-600 flex-1">
+                <span className="text-sm text-text-secondary flex-1">
                   {selectedDestIds.size === 0
                     ? 'Select destinations to group'
                     : `${selectedDestIds.size} selected`
@@ -1578,14 +1578,14 @@ export default function TripOverviewPage() {
                   type="button"
                   onClick={handleGroupAsRoute}
                   disabled={selectedDestIds.size < 2}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 shrink-0"
+                  className="px-4 py-2 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover transition-colors disabled:opacity-50 shrink-0"
                 >
                   Group as Route
                 </button>
                 <button
                   type="button"
                   onClick={toggleOrganizeMode}
-                  className="px-3 py-2 text-gray-500 text-sm font-medium hover:bg-gray-100 rounded-xl transition-colors shrink-0"
+                  className="px-3 py-2 text-text-tertiary text-sm font-medium hover:bg-bg-muted rounded-xl transition-colors shrink-0"
                 >
                   Done
                 </button>

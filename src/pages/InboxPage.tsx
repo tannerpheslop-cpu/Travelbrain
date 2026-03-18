@@ -324,8 +324,8 @@ export default function InboxPage() {
   return (
     <>
     <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-      <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Horizon</h1>
-      <p className="mt-1 text-sm text-gray-500">Your saved travel inspiration</p>
+      <h1 className="text-2xl font-bold text-text-primary tracking-tight">Horizon</h1>
+      <p className="mt-1 text-sm text-text-tertiary">Your saved travel inspiration</p>
 
       {/* Filter Bar + View Toggle */}
       <div className="mt-4 flex gap-2 pb-1 items-center">
@@ -334,8 +334,8 @@ export default function InboxPage() {
           onClick={() => setUnassignedOnly(!unassignedOnly)}
           className={`px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0 ${
             unassignedOnly
-              ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-              : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              ? 'bg-accent text-white shadow-sm shadow-accent/25'
+              : 'bg-bg-card text-text-secondary border border-border hover:border-border-input hover:bg-bg-muted'
           }`}
         >
           Unplanned
@@ -347,14 +347,14 @@ export default function InboxPage() {
           onClick={() => setShowFilters((v) => !v)}
           className={`relative px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0 flex items-center gap-1.5 ${
             showFilters || activeFilterCount > 0
-              ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-              : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+              ? 'bg-accent text-white shadow-sm shadow-accent/25'
+              : 'bg-bg-card text-text-secondary border border-border hover:border-border-input hover:bg-bg-muted'
           }`}
         >
           <SlidersHorizontal className="w-3.5 h-3.5" />
           Filter
           {activeFilterCount > 0 && !showFilters && (
-            <span className="ml-0.5 w-4.5 h-4.5 rounded-full bg-white/20 text-[10px] font-bold flex items-center justify-center">
+            <span className="ml-0.5 w-4.5 h-4.5 rounded-full bg-bg-card/20 text-[10px] font-bold flex items-center justify-center">
               {activeFilterCount}
             </span>
           )}
@@ -365,7 +365,7 @@ export default function InboxPage() {
           <button
             type="button"
             onClick={() => setSelectedTripId('')}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shrink-0"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-light text-accent hover:bg-accent-light transition-colors shrink-0"
           >
             {trips.find((t) => t.id === selectedTripId)?.title ?? 'Trip'}
             <X className="w-3 h-3" />
@@ -375,7 +375,7 @@ export default function InboxPage() {
           <button
             type="button"
             onClick={() => setSelectedCity('')}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shrink-0"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-accent-light text-accent hover:bg-accent-light transition-colors shrink-0"
           >
             {extractCity(selectedCity)}
             <X className="w-3 h-3" />
@@ -389,7 +389,7 @@ export default function InboxPage() {
         <button
           type="button"
           onClick={() => setViewMode(viewMode === 'expanded' ? 'compact' : 'expanded')}
-          className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+          className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-text-faint hover:text-text-secondary hover:bg-bg-pill transition-colors"
           aria-label={viewMode === 'expanded' ? 'Switch to compact view' : 'Switch to expanded view'}
         >
           {viewMode === 'expanded' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
@@ -398,13 +398,13 @@ export default function InboxPage() {
 
       {/* Collapsible Filter Panel */}
       {showFilters && (
-        <div ref={filterPanelRef} className="mt-1 p-3 bg-white border border-gray-200 rounded-xl shadow-sm space-y-3">
+        <div ref={filterPanelRef} className="mt-1 p-3 bg-bg-card border border-border rounded-xl shadow-sm space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Trip</label>
+            <label className="block text-xs font-medium text-text-tertiary mb-1.5">Trip</label>
             <select
               value={selectedTripId}
               onChange={(e) => setSelectedTripId(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-bg-page border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
             >
               <option value="">All trips</option>
               {trips.map((trip) => (
@@ -416,11 +416,11 @@ export default function InboxPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Location</label>
+            <label className="block text-xs font-medium text-text-tertiary mb-1.5">Location</label>
             <select
               value={selectedCity}
               onChange={(e) => setSelectedCity(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-bg-page border border-border rounded-lg text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
             >
               <option value="">All locations</option>
               {cities.map((city) => (
@@ -435,7 +435,7 @@ export default function InboxPage() {
             <button
               type="button"
               onClick={() => { setSelectedTripId(''); setSelectedCity('') }}
-              className="text-xs font-medium text-blue-600 hover:text-blue-700"
+              className="text-xs font-medium text-accent hover:text-accent"
             >
               Clear all filters
             </button>
@@ -447,7 +447,7 @@ export default function InboxPage() {
       {loading && (
         <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-[72px] rounded-xl animate-pulse bg-gray-100" />
+            <div key={i} className="h-[72px] rounded-xl animate-pulse bg-bg-muted" />
           ))}
         </div>
       )}
@@ -455,12 +455,12 @@ export default function InboxPage() {
       {/* Error State */}
       {!loading && error && (
         <div className="mt-12 text-center">
-          <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
+          <div className="w-14 h-14 bg-error-bg rounded-2xl flex items-center justify-center mx-auto">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="currentColor"
-              className="w-7 h-7 text-red-400"
+              className="w-7 h-7 text-error"
             >
               <path
                 fillRule="evenodd"
@@ -469,11 +469,11 @@ export default function InboxPage() {
               />
             </svg>
           </div>
-          <p className="mt-3 text-gray-600 font-medium">Couldn't load your saves</p>
+          <p className="mt-3 text-text-secondary font-medium">Couldn't load your saves</p>
           <button
             type="button"
             onClick={fetchAll}
-            className="mt-3 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
+            className="mt-3 px-4 py-2 bg-accent text-white text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors"
           >
             Retry
           </button>
@@ -483,12 +483,12 @@ export default function InboxPage() {
       {/* Empty State */}
       {!loading && !error && items.length === 0 && (
         <div className="mt-20 text-center">
-          <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto">
+          <div className="w-20 h-20 bg-accent-light rounded-3xl flex items-center justify-center mx-auto">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="currentColor"
-              className="w-10 h-10 text-blue-400"
+              className="w-10 h-10 text-accent"
             >
               <path
                 fillRule="evenodd"
@@ -497,14 +497,14 @@ export default function InboxPage() {
               />
             </svg>
           </div>
-          <p className="mt-4 text-gray-800 font-semibold text-lg">Your horizon is empty</p>
-          <p className="mt-1.5 text-sm text-gray-500 max-w-xs mx-auto">
+          <p className="mt-4 text-text-primary font-semibold text-lg">Your horizon is empty</p>
+          <p className="mt-1.5 text-sm text-text-tertiary max-w-xs mx-auto">
             Paste a link, upload a screenshot, or add a place manually to get started.
           </p>
           <button
             type="button"
             onClick={() => setShowSaveSheet(true)}
-            className="inline-flex mt-5 items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+            className="inline-flex mt-5 items-center gap-1.5 px-5 py-2.5 bg-accent text-white text-sm font-semibold rounded-xl hover:bg-accent-hover transition-colors shadow-sm"
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
@@ -522,12 +522,12 @@ export default function InboxPage() {
       {/* No Results State */}
       {!loading && !error && items.length > 0 && filtered.length === 0 && (
         <div className="mt-16 text-center">
-          <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto">
+          <div className="w-14 h-14 bg-bg-muted rounded-2xl flex items-center justify-center mx-auto">
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
               fill="currentColor"
-              className="w-7 h-7 text-gray-300"
+              className="w-7 h-7 text-text-ghost"
             >
               <path
                 fillRule="evenodd"
@@ -536,8 +536,8 @@ export default function InboxPage() {
               />
             </svg>
           </div>
-          <p className="mt-3 text-gray-600 font-medium">No matching items</p>
-          <p className="mt-1 text-sm text-gray-400">Try a different search or filter</p>
+          <p className="mt-3 text-text-secondary font-medium">No matching items</p>
+          <p className="mt-1 text-sm text-text-faint">Try a different search or filter</p>
         </div>
       )}
 
@@ -549,7 +549,7 @@ export default function InboxPage() {
             return (
               <section key={group.country ?? '__unsorted__'}>
                 {/* Country header */}
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
+                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-text-faint mb-2">
                   {group.country
                     ? `${group.countryCode ? countryCodeToFlag(group.countryCode) + ' ' : ''}${group.country}`
                     : 'Unplaced'}
@@ -559,7 +559,7 @@ export default function InboxPage() {
                   <div key={cityGroup.city ?? `__nocity_${ci}`} className={ci > 0 ? 'mt-3' : ''}>
                     {/* City sub-header — only when multiple cities or explicit city within a country */}
                     {showCityHeaders && cityGroup.city && (
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-gray-300 mb-1.5 ml-0.5">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-text-ghost mb-1.5 ml-0.5">
                         {cityGroup.city}
                       </p>
                     )}
@@ -614,16 +614,16 @@ function ExpandedCard({
     <div className="relative group">
       <Link
         to={`/item/${item.id}`}
-        className="flex items-stretch bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md active:scale-[0.99] transition-all overflow-hidden"
+        className="flex items-stretch bg-bg-card rounded-xl border border-border-subtle shadow-sm hover:shadow-md active:scale-[0.99] transition-all overflow-hidden"
       >
         {/* Thumbnail / Icon area */}
         <SavedItemImage item={item} size="xl" />
 
         {/* Content */}
         <div className="flex-1 min-w-0 px-3 py-2.5 flex flex-col justify-center gap-1">
-          <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
+          <p className="text-sm font-semibold text-text-primary truncate leading-snug">{item.title}</p>
           {item.location_name && (
-            <p className="text-xs text-gray-400 truncate">
+            <p className="text-xs text-text-faint truncate">
               {formatCityCountry(item.location_name)}
               {item.location_name_local && (
                 <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>
@@ -642,14 +642,14 @@ function ExpandedCard({
       <button
         type="button"
         onClick={() => setShowSheet(true)}
-        className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-200 transition-all"
+        className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-bg-muted flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-bg-pill-dark transition-all"
         aria-label="Add to trip"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 20 20"
           fill="currentColor"
-          className="w-3.5 h-3.5 text-gray-500"
+          className="w-3.5 h-3.5 text-text-tertiary"
         >
           <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
         </svg>
@@ -667,7 +667,7 @@ function ExpandedCard({
       )}
 
       {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gray-900 text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
           {toast}
         </div>
       )}
@@ -702,12 +702,12 @@ function CompactRow({
     <div className="relative group">
       <Link
         to={`/item/${item.id}`}
-        className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors"
+        className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-bg-muted active:bg-bg-pill transition-colors"
       >
         <Icon className={`w-4 h-4 shrink-0 ${categoryIconColors[item.category]}`} />
-        <span className="text-sm text-gray-900 truncate flex-1 min-w-0">{item.title}</span>
+        <span className="text-sm text-text-primary truncate flex-1 min-w-0">{item.title}</span>
         {item.location_name && (
-          <span className="text-xs text-gray-400 truncate shrink-0 max-w-[140px]">
+          <span className="text-xs text-text-faint truncate shrink-0 max-w-[140px]">
             {formatCityCountry(item.location_name)}
             {item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}
           </span>
@@ -718,14 +718,14 @@ function CompactRow({
       <button
         type="button"
         onClick={() => setShowSheet(true)}
-        className="absolute top-1/2 -translate-y-1/2 right-1 z-10 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-200 transition-all"
+        className="absolute top-1/2 -translate-y-1/2 right-1 z-10 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-bg-pill-dark transition-all"
         aria-label="Add to trip"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
           viewBox="0 0 20 20"
           fill="currentColor"
-          className="w-3 h-3 text-gray-400"
+          className="w-3 h-3 text-text-faint"
         >
           <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
         </svg>
@@ -743,7 +743,7 @@ function CompactRow({
       )}
 
       {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gray-900 text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
           {toast}
         </div>
       )}

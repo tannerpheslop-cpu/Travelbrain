@@ -24,20 +24,20 @@ function RenderedMarkdown({ text, className = '' }: { text: string; className?: 
         components={{
           // Keep links safe
           a: ({ href, children }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-700 underline">
+            <a href={href} target="_blank" rel="noopener noreferrer" className="text-accent hover:text-accent underline">
               {children}
             </a>
           ),
-          p: ({ children }) => <p className="my-1 text-sm text-gray-600 leading-relaxed">{children}</p>,
-          ul: ({ children }) => <ul className="my-1 ml-4 list-disc text-sm text-gray-600 space-y-0.5">{children}</ul>,
-          ol: ({ children }) => <ol className="my-1 ml-4 list-decimal text-sm text-gray-600 space-y-0.5">{children}</ol>,
-          li: ({ children }) => <li className="text-sm text-gray-600">{children}</li>,
-          strong: ({ children }) => <strong className="font-semibold text-gray-800">{children}</strong>,
+          p: ({ children }) => <p className="my-1 text-sm text-text-secondary leading-relaxed">{children}</p>,
+          ul: ({ children }) => <ul className="my-1 ml-4 list-disc text-sm text-text-secondary space-y-0.5">{children}</ul>,
+          ol: ({ children }) => <ol className="my-1 ml-4 list-decimal text-sm text-text-secondary space-y-0.5">{children}</ol>,
+          li: ({ children }) => <li className="text-sm text-text-secondary">{children}</li>,
+          strong: ({ children }) => <strong className="font-semibold text-text-primary">{children}</strong>,
           em: ({ children }) => <em className="italic">{children}</em>,
           // Block elements we want simple
-          h1: ({ children }) => <p className="text-sm font-semibold text-gray-800 my-1">{children}</p>,
-          h2: ({ children }) => <p className="text-sm font-semibold text-gray-800 my-1">{children}</p>,
-          h3: ({ children }) => <p className="text-sm font-semibold text-gray-800 my-1">{children}</p>,
+          h1: ({ children }) => <p className="text-sm font-semibold text-text-primary my-1">{children}</p>,
+          h2: ({ children }) => <p className="text-sm font-semibold text-text-primary my-1">{children}</p>,
+          h3: ({ children }) => <p className="text-sm font-semibold text-text-primary my-1">{children}</p>,
         }}
       >
         {text}
@@ -170,10 +170,10 @@ export default function MarkdownNotes({
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
           placeholder="Write notes... (supports **bold**, *italic*, - lists, [links](url))"
-          className="w-full px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-200 focus:border-blue-300 resize-none placeholder:text-gray-400 leading-relaxed"
+          className="w-full px-3 py-2 text-sm text-text-secondary bg-bg-muted border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/25 focus:border-accent resize-none placeholder:text-text-faint leading-relaxed"
           style={{ minHeight: '60px' }}
         />
-        <p className="text-[10px] text-gray-300 mt-1 ml-1">Supports **bold**, *italic*, - lists, [links](url) · Esc to close</p>
+        <p className="text-[10px] text-text-ghost mt-1 ml-1">Supports **bold**, *italic*, - lists, [links](url) · Esc to close</p>
       </div>
     )
   }
@@ -190,7 +190,7 @@ export default function MarkdownNotes({
         <button
           type="button"
           onClick={() => setEditing(true)}
-          className="absolute top-0 right-0 p-1 text-gray-300 opacity-0 group-hover:opacity-100 hover:text-gray-500 transition-all"
+          className="absolute top-0 right-0 p-1 text-text-ghost opacity-0 group-hover:opacity-100 hover:text-text-tertiary transition-all"
           aria-label="Edit notes"
         >
           <Pencil className="w-3 h-3" />
@@ -204,7 +204,7 @@ export default function MarkdownNotes({
     <button
       type="button"
       onClick={() => setEditing(true)}
-      className={`flex items-center gap-1.5 text-xs text-gray-400 hover:text-blue-500 transition-colors ${className}`}
+      className={`flex items-center gap-1.5 text-xs text-text-faint hover:text-accent transition-colors ${className}`}
     >
       <Pencil className="w-3 h-3" />
       {placeholder}

@@ -167,30 +167,30 @@ export default function PlaceSearchInput({ userId, biasLat, biasLng, onPlaceAdde
 
   return (
     <div className="relative">
-      <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+      <div className="flex items-center gap-2 bg-bg-muted border border-border rounded-xl px-3 py-2 focus-within:border-accent focus-within:ring-2 focus-within:ring-accent/25 transition-all">
         {loading ? (
-          <Loader2 className="w-4 h-4 text-blue-500 animate-spin shrink-0" />
+          <Loader2 className="w-4 h-4 text-accent animate-spin shrink-0" />
         ) : (
-          <MapPin className="w-4 h-4 text-gray-400 shrink-0" />
+          <MapPin className="w-4 h-4 text-text-faint shrink-0" />
         )}
         <input
           ref={inputRef}
           type="text"
           placeholder="Search for a restaurant, hotel, activity..."
           disabled={loading}
-          className="flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 outline-none disabled:opacity-50"
+          className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-faint outline-none disabled:opacity-50"
         />
         <button
           type="button"
           onClick={onClose}
-          className="p-0.5 text-gray-400 hover:text-gray-600 transition-colors shrink-0"
+          className="p-0.5 text-text-faint hover:text-text-secondary transition-colors shrink-0"
           aria-label="Close search"
         >
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
       {loading && (
-        <p className="text-xs text-gray-400 mt-1.5 ml-1 animate-pulse">Adding place...</p>
+        <p className="text-xs text-text-faint mt-1.5 ml-1 animate-pulse">Adding place...</p>
       )}
     </div>
   )

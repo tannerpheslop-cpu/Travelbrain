@@ -144,12 +144,12 @@ export default function CreatePopover({ onClose, onPhotoCapture, pendingPhoto, o
         className="fixed z-30 right-4"
         style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 4.5rem)' }}
       >
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden w-72 animate-in zoom-in-95 fade-in duration-150 origin-bottom-right">
+        <div className="bg-bg-card rounded-2xl shadow-xl border border-border-subtle overflow-hidden w-72 animate-in zoom-in-95 fade-in duration-150 origin-bottom-right">
           {/* Quick save mode */}
           {showQuickSave ? (
             <div className="p-3">
               <div className="relative flex items-center">
-                <Plus className="absolute left-3 w-4 h-4 text-blue-500 pointer-events-none" />
+                <Plus className="absolute left-3 w-4 h-4 text-accent pointer-events-none" />
                 <input
                   ref={inputRef}
                   type="text"
@@ -159,19 +159,19 @@ export default function CreatePopover({ onClose, onPhotoCapture, pendingPhoto, o
                   onPaste={handlePaste}
                   placeholder="Add a place..."
                   enterKeyHint="send"
-                  className="w-full pl-9 pr-9 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+                  className="w-full pl-9 pr-9 py-2.5 bg-bg-muted border border-border rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint"
                 />
                 <button
                   type="button"
                   onClick={handleSubmit}
                   disabled={!input.trim()}
-                  className="absolute right-2 w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center disabled:opacity-30 transition-colors"
+                  className="absolute right-2 w-6 h-6 rounded-full bg-accent flex items-center justify-center disabled:opacity-30 transition-colors"
                   aria-label="Save"
                 >
                   <ArrowRight className="w-3.5 h-3.5 text-white" />
                 </button>
               </div>
-              <p className="text-[10px] text-gray-400 mt-1.5 ml-1">Enter to save · Paste a list for bulk add</p>
+              <p className="text-[10px] text-text-faint mt-1.5 ml-1">Enter to save · Paste a list for bulk add</p>
 
               {/* Recently added items */}
               {recentItems.length > 0 && (
@@ -179,12 +179,12 @@ export default function CreatePopover({ onClose, onPhotoCapture, pendingPhoto, o
                   {recentItems.slice(0, 4).map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center gap-2 px-1 py-1.5 text-xs text-gray-500"
+                      className="flex items-center gap-2 px-1 py-1.5 text-xs text-text-tertiary"
                     >
-                      <div className="w-1 h-1 rounded-full bg-green-400 shrink-0" />
+                      <div className="w-1 h-1 rounded-full bg-accent shrink-0" />
                       <span className="truncate flex-1">{item.title}</span>
                       {resolvingIds.has(item.id) && !item.location_name ? (
-                        <Loader2 className="w-3 h-3 animate-spin shrink-0 text-gray-400" />
+                        <Loader2 className="w-3 h-3 animate-spin shrink-0 text-text-faint" />
                       ) : item.location_name ? (
                         <span className="flex items-center gap-0.5 shrink-0 truncate max-w-[80px]">
                           <MapPin className="w-2.5 h-2.5" />
@@ -202,26 +202,26 @@ export default function CreatePopover({ onClose, onPhotoCapture, pendingPhoto, o
               <button
                 type="button"
                 onClick={() => setSaveSheetMode('link')}
-                className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-bg-muted active:bg-bg-pill transition-colors"
               >
-                <LinkIcon className="w-4.5 h-4.5 text-blue-500" />
-                <span className="text-sm font-medium text-gray-800">Save a link</span>
+                <LinkIcon className="w-4.5 h-4.5 text-accent" />
+                <span className="text-sm font-medium text-text-primary">Save a link</span>
               </button>
               <button
                 type="button"
                 onClick={onPhotoCapture}
-                className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-bg-muted active:bg-bg-pill transition-colors"
               >
-                <Camera className="w-4.5 h-4.5 text-purple-500" />
-                <span className="text-sm font-medium text-gray-800">Photo</span>
+                <Camera className="w-4.5 h-4.5 text-accent" />
+                <span className="text-sm font-medium text-text-primary">Photo</span>
               </button>
               <button
                 type="button"
                 onClick={() => setShowQuickSave(true)}
-                className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                className="flex items-center gap-3 w-full px-4 py-3 text-left hover:bg-bg-muted active:bg-bg-pill transition-colors"
               >
-                <MapPin className="w-4.5 h-4.5 text-emerald-500" />
-                <span className="text-sm font-medium text-gray-800">Add places</span>
+                <MapPin className="w-4.5 h-4.5 text-text-tertiary" />
+                <span className="text-sm font-medium text-text-primary">Add places</span>
               </button>
             </div>
           )}

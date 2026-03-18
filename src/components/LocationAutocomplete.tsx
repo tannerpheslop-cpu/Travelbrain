@@ -151,9 +151,9 @@ export default function LocationAutocomplete({
   return (
     <div>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1.5">
+        <label className="block text-sm font-medium text-text-secondary mb-1.5">
           {label}{' '}
-          {optional && <span className="text-gray-400 font-normal">(optional)</span>}
+          {optional && <span className="text-text-faint font-normal">(optional)</span>}
         </label>
       )}
       <input
@@ -164,7 +164,7 @@ export default function LocationAutocomplete({
         placeholder={ready ? placeholder : 'Loading…'}
         disabled={false}
         autoComplete="off"
-        className={`w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 ${className}`}
+        className={`w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint ${className}`}
       />
     </div>
   )
