@@ -20,13 +20,6 @@ export function getCategoryIcon(category: Category): LucideIcon {
   return categoryIconMap[category] ?? MapPin
 }
 
-export const categoryPillColors: Record<Category, string> = {
-  restaurant: 'bg-orange-500 text-white',
-  activity: 'bg-blue-500 text-white',
-  hotel: 'bg-emerald-600 text-white',
-  transit: 'bg-gray-500 text-white',
-  general: 'bg-violet-500 text-white',
-}
 
 export const categoryLabel: Record<Category, string> = {
   restaurant: 'Restaurant',
@@ -36,18 +29,20 @@ export const categoryLabel: Record<Category, string> = {
   general: 'General',
 }
 
+/** Card background — all cards use white now */
 export const categoryBgColors: Record<Category, string> = {
-  restaurant: 'bg-orange-50',
-  activity: 'bg-blue-50',
-  hotel: 'bg-emerald-50',
-  transit: 'bg-gray-100',
-  general: 'bg-violet-50',
+  restaurant: 'bg-bg-card',
+  activity: 'bg-bg-card',
+  hotel: 'bg-bg-card',
+  transit: 'bg-bg-card',
+  general: 'bg-bg-card',
 }
 
+/** Icon color — all use the same tertiary color */
 export const categoryIconColors: Record<Category, string> = {
-  restaurant: 'text-orange-400',
-  activity: 'text-blue-400',
-  hotel: 'text-emerald-500',
-  transit: 'text-gray-400',
-  general: 'text-violet-400',
+  restaurant: 'text-text-tertiary',
+  activity: 'text-text-tertiary',
+  hotel: 'text-text-tertiary',
+  transit: 'text-text-tertiary',
+  general: 'text-text-tertiary',
 }

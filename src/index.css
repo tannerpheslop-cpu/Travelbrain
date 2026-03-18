@@ -1,11 +1,58 @@
 @import "tailwindcss";
 
-/* Always reserve scrollbar space to prevent layout shift when page content
-   changes height (e.g. loading skeletons appearing/disappearing). */
+/* ── Youji Design System Tokens ── */
+
+@theme {
+  --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  --color-accent: #c45a2d;
+  --color-accent-light: #c45a2d10;
+  --color-accent-med: #c45a2d22;
+  --color-accent-hover: #a94d26;
+
+  --color-text-primary: #2a2a28;
+  --color-text-secondary: #6b6860;
+  --color-text-tertiary: #9e9b94;
+  --color-text-faint: #b5b2ab;
+  --color-text-ghost: #c5c2bb;
+  --color-text-mist: #d5d2cb;
+
+  --color-border: #e8e6e1;
+  --color-border-light: #eceae5;
+  --color-border-subtle: #f0eeea;
+  --color-border-input: #e0ddd7;
+  --color-border-dashed: #d5d2cb;
+
+  --color-bg-page: #faf9f7;
+  --color-bg-card: #ffffff;
+  --color-bg-muted: #f5f3f0;
+  --color-bg-tinted: #f8f7f4;
+  --color-bg-pill: #f0eeea;
+  --color-bg-pill-dark: #eeece8;
+
+  --color-accent-shadow: rgba(196, 90, 45, 0.25);
+  --color-card-shadow: rgba(0, 0, 0, 0.05);
+  --color-card-shadow-lg: rgba(0, 0, 0, 0.06);
+
+  --color-error: #dc2626;
+  --color-error-bg: #fef2f2;
+  --color-success: #16a34a;
+  --color-success-bg: #f0fdf4;
+}
+
+/* ── Global Defaults ── */
+
 html {
   overflow-y: scroll;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-page);
 }
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -15,4 +62,3 @@ html {
 input, textarea, select {
   font-size: 16px !important;
 }
-

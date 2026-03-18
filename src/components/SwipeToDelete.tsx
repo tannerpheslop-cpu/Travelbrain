@@ -152,7 +152,7 @@ export default function SwipeToDelete({ children, onDelete, enabled = true }: Sw
         <button
           type="button"
           onClick={handleDeleteClick}
-          className="absolute inset-y-0 right-0 flex items-center justify-center bg-red-500 active:bg-red-600 transition-colors"
+          className="absolute inset-y-0 right-0 flex items-center justify-center bg-error active:bg-error transition-colors"
           style={{ width: DELETE_BUTTON_WIDTH }}
           aria-label="Delete"
         >

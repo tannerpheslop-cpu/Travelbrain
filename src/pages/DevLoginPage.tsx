@@ -26,18 +26,18 @@ export default function DevLoginPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md w-full">
-          <h1 className="text-red-800 font-semibold text-lg mb-2">Dev Login Error</h1>
-          <p className="text-red-700 text-sm">{error}</p>
+      <div className="min-h-screen flex items-center justify-center bg-bg-page p-4">
+        <div className="bg-error-bg border border-error/25 rounded-lg p-6 max-w-md w-full">
+          <h1 className="text-error font-semibold text-lg mb-2">Dev Login Error</h1>
+          <p className="text-error text-sm">{error}</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <p className="text-gray-500">Signing in...</p>
+    <div className="min-h-screen flex items-center justify-center bg-bg-page">
+      <p className="text-text-tertiary">Signing in...</p>
     </div>
   )
 }

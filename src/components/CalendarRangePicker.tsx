@@ -117,15 +117,15 @@ export default function CalendarRangePicker({
     const inRange = selStart && selEnd && dateStr > selStart && dateStr < selEnd
 
     if (isStart || isEnd) {
-      return 'bg-blue-600 text-white font-semibold'
+      return 'bg-accent text-white font-semibold'
     }
     if (inRange) {
-      return 'bg-blue-100 text-blue-800'
+      return 'bg-accent-light text-accent'
     }
     if (isToday) {
-      return 'font-bold text-blue-600 ring-1 ring-blue-300'
+      return 'font-bold text-accent ring-1 ring-accent/30'
     }
-    return 'text-gray-700 hover:bg-gray-100'
+    return 'text-text-secondary hover:bg-bg-muted'
   }
 
   // Range background for cells between start and end
@@ -133,9 +133,9 @@ export default function CalendarRangePicker({
     if (!selStart || !selEnd) return ''
     const isStart = dateStr === selStart
     const isEnd = dateStr === selEnd
-    if (isStart) return 'rounded-l-full bg-blue-50'
-    if (isEnd) return 'rounded-r-full bg-blue-50'
-    if (dateStr > selStart && dateStr < selEnd) return 'bg-blue-50'
+    if (isStart) return 'rounded-l-full bg-accent-light'
+    if (isEnd) return 'rounded-r-full bg-accent-light'
+    if (dateStr > selStart && dateStr < selEnd) return 'bg-accent-light'
     return ''
   }
 
@@ -147,17 +147,17 @@ export default function CalendarRangePicker({
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-sm bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
+      <div className="relative w-full max-w-sm bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
         {/* Drag handle */}
-        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden" />
+        <div className="w-10 h-1 bg-text-ghost rounded-full mx-auto mt-3 sm:hidden" />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-900">Select dates</h2>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
+          <h2 className="text-base font-semibold text-text-primary">Select dates</h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors"
             aria-label="Close"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -170,13 +170,13 @@ export default function CalendarRangePicker({
           {/* Selected dates pills */}
           <div className="flex items-center gap-2 mb-4">
             <div className={`flex-1 text-center py-2 px-3 rounded-xl text-sm font-medium ${
-              selStart ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-400'
+              selStart ? 'bg-accent-light text-accent' : 'bg-bg-muted text-text-faint'
             }`}>
               {selStart ? formatShort(selStart) : 'Start date'}
             </div>
-            <span className="text-gray-300">→</span>
+            <span className="text-text-ghost">→</span>
             <div className={`flex-1 text-center py-2 px-3 rounded-xl text-sm font-medium ${
-              selEnd ? 'bg-blue-50 text-blue-700' : 'bg-gray-50 text-gray-400'
+              selEnd ? 'bg-accent-light text-accent' : 'bg-bg-muted text-text-faint'
             }`}>
               {selEnd ? formatShort(selEnd) : 'End date'}
             </div>
@@ -187,18 +187,18 @@ export default function CalendarRangePicker({
             <button
               type="button"
               onClick={goPrev}
-              className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
+              className="p-1.5 rounded-full text-text-tertiary hover:bg-bg-muted transition-colors"
               aria-label="Previous month"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
                 <path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
               </svg>
             </button>
-            <span className="text-sm font-semibold text-gray-800">{monthLabel}</span>
+            <span className="text-sm font-semibold text-text-primary">{monthLabel}</span>
             <button
               type="button"
               onClick={goNext}
-              className="p-1.5 rounded-full text-gray-500 hover:bg-gray-100 transition-colors"
+              className="p-1.5 rounded-full text-text-tertiary hover:bg-bg-muted transition-colors"
               aria-label="Next month"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -210,7 +210,7 @@ export default function CalendarRangePicker({
           {/* Weekday headers */}
           <div className="grid grid-cols-7 mb-1">
             {WEEKDAYS.map(wd => (
-              <div key={wd} className="text-center text-[11px] font-medium text-gray-400 py-1">
+              <div key={wd} className="text-center text-[11px] font-medium text-text-faint py-1">
                 {wd}
               </div>
             ))}
@@ -242,7 +242,7 @@ export default function CalendarRangePicker({
               type="button"
               onClick={() => { if (selStart && selEnd) onConfirm(selStart, selEnd) }}
               disabled={!canConfirm}
-              className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Confirm
             </button>
@@ -250,7 +250,7 @@ export default function CalendarRangePicker({
               <button
                 type="button"
                 onClick={onRemove}
-                className="w-full py-2.5 text-sm text-gray-400 hover:text-red-500 font-medium transition-colors"
+                className="w-full py-2.5 text-sm text-text-faint hover:text-error font-medium transition-colors"
               >
                 Remove dates
               </button>

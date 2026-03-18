@@ -5,21 +5,15 @@ import { useAuth } from '../lib/auth'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SaveSheet from '../components/SaveSheet'
 import SavedItemImage from '../components/SavedItemImage'
-import { getCategoryIcon, categoryPillColors, categoryLabel, categoryIconColors } from '../utils/categoryIcons'
-import { LayoutGrid, List, SlidersHorizontal, X } from 'lucide-react'
+import { categoryLabel } from '../utils/categoryIcons'
+import { LayoutGrid, List, SlidersHorizontal, Search, X, Plus } from 'lucide-react'
+import { BrandMark, CategoryPill, FilterPill, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import { shortLocalName } from '../components/BilingualName'
 import { useLocationResolver } from '../hooks/useLocationResolver'
 import SwipeToDelete from '../components/SwipeToDelete'
 import type { SavedItem, Trip } from '../types'
 
-/** Shorten a Google Places formatted_address to "City, Province, Country".
- *  Only collapses when there are 4+ parts (e.g. strips a prefecture level).
- *  ≤3 parts are returned unchanged. */
-function formatCityCountry(locationName: string): string {
-  const parts = locationName.split(',').map((s) => s.trim()).filter(Boolean)
-  if (parts.length <= 3) return locationName
-  return `${parts[0]}, ${parts[parts.length - 2]}, ${parts[parts.length - 1]}`
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Extract city name (first comma-separated part) from a full location_name. */
 function extractCity(locationName: string): string {
@@ -31,17 +25,34 @@ function countryCodeToFlag(code: string): string {
   return [...code.toUpperCase()].map(c => String.fromCodePoint(0x1F1E6 + c.charCodeAt(0) - 65)).join('')
 }
 
-interface GeoGroup {
-  country: string | null       // null = unsorted
-  countryCode: string | null
-  cities: { city: string | null; items: SavedItem[] }[]
+/** Format a date to compact string */
+function formatDate(dateStr: string): string {
+  const d = new Date(dateStr)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-/** Group items by country CODE (not name) to avoid duplicate groups for the
- *  same country in different languages (e.g. "China" vs "中国"). Items without
- *  location_country_code go into a single "Unsorted" group at the end. */
-function groupByGeography(items: SavedItem[]): GeoGroup[] {
-  const countryMap = new Map<string, { name: string; code: string; cityMap: Map<string, SavedItem[]> }>()
+/** Map source_type / site_name to a SourceIcon key */
+function getSourceKey(item: SavedItem): string {
+  if (item.site_name) {
+    const sn = item.site_name.toLowerCase()
+    if (sn.includes('tiktok')) return 'tiktok'
+    if (sn.includes('instagram')) return 'instagram'
+  }
+  if (item.source_type === 'manual') return 'manual'
+  if (item.source_type === 'screenshot') return 'screenshot'
+  return 'url'
+}
+
+// ── Geo Grouping ─────────────────────────────────────────────────────────────
+
+interface GeoGroup {
+  country: string | null
+  countryCode: string | null
+  items: SavedItem[]
+}
+
+function groupByCountry(items: SavedItem[]): GeoGroup[] {
+  const countryMap = new Map<string, { name: string; code: string; items: SavedItem[] }>()
   const unsorted: SavedItem[] = []
 
   for (const item of items) {
@@ -52,45 +63,31 @@ function groupByGeography(items: SavedItem[]): GeoGroup[] {
     }
     let entry = countryMap.get(code)
     if (!entry) {
-      // Prefer English country name; fall back to whatever we have
       const name = item.location_name_en
         ? (item.location_name_en.split(',').pop()?.trim() ?? item.location_country ?? code)
         : (item.location_country ?? code)
-      entry = { name, code, cityMap: new Map() }
+      entry = { name, code, items: [] }
       countryMap.set(code, entry)
     }
-    const city = item.location_name ? extractCity(item.location_name) : null
-    const cityKey = city ?? '__no_city__'
-    const arr = entry.cityMap.get(cityKey)
-    if (arr) arr.push(item)
-    else entry.cityMap.set(cityKey, [item])
+    entry.items.push(item)
   }
 
   const groups: GeoGroup[] = []
-
-  // Country groups sorted by total item count (largest first)
-  const sorted = [...countryMap.entries()].sort((a, b) => {
-    const countA = [...a[1].cityMap.values()].reduce((s, arr) => s + arr.length, 0)
-    const countB = [...b[1].cityMap.values()].reduce((s, arr) => s + arr.length, 0)
-    return countB - countA
-  })
-
-  for (const [, { name, code, cityMap }] of sorted) {
-    const cities = [...cityMap.entries()].map(([cityKey, cityItems]) => ({
-      city: cityKey === '__no_city__' ? null : cityKey,
-      items: cityItems,
-    }))
-    groups.push({ country: name, countryCode: code, cities })
+  const sorted = [...countryMap.entries()].sort((a, b) => b[1].items.length - a[1].items.length)
+  for (const [, { name, code, items: countryItems }] of sorted) {
+    groups.push({ country: name, countryCode: code, items: countryItems })
   }
-
   if (unsorted.length > 0) {
-    groups.push({ country: null, countryCode: null, cities: [{ city: null, items: unsorted }] })
+    groups.push({ country: null, countryCode: null, items: unsorted })
   }
-
   return groups
 }
 
-type ViewMode = 'expanded' | 'compact'
+// ── View Mode ────────────────────────────────────────────────────────────────
+
+type ViewMode = 'grid' | 'list'
+
+// ── Main Component ───────────────────────────────────────────────────────────
 
 export default function InboxPage() {
   const { user } = useAuth()
@@ -99,21 +96,22 @@ export default function InboxPage() {
   const [allTripItems, setAllTripItems] = useState<{ trip_id: string; item_id: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
   const [unassignedOnly, setUnassignedOnly] = useState(false)
   const [selectedTripId, setSelectedTripId] = useState('')
   const [selectedCity, setSelectedCity] = useState('')
   const [showSaveSheet, setShowSaveSheet] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
-  const [viewMode, setViewMode] = useState<ViewMode>('expanded')
+  const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const filterPanelRef = useRef<HTMLDivElement>(null)
 
-  // Background location resolver — resolves titles for items without location data
+  // Background location resolver
   const handleResolved = useCallback((updated: SavedItem) => {
     setItems((prev) => prev.map((item) => item.id === updated.id ? updated : item))
   }, [])
   const { resolveItems } = useLocationResolver(user?.id, handleResolved)
 
-  // ── Listen for saves created/updated from CreatePopover ────────────────
+  // ── Listen for saves created/updated ─────────────────────────────────────
 
   useEffect(() => {
     const handleCreated = (e: Event) => {
@@ -122,9 +120,7 @@ export default function InboxPage() {
     }
     const handleUpdated = (e: Event) => {
       const updated = (e as CustomEvent<SavedItem>).detail
-      setItems((prev) =>
-        prev.map((item) => (item.id === updated.id ? updated : item)),
-      )
+      setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
     }
     window.addEventListener('horizon-item-created', handleCreated)
     window.addEventListener('horizon-item-updated', handleUpdated)
@@ -134,7 +130,7 @@ export default function InboxPage() {
     }
   }, [])
 
-  // ── Data fetching ───────────────────────────────────────────────────────
+  // ── Data fetching ────────────────────────────────────────────────────────
 
   const fetchAll = async () => {
     if (!user) return
@@ -164,37 +160,25 @@ export default function InboxPage() {
     const fetchedTrips = (tripsResult.data ?? []) as Trip[]
     setItems(fetchedItems)
     setTrips(fetchedTrips)
-
-    // Background-resolve locations for items that have titles but no location
     resolveItems(fetchedItems)
-
     setAllTripItems([])
+
     if (fetchedTrips.length > 0) {
       const tripIds = fetchedTrips.map((t) => t.id)
-
       const { data: destRows } = await supabase
         .from('trip_destinations')
         .select('id, trip_id')
         .in('trip_id', tripIds)
-
       const destMap = new Map(
         (destRows ?? []).map((d: { id: string; trip_id: string }) => [d.id, d.trip_id]),
       )
       const destIds = [...destMap.keys()]
-
       const [diRes, giRes] = await Promise.all([
         destIds.length > 0
-          ? supabase
-              .from('destination_items')
-              .select('item_id, destination_id')
-              .in('destination_id', destIds)
+          ? supabase.from('destination_items').select('item_id, destination_id').in('destination_id', destIds)
           : Promise.resolve({ data: [] as { item_id: string; destination_id: string }[], error: null }),
-        supabase
-          .from('trip_general_items')
-          .select('item_id, trip_id')
-          .in('trip_id', tripIds),
+        supabase.from('trip_general_items').select('item_id, trip_id').in('trip_id', tripIds),
       ])
-
       const combined: { trip_id: string; item_id: string }[] = [
         ...(diRes.data ?? [])
           .map((di: { item_id: string; destination_id: string }) => ({
@@ -207,40 +191,28 @@ export default function InboxPage() {
           trip_id: gi.trip_id,
         })),
       ]
-
       setAllTripItems(combined)
     }
-
     setLoading(false)
   }
 
   const refreshTripItems = async () => {
     if (!user || trips.length === 0) return
     const tripIds = trips.map((t) => t.id)
-
     const { data: destRows } = await supabase
       .from('trip_destinations')
       .select('id, trip_id')
       .in('trip_id', tripIds)
-
     const destMap = new Map(
       (destRows ?? []).map((d: { id: string; trip_id: string }) => [d.id, d.trip_id]),
     )
     const destIds = [...destMap.keys()]
-
     const [diRes, giRes] = await Promise.all([
       destIds.length > 0
-        ? supabase
-            .from('destination_items')
-            .select('item_id, destination_id')
-            .in('destination_id', destIds)
+        ? supabase.from('destination_items').select('item_id, destination_id').in('destination_id', destIds)
         : Promise.resolve({ data: [] as { item_id: string; destination_id: string }[], error: null }),
-      supabase
-        .from('trip_general_items')
-        .select('item_id, trip_id')
-        .in('trip_id', tripIds),
+      supabase.from('trip_general_items').select('item_id, trip_id').in('trip_id', tripIds),
     ])
-
     const combined: { trip_id: string; item_id: string }[] = [
       ...(diRes.data ?? [])
         .map((di: { item_id: string; destination_id: string }) => ({
@@ -253,13 +225,12 @@ export default function InboxPage() {
         trip_id: gi.trip_id,
       })),
     ]
-
     setAllTripItems(combined)
   }
 
-  useEffect(() => {
-    if (user) fetchAll()
-  }, [user])
+  useEffect(() => { if (user) fetchAll() }, [user])
+
+  // ── Derived data ─────────────────────────────────────────────────────────
 
   const assignedItemIds = useMemo(
     () => new Set(allTripItems.map((ti) => ti.item_id)),
@@ -299,73 +270,102 @@ export default function InboxPage() {
         if (unassignedOnly && assignedItemIds.has(item.id)) return false
         if (selectedTripId && selectedTripItemIds && !selectedTripItemIds.has(item.id)) return false
         if (selectedCity && item.location_name !== selectedCity) return false
+        if (searchQuery) {
+          const q = searchQuery.toLowerCase()
+          const matchTitle = item.title?.toLowerCase().includes(q)
+          const matchLocation = item.location_name?.toLowerCase().includes(q)
+          const matchNotes = item.notes?.toLowerCase().includes(q)
+          if (!matchTitle && !matchLocation && !matchNotes) return false
+        }
         return true
       }),
-    [items, unassignedOnly, assignedItemIds, selectedTripId, selectedTripItemIds, selectedCity],
+    [items, unassignedOnly, assignedItemIds, selectedTripId, selectedTripItemIds, selectedCity, searchQuery],
   )
 
   const handleDeleteItem = useCallback(async (itemId: string) => {
-    // Optimistically remove from UI
     setItems((prev) => prev.filter((item) => item.id !== itemId))
-    // Archive in DB (soft delete)
     const { error } = await supabase
       .from('saved_items')
       .update({ is_archived: true })
       .eq('id', itemId)
     if (error) {
       console.error('[inbox] archive error:', error)
-      // Re-fetch on error to restore
       fetchAll()
     }
   }, [user])
 
-  const geoGroups = useMemo(() => groupByGeography(filtered), [filtered])
+  const geoGroups = useMemo(() => groupByCountry(filtered), [filtered])
+
+  const uniqueCountries = useMemo(() => {
+    const set = new Set<string>()
+    items.forEach((item) => { if (item.location_country_code) set.add(item.location_country_code) })
+    return set.size
+  }, [items])
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
     <>
-    <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-      <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Horizon</h1>
-      <p className="mt-1 text-sm text-gray-500">Your saved travel inspiration</p>
+    <div className="px-5 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
 
-      {/* Filter Bar + View Toggle */}
-      <div className="mt-4 flex gap-2 pb-1 items-center">
-        <button
-          type="button"
-          onClick={() => setUnassignedOnly(!unassignedOnly)}
-          className={`px-3.5 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0 ${
-            unassignedOnly
-              ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-              : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-          }`}
-        >
+      {/* ── Header ── */}
+      <BrandMark className="mb-2 block" />
+      <h1 className="text-[32px] font-bold leading-[1.2] tracking-[-0.5px] text-text-primary">Horizon</h1>
+      {items.length > 0 && (
+        <div className="mt-1">
+          <MetadataLine items={[
+            `${items.length} save${items.length !== 1 ? 's' : ''}`,
+            `${uniqueCountries} ${uniqueCountries === 1 ? 'country' : 'countries'}`,
+          ]} />
+        </div>
+      )}
+
+      {/* ── Divider ── */}
+      <div className="mt-4 mb-3 border-t border-border" />
+
+      {/* ── Search ── */}
+      <div className="relative mb-3">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-faint pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search saves..."
+          className="w-full pl-9 pr-3 py-2 bg-bg-card border border-border-input rounded-lg text-sm text-text-primary placeholder:text-text-ghost focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-secondary"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* ── Filters + View Toggle ── */}
+      <div className="flex gap-2 items-center mb-4">
+        <FilterPill active={unassignedOnly} onClick={() => setUnassignedOnly(!unassignedOnly)}>
           Unplanned
-        </button>
+        </FilterPill>
 
-        {/* Filter toggle button */}
-        <button
-          type="button"
-          onClick={() => setShowFilters((v) => !v)}
-          className={`relative px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-all shrink-0 flex items-center gap-1.5 ${
-            showFilters || activeFilterCount > 0
-              ? 'bg-blue-600 text-white shadow-sm shadow-blue-200'
-              : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-          }`}
-        >
+        <FilterPill active={showFilters || activeFilterCount > 0} onClick={() => setShowFilters((v) => !v)}>
           <SlidersHorizontal className="w-3.5 h-3.5" />
           Filter
           {activeFilterCount > 0 && !showFilters && (
-            <span className="ml-0.5 w-4.5 h-4.5 rounded-full bg-white/20 text-[10px] font-bold flex items-center justify-center">
+            <span className="ml-0.5 w-4 h-4 rounded-full bg-bg-card/20 text-[9px] font-bold flex items-center justify-center">
               {activeFilterCount}
             </span>
           )}
-        </button>
+        </FilterPill>
 
-        {/* Active filter pills — show when panel is closed but filters are set */}
+        {/* Active filter chips */}
         {!showFilters && selectedTripId && (
           <button
             type="button"
             onClick={() => setSelectedTripId('')}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shrink-0"
+            className="flex items-center gap-1 px-2 py-1 rounded font-mono text-[10px] font-medium bg-accent-light text-accent transition-colors shrink-0"
           >
             {trips.find((t) => t.id === selectedTripId)?.title ?? 'Trip'}
             <X className="w-3 h-3" />
@@ -375,67 +375,78 @@ export default function InboxPage() {
           <button
             type="button"
             onClick={() => setSelectedCity('')}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors shrink-0"
+            className="flex items-center gap-1 px-2 py-1 rounded font-mono text-[10px] font-medium bg-accent-light text-accent transition-colors shrink-0"
           >
             {extractCity(selectedCity)}
             <X className="w-3 h-3" />
           </button>
         )}
 
-        {/* Spacer pushes toggle to the right */}
         <div className="flex-1 min-w-0" />
 
-        {/* View Mode Toggle */}
-        <button
-          type="button"
-          onClick={() => setViewMode(viewMode === 'expanded' ? 'compact' : 'expanded')}
-          className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-          aria-label={viewMode === 'expanded' ? 'Switch to compact view' : 'Switch to expanded view'}
-        >
-          {viewMode === 'expanded' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
-        </button>
+        {/* View toggle */}
+        <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
+          <button
+            type="button"
+            onClick={() => setViewMode('grid')}
+            className={`w-8 h-8 flex items-center justify-center transition-colors ${
+              viewMode === 'grid'
+                ? 'bg-text-primary text-white'
+                : 'bg-transparent text-text-faint hover:text-text-secondary'
+            }`}
+            aria-label="Grid view"
+          >
+            <LayoutGrid className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('list')}
+            className={`w-8 h-8 flex items-center justify-center transition-colors ${
+              viewMode === 'list'
+                ? 'bg-text-primary text-white'
+                : 'bg-transparent text-text-faint hover:text-text-secondary'
+            }`}
+            aria-label="List view"
+          >
+            <List className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
 
-      {/* Collapsible Filter Panel */}
+      {/* ── Collapsible Filter Panel ── */}
       {showFilters && (
-        <div ref={filterPanelRef} className="mt-1 p-3 bg-white border border-gray-200 rounded-xl shadow-sm space-y-3">
+        <div ref={filterPanelRef} className="mb-4 p-3 bg-bg-card border border-border rounded-xl shadow-sm space-y-3">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Trip</label>
+            <label className="block font-mono text-[10px] font-medium tracking-[1px] uppercase text-text-faint mb-1.5">Trip</label>
             <select
               value={selectedTripId}
               onChange={(e) => setSelectedTripId(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-bg-page border border-border-input rounded-lg text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
             >
               <option value="">All trips</option>
               {trips.map((trip) => (
-                <option key={trip.id} value={trip.id}>
-                  {trip.title}
-                </option>
+                <option key={trip.id} value={trip.id}>{trip.title}</option>
               ))}
             </select>
           </div>
-
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1.5">Location</label>
+            <label className="block font-mono text-[10px] font-medium tracking-[1px] uppercase text-text-faint mb-1.5">Location</label>
             <select
               value={selectedCity}
               onChange={(e) => setSelectedCity(e.target.value)}
-              className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 bg-bg-page border border-border-input rounded-lg text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
             >
               <option value="">All locations</option>
               {cities.map((city) => (
-                <option key={city} value={city}>
-                  {city}
-                </option>
+                <option key={city} value={city}>{city}</option>
               ))}
             </select>
           </div>
-
           {(selectedTripId || selectedCity) && (
             <button
               type="button"
               onClick={() => { setSelectedTripId(''); setSelectedCity('') }}
-              className="text-xs font-medium text-blue-600 hover:text-blue-700"
+              className="text-xs font-medium text-accent"
             >
               Clear all filters
             </button>
@@ -443,143 +454,92 @@ export default function InboxPage() {
         </div>
       )}
 
-      {/* Loading Skeletons */}
+      {/* ── Loading Skeletons ── */}
       {loading && (
-        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-[72px] rounded-xl animate-pulse bg-gray-100" />
+            <div key={i} className="rounded-xl animate-pulse bg-bg-muted" style={{ height: 200 }} />
           ))}
         </div>
       )}
 
-      {/* Error State */}
+      {/* ── Error State ── */}
       {!loading && error && (
-        <div className="mt-12 text-center">
-          <div className="w-14 h-14 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="w-7 h-7 text-red-400"
-            >
-              <path
-                fillRule="evenodd"
-                d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </div>
-          <p className="mt-3 text-gray-600 font-medium">Couldn't load your saves</p>
-          <button
-            type="button"
-            onClick={fetchAll}
-            className="mt-3 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
-          >
-            Retry
-          </button>
+        <div className="mt-16 text-center py-16">
+          <span className="font-mono text-[28px] text-text-faint opacity-30 block mb-3">!</span>
+          <p className="text-sm text-text-faint">Couldn't load your saves</p>
+          <PrimaryButton onClick={fetchAll} className="mt-4">Retry</PrimaryButton>
         </div>
       )}
 
-      {/* Empty State */}
+      {/* ── Empty State — interactive DashedCard ── */}
       {!loading && !error && items.length === 0 && (
-        <div className="mt-20 text-center">
-          <div className="w-20 h-20 bg-blue-50 rounded-3xl flex items-center justify-center mx-auto">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="w-10 h-10 text-blue-400"
-            >
-              <path
-                fillRule="evenodd"
-                d="M6.32 2.577a49.255 49.255 0 0111.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 01-1.085.67L12 18.089l-7.165 3.583A.75.75 0 013.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </div>
-          <p className="mt-4 text-gray-800 font-semibold text-lg">Your horizon is empty</p>
-          <p className="mt-1.5 text-sm text-gray-500 max-w-xs mx-auto">
-            Paste a link, upload a screenshot, or add a place manually to get started.
-          </p>
-          <button
-            type="button"
-            onClick={() => setShowSaveSheet(true)}
-            className="inline-flex mt-5 items-center gap-1.5 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              className="w-4 h-4"
-            >
-              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-            </svg>
-            Save your first place
-          </button>
+        <div className="mt-8" onClick={() => setShowSaveSheet(true)}>
+          <DashedCard className="flex flex-col items-center justify-center py-20 px-6 cursor-pointer text-center">
+            <span className="font-mono text-[32px] text-text-faint opacity-25 block mb-3">↗</span>
+            <p className="text-[15px] font-semibold text-text-secondary">Save your first travel inspiration</p>
+            <p className="mt-1.5 font-mono text-xs text-text-ghost max-w-xs">
+              Paste a link, upload a screenshot, or add a place manually
+            </p>
+          </DashedCard>
         </div>
       )}
 
-      {/* No Results State */}
+      {/* ── No Results State ── */}
       {!loading && !error && items.length > 0 && filtered.length === 0 && (
-        <div className="mt-16 text-center">
-          <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-              className="w-7 h-7 text-gray-300"
-            >
-              <path
-                fillRule="evenodd"
-                d="M10.5 3.75a6.75 6.75 0 100 13.5 6.75 6.75 0 000-13.5zM2.25 10.5a8.25 8.25 0 1114.59 5.28l4.69 4.69a.75.75 0 11-1.06 1.06l-4.69-4.69A8.25 8.25 0 012.25 10.5z"
-                clipRule="evenodd"
-              />
-            </svg>
-          </div>
-          <p className="mt-3 text-gray-600 font-medium">No matching items</p>
-          <p className="mt-1 text-sm text-gray-400">Try a different search or filter</p>
+        <div className="mt-16 text-center py-16">
+          <span className="font-mono text-[28px] text-text-faint opacity-30 block mb-3">⌕</span>
+          <p className="text-sm text-text-faint">No matching items</p>
+          <p className="mt-1 font-mono text-xs text-text-ghost">Try a different search or filter</p>
         </div>
       )}
 
-      {/* Grouped Card Grid */}
+      {/* ── Country-Grouped Content ── */}
       {!loading && !error && filtered.length > 0 && (
-        <div className="mt-4 space-y-6">
-          {geoGroups.map((group) => {
-            const showCityHeaders = group.cities.length > 1 || (group.cities.length === 1 && group.cities[0].city !== null && group.country !== null)
-            return (
-              <section key={group.country ?? '__unsorted__'}>
-                {/* Country header */}
-                <h2 className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-2">
+        <div className="space-y-6">
+          {geoGroups.map((group) => (
+            <section key={group.countryCode ?? '__unsorted__'}>
+              {/* Country header */}
+              <div className="flex items-baseline gap-2 mb-3">
+                <h2 className="font-mono text-[11px] font-bold uppercase tracking-[2px] text-text-faint">
                   {group.country
-                    ? `${group.countryCode ? countryCodeToFlag(group.countryCode) + ' ' : ''}${group.country}`
-                    : 'Unplaced'}
+                    ? `${group.countryCode ? countryCodeToFlag(group.countryCode) + '  ' : ''}${group.country.split('').join(' ')}`
+                    : 'U N P L A C E D'}
                 </h2>
+                <span className="font-mono text-[10px] text-text-ghost">{group.items.length}</span>
+              </div>
 
-                {group.cities.map((cityGroup, ci) => (
-                  <div key={cityGroup.city ?? `__nocity_${ci}`} className={ci > 0 ? 'mt-3' : ''}>
-                    {/* City sub-header — only when multiple cities or explicit city within a country */}
-                    {showCityHeaders && cityGroup.city && (
-                      <p className="text-[10px] font-medium uppercase tracking-wide text-gray-300 mb-1.5 ml-0.5">
-                        {cityGroup.city}
-                      </p>
-                    )}
-                    <div className={viewMode === 'expanded' ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'flex flex-col gap-0.5'}>
-                      {cityGroup.items.map((item) => (
-                        viewMode === 'expanded'
-                          ? <ExpandedCard key={item.id} item={item} onTripAdded={refreshTripItems} onDelete={() => handleDeleteItem(item.id)} />
-                          : <CompactRow key={item.id} item={item} onTripAdded={refreshTripItems} onDelete={() => handleDeleteItem(item.id)} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </section>
-            )
-          })}
+              {/* Grid or List */}
+              {viewMode === 'grid' ? (
+                <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+                  {group.items.map((item) => (
+                    <GridCard key={item.id} item={item} onTripAdded={refreshTripItems} onDelete={() => handleDeleteItem(item.id)} />
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col">
+                  {group.items.map((item) => (
+                    <ListRow key={item.id} item={item} onTripAdded={refreshTripItems} onDelete={() => handleDeleteItem(item.id)} />
+                  ))}
+                </div>
+              )}
+            </section>
+          ))}
         </div>
       )}
     </div>
 
-    {/* Save Sheet — triggered from empty state CTA */}
+    {/* ── Floating + Button ── */}
+    <button
+      type="button"
+      onClick={() => setShowSaveSheet(true)}
+      className="fixed bottom-20 right-5 z-40 w-[52px] h-[52px] rounded-full bg-accent text-white flex items-center justify-center shadow-[0_4px_16px_rgba(196,90,45,0.35)] hover:scale-105 active:scale-95 transition-transform"
+      aria-label="Add save"
+    >
+      <Plus className="w-6 h-6" />
+    </button>
+
+    {/* Save Sheet */}
     {showSaveSheet && (
       <SaveSheet
         onClose={() => setShowSaveSheet(false)}
@@ -590,9 +550,9 @@ export default function InboxPage() {
   )
 }
 
-// ─── Expanded Card ────────────────────────────────────────────────────────────
+// ─── Grid Card ───────────────────────────────────────────────────────────────
 
-function ExpandedCard({
+function GridCard({
   item,
   onTripAdded,
   onDelete,
@@ -609,30 +569,54 @@ function ExpandedCard({
     setTimeout(() => setToast(null), 2500)
   }
 
+  const sourceKey = getSourceKey(item)
+  const hasImage = !!(item.image_url || item.places_photo_url)
+  const city = item.location_name ? extractCity(item.location_name) : null
+
   return (
     <SwipeToDelete onDelete={onDelete}>
     <div className="relative group">
       <Link
         to={`/item/${item.id}`}
-        className="flex items-stretch bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md active:scale-[0.99] transition-all overflow-hidden"
+        className="block bg-bg-card rounded-xl border border-border overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
       >
-        {/* Thumbnail / Icon area */}
-        <SavedItemImage item={item} size="xl" />
+        {/* Thumbnail area */}
+        {hasImage ? (
+          <div className="relative h-[120px] bg-bg-muted overflow-hidden">
+            <SavedItemImage item={item} size="full" className="w-full h-[120px] object-cover" />
+            {/* Source badge on thumbnail */}
+            {item.site_name && (
+              <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-black/50 font-mono text-[9px] font-medium text-white/90 backdrop-blur-sm">
+                {item.site_name}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="h-[120px] bg-bg-muted flex items-center justify-center">
+            <SourceIcon source={sourceKey} size={48} className="opacity-30 !rounded-xl !text-2xl" />
+          </div>
+        )}
 
-        {/* Content */}
-        <div className="flex-1 min-w-0 px-3 py-2.5 flex flex-col justify-center gap-1">
-          <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-          {item.location_name && (
-            <p className="text-xs text-gray-400 truncate">
-              {formatCityCountry(item.location_name)}
-              {item.location_name_local && (
-                <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>
-              )}
-            </p>
+        {/* Content area */}
+        <div className="px-3 py-2.5">
+          <p className="text-[13px] font-medium text-text-primary leading-snug line-clamp-2 group-hover:text-accent transition-colors">
+            {item.title}
+          </p>
+          {item.location_name_local && (
+            <p className="mt-0.5 text-[11px] text-text-ghost truncate">{shortLocalName(item.location_name_local)}</p>
           )}
-          <div>
-            <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${categoryPillColors[item.category]}`}>
-              {categoryLabel[item.category]}
+
+          {/* Pills + date row */}
+          <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+            {city && (
+              <span className="inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none">
+                {city}
+              </span>
+            )}
+            <CategoryPill label={categoryLabel[item.category]} />
+            <span className="flex-1" />
+            <span className="font-mono text-[10px] text-text-faint shrink-0">
+              {formatDate(item.created_at)}
             </span>
           </div>
         </div>
@@ -641,16 +625,11 @@ function ExpandedCard({
       {/* Options button */}
       <button
         type="button"
-        onClick={() => setShowSheet(true)}
-        className="absolute top-2 right-2 z-10 w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-200 transition-all"
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowSheet(true) }}
+        className="absolute top-2 left-2 z-10 w-7 h-7 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-black/50 transition-all"
         aria-label="Add to trip"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          className="w-3.5 h-3.5 text-gray-500"
-        >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white">
           <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
         </svg>
       </button>
@@ -659,15 +638,12 @@ function ExpandedCard({
         <AddToTripSheet
           itemId={item.id}
           onClose={() => setShowSheet(false)}
-          onAdded={(tripTitle) => {
-            handleToast(`Added to "${tripTitle}"`)
-            onTripAdded()
-          }}
+          onAdded={(tripTitle) => { handleToast(`Added to "${tripTitle}"`); onTripAdded() }}
         />
       )}
 
       {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gray-900 text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
           {toast}
         </div>
       )}
@@ -676,9 +652,9 @@ function ExpandedCard({
   )
 }
 
-// ─── Compact Row ──────────────────────────────────────────────────────────────
+// ─── List Row ────────────────────────────────────────────────────────────────
 
-function CompactRow({
+function ListRow({
   item,
   onTripAdded,
   onDelete,
@@ -695,38 +671,49 @@ function CompactRow({
     setTimeout(() => setToast(null), 2500)
   }
 
-  const Icon = getCategoryIcon(item.category)
+  const sourceKey = getSourceKey(item)
+  const city = item.location_name ? extractCity(item.location_name) : null
 
   return (
     <SwipeToDelete onDelete={onDelete}>
     <div className="relative group">
       <Link
         to={`/item/${item.id}`}
-        className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-colors"
+        className="flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-bg-muted active:bg-bg-pill transition-colors"
       >
-        <Icon className={`w-4 h-4 shrink-0 ${categoryIconColors[item.category]}`} />
-        <span className="text-sm text-gray-900 truncate flex-1 min-w-0">{item.title}</span>
-        {item.location_name && (
-          <span className="text-xs text-gray-400 truncate shrink-0 max-w-[140px]">
-            {formatCityCountry(item.location_name)}
-            {item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}
+        {/* Source icon */}
+        <SourceIcon source={sourceKey} size={32} />
+
+        {/* Title + source */}
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-medium text-text-primary truncate group-hover:text-accent transition-colors">{item.title}</p>
+          <p className="font-mono text-[11px] text-text-tertiary truncate">
+            {item.site_name ?? item.source_type}
+          </p>
+        </div>
+
+        {/* Pills + date */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {city && (
+            <span className="hidden sm:inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none">
+              {city}
+            </span>
+          )}
+          <CategoryPill label={categoryLabel[item.category]} />
+          <span className="font-mono text-[10px] text-text-faint ml-1">
+            {formatDate(item.created_at)}
           </span>
-        )}
+        </div>
       </Link>
 
       {/* Options button — visible on hover */}
       <button
         type="button"
-        onClick={() => setShowSheet(true)}
-        className="absolute top-1/2 -translate-y-1/2 right-1 z-10 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-gray-200 transition-all"
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowSheet(true) }}
+        className="absolute top-1/2 -translate-y-1/2 right-1 z-10 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-bg-pill-dark transition-all"
         aria-label="Add to trip"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 20 20"
-          fill="currentColor"
-          className="w-3 h-3 text-gray-400"
-        >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-text-faint">
           <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
         </svg>
       </button>
@@ -735,15 +722,12 @@ function CompactRow({
         <AddToTripSheet
           itemId={item.id}
           onClose={() => setShowSheet(false)}
-          onAdded={(tripTitle) => {
-            handleToast(`Added to "${tripTitle}"`)
-            onTripAdded()
-          }}
+          onAdded={(tripTitle) => { handleToast(`Added to "${tripTitle}"`); onTripAdded() }}
         />
       )}
 
       {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-gray-900 text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
           {toast}
         </div>
       )}

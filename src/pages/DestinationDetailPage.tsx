@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import SavedItemImage from '../components/SavedItemImage'
-import DestinationImage from '../components/DestinationImage'
+import { CategoryPill, MetadataLine } from '../components/ui'
 import type { TripDestination, SavedItem, Category } from '../types'
 import {
   DndContext,
@@ -31,6 +31,7 @@ import PlaceSearchInput from '../components/PlaceSearchInput'
 import MarkdownNotes from '../components/MarkdownNotes'
 import SwipeToDelete from '../components/SwipeToDelete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
+import { useDestinationImage } from '../hooks/useDestinationImage'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -76,13 +77,14 @@ interface ItemInteraction {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const categoryColors: Record<Category, { bg: string; text: string }> = {
-  restaurant: { bg: 'bg-orange-100', text: 'text-orange-700' },
-  activity:   { bg: 'bg-purple-100', text: 'text-purple-700' },
-  hotel:      { bg: 'bg-blue-100',   text: 'text-blue-700'   },
-  transit:    { bg: 'bg-amber-100',  text: 'text-amber-700'  },
-  general:    { bg: 'bg-slate-100',  text: 'text-slate-600'  },
-}
+const DEST_GRADIENTS = [
+  'from-amber-700 to-orange-900',
+  'from-stone-500 to-stone-700',
+  'from-zinc-500 to-zinc-700',
+  'from-neutral-500 to-neutral-700',
+  'from-stone-500 to-stone-700',
+  'from-slate-500 to-slate-700',
+]
 
 const categoryLabel: Record<Category, string> = {
   restaurant: 'Restaurant',
@@ -198,37 +200,37 @@ function AddDatesModal({
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-lg bg-white rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
-        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 sm:hidden" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-900">
+      <div className="relative w-full max-w-lg bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
+        <div className="w-10 h-1 bg-bg-pill-dark rounded-full mx-auto mt-3 sm:hidden" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
+          <h2 className="text-base font-semibold text-text-primary">
             {hasExisting ? 'Edit Dates' : 'Add Dates'} · {shortName(destination.location_name)}
           </h2>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close">
+          <button type="button" onClick={onClose} className="p-1.5 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors" aria-label="Close">
             <CloseIcon />
           </button>
         </div>
         <div className="px-5 py-5 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Arrival</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Arrival</label>
               <input type="date" value={startDate} max={endDate || undefined} onChange={(e) => { setStartDate(e.target.value); setError(null) }}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                className="w-full px-3 py-2.5 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1.5">Departure</label>
+              <label className="block text-sm font-medium text-text-secondary mb-1.5">Departure</label>
               <input type="date" value={endDate} min={startDate || undefined} onChange={(e) => { setEndDate(e.target.value); setError(null) }}
-                className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                className="w-full px-3 py-2.5 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent" />
             </div>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-error">{error}</p>}
           <button type="button" onClick={handleSave} disabled={saving}
-            className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50">
+            className="w-full py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-50">
             {saving ? 'Saving\u2026' : hasExisting ? 'Update Dates' : 'Save Dates'}
           </button>
           {hasExisting && (
             <button type="button" onClick={handleRemoveDates} disabled={saving}
-              className="w-full py-2.5 border border-gray-200 text-gray-500 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors disabled:opacity-50">
+              className="w-full py-2.5 border border-border text-text-tertiary rounded-xl text-sm font-medium hover:bg-bg-page transition-colors disabled:opacity-50">
               Remove dates
             </button>
           )}
@@ -260,11 +262,11 @@ function DayTabRow({
       <div className="flex gap-2" style={{ width: 'max-content' }}>
         <button type="button" onClick={() => onChange(null)}
           className={`flex flex-col items-center px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
-            activeDay === null ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            activeDay === null ? 'bg-text-primary text-white' : 'bg-bg-muted text-text-secondary hover:bg-bg-pill-dark'
           }`}
         >
           <span>Unplanned</span>
-          <span className={`text-xs mt-0.5 tabular-nums ${activeDay === null ? 'text-white/60' : 'text-gray-400'}`}>
+          <span className={`text-xs mt-0.5 tabular-nums ${activeDay === null ? 'text-white/60' : 'text-text-faint'}`}>
             {unassignedCount} item{unassignedCount !== 1 ? 's' : ''}
           </span>
         </button>
@@ -273,11 +275,11 @@ function DayTabRow({
           return (
             <button key={dayNum} type="button" onClick={() => onChange(dayNum)}
               className={`flex flex-col items-center px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
-                activeDay === dayNum ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                activeDay === dayNum ? 'bg-accent text-white' : 'bg-bg-muted text-text-secondary hover:bg-bg-pill-dark'
               }`}
             >
               <span>Day {dayNum}</span>
-              <span className={`text-xs mt-0.5 ${activeDay === dayNum ? 'text-white/70' : 'text-gray-400'}`}>
+              <span className={`text-xs mt-0.5 ${activeDay === dayNum ? 'text-white/70' : 'text-text-faint'}`}>
                 {formatDayTabDate(startDate, dayNum)}{count > 0 ? ` \u00b7 ${count}` : ''}
               </span>
             </button>
@@ -297,9 +299,9 @@ function ItemInteractionBar({
   onToggleVote: () => void; onToggleComments: () => void
 }) {
   return (
-    <div className="flex items-center gap-5 px-4 py-2 border-t border-gray-50 bg-white">
+    <div className="flex items-center gap-5 px-4 py-2 border-t border-border-subtle bg-bg-card">
       <button type="button" onClick={onToggleVote}
-        className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${userHasVoted ? 'text-rose-500' : 'text-gray-400 hover:text-rose-400'}`}
+        className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${userHasVoted ? 'text-rose-500' : 'text-text-faint hover:text-rose-400'}`}
         aria-label={userHasVoted ? 'Remove vote' : 'Vote for this'}
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" opacity={userHasVoted ? 1 : 0.35}>
@@ -308,7 +310,7 @@ function ItemInteractionBar({
         {voteCount > 0 ? <span>{voteCount}</span> : null}
       </button>
       <button type="button" onClick={onToggleComments}
-        className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${isExpanded ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'}`}
+        className={`flex items-center gap-1.5 text-xs font-medium transition-colors ${isExpanded ? 'text-accent' : 'text-text-faint hover:text-accent'}`}
         aria-label={isExpanded ? 'Hide comments' : 'Show comments'}
       >
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4" opacity={isExpanded ? 1 : 0.35}>
@@ -339,11 +341,11 @@ function CommentThread({
   }, [])
 
   return (
-    <div className="bg-white border-x border-b border-gray-100 rounded-b-2xl shadow-sm px-4 pt-1 pb-3">
+    <div className="bg-bg-card border-x border-b border-border-subtle rounded-b-2xl shadow-sm px-4 pt-1 pb-3">
       {loading ? (
-        <div className="py-3 text-xs text-gray-400 text-center">Loading comments\u2026</div>
+        <div className="py-3 text-xs text-text-faint text-center">Loading comments\u2026</div>
       ) : comments.length === 0 ? (
-        <p className="text-xs text-gray-400 pt-2 pb-1">No comments yet — be the first!</p>
+        <p className="text-xs text-text-faint pt-2 pb-1">No comments yet — be the first!</p>
       ) : (
         <div className="space-y-3 pt-2 pb-3">
           {comments.map((c) => {
@@ -353,14 +355,14 @@ function CommentThread({
                 {c.avatarUrl ? (
                   <img src={c.avatarUrl} alt="" className="w-6 h-6 rounded-full object-cover shrink-0 mt-0.5" referrerPolicy="no-referrer" />
                 ) : (
-                  <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5">{initials}</div>
+                  <div className="w-6 h-6 rounded-full bg-accent-light text-accent flex items-center justify-center text-xs font-semibold shrink-0 mt-0.5">{initials}</div>
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-baseline gap-2">
-                    <p className="text-xs font-semibold text-gray-800 truncate">{c.authorName}</p>
-                    <p className="text-xs text-gray-400 shrink-0">{formatCommentTime(c.created_at)}</p>
+                    <p className="text-xs font-semibold text-text-primary truncate">{c.authorName}</p>
+                    <p className="text-xs text-text-faint shrink-0">{formatCommentTime(c.created_at)}</p>
                   </div>
-                  <p className="text-xs text-gray-700 mt-0.5 leading-relaxed">{c.body}</p>
+                  <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">{c.body}</p>
                 </div>
               </div>
             )
@@ -371,10 +373,10 @@ function CommentThread({
         <textarea ref={textareaRef} value={draft} onChange={(e) => onDraftChange(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onPost() } }}
           placeholder="Add a comment\u2026" rows={1}
-          className="flex-1 text-xs px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none placeholder:text-gray-400"
+          className="flex-1 text-xs px-3 py-2 bg-bg-page border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent resize-none placeholder:text-text-faint"
         />
         <button type="button" onClick={onPost} disabled={!draft.trim() || posting}
-          className="px-3 py-2 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50 shrink-0">
+          className="px-3 py-2 bg-accent text-white rounded-xl text-xs font-semibold hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-50 shrink-0">
           {posting ? '\u2026' : 'Post'}
         </button>
       </div>
@@ -403,7 +405,6 @@ function DayItemCard({
 }) {
   const [showMoveMenu, setShowMoveMenu] = useState(false)
   const item = linkedItem.saved_item
-  const colors = categoryColors[item.category]
 
   const moveOptions: Array<{ label: string; dayIndex: number | null }> = []
   if (activeDayIndex !== null) moveOptions.push({ label: 'Unplanned', dayIndex: null })
@@ -412,13 +413,13 @@ function DayItemCard({
   }
 
   return (
-    <div className={`bg-white border border-gray-100 border-b-0 shadow-sm overflow-visible relative transition-opacity ${isDragging ? 'opacity-40' : ''} rounded-t-2xl`}>
+    <div className={`bg-bg-card border border-border-subtle border-b-0 shadow-sm overflow-visible relative transition-opacity ${isDragging ? 'opacity-40' : ''} rounded-t-2xl`}>
       <div className="flex items-center p-2">
         {canEdit ? (
           <button type="button" onClick={(e) => e.preventDefault()}
             {...(dragHandleAttributes as React.HTMLAttributes<HTMLButtonElement>)}
             {...(dragHandleListeners as React.HTMLAttributes<HTMLButtonElement>)}
-            className="pr-1.5 self-stretch flex items-center text-gray-300 hover:text-gray-400 touch-none cursor-grab active:cursor-grabbing shrink-0"
+            className="pr-1.5 self-stretch flex items-center text-text-ghost hover:text-text-faint touch-none cursor-grab active:cursor-grabbing shrink-0"
             aria-label="Drag to reorder"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
@@ -434,16 +435,16 @@ function DayItemCard({
           <SavedItemImage item={item} size="sm" className="rounded-lg pointer-events-none" />
         </Link>
         <Link to={`/item/${item.id}`} state={backTo ? { from: backTo } : undefined} className="flex-1 min-w-0 px-3 py-1">
-          <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-          {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
-          <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
+          <p className="text-sm font-semibold text-text-primary truncate leading-snug">{item.title}</p>
+          {item.location_name && <p className="text-xs text-text-tertiary mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
+          <CategoryPill label={categoryLabel[item.category]} dominant={item.category === 'hotel'} className="mt-1" />
         </Link>
         {canEdit && (
           <div className="flex items-center shrink-0 pr-1">
             {moveOptions.length > 0 && (
               <div className="relative">
                 <button type="button" onClick={() => setShowMoveMenu((o) => !o)}
-                  className="p-2 text-gray-300 hover:text-blue-500 transition-colors" aria-label="Move to day">
+                  className="p-2 text-text-ghost hover:text-accent transition-colors" aria-label="Move to day">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                     <path fillRule="evenodd" d="M5 10a.75.75 0 01.75-.75h6.638L10.23 7.29a.75.75 0 111.04-1.08l3.5 3.25a.75.75 0 010 1.08l-3.5 3.25a.75.75 0 11-1.04-1.08l2.158-1.96H5.75A.75.75 0 015 10z" clipRule="evenodd" />
                   </svg>
@@ -451,12 +452,12 @@ function DayItemCard({
                 {showMoveMenu && (
                   <>
                     <div className="fixed inset-0 z-10" onClick={() => setShowMoveMenu(false)} />
-                    <div className="absolute right-0 bottom-full mb-1 z-20 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden min-w-[170px]">
-                      <p className="px-3 pt-2.5 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">Move to</p>
+                    <div className="absolute right-0 bottom-full mb-1 z-20 bg-bg-card border border-border rounded-xl shadow-lg overflow-hidden min-w-[170px]">
+                      <p className="px-3 pt-2.5 pb-1 text-xs font-semibold text-text-faint uppercase tracking-wide">Move to</p>
                       {moveOptions.map((opt) => (
                         <button key={opt.dayIndex ?? 'unassigned'} type="button"
                           onClick={() => { setShowMoveMenu(false); onMove(linkedItem.id, opt.dayIndex) }}
-                          className="w-full flex items-center px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 text-left transition-colors">
+                          className="w-full flex items-center px-3 py-2.5 text-sm text-text-secondary hover:bg-bg-page text-left transition-colors">
                           {opt.label}
                         </button>
                       ))}
@@ -466,7 +467,7 @@ function DayItemCard({
               </div>
             )}
             <button type="button" onClick={() => onRemove(linkedItem.id)}
-              className="p-2 text-gray-300 hover:text-red-400 transition-colors" aria-label="Remove from destination">
+              className="p-2 text-text-ghost hover:text-error transition-colors" aria-label="Remove from destination">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
                 <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
               </svg>
@@ -506,21 +507,20 @@ function LinkedItemCardSummary({
   hasExpandedContent?: boolean
   backTo?: string
 }) {
-  const colors = categoryColors[item.category]
   return (
-    <div className={`bg-white border border-gray-100 shadow-sm overflow-hidden ${hasExpandedContent ? 'rounded-t-2xl border-b-0' : 'rounded-2xl'}`}>
+    <div className={`bg-bg-card border border-border-subtle shadow-sm overflow-hidden ${hasExpandedContent ? 'rounded-t-2xl border-b-0' : 'rounded-2xl'}`}>
       <div className="flex items-center gap-0 p-2">
         <Link to={`/item/${item.id}`} state={backTo ? { from: backTo } : undefined} className="shrink-0 select-none" style={{ WebkitTouchCallout: 'none' }}>
           <SavedItemImage item={item} size="md" className="rounded-xl pointer-events-none" />
         </Link>
         <Link to={`/item/${item.id}`} state={backTo ? { from: backTo } : undefined} className="flex-1 min-w-0 px-3 py-1">
-          <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-          {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
-          <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
+          <p className="text-sm font-semibold text-text-primary truncate leading-snug">{item.title}</p>
+          {item.location_name && <p className="text-xs text-text-tertiary mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
+          <CategoryPill label={categoryLabel[item.category]} dominant={item.category === 'hotel'} className="mt-1" />
         </Link>
         {canEdit && (
           <button type="button" onClick={() => onRemove(linkId)}
-            className="p-3 shrink-0 text-gray-300 hover:text-red-400 transition-colors" aria-label="Remove from destination">
+            className="p-3 shrink-0 text-text-ghost hover:text-error transition-colors" aria-label="Remove from destination">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
@@ -540,7 +540,7 @@ function LinkedItemExpanded({
   onNotesChange?: (itemId: string, notes: string | null) => void
 }) {
   return (
-    <div className="bg-white border border-gray-100 border-t-0 shadow-sm overflow-hidden rounded-b-2xl">
+    <div className="bg-bg-card border border-border-subtle border-t-0 shadow-sm overflow-hidden rounded-b-2xl">
       <div className="px-3 pb-2">
         <MarkdownNotes
           value={item.notes}
@@ -564,7 +564,6 @@ function LinkedItemExpanded({
 // ── Suggestion Card ────────────────────────────────────────────────────────────
 
 function SuggestionCard({ item, onAdd, onDismiss }: { item: SavedItem; onAdd: (item: SavedItem) => Promise<void>; onDismiss?: () => void }) {
-  const colors = categoryColors[item.category]
   const [adding, setAdding] = useState(false)
 
   const handleAdd = async () => {
@@ -574,25 +573,25 @@ function SuggestionCard({ item, onAdd, onDismiss }: { item: SavedItem; onAdd: (i
   }
 
   return (
-    <div className="flex items-center gap-0 bg-blue-50 border border-blue-100 rounded-2xl overflow-hidden p-2">
+    <div className="flex items-center gap-0 bg-accent-light border border-accent-light rounded-2xl overflow-hidden p-2">
       <div className="select-none" style={{ WebkitTouchCallout: 'none' }}>
         <SavedItemImage item={item} size="sm" className="rounded-lg pointer-events-none" />
       </div>
       <div className="flex-1 min-w-0 px-3 py-1">
-        <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-        {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
-        <span className={`inline-block mt-1 px-1.5 py-0.5 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>{categoryLabel[item.category]}</span>
+        <p className="text-sm font-semibold text-text-primary truncate leading-snug">{item.title}</p>
+        {item.location_name && <p className="text-xs text-text-tertiary mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
+        <CategoryPill label={categoryLabel[item.category]} dominant={item.category === 'hotel'} className="mt-1" />
       </div>
       <div className="flex items-center gap-1 mr-3 shrink-0">
         <button type="button" onClick={handleAdd} disabled={adding}
-          className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-xl text-xs font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50">
+          className="flex items-center gap-1 px-3 py-1.5 bg-accent text-white rounded-xl text-xs font-semibold hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-50">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
             <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
           </svg>
           {adding ? '\u2026' : 'Add'}
         </button>
         {onDismiss && (
-          <button type="button" onClick={onDismiss} className="p-1.5 text-blue-400 hover:text-blue-600 transition-colors" aria-label="Dismiss">
+          <button type="button" onClick={onDismiss} className="p-1.5 text-accent hover:text-accent transition-colors" aria-label="Dismiss">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
@@ -615,15 +614,15 @@ function InboxPickerRow({ item, onAdd }: { item: SavedItem; onAdd: (item: SavedI
   }
   return (
     <button type="button" onClick={handleTap} disabled={adding}
-      className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors disabled:opacity-60 text-left">
+      className="w-full flex items-center gap-3 px-2 py-2 rounded-xl hover:bg-bg-page active:bg-bg-muted transition-colors disabled:opacity-60 text-left">
       <div className="select-none" style={{ WebkitTouchCallout: 'none' }}>
         <SavedItemImage item={item} size="sm" className="rounded-xl pointer-events-none" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate leading-snug">{item.title}</p>
-        {item.location_name && <p className="text-xs text-gray-500 mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
+        <p className="text-sm font-semibold text-text-primary truncate leading-snug">{item.title}</p>
+        {item.location_name && <p className="text-xs text-text-tertiary mt-0.5 truncate">{item.location_name}{item.location_name_local && <span className="ml-1 opacity-60">{shortLocalName(item.location_name_local)}</span>}</p>}
       </div>
-      {adding && <div className="shrink-0 w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />}
+      {adding && <div className="shrink-0 w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin" />}
     </button>
   )
 }
@@ -655,26 +654,26 @@ function AddFromInboxSheet({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-white rounded-t-3xl shadow-xl flex flex-col max-h-[82vh]">
-        <div className="w-10 h-1 bg-gray-300 rounded-full mx-auto mt-3 shrink-0" />
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 shrink-0">
-          <h2 className="text-base font-semibold text-gray-900">Add from your Horizon</h2>
-          <button type="button" onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors" aria-label="Close">
+      <div className="relative w-full max-w-lg bg-bg-card rounded-t-3xl shadow-xl flex flex-col max-h-[82vh]">
+        <div className="w-10 h-1 bg-bg-pill-dark rounded-full mx-auto mt-3 shrink-0" />
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle shrink-0">
+          <h2 className="text-base font-semibold text-text-primary">Add from your Horizon</h2>
+          <button type="button" onClick={onClose} className="p-1.5 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors" aria-label="Close">
             <CloseIcon />
           </button>
         </div>
-        <div className="px-4 py-3 border-b border-gray-100 shrink-0">
+        <div className="px-4 py-3 border-b border-border-subtle shrink-0">
           <div className="relative">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none">
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-faint pointer-events-none">
               <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clipRule="evenodd" />
             </svg>
             <input ref={searchRef} type="text" value={search} onChange={(e) => setSearch(e.target.value)}
               placeholder="Search your inbox\u2026"
-              className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400" />
+              className="w-full pl-9 pr-8 py-2.5 bg-bg-page border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint" />
             {search && (
               <button type="button" onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors" aria-label="Clear">
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-secondary transition-colors" aria-label="Clear">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
                   <path d="M5.28 4.22a.75.75 0 00-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 101.06 1.06L8 9.06l2.72 2.72a.75.75 0 101.06-1.06L9.06 8l2.72-2.72a.75.75 0 00-1.06-1.06L8 6.94 5.28 4.22z" />
                 </svg>
@@ -687,22 +686,22 @@ function AddFromInboxSheet({
             <div className="space-y-1 animate-pulse py-2">
               {[1, 2, 3, 4, 5].map((i) => (
                 <div key={i} className="flex items-center gap-3 px-2 py-2">
-                  <div className="w-12 h-12 rounded-xl bg-gray-100 shrink-0" />
+                  <div className="w-12 h-12 rounded-xl bg-bg-muted shrink-0" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-gray-100 rounded w-3/4" />
-                    <div className="h-3 bg-gray-100 rounded w-1/2" />
+                    <div className="h-4 bg-bg-muted rounded w-3/4" />
+                    <div className="h-3 bg-bg-muted rounded w-1/2" />
                   </div>
                 </div>
               ))}
             </div>
           ) : visible.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-sm text-gray-500 font-medium">
+              <p className="text-sm text-text-tertiary font-medium">
                 {q ? 'No items match your search' : 'All inbox items are already added'}
               </p>
               {q && (
                 <button type="button" onClick={() => setSearch('')}
-                  className="mt-2 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                  className="mt-2 text-xs text-accent hover:text-accent font-medium transition-colors">
                   Clear search
                 </button>
               )}
@@ -731,6 +730,7 @@ export default function DestinationDetailPage() {
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [canEdit, setCanEdit] = useState(false)
+  const heroImageUrl = useDestinationImage(destId, destination?.image_url, destination?.location_place_id)
 
   // Linked items
   const [linkedItems, setLinkedItems] = useState<LinkedItem[]>([])
@@ -1267,6 +1267,7 @@ export default function DestinationDetailPage() {
   }
   const unassignedCount = linkedItems.filter((li) => li.day_index === null).length
   const linkedItemIds = new Set(linkedItems.map((li) => li.item_id))
+  const gradient = DEST_GRADIENTS[0]
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1274,7 +1275,7 @@ export default function DestinationDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-3 border-accent border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
@@ -1283,10 +1284,10 @@ export default function DestinationDetailPage() {
   if (notFound || !destination) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] px-4">
-        <p className="text-gray-500 text-sm font-medium mb-4">Destination not found</p>
+        <p className="text-text-tertiary text-sm font-medium mb-4">Destination not found</p>
         <button
           onClick={() => navigate(tripId ? `/trip/${tripId}` : '/trips')}
-          className="flex items-center gap-1.5 text-blue-600 text-sm font-medium"
+          className="flex items-center gap-1.5 text-accent text-sm font-medium"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Go back</span>
@@ -1299,56 +1300,56 @@ export default function DestinationDetailPage() {
     <div className="pb-32">
       {/* 1. Back button */}
       <div className="px-4 pt-4 pb-2">
-        <button onClick={() => navigate(`/trip/${tripId}`)} className="flex items-center gap-1.5 text-blue-600 text-sm font-medium">
+        <button onClick={() => navigate(`/trip/${tripId}`)} className="flex items-center gap-1.5 text-accent text-sm font-medium">
           <ArrowLeft className="w-4 h-4" />
           <span>Back to trip</span>
         </button>
       </div>
 
       {/* 2. Hero image */}
-      <div className="mx-4 h-48 rounded-2xl overflow-hidden mb-4">
-        <DestinationImage
-          destination={destination}
-          index={0}
-          className="w-full h-full"
-          iconSize="w-12 h-12"
-          alt={city}
-        />
-      </div>
+      {heroImageUrl ? (
+        <div className="mx-4 h-48 rounded-2xl overflow-hidden mb-4">
+          <img src={heroImageUrl} alt={city} className="w-full h-full object-cover" />
+        </div>
+      ) : (
+        <div className={`mx-4 h-48 rounded-2xl overflow-hidden mb-4 bg-gradient-to-br ${gradient} flex items-center justify-center`}>
+          <MapPin className="w-12 h-12 text-white/50" />
+        </div>
+      )}
 
       {/* 3. Header: name + country + dates + item count */}
       <div className="px-4 mb-4">
-        <h1 className="text-2xl font-bold text-gray-900">
+        <h1 className="text-2xl font-bold text-text-primary">
           {city}
-          {cityLocal && <span className="ml-2 font-normal text-gray-400 text-lg">{cityLocal}</span>}
+          {cityLocal && <span className="ml-2 font-normal text-text-faint text-lg">{cityLocal}</span>}
         </h1>
-        {destination.location_country && <p className="text-sm text-gray-400 mt-0.5">{destination.location_country}</p>}
+        {destination.location_country && <p className="text-sm text-text-faint mt-0.5">{destination.location_country}</p>}
 
         {/* Date + item count bar */}
         <div className="flex items-center justify-between mt-3">
           {hasSchedule ? (
             <div className="flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-gray-400 shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-text-faint shrink-0">
                 <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
               </svg>
-              <span className="text-xs text-gray-600 font-medium">{formatDateRange(destination.start_date!, destination.end_date!)}</span>
+              <span className="text-xs text-text-secondary font-medium">{formatDateRange(destination.start_date!, destination.end_date!)}</span>
               {canEdit && (
-                <button onClick={() => setShowAddDates(true)} className="text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                <button onClick={() => setShowAddDates(true)} className="text-xs text-accent hover:text-accent font-medium transition-colors">
                   Edit
                 </button>
               )}
             </div>
           ) : canEdit ? (
-            <button onClick={() => setShowAddDates(true)} className="flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors">
+            <button onClick={() => setShowAddDates(true)} className="flex items-center gap-1.5 text-xs text-accent hover:text-accent font-medium transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                 <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
               </svg>
               Add dates
             </button>
           ) : (
-            <span className="text-xs text-gray-400">No dates set</span>
+            <span className="text-xs text-text-faint">No dates set</span>
           )}
-          <span className="text-xs text-gray-400 font-medium">{linkedItems.length} place{linkedItems.length !== 1 ? 's' : ''}</span>
+          <MetadataLine items={[`${linkedItems.length} place${linkedItems.length !== 1 ? 's' : ''}`]} />
         </div>
       </div>
 
@@ -1377,11 +1378,11 @@ export default function DestinationDetailPage() {
             />
             <div>
               {activeItems.length === 0 ? (
-                <div className="text-center py-8 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                  <p className="text-sm text-gray-500 font-medium">
+                <div className="text-center py-8 bg-bg-page rounded-2xl border border-dashed border-border">
+                  <p className="text-sm text-text-tertiary font-medium">
                     {activeDay === null ? 'All items are assigned to days' : `Nothing planned for Day ${activeDay} yet`}
                   </p>
-                  <p className="mt-1 text-xs text-gray-400">
+                  <p className="mt-1 text-xs text-text-faint">
                     {activeDay === null ? 'Add items from your horizon below' : 'Move items here from Unplanned or another day'}
                   </p>
                 </div>
@@ -1428,48 +1429,48 @@ export default function DestinationDetailPage() {
           <>
             {linkedItems.length === 0 ? (
               <div className="space-y-3">
-                <p className="text-sm text-gray-400 py-1">No places saved yet</p>
+                <p className="text-sm text-text-faint py-1">No places saved yet</p>
 
                 {/* Country-level: city cluster suggestions — ghost destination cards */}
                 {destination.location_type === 'country' && citySuggestions.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-400 font-medium mb-2">Your saves in {destination.location_name.split(',')[0].trim()}</p>
+                    <p className="text-xs text-text-faint font-medium mb-2">Your saves in {destination.location_name.split(',')[0].trim()}</p>
                     <div className="space-y-2">
                       {citySuggestions.map((cityItem) => {
                         const isCityExpanded = expandedCitySugg === cityItem.placeId
                         const isAdding = addingCitySugg === cityItem.placeId
                         const thumbUrl = cityItem.items.find((it) => it.image_url)?.image_url ?? null
                         return (
-                          <div key={cityItem.placeId} className="bg-white border-2 border-dashed border-gray-200 rounded-2xl overflow-hidden">
+                          <div key={cityItem.placeId} className="bg-bg-card border-2 border-dashed border-border rounded-2xl overflow-hidden">
                             {/* Card header — tap to expand/collapse; "+" always visible */}
                             <div
                               className="flex items-center gap-3 px-3 py-3 cursor-pointer select-none"
                               onClick={() => setExpandedCitySugg(isCityExpanded ? null : cityItem.placeId)}
                             >
                               {/* Ghost thumbnail — item image (muted) or map pin */}
-                              <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 flex-none bg-gray-100 flex items-center justify-center">
+                              <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 flex-none bg-bg-muted flex items-center justify-center">
                                 {thumbUrl ? (
                                   <img src={thumbUrl} alt={cityItem.cityName} className="w-full h-full object-cover opacity-50" />
                                 ) : (
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-gray-300">
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-text-ghost">
                                     <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
                                   </svg>
                                 )}
                               </div>
                               {/* City name + save count */}
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm font-semibold text-gray-400 truncate leading-snug">{cityItem.cityName}</p>
-                                <p className="text-xs text-gray-300">{cityItem.items.length} save{cityItem.items.length !== 1 ? 's' : ''}</p>
+                                <p className="text-sm font-semibold text-text-faint truncate leading-snug">{cityItem.cityName}</p>
+                                <p className="text-xs text-text-ghost">{cityItem.items.length} save{cityItem.items.length !== 1 ? 's' : ''}</p>
                               </div>
                               {/* Right: expand chevron + add button */}
                               <div className="flex items-center gap-1.5 shrink-0">
                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                                  className={`w-3.5 h-3.5 text-gray-300 transition-transform ${isCityExpanded ? 'rotate-180' : ''}`}>
+                                  className={`w-3.5 h-3.5 text-text-ghost transition-transform ${isCityExpanded ? 'rotate-180' : ''}`}>
                                   <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
                                 </svg>
                                 <button type="button" disabled={isAdding}
                                   onClick={(e) => { e.stopPropagation(); handleAddCitySuggestion(cityItem) }}
-                                  className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors disabled:opacity-50"
+                                  className="flex items-center justify-center w-7 h-7 rounded-full bg-bg-muted text-text-faint hover:bg-accent-light hover:text-accent transition-colors disabled:opacity-50"
                                   aria-label={`Add ${cityItem.cityName}`}
                                 >
                                   {isAdding ? (
@@ -1484,13 +1485,11 @@ export default function DestinationDetailPage() {
                             </div>
                             {/* Expanded: activity list with category pills */}
                             {isCityExpanded && (
-                              <div className="px-3 pb-3 pt-1 border-t border-dashed border-gray-100 space-y-1">
+                              <div className="px-3 pb-3 pt-1 border-t border-dashed border-border-subtle space-y-1">
                                 {cityItem.items.map((it) => (
                                   <div key={it.id} className="flex items-center justify-between gap-2 py-0.5">
-                                    <p className="text-xs text-gray-400 truncate flex-1">{it.title}</p>
-                                    <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded-full font-medium ${categoryColors[it.category].bg} ${categoryColors[it.category].text}`}>
-                                      {categoryLabel[it.category]}
-                                    </span>
+                                    <p className="text-xs text-text-faint truncate flex-1">{it.title}</p>
+                                    <CategoryPill label={categoryLabel[it.category]} dominant={it.category === 'hotel'} className="shrink-0" />
                                   </div>
                                 ))}
                               </div>
@@ -1505,20 +1504,20 @@ export default function DestinationDetailPage() {
                 {/* City-level: individual activity suggestions — ghost cards */}
                 {destination.location_type !== 'country' && suggestions.length > 0 && (
                   <div>
-                    <p className="text-xs text-gray-400 font-medium mb-2">Your saves in {destination.location_name.split(',')[0].trim()}</p>
+                    <p className="text-xs text-text-faint font-medium mb-2">Your saves in {destination.location_name.split(',')[0].trim()}</p>
                     <div className="space-y-2">
                       {suggestions.map((item) => (
-                        <div key={item.id} className="bg-white border-2 border-dashed border-gray-200 rounded-2xl flex items-center gap-3 px-3 py-3">
+                        <div key={item.id} className="bg-bg-card border-2 border-dashed border-border rounded-2xl flex items-center gap-3 px-3 py-3">
                           {/* Ghost thumbnail */}
-                          <div className="w-11 h-11 rounded-xl bg-gray-100 shrink-0 flex-none" />
+                          <div className="w-11 h-11 rounded-xl bg-bg-muted shrink-0 flex-none" />
                           {/* Activity title */}
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-400 truncate leading-snug">{item.title}</p>
+                            <p className="text-sm font-semibold text-text-faint truncate leading-snug">{item.title}</p>
                           </div>
                           {/* Add button */}
                           <button type="button"
                             onClick={() => handleAddSuggestion(item)}
-                            className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors shrink-0"
+                            className="flex items-center justify-center w-7 h-7 rounded-full bg-bg-muted text-text-faint hover:bg-accent-light hover:text-accent transition-colors shrink-0"
                             aria-label={`Add ${item.title}`}
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
@@ -1544,13 +1543,13 @@ export default function DestinationDetailPage() {
                       />
                     ) : (
                       <button type="button" onClick={() => setShowPlaceSearch(true)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm font-medium text-gray-500 hover:border-blue-300 hover:text-blue-500 transition-colors">
+                        className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-border rounded-xl text-sm font-medium text-text-tertiary hover:border-accent hover:text-accent transition-colors">
                         <MapPin className="w-3.5 h-3.5 shrink-0" />
                         Add a place
                       </button>
                     )}
                     <button type="button" onClick={handleOpenInboxSheet}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm font-medium text-gray-500 hover:border-blue-300 hover:text-blue-500 transition-colors">
+                      className="w-full flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-border rounded-xl text-sm font-medium text-text-tertiary hover:border-accent hover:text-accent transition-colors">
                       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5 shrink-0">
                         <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
                       </svg>
@@ -1604,12 +1603,12 @@ export default function DestinationDetailPage() {
             ) : (
               <div className="flex gap-2">
                 <button type="button" onClick={() => setShowPlaceSearch(true)}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-border rounded-xl text-sm font-medium text-text-faint hover:border-accent hover:text-accent transition-colors">
                   <Search className="w-3.5 h-3.5" />
                   Add a place
                 </button>
                 <button type="button" onClick={handleOpenInboxSheet}
-                  className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm font-medium text-gray-400 hover:border-blue-300 hover:text-blue-500 transition-colors">
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-dashed border-border rounded-xl text-sm font-medium text-text-faint hover:border-accent hover:text-accent transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                     <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
                   </svg>
@@ -1622,12 +1621,12 @@ export default function DestinationDetailPage() {
 
         {/* Location mismatch error */}
         {locationError && (
-          <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-red-400 shrink-0 mt-0.5">
+          <div className="flex items-start gap-2 p-3 bg-error-bg border border-error/20 rounded-xl">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-error shrink-0 mt-0.5">
               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
             </svg>
-            <p className="text-xs text-red-700 flex-1">{locationError}</p>
-            <button type="button" onClick={() => setLocationError(null)} className="text-red-400 hover:text-red-600 shrink-0">
+            <p className="text-xs text-error flex-1">{locationError}</p>
+            <button type="button" onClick={() => setLocationError(null)} className="text-error hover:text-error shrink-0">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
                 <path d="M5.28 4.22a.75.75 0 00-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 101.06 1.06L8 9.06l2.72 2.72a.75.75 0 101.06-1.06L9.06 8l2.72-2.72a.75.75 0 00-1.06-1.06L8 6.94 5.28 4.22z" />
               </svg>
@@ -1639,9 +1638,9 @@ export default function DestinationDetailPage() {
         {suggestions.length > 0 && canEdit && linkedItems.length > 0 && (
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <div className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
-              <h3 className="text-sm font-semibold text-gray-900">Nearby Suggestions</h3>
-              <span className="text-xs text-gray-400">from your inbox</span>
+              <div className="w-2 h-2 rounded-full bg-accent shrink-0" />
+              <h3 className="text-sm font-semibold text-text-primary">Nearby Suggestions</h3>
+              <span className="text-xs text-text-faint">from your inbox</span>
             </div>
             <div className="space-y-2">
               {suggestions.map((item) => (

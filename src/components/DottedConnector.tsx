@@ -15,7 +15,7 @@ export default function DottedConnector({ height = 28, longer = false, className
       <svg width="24" height={h} viewBox={`0 0 24 ${h}`} fill="none">
         <path
           d={`M12 0 Q14 ${h * 0.3} 11 ${h * 0.5} Q13 ${h * 0.7} 12 ${h}`}
-          stroke="#9CA3AF"
+          stroke="var(--color-border-dashed)"
           strokeWidth="1.5"
           strokeDasharray="3 4"
           strokeLinecap="round"

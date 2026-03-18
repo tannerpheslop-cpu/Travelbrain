@@ -277,24 +277,24 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
 
       {/* Sheet */}
       <div
-        className="fixed inset-x-0 bottom-0 z-50 bg-white rounded-t-3xl flex flex-col"
+        className="fixed inset-x-0 bottom-0 z-50 bg-bg-card rounded-t-3xl flex flex-col"
         style={{ maxHeight: '88dvh' }}
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1 shrink-0">
-          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+          <div className="w-10 h-1 bg-text-ghost rounded-full" />
         </div>
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 shrink-0">
-          <h2 className="text-lg font-bold text-gray-900">Add to your Horizon</h2>
+          <h2 className="text-lg font-bold text-text-primary">Add to your Horizon</h2>
           <button
             type="button"
             onClick={isSaving ? undefined : onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-bg-muted hover:bg-bg-pill-dark transition-colors"
             aria-label="Close"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-600">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-text-secondary">
               <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
             </svg>
           </button>
@@ -315,15 +315,15 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
                     onChange={(e) => { setUrl(e.target.value); if (linkStatus === 'url_error') setLinkStatus('idle') }}
                     placeholder="Paste a link..."
                     autoFocus
-                    className="w-full px-4 py-4 text-base border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+                    className="w-full px-4 py-4 text-base border border-border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint"
                   />
                   {linkStatus === 'url_error' && urlError && (
-                    <p className="mt-2 text-sm text-red-600">{urlError}</p>
+                    <p className="mt-2 text-sm text-error">{urlError}</p>
                   )}
                   <button
                     type="submit"
                     disabled={!url.trim()}
-                    className="w-full mt-3 px-4 py-3.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full mt-3 px-4 py-3.5 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent-hover active:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Fetch Preview
                   </button>
@@ -333,10 +333,10 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
               {/* Loading skeleton */}
               {linkStatus === 'loading' && (
                 <div className="mt-4 animate-pulse">
-                  <div className="bg-gray-200 rounded-xl h-44 w-full" />
+                  <div className="bg-bg-pill-dark rounded-xl h-44 w-full" />
                   <div className="mt-3 space-y-2">
-                    <div className="bg-gray-200 rounded-lg h-5 w-3/4" />
-                    <div className="bg-gray-200 rounded-lg h-4 w-1/3" />
+                    <div className="bg-bg-pill-dark rounded-lg h-5 w-3/4" />
+                    <div className="bg-bg-pill-dark rounded-lg h-4 w-1/3" />
                   </div>
                 </div>
               )}
@@ -345,16 +345,16 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
               {(linkStatus === 'preview' || linkStatus === 'saving' || linkStatus === 'saved') && metadata && (
                 <div className="mt-4 space-y-5">
                   {urlError && (
-                    <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                    <p className="text-sm text-accent bg-accent-light border border-accent rounded-xl px-4 py-3">
                       {urlError}
                     </p>
                   )}
-                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                  <div className="bg-bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
                     {metadata.image && !imageFailed ? (
                       <img
                         src={metadata.image}
                         alt={title || 'Preview'}
-                        className="w-full h-44 object-cover bg-gray-100"
+                        className="w-full h-44 object-cover bg-bg-muted"
                         onError={() => setImageFailed(true)}
                       />
                     ) : (
@@ -366,10 +366,10 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="Add a title..."
-                        className="w-full text-base font-semibold text-gray-900 placeholder:text-gray-400 focus:outline-none"
+                        className="w-full text-base font-semibold text-text-primary placeholder:text-text-faint focus:outline-none"
                       />
                       {metadata.site_name && (
-                        <p className="mt-1 text-sm text-gray-500">{metadata.site_name}</p>
+                        <p className="mt-1 text-sm text-text-tertiary">{metadata.site_name}</p>
                       )}
                     </div>
                   </div>
@@ -379,7 +379,7 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
                   <SheetNotesInput notes={notes} onChange={setNotes} />
                   <SheetSaveButton onClick={handleSaveLink} saving={linkStatus === 'saving'} saved={linkStatus === 'saved'} />
                   {linkStatus !== 'saving' && linkStatus !== 'saved' && <SheetResetButton onClick={resetAll} />}
-                  {saveError && <p className="text-sm text-red-600 text-center">{saveError}</p>}
+                  {saveError && <p className="text-sm text-error text-center">{saveError}</p>}
                 </div>
               )}
 
@@ -389,9 +389,9 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
                   <button
                     type="button"
                     onClick={() => handleModeChange('screenshot')}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-border rounded-xl text-sm font-medium text-text-secondary hover:bg-bg-muted hover:border-border-input transition-colors"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-text-faint">
                       <path fillRule="evenodd" d="M1 8a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 018.07 3h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0016.07 6H17a2 2 0 012 2v7a2 2 0 01-2 2H3a2 2 0 01-2-2V8zm13.5 3a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM10 14a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
                     </svg>
                     Upload Screenshot
@@ -399,9 +399,9 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
                   <button
                     type="button"
                     onClick={() => handleModeChange('manual')}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-3 border border-border rounded-xl text-sm font-medium text-text-secondary hover:bg-bg-muted hover:border-border-input transition-colors"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-text-faint">
                       <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
                     </svg>
                     Manual Entry
@@ -424,19 +424,19 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
                     className={`w-full h-44 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-colors ${
-                      dragOver ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50 hover:border-gray-400 hover:bg-gray-100'
+                      dragOver ? 'border-accent bg-accent-light' : 'border-border-input bg-bg-muted hover:border-text-faint hover:bg-bg-muted'
                     }`}
                   >
                     {screenshotStatus === 'uploading' ? (
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent" />
                     ) : (
                       <>
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 text-gray-400 mb-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 text-text-faint mb-2">
                           <path fillRule="evenodd" d="M11.47 2.47a.75.75 0 011.06 0l4.5 4.5a.75.75 0 01-1.06 1.06l-3.22-3.22V16.5a.75.75 0 01-1.5 0V4.81L8.03 8.03a.75.75 0 01-1.06-1.06l4.5-4.5z" clipRule="evenodd" />
                           <path fillRule="evenodd" d="M1.5 15a.75.75 0 01.75.75V18a1.5 1.5 0 001.5 1.5h16.5a1.5 1.5 0 001.5-1.5v-2.25a.75.75 0 011.5 0V18a3 3 0 01-3 3H3.75a3 3 0 01-3-3v-2.25A.75.75 0 011.5 15z" clipRule="evenodd" />
                         </svg>
-                        <p className="text-sm font-medium text-gray-600">Tap to select an image</p>
-                        <p className="text-xs text-gray-400 mt-1">or drag and drop</p>
+                        <p className="text-sm font-medium text-text-secondary">Tap to select an image</p>
+                        <p className="text-xs text-text-faint mt-1">or drag and drop</p>
                       </>
                     )}
                   </div>
@@ -447,15 +447,15 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
                     className="hidden"
                     onChange={(e) => { const file = e.target.files?.[0]; if (file) handleFileSelect(file) }}
                   />
-                  {saveError && <p className="text-sm text-red-600 text-center">{saveError}</p>}
+                  {saveError && <p className="text-sm text-error text-center">{saveError}</p>}
                 </>
               )}
 
               {(screenshotStatus === 'preview' || screenshotStatus === 'saving' || screenshotStatus === 'saved') && (
                 <>
-                  <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                  <div className="bg-bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
                     {screenshotPreview && (
-                      <img src={screenshotPreview} alt="Screenshot" className="w-full h-44 object-cover bg-gray-100" />
+                      <img src={screenshotPreview} alt="Screenshot" className="w-full h-44 object-cover bg-bg-muted" />
                     )}
                     <div className="p-4">
                       <input
@@ -463,7 +463,7 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="Add a title (required)..."
-                        className="w-full text-base font-semibold text-gray-900 placeholder:text-gray-400 focus:outline-none"
+                        className="w-full text-base font-semibold text-text-primary placeholder:text-text-faint focus:outline-none"
                       />
                     </div>
                   </div>
@@ -477,7 +477,7 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
                     disabled={!title.trim()}
                   />
                   {screenshotStatus !== 'saving' && screenshotStatus !== 'saved' && <SheetResetButton onClick={resetAll} />}
-                  {saveError && <p className="text-sm text-red-600 text-center">{saveError}</p>}
+                  {saveError && <p className="text-sm text-error text-center">{saveError}</p>}
                 </>
               )}
             </div>
@@ -489,7 +489,7 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
               <BackToLinkButton onClick={() => handleModeChange('link')} />
 
               <div>
-                <label htmlFor="sheet-manual-title" className="block text-sm font-medium text-gray-700 mb-1.5">
+                <label htmlFor="sheet-manual-title" className="block text-sm font-medium text-text-secondary mb-1.5">
                   Title
                 </label>
                 <input
@@ -499,7 +499,7 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. That ramen place near Shibuya..."
                   autoFocus
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400"
+                  className="w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint"
                 />
               </div>
 
@@ -507,7 +507,7 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
               <LocationAutocomplete value={location?.name ?? ''} onSelect={setLocation} label="Location" optional />
               <SheetNotesInput notes={notes} onChange={setNotes} />
               <SheetSaveButton onClick={handleSaveManual} saving={isSaving} saved={isSaved} disabled={!title.trim()} />
-              {saveError && <p className="text-sm text-red-600 text-center">{saveError}</p>}
+              {saveError && <p className="text-sm text-error text-center">{saveError}</p>}
             </div>
           )}
 
@@ -521,8 +521,8 @@ export default function SaveSheet({ onClose, onSaved, initialMode = 'link', init
 
 function SheetImagePlaceholder() {
   return (
-    <div className="w-full h-44 bg-gray-100 flex items-center justify-center">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 text-gray-300">
+    <div className="w-full h-44 bg-bg-muted flex items-center justify-center">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-12 h-12 text-text-ghost">
         <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
       </svg>
     </div>
@@ -532,7 +532,7 @@ function SheetImagePlaceholder() {
 function SheetCategoryButtons({ category, onChange }: { category: Category; onChange: (c: Category) => void }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+      <label className="block text-sm font-medium text-text-secondary mb-2">Category</label>
       <div className="flex flex-wrap gap-2">
         {categories.map((cat) => (
           <button
@@ -541,8 +541,8 @@ function SheetCategoryButtons({ category, onChange }: { category: Category; onCh
             onClick={() => onChange(cat.value)}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
               category === cat.value
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 active:bg-gray-300'
+                ? 'bg-accent text-white'
+                : 'bg-bg-muted text-text-secondary hover:bg-bg-pill-dark active:bg-bg-pill-dark'
             }`}
           >
             {cat.label}
@@ -556,8 +556,8 @@ function SheetCategoryButtons({ category, onChange }: { category: Category; onCh
 function SheetNotesInput({ notes, onChange }: { notes: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <label htmlFor="sheet-notes" className="block text-sm font-medium text-gray-700 mb-1.5">
-        Notes <span className="text-gray-400 font-normal">(optional)</span>
+      <label htmlFor="sheet-notes" className="block text-sm font-medium text-text-secondary mb-1.5">
+        Notes <span className="text-text-faint font-normal">(optional)</span>
       </label>
       <textarea
         id="sheet-notes"
@@ -565,7 +565,7 @@ function SheetNotesInput({ notes, onChange }: { notes: string; onChange: (v: str
         onChange={(e) => onChange(e.target.value)}
         placeholder="Any notes about this place..."
         rows={3}
-        className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-gray-400 resize-none"
+        className="w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint resize-none"
       />
     </div>
   )
@@ -583,8 +583,8 @@ function SheetSaveButton({ onClick, saving, saved, disabled }: {
       disabled={saving || saved || disabled}
       className={`w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-colors ${
         saved
-          ? 'bg-green-600 text-white'
-          : 'bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed'
+          ? 'bg-success text-white'
+          : 'bg-accent text-white hover:bg-accent-hover active:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed'
       }`}
     >
       {saving ? 'Saving...' : saved ? 'Saved! ✓' : 'Save to my Horizon'}
@@ -596,7 +596,7 @@ function SheetResetButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="w-full text-center text-sm text-gray-500 hover:text-gray-700 transition-colors"
+      className="w-full text-center text-sm text-text-tertiary hover:text-text-secondary transition-colors"
     >
       Start over
     </button>
@@ -608,7 +608,7 @@ function BackToLinkButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+      className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors"
     >
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
         <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />

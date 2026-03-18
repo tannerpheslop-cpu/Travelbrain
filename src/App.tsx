@@ -18,7 +18,7 @@ import DevLoginPage from './pages/DevLoginPage'
 function AppLayout() {
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-bg-page">
         <main className="max-w-lg mx-auto">
           <Routes>
             <Route path="/inbox" element={<InboxPage />} />

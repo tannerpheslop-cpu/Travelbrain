@@ -9,6 +9,7 @@ import DottedConnector from '../components/DottedConnector'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { ArrowLeft, Plus, Pencil, Check, X } from 'lucide-react'
+import { MetadataLine, PrimaryButton, DashedCard } from '../components/ui'
 import {
   DndContext,
   closestCenter,
@@ -238,7 +239,7 @@ export default function RouteOverviewPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-blue-600 border-t-transparent" />
+        <div className="animate-spin rounded-full h-8 w-8 border-2 border-accent border-t-transparent" />
       </div>
     )
   }
@@ -246,8 +247,8 @@ export default function RouteOverviewPage() {
   if (notFound || !route) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 px-6">
-        <p className="text-gray-400 text-sm">Route not found.</p>
-        <button type="button" onClick={() => navigate(-1)} className="text-blue-600 text-sm font-semibold">Go back</button>
+        <p className="text-text-faint text-sm">Route not found.</p>
+        <button type="button" onClick={() => navigate(-1)} className="text-accent text-sm font-semibold">Go back</button>
       </div>
     )
   }
@@ -259,7 +260,7 @@ export default function RouteOverviewPage() {
         <button
           type="button"
           onClick={() => navigate(`/trip/${tripId}`)}
-          className="flex items-center gap-1.5 text-blue-600 text-sm font-medium"
+          className="flex items-center gap-1.5 text-accent text-sm font-medium"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to trip</span>
@@ -276,12 +277,12 @@ export default function RouteOverviewPage() {
               value={nameDraft}
               onChange={e => setNameDraft(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') saveRename(); if (e.key === 'Escape') setEditingName(false) }}
-              className="flex-1 text-2xl font-bold text-gray-900 bg-transparent border-b-2 border-blue-500 focus:outline-none py-1"
+              className="flex-1 text-2xl font-bold text-text-primary bg-transparent border-b-2 border-accent focus:outline-none py-1"
             />
-            <button type="button" onClick={saveRename} className="p-1.5 rounded-full text-blue-600 hover:bg-blue-50 transition-colors">
+            <button type="button" onClick={saveRename} className="p-1.5 rounded-full text-accent hover:bg-accent-light transition-colors">
               <Check className="w-5 h-5" />
             </button>
-            <button type="button" onClick={() => setEditingName(false)} className="p-1.5 rounded-full text-gray-400 hover:bg-gray-100 transition-colors">
+            <button type="button" onClick={() => setEditingName(false)} className="p-1.5 rounded-full text-text-faint hover:bg-bg-pill transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -291,28 +292,24 @@ export default function RouteOverviewPage() {
             onClick={startRename}
             className="flex items-center gap-2 group"
           >
-            <h1 className="text-2xl font-bold text-gray-900">{route.name}</h1>
-            <Pencil className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
+            <h1 className="text-2xl font-bold text-text-primary">{route.name}</h1>
+            <Pencil className="w-4 h-4 text-text-ghost group-hover:text-text-tertiary transition-colors" />
           </button>
         )}
-        <p className="text-sm text-gray-400 mt-1">
-          {destinations.length} destination{destinations.length !== 1 ? 's' : ''}
-        </p>
+        <MetadataLine items={[`${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`]} className="mt-1" />
       </div>
 
       {/* Destination list */}
       <div className="px-4">
         {destinations.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-400 text-sm mb-4">No destinations in this route yet.</p>
-            <button
-              type="button"
-              onClick={() => setShowAddDest(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
-            >
+          <div className="text-center py-16">
+            <span className="font-mono text-[28px] text-text-faint opacity-25 block mb-3">📍</span>
+            <p className="text-sm text-text-faint">No destinations in this route yet</p>
+            <p className="mt-1 font-mono text-xs text-text-ghost mb-4">Add your first stop</p>
+            <PrimaryButton onClick={() => setShowAddDest(true)}>
               <Plus className="w-4 h-4" />
               Add destination
-            </button>
+            </PrimaryButton>
           </div>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -331,8 +328,8 @@ export default function RouteOverviewPage() {
         {showAddDest ? (
           <div className="mt-4">
             <DottedConnector />
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mt-2">
-              <p className="text-sm font-semibold text-gray-700 mb-3">Add destination to route</p>
+            <div className="bg-bg-card rounded-2xl border border-border-subtle shadow-sm p-4 mt-2">
+              <p className="text-sm font-semibold text-text-secondary mb-3">Add destination to route</p>
               <LocationAutocomplete
                 key={addDestKey}
                 value=""
@@ -340,15 +337,15 @@ export default function RouteOverviewPage() {
                 placeholder="Search for a city or country…"
               />
               {addingDest && (
-                <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
-                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-blue-600 border-t-transparent" />
+                <div className="flex items-center gap-2 mt-2 text-xs text-text-faint">
+                  <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-accent border-t-transparent" />
                   Adding…
                 </div>
               )}
               <button
                 type="button"
                 onClick={() => { setShowAddDest(false); setAddDestKey(k => k + 1) }}
-                className="mt-3 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                className="mt-3 text-sm text-text-faint hover:text-text-secondary transition-colors"
               >
                 Cancel
               </button>
@@ -357,14 +354,10 @@ export default function RouteOverviewPage() {
         ) : destinations.length > 0 ? (
           <div className="mt-4">
             <DottedConnector />
-            <button
-              type="button"
-              onClick={() => setShowAddDest(true)}
-              className="w-full mt-2 py-3 border-2 border-dashed border-gray-200 rounded-2xl text-sm text-gray-400 font-medium hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2"
-            >
+            <DashedCard onClick={() => setShowAddDest(true)} className="mt-2 py-3 flex items-center justify-center gap-2 text-sm text-text-faint font-medium">
               <Plus className="w-4 h-4" />
               Add destination to route
-            </button>
+            </DashedCard>
           </div>
         ) : null}
       </div>
