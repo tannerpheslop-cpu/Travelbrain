@@ -776,7 +776,7 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
           {/* Gradient overlay — critical for text readability */}
           <div
             className="absolute inset-0"
-            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.85) 100%)', zIndex: 1 }}
+            style={{ background: 'linear-gradient(to bottom, rgba(255,255,255,0.5) 0%, rgba(0,0,0,0.7) 100%)', zIndex: 1 }}
           />
         </>
       ) : (
@@ -786,7 +786,7 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
       {/* Watermark "01" */}
       <span
         className="absolute pointer-events-none select-none font-mono text-[100px] font-extrabold leading-none"
-        style={{ top: -10, right: 10, color: hasBgImage ? 'rgba(255,255,255,0.15)' : 'var(--color-border-subtle)', zIndex: 2 }}
+        style={{ top: -10, right: 10, color: hasBgImage ? 'rgba(0,0,0,0.08)' : 'var(--color-border-subtle)', zIndex: 2 }}
       >
         01
       </span>
@@ -797,8 +797,8 @@ function FeaturedTripHero({ trip }: { trip: TripWithDestinations }) {
           className="absolute font-mono text-[11px] font-bold tracking-[1px]"
           style={{
             top: 14, left: 14, zIndex: 3,
-            color: hasBgImage ? 'white' : 'var(--color-text-tertiary)',
-            background: hasBgImage ? 'rgba(255,255,255,0.2)' : 'var(--color-bg-pill)',
+            color: hasBgImage ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)',
+            background: hasBgImage ? 'rgba(255,255,255,0.7)' : 'var(--color-bg-pill)',
             borderRadius: 4, padding: '3px 8px',
           }}
         >
@@ -946,15 +946,21 @@ function CarouselTripCard({ trip, index }: { trip: TripWithDestinations; index: 
             )}
           </div>
         )}
+
+        {/* Date range */}
+        {trip.start_date && trip.end_date && (
+          <p className="relative font-mono text-[10px] text-text-faint" style={{ marginTop: 6 }}>
+            {formatDateRange(trip.start_date, trip.end_date)}
+          </p>
+        )}
       </div>
 
       {/* Bottom metadata bar — thin footer strip */}
       <div className="flex items-center justify-between border-t border-border-subtle bg-bg-page" style={{ padding: '8px 16px' }}>
         <span className="font-mono text-[10px] text-text-tertiary">
-          {trip.start_date && trip.end_date && (
-            <>{Math.round((new Date(trip.end_date).getTime() - new Date(trip.start_date).getTime()) / 86400000) + 1}d<span className="text-text-mist mx-1">·</span></>
-          )}
-          {dests.length} save{dests.length !== 1 ? 's' : ''}
+          {dests.length} destination{dests.length !== 1 ? 's' : ''}
+          <span className="text-text-mist mx-1">·</span>
+          {dests.reduce((n, d) => n + (d.location_lat ? 1 : 0), 0)} save{dests.length !== 1 ? 's' : ''}
         </span>
         <div className="flex gap-1">
           {/* Top 1-2 category pills */}
