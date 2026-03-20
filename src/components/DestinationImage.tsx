@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { MapPin } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { fetchPlacePhoto } from '../lib/googleMaps'
-import { optimizedImageUrl } from '../lib/optimizedImage'
+import ImageWithFade from './ImageWithFade'
 
 // ── In-memory cache & concurrency control ────────────────────────────────────
 
@@ -177,13 +177,15 @@ export default function DestinationImage({
   // Has a usable photo
   if (photoUrl && !imgFailed) {
     return (
-      <img
-        src={optimizedImageUrl(photoUrl, 'destination-card') ?? photoUrl}
-        alt={alt}
-        className={`${className} object-cover`}
-        loading="lazy"
-        onError={() => setImgFailed(true)}
-      />
+      <div className={`${className} bg-bg-muted`}>
+        <ImageWithFade
+          src={photoUrl}
+          alt={alt}
+          context="destination-card"
+          className="w-full h-full object-cover"
+          onError={() => setImgFailed(true)}
+        />
+      </div>
     )
   }
 

@@ -10,6 +10,7 @@ import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
 import { BrandMark, CategoryPill, CountryCodeBadge, FilterPill, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import { useLocationResolver } from '../hooks/useLocationResolver'
 import SwipeToDelete from '../components/SwipeToDelete'
+import ImageWithFade from '../components/ImageWithFade'
 import type { SavedItem } from '../types'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -235,6 +236,18 @@ export default function InboxPage() {
       })
   }, [filtered])
 
+  // Preload trip cover images so Trips page loads instantly
+  useEffect(() => {
+    if (tripsWithDests.length === 0) return
+    tripsWithDests.slice(0, 3).forEach((trip) => {
+      const coverUrl = trip.destinations?.[0]?.image_url ?? trip.cover_image_url
+      if (coverUrl) {
+        const img = new Image()
+        img.src = optimizedImageUrl(coverUrl, 'hero-card') ?? coverUrl
+      }
+    })
+  }, [tripsWithDests])
+
   const uniqueCountries = useMemo(() => {
     const set = new Set<string>()
     items.forEach((item) => { if (item.location_country_code) set.add(item.location_country_code) })
@@ -434,7 +447,9 @@ export default function InboxPage() {
       )}
 
       {/* ── Country-Grouped Content ── */}
-      {!loading && !error && filtered.length > 0 && (
+      {!loading && !error && filtered.length > 0 && (() => {
+        let gridIndex = 0
+        return (
         <div className="space-y-6">
           {geoGroups.map((group) => (
             <section key={group.countryCode ?? '__unsorted__'}>
@@ -452,9 +467,10 @@ export default function InboxPage() {
               {/* Grid or List */}
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-2" style={{ gap: 8 }}>
-                  {group.items.map((item) => (
-                    <GridCard key={item.id} item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} onDelete={() => handleDeleteItem(item.id)} />
-                  ))}
+                  {group.items.map((item) => {
+                    const idx = gridIndex++
+                    return <GridCard key={item.id} item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} onDelete={() => handleDeleteItem(item.id)} eager={idx < 6} />
+                  })}
                 </div>
               ) : (
                 <div className="flex flex-col">
@@ -466,7 +482,8 @@ export default function InboxPage() {
             </section>
           ))}
         </div>
-      )}
+        )
+      })()}
     </div>
 
     {/* Save Sheet — triggered by GlobalActions FAB via custom event */}
@@ -493,15 +510,17 @@ function GridCard({
   item,
   tripCount,
   onDelete,
+  eager,
 }: {
   item: SavedItem
   tripCount: number
   onDelete: () => void
+  eager?: boolean
 }) {
   const display = item.image_display ?? 'none'
 
   if (display === 'thumbnail') {
-    return <ImageCard item={item} tripCount={tripCount} onDelete={onDelete} />
+    return <ImageCard item={item} tripCount={tripCount} onDelete={onDelete} eager={eager} />
   }
   return <TextCard item={item} tripCount={tripCount} onDelete={onDelete} />
 }
@@ -546,10 +565,9 @@ function TripCountPill({ count, variant }: { count: number; variant: 'image' | '
 
 // ─── Image Card (image_display = 'thumbnail') ────────────────────────────────
 
-function ImageCard({ item, tripCount, onDelete }: { item: SavedItem; tripCount: number; onDelete: () => void }) {
+function ImageCard({ item, tripCount, onDelete, eager }: { item: SavedItem; tripCount: number; onDelete: () => void; eager?: boolean }) {
   const city = item.location_name ? extractCity(item.location_name) : null
   const imgUrl = item.image_url ?? item.places_photo_url ?? null
-  const [imgLoaded, setImgLoaded] = useState(false)
   const [imgFailed, setImgFailed] = useState(false)
 
   // If image fails, render as text card
@@ -566,12 +584,11 @@ function ImageCard({ item, tripCount, onDelete }: { item: SavedItem; tripCount: 
       >
         {/* Image */}
         <div className="absolute inset-0 bg-bg-muted">
-          <img
-            src={optimizedImageUrl(imgUrl, 'gallery-card') ?? imgUrl}
-            alt=""
+          <ImageWithFade
+            src={imgUrl}
+            context="gallery-card"
             className="w-full h-full object-cover"
-            style={{ opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.2s ease' }}
-            onLoad={() => setImgLoaded(true)}
+            eager={eager}
             onError={() => setImgFailed(true)}
           />
         </div>

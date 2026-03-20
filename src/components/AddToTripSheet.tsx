@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import { queryKeys } from '../hooks/queries'
-import { optimizedImageUrl } from '../lib/optimizedImage'
+import ImageWithFade from './ImageWithFade'
 import type { Trip, TripDestination } from '../types'
 
 interface AddToTripSheetProps {
@@ -365,7 +365,9 @@ export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSh
                           className="w-full flex items-center gap-3 px-5 py-3.5 hover:bg-bg-muted active:bg-bg-pill transition-colors text-left disabled:opacity-60"
                         >
                           {dest.image_url ? (
-                            <img src={optimizedImageUrl(dest.image_url, 'grid-thumbnail') ?? dest.image_url!} alt={cityName} className="w-10 h-10 rounded-xl object-cover bg-bg-muted shrink-0" loading="lazy" />
+                            <div className="w-10 h-10 rounded-xl bg-bg-muted shrink-0 overflow-hidden">
+                              <ImageWithFade src={dest.image_url} alt={cityName} context="grid-thumbnail" className="w-full h-full object-cover" />
+                            </div>
                           ) : (
                             <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center shrink-0">
                               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-text-tertiary">

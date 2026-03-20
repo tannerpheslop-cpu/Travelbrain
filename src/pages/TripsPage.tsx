@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase'
 import { Plus } from 'lucide-react'
 import { CategoryPill, DashedCard } from '../components/ui'
 import { optimizedImageUrl } from '../lib/optimizedImage'
+import ImageWithFade from '../components/ImageWithFade'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -490,7 +491,7 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                               >
                                 <div className="w-8 h-8 rounded-lg shrink-0 flex-none bg-bg-muted overflow-hidden flex items-center justify-center">
                                   {item.image_url ? (
-                                    <img src={optimizedImageUrl(item.image_url, 'grid-thumbnail') ?? item.image_url!} alt={item.title} className="w-full h-full object-cover opacity-60" loading="lazy" />
+                                    <ImageWithFade src={item.image_url} alt={item.title} context="grid-thumbnail" className="w-full h-full object-cover opacity-60" />
                                   ) : (
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-text-ghost">
                                       <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.003 3.5-4.697 3.5-8.338C20 5.945 16.368 2 12 2 7.632 2 4 5.945 4 10.988c0 3.64 1.556 6.334 3.5 8.337a19.578 19.578 0 002.683 2.282 16.944 16.944 0 001.144.742zM12 14a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
@@ -1080,12 +1081,18 @@ export default function TripsPage() {
     aspirational: remainingTrips.filter(t => t.status === 'aspirational'),
   }), [remainingTrips])
 
-  // Preload destination images for all trips
+  // Preload destination images for all trips (hero covers + destination card thumbnails)
   useEffect(() => {
     if (loading) return
     for (const trip of trips) {
       const url = trip.trip_destinations?.find(d => d.image_url)?.image_url ?? trip.cover_image_url
       if (url) { const img = new Image(); img.src = optimizedImageUrl(url, 'hero-card') ?? url }
+    }
+    // Also preload first 4 destination card thumbnails across all trips
+    const allDestImages = trips.flatMap(t => t.trip_destinations ?? []).filter(d => d.image_url).slice(0, 4)
+    for (const dest of allDestImages) {
+      const img = new Image()
+      img.src = optimizedImageUrl(dest.image_url!, 'destination-card') ?? dest.image_url!
     }
   }, [trips, loading])
 

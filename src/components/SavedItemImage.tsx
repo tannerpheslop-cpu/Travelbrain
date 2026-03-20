@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { getCategoryIcon, categoryBgColors, categoryIconColors } from '../utils/categoryIcons'
-import { optimizedImageUrl } from '../lib/optimizedImage'
+import ImageWithFade from './ImageWithFade'
 import type { SavedItem, Category } from '../types'
 
 /** Minimal item shape required by SavedItemImage (allows partial items from joins) */
@@ -145,13 +145,14 @@ export default function SavedItemImage({ item, size, className = '', readOnly = 
   if (photoUrl && !imgFailed) {
     const imgContext = size === 'full' ? 'featured-card' : 'grid-thumbnail' as const
     return (
-      <img
-        src={optimizedImageUrl(photoUrl, imgContext) ?? photoUrl}
-        alt=""
-        className={`${s.wrapper} object-cover bg-bg-muted shrink-0 ${className}`}
-        loading="lazy"
-        onError={() => setImgFailed(true)}
-      />
+      <div className={`${s.wrapper} bg-bg-muted shrink-0 ${className}`}>
+        <ImageWithFade
+          src={photoUrl}
+          context={imgContext}
+          className="w-full h-full object-cover"
+          onError={() => setImgFailed(true)}
+        />
+      </div>
     )
   }
 

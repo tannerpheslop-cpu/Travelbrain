@@ -5,7 +5,7 @@ import { trackEvent } from '../lib/analytics'
 import { detectLocationFromText } from '../lib/placesTextSearch'
 import { detectUrl } from '../lib/urlDetect'
 import { evaluateImageDisplay } from '../lib/evaluateImageDisplay'
-import { optimizedImageUrl } from '../lib/optimizedImage'
+import ImageWithFade from './ImageWithFade'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
 import type { Category, SavedItem } from '../types'
 
@@ -438,12 +438,15 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
               <div style={{ borderRadius: 10, border: '1px solid #eceae5', overflow: 'hidden', display: 'flex' }}>
                 {/* Thumbnail */}
                 {(metadata.image && !imageFailed) ? (
-                  <img
-                    src={optimizedImageUrl(metadata.image, 'grid-thumbnail') ?? metadata.image}
-                    alt=""
-                    style={{ width: 100, height: 80, objectFit: 'cover', background: '#f5f3f0', flexShrink: 0 }}
-                    onError={() => setImageFailed(true)}
-                  />
+                  <div style={{ width: 100, height: 80, flexShrink: 0, background: '#f5f3f0' }}>
+                    <ImageWithFade
+                      src={metadata.image}
+                      context="grid-thumbnail"
+                      style={{ width: 100, height: 80, objectFit: 'cover' }}
+                      eager
+                      onError={() => setImageFailed(true)}
+                    />
+                  </div>
                 ) : attachedPreview ? (
                   <img src={attachedPreview} alt="" style={{ width: 100, height: 80, objectFit: 'cover', flexShrink: 0 }} />
                 ) : null}
