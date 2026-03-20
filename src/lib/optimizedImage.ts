@@ -9,6 +9,7 @@
 
 export type ImageContext =
   | 'grid-thumbnail'
+  | 'gallery-card'
   | 'featured-card'
   | 'hero-card'
   | 'detail-page'
@@ -47,6 +48,7 @@ export function optimizedImageUrl(
   // Dimensions per context (2× for retina)
   const configs: Record<ImageContext, { w: number; h?: number; q: number }> = {
     'grid-thumbnail':   { w: 112, h: 112, q: 80 }, // 56px displayed × 2, square crop
+    'gallery-card':     { w: 340, h: 340, q: 80 }, // gallery grid card, square crop
     'featured-card':    { w: 800, h: 240, q: 80 }, // wide landscape crop
     'hero-card':        { w: 800, q: 80 },          // natural landscape, no forced height
     'detail-page':      { w: 600, q: 85 },          // larger for detail view
