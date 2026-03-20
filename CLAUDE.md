@@ -589,6 +589,8 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
   - `npm run test:e2e` — run end-to-end tests (Playwright, requires dev server running)
   - `npm run test:all` — run both unit and e2e tests
 - Core user flows are covered by Playwright e2e tests. Run `npm run test:e2e` to execute them. The dev server must be running. Tests use the existing test user account and clean up after themselves.
+- When adding new features or fixing bugs, write corresponding unit tests and/or e2e tests covering the new behavior. New code should not decrease test coverage.
+- Before every commit, run `npm run test:all`. If any test fails, fix the issue before committing. If a new feature was added without corresponding tests, write the tests before committing.
 
 ---
 

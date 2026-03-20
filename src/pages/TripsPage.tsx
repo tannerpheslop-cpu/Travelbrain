@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { fetchDestinationPhoto } from '../lib/unsplash'
+import { trySetTripCoverFromName } from '../lib/tripCoverImage'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import { trackEvent } from '../lib/analytics'
 import { selectFeaturedTrip } from '../utils/featuredTrip'
@@ -104,6 +105,9 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
   const [clustersLoading, setClustersLoading] = useState(false)
   const [expandedSuggKey, setExpandedSuggKey] = useState<string | null>(null)
 
+  // Multi-select suggestion state — place_ids of selected suggestions
+  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set())
+
   const handleNextStep = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!title.trim()) { setError('Trip name is required.'); return }
@@ -157,17 +161,75 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
 
   // ── Cluster suggestion handlers ──────────────────────────────────────────────
 
-  const handleAddClusterDest = useCallback(
+  // Toggle a suggestion in the multi-select set
+  const toggleSuggestion = useCallback(
     (loc: LocationSelection) => {
+      setSelectedSuggestions((prev) => {
+        const next = new Set(prev)
+        if (next.has(loc.place_id)) {
+          next.delete(loc.place_id)
+        } else {
+          next.add(loc.place_id)
+        }
+        return next
+      })
+    },
+    [],
+  )
+
+  // Batch-add all selected suggestions to destinations
+  const handleAddSelectedSuggestions = useCallback(() => {
+    // We need to find the LocationSelection objects for all selected place_ids
+    // They could be cities from clusters or the addLoc from city-scoped suggestions
+    const locsToAdd: LocationSelection[] = []
+    for (const placeId of selectedSuggestions) {
+      // Already in destinations?
+      if (destinations.some((d) => d.place_id === placeId)) continue
+      // Check cluster cities
+      for (const cluster of clusters) {
+        // Check if it's the country itself
+        if (placeId === `cluster-country-${cluster.country_code}`) {
+          locsToAdd.push({
+            name: cluster.country,
+            lat: cluster.lat,
+            lng: cluster.lng,
+            place_id: placeId,
+            country: cluster.country,
+            country_code: cluster.country_code,
+            location_type: 'country',
+            proximity_radius_km: 500,
+            name_en: null,
+            name_local: null,
+          })
+          break
+        }
+        const city = cluster.cities.find((c) => c.place_id === placeId)
+        if (city) {
+          locsToAdd.push({
+            name: city.name,
+            lat: city.lat,
+            lng: city.lng,
+            place_id: city.place_id,
+            country: cluster.country,
+            country_code: cluster.country_code,
+            location_type: 'city',
+            proximity_radius_km: 50,
+            name_en: null,
+            name_local: null,
+          })
+          break
+        }
+      }
+    }
+    for (const loc of locsToAdd) {
       addDestination(loc)
-      setExpandedSuggKey(null)
       trackEvent('cluster_suggestion_accepted', user?.id ?? null, {
         name: loc.name,
         type: loc.location_type,
       })
-    },
-    [addDestination, user],
-  )
+    }
+    setSelectedSuggestions(new Set())
+  }, [selectedSuggestions, destinations, clusters, addDestination, user])
 
   const handleCreate = async () => {
     setSaving(true)
@@ -200,6 +262,13 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
       const photo = photoResults[i]
       await createDestination(trip.id, destinations[i], i, photo?.url, photo?.source, photo?.creditName, photo?.creditUrl)
     }
+
+    // If no destinations were added, try to get a cover image from the trip name
+    if (destinations.length === 0) {
+      // Fire-and-forget — don't block navigation
+      void trySetTripCoverFromName(trip.id, title)
+    }
+
     onCreated(trip.id)
   }
 
@@ -437,21 +506,34 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                                 />
                               </div>
                             ))}
-                            {/* Add city row */}
-                            {suggScope.addLoc && !destinations.some((d) => d.place_id === suggScope.addLoc?.place_id) && (
+                            {/* Add city chip */}
+                            {suggScope.addLoc && !destinations.some((d) => d.place_id === suggScope.addLoc?.place_id) && (() => {
+                              const isSelected = selectedSuggestions.has(suggScope.addLoc!.place_id)
+                              return (
                               <button
                                 type="button"
-                                onClick={() => handleAddClusterDest(suggScope.addLoc!)}
-                                className="w-full flex items-center gap-3 px-3.5 py-2.5 border-t border-border-subtle text-accent hover:bg-accent-light transition-colors"
+                                onClick={() => toggleSuggestion(suggScope.addLoc!)}
+                                className={`w-full flex items-center gap-3 px-3.5 py-2.5 border-t border-border-subtle transition-colors ${
+                                  isSelected ? 'bg-accent-light text-accent' : 'text-accent hover:bg-accent-light'
+                                }`}
                               >
-                                <span className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent-light shrink-0">
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
-                                    <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
-                                  </svg>
+                                <span className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${
+                                  isSelected ? 'bg-accent text-white' : 'bg-accent-light'
+                                }`}>
+                                  {isSelected ? (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
+                                      <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
+                                    </svg>
+                                  ) : (
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
+                                      <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
+                                    </svg>
+                                  )}
                                 </span>
-                                <span className="text-sm font-medium">Add {shortDestName(suggScope.addLoc.name)} to trip</span>
+                                <span className="text-sm font-medium">{isSelected ? `${shortDestName(suggScope.addLoc!.name)} selected` : `Add ${shortDestName(suggScope.addLoc!.name)} to trip`}</span>
                               </button>
-                            )}
+                              )
+                            })()}
                           </div>
                           )
                         })()}
@@ -497,33 +579,37 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                                               Math.abs((i.location_lng ?? 999) - city.lng) <= 0.45,
                                           )
                                           const alreadyAdded = destinations.some((d) => d.place_id === city.place_id)
+                                          const isSelected = selectedSuggestions.has(city.place_id)
+                                          const cityLoc: LocationSelection = {
+                                            name: city.name,
+                                            lat: city.lat,
+                                            lng: city.lng,
+                                            place_id: city.place_id,
+                                            country: cluster.country,
+                                            country_code: cluster.country_code,
+                                            location_type: 'city',
+                                            proximity_radius_km: 50,
+                                            name_en: null,
+                                            name_local: null,
+                                          }
                                           const addBtn = (
                                             <button
                                               type="button"
                                               disabled={alreadyAdded}
                                               onClick={() => {
                                                 if (alreadyAdded) return
-                                                handleAddClusterDest({
-                                                  name: city.name,
-                                                  lat: city.lat,
-                                                  lng: city.lng,
-                                                  place_id: city.place_id,
-                                                  country: cluster.country,
-                                                  country_code: cluster.country_code,
-                                                  location_type: 'city',
-                                                  proximity_radius_km: 50,
-                                                  name_en: null,
-                                                  name_local: null,
-                                                })
+                                                toggleSuggestion(cityLoc)
                                               }}
                                               className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors shrink-0 ${
                                                 alreadyAdded
                                                   ? 'bg-bg-muted text-text-tertiary cursor-default'
+                                                  : isSelected
+                                                  ? 'bg-accent text-white'
                                                   : 'bg-bg-card border border-border text-text-faint hover:border-accent/50 hover:text-accent'
                                               }`}
-                                              aria-label={alreadyAdded ? `${city.name} added` : `Add ${city.name}`}
+                                              aria-label={alreadyAdded ? `${city.name} added` : isSelected ? `${city.name} selected` : `Add ${city.name}`}
                                             >
-                                              {alreadyAdded ? (
+                                              {alreadyAdded || isSelected ? (
                                                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
                                                   <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
                                                 </svg>
@@ -560,26 +646,32 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                                         })}
                                       </div>
                                       <div className="border-t border-border-subtle px-3.5 py-2.5">
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleAddClusterDest({
-                                              name: cluster.country,
-                                              lat: cluster.lat,
-                                              lng: cluster.lng,
-                                              place_id: `cluster-country-${cluster.country_code}`,
-                                              country: cluster.country,
-                                              country_code: cluster.country_code,
-                                              location_type: 'country',
-                                              proximity_radius_km: 500,
-                                              name_en: null,
-                                              name_local: null,
-                                            })
-                                          }
-                                          className="text-sm text-accent hover:text-accent transition-colors"
-                                        >
-                                          Just add {cluster.country} — I'll pick cities later
-                                        </button>
+                                        {(() => {
+                                          const countryPlaceId = `cluster-country-${cluster.country_code}`
+                                          const countrySelected = selectedSuggestions.has(countryPlaceId)
+                                          return (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                toggleSuggestion({
+                                                  name: cluster.country,
+                                                  lat: cluster.lat,
+                                                  lng: cluster.lng,
+                                                  place_id: countryPlaceId,
+                                                  country: cluster.country,
+                                                  country_code: cluster.country_code,
+                                                  location_type: 'country',
+                                                  proximity_radius_km: 500,
+                                                  name_en: null,
+                                                  name_local: null,
+                                                })
+                                              }
+                                              className={`text-sm transition-colors ${countrySelected ? 'text-accent font-medium' : 'text-accent hover:text-accent'}`}
+                                            >
+                                              {countrySelected ? `${cluster.country} selected ✓` : `Just add ${cluster.country} — I'll pick cities later`}
+                                            </button>
+                                          )
+                                        })()}
                                       </div>
                                     </div>
                                   )}
@@ -593,6 +685,17 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                   </div>
                 )}
               </div>
+
+              {/* Batch-add button for selected suggestions */}
+              {selectedSuggestions.size > 0 && (
+                <button
+                  type="button"
+                  onClick={handleAddSelectedSuggestions}
+                  className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover transition-colors"
+                >
+                  Add {selectedSuggestions.size} destination{selectedSuggestions.size !== 1 ? 's' : ''}
+                </button>
+              )}
 
               {/* Added destinations pills */}
               {destinations.length > 0 && (

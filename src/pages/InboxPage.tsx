@@ -1,12 +1,11 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import AddToTripSheet from '../components/AddToTripSheet'
 import SaveSheet from '../components/SaveSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { categoryLabel } from '../utils/categoryIcons'
-import { LayoutGrid, List, SlidersHorizontal, Search, X, Plus } from 'lucide-react'
+import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
 import { BrandMark, CategoryPill, CountryCodeBadge, FilterPill, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import { shortLocalName } from '../components/BilingualName'
 import { useLocationResolver } from '../hooks/useLocationResolver'
@@ -86,6 +85,7 @@ type ViewMode = 'grid' | 'list'
 
 export default function InboxPage() {
   const { user } = useAuth()
+  const navLocation = useLocation()
   const [items, setItems] = useState<SavedItem[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
   const [allTripItems, setAllTripItems] = useState<{ trip_id: string; item_id: string }[]>([])
@@ -98,7 +98,19 @@ export default function InboxPage() {
   const [showSaveSheet, setShowSaveSheet] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [inboxToast, setInboxToast] = useState<string | null>(null)
   const filterPanelRef = useRef<HTMLDivElement>(null)
+
+  // Show toast from navigation state (e.g. after deleting an item)
+  useEffect(() => {
+    const toastMsg = (navLocation.state as { toast?: string })?.toast
+    if (toastMsg) {
+      setInboxToast(toastMsg)
+      setTimeout(() => setInboxToast(null), 2500)
+      // Clear the state so it doesn't re-trigger
+      window.history.replaceState({}, '')
+    }
+  }, [navLocation.state])
 
   // Background location resolver
   const handleResolved = useCallback((updated: SavedItem) => {
@@ -279,12 +291,19 @@ export default function InboxPage() {
 
   const handleDeleteItem = useCallback(async (itemId: string) => {
     setItems((prev) => prev.filter((item) => item.id !== itemId))
-    const { error } = await supabase
-      .from('saved_items')
-      .update({ is_archived: true })
-      .eq('id', itemId)
-    if (error) {
-      console.error('[inbox] archive error:', error)
+    try {
+      // Cascading delete in FK-safe order
+      await supabase.from('destination_items').delete().eq('item_id', itemId)
+      await supabase.from('trip_general_items').delete().eq('item_id', itemId)
+      await supabase.from('comments').delete().eq('item_id', itemId)
+      await supabase.from('votes').delete().eq('item_id', itemId)
+      const { error } = await supabase.from('saved_items').delete().eq('id', itemId)
+      if (error) {
+        console.error('[inbox] delete error:', error)
+        fetchAll()
+      }
+    } catch (err) {
+      console.error('[inbox] delete error:', err)
       fetchAll()
     }
   }, [user])
@@ -499,10 +518,8 @@ export default function InboxPage() {
                 {group.country && group.countryCode && (
                   <CountryCodeBadge code={group.countryCode} />
                 )}
-                <h2 className="font-mono text-[11px] font-bold uppercase tracking-[2px] text-text-faint">
-                  {group.country
-                    ? group.country.split('').join(' ')
-                    : 'U N P L A C E D'}
+                <h2 className="font-mono text-[11px] font-bold uppercase tracking-[1.5px] text-text-faint">
+                  {group.country ?? 'Unplaced'}
                 </h2>
                 <span className="font-mono text-[10px] text-text-ghost">{group.items.length}</span>
               </div>
@@ -527,22 +544,19 @@ export default function InboxPage() {
       )}
     </div>
 
-    {/* ── Floating + Button ── */}
-    <button
-      type="button"
-      onClick={() => setShowSaveSheet(true)}
-      className="fixed bottom-20 right-5 z-40 w-[52px] h-[52px] rounded-full bg-accent text-white flex items-center justify-center shadow-[0_4px_16px_rgba(196,90,45,0.35)] hover:scale-105 active:scale-95 transition-transform"
-      aria-label="Add save"
-    >
-      <Plus className="w-6 h-6" />
-    </button>
-
-    {/* Save Sheet */}
+    {/* Save Sheet — triggered by GlobalActions FAB via custom event */}
     {showSaveSheet && (
       <SaveSheet
         onClose={() => setShowSaveSheet(false)}
         onSaved={(newItem) => setItems((prev) => [newItem, ...prev])}
       />
+    )}
+
+    {/* Toast */}
+    {inboxToast && (
+      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
+        {inboxToast}
+      </div>
     )}
     </>
   )
@@ -552,23 +566,13 @@ export default function InboxPage() {
 
 function GridCard({
   item,
-  onTripAdded,
   onDelete,
 }: {
   item: SavedItem
-  onTripAdded: () => void
   onDelete: () => void
 }) {
-  const [showSheet, setShowSheet] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
-
-  const handleToast = (msg: string) => {
-    setToast(msg)
-    setTimeout(() => setToast(null), 2500)
-  }
-
   const sourceKey = getSourceKey(item)
-  const hasImage = !!(item.image_url || item.places_photo_url)
+  const hasImage = !!(item.image_url || item.places_photo_url || item.location_place_id)
   const city = item.location_name ? extractCity(item.location_name) : null
 
   return (
@@ -599,7 +603,7 @@ function GridCard({
               )}
               <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                 {city && (
-                  <span className="inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none">
+                  <span className="inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none truncate max-w-[120px]">
                     {city}
                   </span>
                 )}
@@ -638,7 +642,7 @@ function GridCard({
               {/* Pills + date row */}
               <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                 {city && (
-                  <span className="inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none">
+                  <span className="inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none truncate max-w-[120px]">
                     {city}
                   </span>
                 )}
@@ -656,36 +660,6 @@ function GridCard({
           </>
         )}
       </Link>
-
-      {/* Options button */}
-      <button
-        type="button"
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowSheet(true) }}
-        className={`absolute top-2 ${hasImage ? 'left-2' : 'right-2'} z-10 w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all ${
-          hasImage
-            ? 'bg-black/30 backdrop-blur-sm hover:bg-black/50'
-            : 'bg-bg-muted hover:bg-bg-pill-dark'
-        }`}
-        aria-label="Add to trip"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className={`w-3.5 h-3.5 ${hasImage ? 'text-white' : 'text-text-tertiary'}`}>
-          <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
-        </svg>
-      </button>
-
-      {showSheet && (
-        <AddToTripSheet
-          itemId={item.id}
-          onClose={() => setShowSheet(false)}
-          onAdded={(tripTitle) => { handleToast(`Added to "${tripTitle}"`); onTripAdded() }}
-        />
-      )}
-
-      {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
-          {toast}
-        </div>
-      )}
     </div>
     </SwipeToDelete>
   )
@@ -695,21 +669,11 @@ function GridCard({
 
 function ListRow({
   item,
-  onTripAdded,
   onDelete,
 }: {
   item: SavedItem
-  onTripAdded: () => void
   onDelete: () => void
 }) {
-  const [showSheet, setShowSheet] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
-
-  const handleToast = (msg: string) => {
-    setToast(msg)
-    setTimeout(() => setToast(null), 2500)
-  }
-
   const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
 
@@ -734,7 +698,7 @@ function ListRow({
         {/* Pills + date */}
         <div className="flex items-center gap-1.5 shrink-0">
           {city && (
-            <span className="hidden sm:inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none">
+            <span className="hidden sm:inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none truncate max-w-[100px]">
               {city}
             </span>
           )}
@@ -744,32 +708,6 @@ function ListRow({
           </span>
         </div>
       </Link>
-
-      {/* Options button — visible on hover */}
-      <button
-        type="button"
-        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowSheet(true) }}
-        className="absolute top-1/2 -translate-y-1/2 right-1 z-10 w-6 h-6 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-bg-pill-dark transition-all"
-        aria-label="Add to trip"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3 text-text-faint">
-          <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
-        </svg>
-      </button>
-
-      {showSheet && (
-        <AddToTripSheet
-          itemId={item.id}
-          onClose={() => setShowSheet(false)}
-          onAdded={(tripTitle) => { handleToast(`Added to "${tripTitle}"`); onTripAdded() }}
-        />
-      )}
-
-      {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
-          {toast}
-        </div>
-      )}
     </div>
     </SwipeToDelete>
   )

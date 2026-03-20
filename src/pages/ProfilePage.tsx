@@ -1,12 +1,17 @@
 import { useAuth } from '../lib/auth'
 import { useNavigate } from 'react-router-dom'
-import { useState } from 'react'
-import { BrandMark } from '../components/ui'
+import { useState, useEffect, useRef } from 'react'
+import { supabase } from '../lib/supabase'
+import { BrandMark, ConfirmDeleteModal } from '../components/ui'
 
 export default function ProfilePage() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleteStep, setDeleteStep] = useState<'none' | 'confirm' | 'type-delete'>('none')
+  const [deleteInput, setDeleteInput] = useState('')
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  const deleteInputRef = useRef<HTMLInputElement>(null)
 
   const displayName =
     user?.user_metadata?.full_name ??
@@ -24,6 +29,81 @@ export default function ProfilePage() {
   const handleSignOut = async () => {
     await signOut()
     navigate('/login')
+  }
+
+  // Focus input when step 2 opens
+  useEffect(() => {
+    if (deleteStep === 'type-delete') {
+      setTimeout(() => deleteInputRef.current?.focus(), 100)
+    }
+  }, [deleteStep])
+
+  // Close on Escape for step 2
+  useEffect(() => {
+    if (deleteStep !== 'type-delete') return
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDeleteStep('none')
+        setDeleteInput('')
+        setDeleteError(null)
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [deleteStep])
+
+  const handleDeleteAccount = async () => {
+    if (!user) return
+    setDeleting(true)
+    setDeleteError(null)
+
+    try {
+      // Cascade delete all user data in FK-safe order
+
+      // 1. Get all trip IDs owned by user
+      const { data: trips } = await supabase.from('trips').select('id').eq('owner_id', user.id)
+      const tripIds = (trips ?? []).map((t: { id: string }) => t.id)
+
+      if (tripIds.length > 0) {
+        // 2. Get all destination IDs for user's trips
+        const { data: dests } = await supabase.from('trip_destinations').select('id').in('trip_id', tripIds)
+        const destIds = (dests ?? []).map((d: { id: string }) => d.id)
+
+        if (destIds.length > 0) {
+          await supabase.from('destination_items').delete().in('destination_id', destIds)
+        }
+
+        // 3. Delete trip-level data
+        await supabase.from('trip_general_items').delete().in('trip_id', tripIds)
+        await supabase.from('comments').delete().in('trip_id', tripIds)
+        await supabase.from('votes').delete().in('trip_id', tripIds)
+        await supabase.from('companions').delete().in('trip_id', tripIds)
+        await supabase.from('trip_routes').delete().in('trip_id', tripIds)
+        await supabase.from('trip_destinations').delete().in('trip_id', tripIds)
+        await supabase.from('trips').delete().in('id', tripIds)
+      }
+
+      // 4. Delete companions where user is a companion on others' trips
+      await supabase.from('companions').delete().eq('user_id', user.id)
+
+      // 5. Delete comments/votes on others' trips
+      await supabase.from('comments').delete().eq('user_id', user.id)
+      await supabase.from('votes').delete().eq('user_id', user.id)
+
+      // 6. Delete all saved items
+      await supabase.from('saved_items').delete().eq('user_id', user.id)
+
+      // 7. Delete user profile
+      await supabase.from('users').delete().eq('id', user.id)
+
+      // 8. Sign out and redirect
+      await signOut()
+      navigate('/login')
+    } catch (err) {
+      console.error('[ProfilePage] Failed to delete account:', err)
+      setDeleteError('Something went wrong. Please try again.')
+      setDeleting(false)
+    }
   }
 
   return (
@@ -64,40 +144,92 @@ export default function ProfilePage() {
         </button>
       </div>
 
-      {/* Delete account link */}
-      <div className="mt-8 text-center">
-        <button
-          type="button"
-          onClick={() => setShowDeleteDialog(true)}
-          className="text-xs text-text-faint hover:text-error transition-colors"
-        >
-          Delete Account
-        </button>
-      </div>
+      {/* Delete account button */}
+      <button
+        type="button"
+        onClick={() => setDeleteStep('confirm')}
+        className="w-full mt-10 py-3 rounded-xl text-sm font-medium border transition-colors bg-white hover:bg-red-50"
+        style={{ borderColor: '#c0392b', color: '#c0392b' }}
+      >
+        Delete Account
+      </button>
 
       {/* Version */}
       <p className="mt-6 text-center text-xs text-text-ghost">Youji v0.1</p>
 
-      {/* Delete confirmation dialog */}
-      {showDeleteDialog && (
+      {/* Step 1: Confirm intent */}
+      {deleteStep === 'confirm' && (
+        <ConfirmDeleteModal
+          title="Delete your account?"
+          description="This will permanently delete your account and all your data — trips, saves, and settings. This action cannot be undone."
+          confirmLabel="Continue"
+          onCancel={() => setDeleteStep('none')}
+          onConfirm={() => {
+            setDeleteStep('type-delete')
+            setDeleteInput('')
+            setDeleteError(null)
+          }}
+        />
+      )}
+
+      {/* Step 2: Type DELETE to confirm */}
+      {deleteStep === 'type-delete' && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteDialog(false) }}
+          className="fixed inset-0 z-50 flex items-center justify-center px-6"
+          style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setDeleteStep('none')
+              setDeleteInput('')
+              setDeleteError(null)
+            }
+          }}
         >
-          <div className="absolute inset-0 bg-black/40" />
-          <div className="relative bg-bg-card rounded-2xl shadow-xl max-w-sm mx-6 p-6 text-center">
-            <h3 className="text-base font-semibold text-text-primary mb-2">Delete Account</h3>
-            <p className="text-sm text-text-tertiary mb-5">
-              To delete your account and all associated data, please contact support at{' '}
-              <span className="font-medium text-text-secondary">support@youji.app</span>
+          <div
+            className="bg-white rounded-[14px] w-full shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
+            style={{ maxWidth: 340, padding: 24 }}
+          >
+            <h2 className="text-[18px] font-semibold text-text-primary leading-snug">
+              Are you sure?
+            </h2>
+            <p className="mt-2 text-[14px] text-text-secondary leading-relaxed">
+              Type <span className="font-bold text-text-primary">DELETE</span> to permanently delete your account.
             </p>
-            <button
-              type="button"
-              onClick={() => setShowDeleteDialog(false)}
-              className="px-5 py-2 bg-bg-muted text-text-secondary rounded-xl text-sm font-medium hover:bg-bg-pill-dark transition-colors"
-            >
-              Got it
-            </button>
+            <input
+              ref={deleteInputRef}
+              type="text"
+              value={deleteInput}
+              onChange={(e) => setDeleteInput(e.target.value)}
+              placeholder="Type DELETE"
+              className="w-full mt-3 px-3 py-2.5 border border-border-input rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-400 focus:border-transparent placeholder:text-text-faint"
+              disabled={deleting}
+            />
+            {deleteError && (
+              <p className="mt-2 text-xs text-error">{deleteError}</p>
+            )}
+            <div className="flex justify-end gap-2.5 mt-5">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteStep('none')
+                  setDeleteInput('')
+                  setDeleteError(null)
+                }}
+                disabled={deleting}
+                className="px-4 py-2 rounded-lg text-[13px] font-semibold text-text-secondary bg-bg-muted hover:bg-bg-pill-dark transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeleteAccount}
+                disabled={deleteInput !== 'DELETE' || deleting}
+                className="px-4 py-2 rounded-lg text-[13px] font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ backgroundColor: '#c0392b' }}
+              >
+                {deleting ? 'Deleting…' : 'Delete my account'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -88,7 +88,7 @@ test.describe('Trip deletion', () => {
     await page.waitForURL('**/trips', { timeout: 10_000 })
 
     // Trip should not appear
-    await expect(page.getByText('E2E Delete Test Trip')).not.toBeVisible({ timeout: 3_000 })
+    await expect(page.getByText('E2E Delete Test Trip', { exact: true })).not.toBeVisible({ timeout: 3_000 })
 
     // Navigate to inbox — saved item should still exist
     await page.getByRole('link', { name: 'Horizon' }).click()
