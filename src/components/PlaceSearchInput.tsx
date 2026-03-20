@@ -12,7 +12,8 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { MapPin, Loader2, X } from 'lucide-react'
-import { loadGoogleMapsScript, fetchBilingualNames, fetchPlacePhoto } from '../lib/googleMaps'
+import { loadGoogleMapsScript, fetchPlacePhoto } from '../lib/googleMaps'
+import { extractPlaceData } from '../lib/extractPlaceData'
 import { supabase } from '../lib/supabase'
 import { trackEvent } from '../lib/analytics'
 import type { SavedItem, Category } from '../types'
@@ -103,43 +104,36 @@ export default function PlaceSearchInput({ userId, biasLat, biasLng, onPlaceAdde
     setLoading(true)
 
     try {
-      const placeId = place.place_id!
-      const lat = place.geometry!.location!.lat()
-      const lng = place.geometry!.location!.lng()
       const placeName = place.name ?? place.formatted_address ?? 'Unknown Place'
-
-      // Extract country from address_components
-      const countryComponent = place.address_components?.find(
-        (c: google.maps.GeocoderAddressComponent) => c.types.includes('country'),
-      )
-      const country = countryComponent?.long_name ?? null
-      const countryCode = countryComponent?.short_name ?? null
 
       // Auto-detect category from place types
       const category = detectCategory(place.types ?? undefined)
 
-      // Fetch bilingual names + photo in parallel
-      const [bilingual, photoUrl] = await Promise.all([
-        fetchBilingualNames(placeId, countryCode).catch(() => ({ name_en: placeName, name_local: null })),
-        fetchPlacePhoto(placeId).catch(() => null),
+      // Extract all location data via shared utility + fetch photo in parallel
+      const [locationData, photoUrl] = await Promise.all([
+        extractPlaceData(place),
+        fetchPlacePhoto(place.place_id!).catch(() => null),
       ])
 
-      // Build the location_name from bilingual English or fallback to place name
-      const locationName = bilingual.name_en || place.formatted_address || placeName
+      if (!locationData) {
+        console.error('[PlaceSearch] Failed to extract place data')
+        setLoading(false)
+        return
+      }
 
       // Create the saved_item
       const { data, error } = await supabase.from('saved_items').insert({
         user_id: userId,
         source_type: 'manual' as const,
         title: placeName,
-        location_name: locationName,
-        location_lat: lat,
-        location_lng: lng,
-        location_place_id: placeId,
-        location_country: country,
-        location_country_code: countryCode,
-        location_name_en: bilingual.name_en || null,
-        location_name_local: bilingual.name_local || null,
+        location_name: locationData.location_name,
+        location_lat: locationData.location_lat,
+        location_lng: locationData.location_lng,
+        location_place_id: locationData.location_place_id,
+        location_country: locationData.location_country,
+        location_country_code: locationData.location_country_code,
+        location_name_en: locationData.location_name_en,
+        location_name_local: locationData.location_name_local,
         category,
         image_url: photoUrl,
         notes: place.formatted_address || null,
@@ -154,7 +148,7 @@ export default function PlaceSearchInput({ userId, biasLat, biasLng, onPlaceAdde
       trackEvent('save_created', userId, {
         source_type: 'place_search',
         category,
-        location_name: locationName,
+        location_name: locationData.location_name,
       })
 
       onPlaceAdded(data as SavedItem)

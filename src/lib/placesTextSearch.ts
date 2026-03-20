@@ -1,4 +1,5 @@
 import { loadGoogleMapsScript } from './googleMaps'
+import { extractPlaceData, type LocationData } from './extractPlaceData'
 
 export interface TextSearchResult {
   name: string
@@ -38,14 +39,6 @@ function isDirectPlaceLookup(input: string, resultName: string): boolean {
 
   // High word overlap
   return wordOverlap(inputLower, nameLower) >= 0.8
-}
-
-/**
- * Extract country from formatted_address (last comma-separated part).
- */
-function extractCountryFromAddress(address: string): string {
-  const parts = address.split(',').map(s => s.trim())
-  return parts.length > 0 ? parts[parts.length - 1] : ''
 }
 
 /**
@@ -119,6 +112,44 @@ interface DetectOptions {
 }
 
 /**
+ * Build a TextSearchResult from a PlaceResult using extractPlaceData.
+ * All country/country_code resolution is delegated to the shared utility.
+ */
+async function buildResult(
+  place: google.maps.places.PlaceResult,
+  locationType: 'business' | 'geographic',
+): Promise<TextSearchResult> {
+  // Use extractPlaceData for country resolution, skip bilingual names
+  // (text search results don't need bilingual display names)
+  const locationData = await extractPlaceData(place, { skipBilingual: true })
+
+  if (locationData) {
+    return {
+      name: place.name ?? '',
+      address: place.formatted_address ?? '',
+      lat: locationData.location_lat,
+      lng: locationData.location_lng,
+      placeId: locationData.location_place_id,
+      country: locationData.location_country,
+      countryCode: locationData.location_country_code,
+      locationType,
+    }
+  }
+
+  // Fallback if extractPlaceData returns null (shouldn't happen since we check geometry/place_id before calling)
+  return {
+    name: place.name ?? '',
+    address: place.formatted_address ?? '',
+    lat: place.geometry!.location!.lat(),
+    lng: place.geometry!.location!.lng(),
+    placeId: place.place_id ?? '',
+    country: 'Unknown',
+    countryCode: null,
+    locationType,
+  }
+}
+
+/**
  * Uses Google Places Text Search to extract structured location data from freeform text.
  *
  * For short inputs that match a specific place name (e.g. "Ichiran Ramen"),
@@ -161,25 +192,25 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
         const types: string[] = r.types ?? []
         return types.some(t => GEO_TYPES.has(t)) && r.geometry?.location && r.place_id
       })
-      if (geoHit) return await buildResult(service, geoHit, 'geographic')
+      if (geoHit) return await buildResult(geoHit, 'geographic')
       return null // No geographic results — reject
     }
 
     // Step 2: Direct place name lookup?
     if (isDirectPlaceLookup(query, topName)) {
       // User typed a specific place name — return it directly
-      return await buildResult(service, top, isGeoResult ? 'geographic' : 'business')
+      return await buildResult(top, isGeoResult ? 'geographic' : 'business')
     }
 
     // Step 3: Descriptive text — extract city-level location
     // If the top result is already geographic (e.g. "things to do in Chengdu" → Chengdu), use it
     if (isGeoResult) {
-      return await buildResult(service, top, 'geographic')
+      return await buildResult(top, 'geographic')
     }
 
     // The top result is a business — extract the city from the input or address
     const cityName = extractCitySearchTerm(query, topAddress)
-    if (!cityName) return await buildResult(service, top, 'geographic') // fallback to whatever we got
+    if (!cityName) return await buildResult(top, 'geographic') // fallback to whatever we got
 
     // Look for a geographic result in the existing results first
     const geoHit = searchResults.find(r => {
@@ -187,88 +218,22 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
       return types.some(t => GEO_TYPES.has(t))
     })
     if (geoHit?.geometry?.location && geoHit.place_id) {
-      return await buildResult(service, geoHit, 'geographic')
+      return await buildResult(geoHit, 'geographic')
     }
 
     // Do a second search for just the city name
     const cityResults = await textSearch(service, cityName)
     if (cityResults.length > 0 && cityResults[0].geometry?.location && cityResults[0].place_id) {
-      return await buildResult(service, cityResults[0], 'geographic')
+      return await buildResult(cityResults[0], 'geographic')
     }
 
     // Final fallback: return the business result but labeled as geographic
-    return await buildResult(service, top, 'geographic')
+    return await buildResult(top, 'geographic')
   } catch (err) {
     console.warn('[placesTextSearch] Error:', err)
     return null
   }
 }
 
-/**
- * Resolve country name and code from a place_id using Place Details API.
- * Returns { country, countryCode } or null on failure.
- */
-function resolveCountryFromPlaceId(
-  service: google.maps.places.PlacesService,
-  placeId: string,
-): Promise<{ country: string; countryCode: string } | null> {
-  return new Promise((resolve) => {
-    service.getDetails(
-      { placeId, fields: ['address_components'] },
-      (result, status) => {
-        if (status === google.maps.places.PlacesServiceStatus.OK && result?.address_components) {
-          const cc = result.address_components.find(
-            (c: google.maps.GeocoderAddressComponent) => c.types.includes('country'),
-          )
-          if (cc) {
-            resolve({ country: cc.long_name, countryCode: cc.short_name })
-            return
-          }
-        }
-        resolve(null)
-      },
-    )
-  })
-}
-
-/**
- * Build a TextSearchResult from a PlaceResult.
- * Resolves country code via Place Details API for reliable data.
- */
-async function buildResult(
-  service: google.maps.places.PlacesService,
-  place: google.maps.places.PlaceResult,
-  locationType: 'business' | 'geographic',
-): Promise<TextSearchResult> {
-  const address = place.formatted_address ?? ''
-  const placeId = place.place_id ?? ''
-
-  // Resolve country + country code from Place Details (reliable source)
-  let country = extractCountryFromAddress(address)
-  let countryCode: string | null = null
-
-  if (placeId) {
-    try {
-      const resolved = await resolveCountryFromPlaceId(service, placeId)
-      if (resolved) {
-        country = resolved.country
-        countryCode = resolved.countryCode
-      }
-    } catch {
-      console.warn('[placesTextSearch] Failed to resolve country code for', placeId)
-    }
-  }
-
-  // If Place Details failed, countryCode stays null (not empty string)
-  // so grouping logic correctly identifies it as unplaced
-  return {
-    name: place.name ?? '',
-    address,
-    lat: place.geometry!.location!.lat(),
-    lng: place.geometry!.location!.lng(),
-    placeId,
-    country,
-    countryCode,
-    locationType,
-  }
-}
+// Re-export LocationData for consumers
+export type { LocationData }
