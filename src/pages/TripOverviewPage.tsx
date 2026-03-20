@@ -11,7 +11,7 @@ import LocationAutocomplete, { type LocationSelection } from '../components/Loca
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { trySetTripCoverFromName, maybeUpdateCoverFromDestination } from '../lib/tripCoverImage'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
-import { BrandMark, CountryCodeBadge, StatusBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton } from '../components/ui'
+import { BrandMark, CountryCodeBadge, StatusBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton, ConfirmDeleteModal } from '../components/ui'
 import DestinationCard from '../components/DestinationCard'
 import CalendarRangePicker from '../components/CalendarRangePicker'
 import RouteCard from '../components/RouteCard'
@@ -1594,61 +1594,27 @@ export default function TripOverviewPage() {
 
       {/* ── Delete Confirmation Modal ── */}
       {showDeleteConfirm && trip && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          onClick={(e) => { if (e.target === e.currentTarget) setShowDeleteConfirm(false) }}
-        >
-          <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.3)' }} />
-          <div style={{
-            position: 'relative', background: '#ffffff', borderRadius: 14,
-            maxWidth: 340, width: '90%', padding: 24,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
-          }}>
-            <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-              Delete {trip.title}?
-            </h2>
-            <p style={{ fontSize: 14, color: 'var(--color-text-secondary)', marginTop: 8, lineHeight: 1.5 }}>
-              This will permanently delete this trip and remove all destination links. Your saved items in the inbox won't be affected.
-            </p>
-            <div style={{ marginTop: 20, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setShowDeleteConfirm(false)}
-                style={{
-                  background: '#ffffff', border: '1px solid var(--color-border-input)',
-                  borderRadius: 8, padding: '9px 20px', fontSize: 13, fontWeight: 500,
-                  color: 'var(--color-text-secondary)', cursor: 'pointer',
-                  fontFamily: "'DM Sans', sans-serif",
-                }}
-              >Cancel</button>
-              <button
-                type="button"
-                disabled={deleting}
-                onClick={async () => {
-                  setDeleting(true)
-                  // Delete in FK order: destination_items, trip_general_items, comments, votes, companions, destinations, trip
-                  const destIds = destinations.map(d => d.id)
-                  if (destIds.length > 0) {
-                    await supabase.from('destination_items').delete().in('destination_id', destIds)
-                  }
-                  await supabase.from('trip_general_items').delete().eq('trip_id', trip.id)
-                  await supabase.from('comments').delete().eq('trip_id', trip.id)
-                  await supabase.from('votes').delete().eq('trip_id', trip.id)
-                  await supabase.from('companions').delete().eq('trip_id', trip.id)
-                  await supabase.from('trip_destinations').delete().eq('trip_id', trip.id)
-                  await supabase.from('trips').delete().eq('id', trip.id)
-                  navigate('/trips')
-                }}
-                style={{
-                  background: '#c0392b', border: 'none', borderRadius: 8,
-                  padding: '9px 20px', fontSize: 13, fontWeight: 600,
-                  color: 'white', cursor: deleting ? 'not-allowed' : 'pointer',
-                  opacity: deleting ? 0.6 : 1, fontFamily: "'DM Sans', sans-serif",
-                }}
-              >{deleting ? 'Deleting…' : 'Delete'}</button>
-            </div>
-          </div>
-        </div>
+        <ConfirmDeleteModal
+          title={`Delete ${trip.title}?`}
+          description="This will permanently delete this trip and all its destinations. Your saved items won't be affected."
+          onCancel={() => setShowDeleteConfirm(false)}
+          loading={deleting}
+          onConfirm={async () => {
+            setDeleting(true)
+            // Delete in FK order: destination_items, trip_general_items, comments, votes, companions, destinations, trip
+            const destIds = destinations.map(d => d.id)
+            if (destIds.length > 0) {
+              await supabase.from('destination_items').delete().in('destination_id', destIds)
+            }
+            await supabase.from('trip_general_items').delete().eq('trip_id', trip.id)
+            await supabase.from('comments').delete().eq('trip_id', trip.id)
+            await supabase.from('votes').delete().eq('trip_id', trip.id)
+            await supabase.from('companions').delete().eq('trip_id', trip.id)
+            await supabase.from('trip_destinations').delete().eq('trip_id', trip.id)
+            await supabase.from('trips').delete().eq('id', trip.id)
+            navigate('/trips')
+          }}
+        />
       )}
 
       {/* ── Tab Navigation ── */}
