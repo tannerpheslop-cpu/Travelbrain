@@ -4,11 +4,10 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../lib/auth'
 import { useSavedItems, useTripsQuery, useTripItemMappings, useDeleteItem, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
-import SavedItemImage from '../components/SavedItemImage'
 import { categoryLabel } from '../utils/categoryIcons'
+import { optimizedImageUrl } from '../lib/optimizedImage'
 import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
 import { BrandMark, CategoryPill, CountryCodeBadge, FilterPill, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
-import { shortLocalName } from '../components/BilingualName'
 import { useLocationResolver } from '../hooks/useLocationResolver'
 import SwipeToDelete from '../components/SwipeToDelete'
 import type { SavedItem } from '../types'
@@ -221,6 +220,18 @@ export default function InboxPage() {
 
   const geoGroups = useMemo(() => groupByCountry(filtered), [filtered])
 
+  // Preload first-screen thumbnail images
+  useEffect(() => {
+    if (filtered.length === 0) return
+    filtered.slice(0, 10).forEach((item) => {
+      const url = item.image_url ?? item.places_photo_url
+      if (url && item.image_display === 'thumbnail') {
+        const img = new Image()
+        img.src = optimizedImageUrl(url, 'grid-thumbnail') ?? url
+      }
+    })
+  }, [filtered])
+
   const uniqueCountries = useMemo(() => {
     const set = new Set<string>()
     items.forEach((item) => { if (item.location_country_code) set.add(item.location_country_code) })
@@ -381,9 +392,9 @@ export default function InboxPage() {
 
       {/* ── Loading Skeletons ── */}
       {loading && (
-        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="rounded-xl animate-pulse bg-bg-muted" style={{ height: 200 }} />
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10 }}>
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="rounded-[10px] animate-pulse bg-bg-muted" style={{ height: 56 }} />
           ))}
         </div>
       )}
@@ -437,7 +448,7 @@ export default function InboxPage() {
 
               {/* Grid or List */}
               {viewMode === 'grid' ? (
-                <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
+                <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10 }}>
                   {group.items.map((item) => (
                     <GridCard key={item.id} item={item} onDelete={() => handleDeleteItem(item.id)} />
                   ))}
@@ -473,7 +484,7 @@ export default function InboxPage() {
   )
 }
 
-// ─── Grid Card ───────────────────────────────────────────────────────────────
+// ─── Grid Card (dispatches to card type based on image_display) ──────────────
 
 function GridCard({
   item,
@@ -482,96 +493,166 @@ function GridCard({
   item: SavedItem
   onDelete: () => void
 }) {
+  const display = item.image_display ?? 'none'
+
+  if (display === 'featured') {
+    return <FeaturedCard item={item} onDelete={onDelete} />
+  }
+  if (display === 'thumbnail') {
+    return <ThumbnailCard item={item} onDelete={onDelete} />
+  }
+  return <TextCard item={item} onDelete={onDelete} />
+}
+
+// ─── Thumbnail Card (image_display = 'thumbnail') ────────────────────────────
+
+function ThumbnailCard({ item, onDelete }: { item: SavedItem; onDelete: () => void }) {
+  const city = item.location_name ? extractCity(item.location_name) : null
+  const imgUrl = item.image_url ?? item.places_photo_url ?? null
+  const [imgLoaded, setImgLoaded] = useState(false)
+  const [imgFailed, setImgFailed] = useState(false)
+
+  // If image fails, render as text card
+  if (imgFailed || !imgUrl) {
+    return <TextCard item={item} onDelete={onDelete} />
+  }
+
+  return (
+    <SwipeToDelete onDelete={onDelete}>
+      <div className="group">
+        <Link
+          to={`/item/${item.id}`}
+          className="flex bg-bg-card overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-[1px]"
+          style={{ borderRadius: 10, border: '1px solid var(--color-border)', cursor: 'pointer' }}
+        >
+          {/* Left: square image */}
+          <div className="shrink-0 bg-bg-muted" style={{ width: 56, height: 56 }}>
+            <img
+              src={optimizedImageUrl(imgUrl, 'grid-thumbnail') ?? imgUrl}
+              alt=""
+              className="w-full h-full object-cover"
+              style={{ opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.2s ease' }}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgFailed(true)}
+            />
+          </div>
+          {/* Right: content */}
+          <div className="flex-1 min-w-0 flex flex-col justify-center" style={{ padding: '8px 10px' }}>
+            <p className="text-[12px] font-semibold text-text-primary truncate leading-snug group-hover:text-accent transition-colors">
+              {item.title}
+            </p>
+            <div className="flex items-center gap-1 mt-1">
+              {city && (
+                <span className="inline-block px-1 py-[1px] rounded bg-accent-light font-mono text-[8px] font-medium text-accent leading-none truncate max-w-[90px]">
+                  {city}
+                </span>
+              )}
+              <CategoryPill label={categoryLabel[item.category]} className="!text-[8px] !px-1 !py-[1px]" />
+            </div>
+          </div>
+        </Link>
+      </div>
+    </SwipeToDelete>
+  )
+}
+
+// ─── Text Card (image_display = 'none') ──────────────────────────────────────
+
+function TextCard({ item, onDelete }: { item: SavedItem; onDelete: () => void }) {
   const sourceKey = getSourceKey(item)
-  const hasImage = !!(item.image_url || item.places_photo_url || item.location_place_id)
   const city = item.location_name ? extractCity(item.location_name) : null
 
   return (
     <SwipeToDelete onDelete={onDelete}>
-    <div className="relative group">
-      <Link
-        to={`/item/${item.id}`}
-        className="block bg-bg-card rounded-xl border border-border overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
-      >
-        {hasImage ? (
-          <>
-            {/* Thumbnail area */}
-            <div className="relative h-[120px] bg-bg-muted overflow-hidden">
-              <SavedItemImage item={item} size="full" className="w-full h-[120px] object-cover" />
-              {item.site_name && (
-                <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded bg-black/50 font-mono text-[9px] font-medium text-white/90 backdrop-blur-sm">
-                  {item.site_name}
+      <div className="group">
+        <Link
+          to={`/item/${item.id}`}
+          className="block bg-bg-card overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-[1px]"
+          style={{ borderRadius: 10, border: '1px solid var(--color-border)', padding: '8px 10px', cursor: 'pointer' }}
+        >
+          {/* Source line */}
+          <div className="flex items-center gap-1.5">
+            <SourceIcon source={sourceKey} size={18} className="!text-[9px]" />
+            <span className="font-mono text-[8px] text-text-tertiary truncate">
+              {item.site_name ?? item.source_type}
+            </span>
+          </div>
+          {/* Title */}
+          <p className="text-[12px] font-semibold text-text-primary truncate leading-snug mt-1 group-hover:text-accent transition-colors">
+            {item.title}
+          </p>
+          {/* Pills */}
+          <div className="flex items-center gap-1 mt-1">
+            {city && (
+              <span className="inline-block px-1 py-[1px] rounded bg-accent-light font-mono text-[8px] font-medium text-accent leading-none truncate max-w-[90px]">
+                {city}
+              </span>
+            )}
+            <CategoryPill label={categoryLabel[item.category]} className="!text-[8px] !px-1 !py-[1px]" />
+          </div>
+        </Link>
+      </div>
+    </SwipeToDelete>
+  )
+}
+
+// ─── Featured Card (image_display = 'featured') ─────────────────────────────
+
+function FeaturedCard({ item, onDelete }: { item: SavedItem; onDelete: () => void }) {
+  const city = item.location_name ? extractCity(item.location_name) : null
+  const imgUrl = item.image_url ?? item.places_photo_url ?? null
+  const [imgLoaded, setImgLoaded] = useState(false)
+  const [imgFailed, setImgFailed] = useState(false)
+
+  // If image fails, fall back to thumbnail card
+  if (imgFailed || !imgUrl) {
+    return <ThumbnailCard item={item} onDelete={onDelete} />
+  }
+
+  return (
+    <SwipeToDelete onDelete={onDelete}>
+      <div className="group" style={{ gridColumn: '1 / -1' }}>
+        <Link
+          to={`/item/${item.id}`}
+          className="block overflow-hidden relative transition-all duration-150 ease-out hover:shadow-[0_6px_24px_rgba(0,0,0,0.08)] hover:-translate-y-[1px]"
+          style={{ borderRadius: 12, cursor: 'pointer' }}
+        >
+          {/* Image */}
+          <div className="bg-bg-muted" style={{ height: 100 }}>
+            <img
+              src={optimizedImageUrl(imgUrl, 'featured-card') ?? imgUrl}
+              alt=""
+              className="w-full h-full object-cover"
+              style={{ opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.2s ease' }}
+              onLoad={() => setImgLoaded(true)}
+              onError={() => setImgFailed(true)}
+            />
+          </div>
+          {/* Gradient overlay */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.6) 100%)' }}
+          />
+          {/* Content over gradient */}
+          <div className="absolute bottom-0 left-0 right-0" style={{ padding: '8px 10px' }}>
+            <p className="text-[14px] font-bold text-white leading-snug truncate" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
+              {item.title}
+            </p>
+            <div className="flex items-center gap-1 mt-1">
+              {city && (
+                <span className="inline-block px-1 py-[1px] rounded font-mono text-[8px] font-medium leading-none truncate max-w-[120px]"
+                  style={{ background: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.9)' }}>
+                  {city}
                 </span>
               )}
+              <span className="inline-block px-1 py-[1px] rounded font-mono text-[8px] font-medium leading-none"
+                style={{ background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)' }}>
+                {categoryLabel[item.category]}
+              </span>
             </div>
-            {/* Content area */}
-            <div className="px-3 py-2.5">
-              <p className="text-[13px] font-medium text-text-primary leading-snug line-clamp-2 group-hover:text-accent transition-colors">
-                {item.title}
-              </p>
-              {item.location_name_local && (
-                <p className="mt-0.5 text-[11px] text-text-ghost truncate">{shortLocalName(item.location_name_local)}</p>
-              )}
-              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                {city && (
-                  <span className="inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none truncate max-w-[120px]">
-                    {city}
-                  </span>
-                )}
-                <CategoryPill label={categoryLabel[item.category]} />
-                <span className="flex-1" />
-                <span className="font-mono text-[10px] text-text-faint shrink-0">
-                  {formatDate(item.created_at)}
-                </span>
-              </div>
-            </div>
-          </>
-        ) : (
-          <>
-            {/* Text-entry card — no image placeholder */}
-            <div className="px-3 pt-3 pb-2.5">
-              {/* Source line */}
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <SourceIcon source={sourceKey} size={24} className="!text-xs" />
-                <span className="font-mono text-[10px] text-text-tertiary truncate">
-                  {item.site_name ?? item.source_type}
-                </span>
-              </div>
-              {/* Title */}
-              <p className="text-[14px] font-semibold text-text-primary leading-snug line-clamp-2 group-hover:text-accent transition-colors">
-                {item.title}
-              </p>
-              {/* Description excerpt */}
-              {item.description && (
-                <p className="mt-1 text-[12px] text-text-secondary leading-relaxed line-clamp-3">
-                  {item.description}
-                </p>
-              )}
-              {item.location_name_local && !item.description && (
-                <p className="mt-0.5 text-[11px] text-text-ghost truncate">{shortLocalName(item.location_name_local)}</p>
-              )}
-              {/* Pills + date row */}
-              <div className="mt-2 flex items-center gap-1.5 flex-wrap">
-                {city && (
-                  <span className="inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none truncate max-w-[120px]">
-                    {city}
-                  </span>
-                )}
-                <CategoryPill label={categoryLabel[item.category]} />
-                <span className="flex-1" />
-                <span className="font-mono text-[10px] text-text-faint shrink-0">
-                  {formatDate(item.created_at)}
-                </span>
-              </div>
-              {/* "+ add photo" prompt */}
-              <div className="mt-2 pt-2 border-t border-dashed border-border-light">
-                <span className="font-mono text-[10px] text-text-faint">+ add photo</span>
-              </div>
-            </div>
-          </>
-        )}
-      </Link>
-    </div>
+          </div>
+        </Link>
+      </div>
     </SwipeToDelete>
   )
 }
