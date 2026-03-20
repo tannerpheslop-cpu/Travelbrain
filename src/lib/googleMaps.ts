@@ -190,9 +190,13 @@ export async function fetchBilingualNames(
 /**
  * Attempts to resolve a text query (e.g. "Ramen Nagi Tokyo") into structured
  * location data using the Google Places JS API.
+ * Delegates all field extraction to extractPlaceData for consistency.
  * Returns null if no confident match is found or the API is unavailable.
  */
 export async function findPlaceByQuery(query: string): Promise<ResolvedLocation | null> {
+  // Lazy import to avoid circular dependency (extractPlaceData imports from googleMaps)
+  const { extractPlaceData } = await import('./extractPlaceData')
+
   try {
     await loadGoogleMapsScript()
     if (!window.google?.maps?.places) return null
@@ -206,7 +210,7 @@ export async function findPlaceByQuery(query: string): Promise<ResolvedLocation 
           query,
           fields: ['formatted_address', 'geometry', 'name', 'place_id', 'addressComponents', 'types'],
         },
-        (
+        async (
           results: google.maps.places.PlaceResult[] | null,
           status: google.maps.places.PlacesServiceStatus,
         ) => {
@@ -219,52 +223,22 @@ export async function findPlaceByQuery(query: string): Promise<ResolvedLocation 
             return
           }
 
-          const place = results[0]
-          const countryComponent = place.address_components?.find(
-            (c: google.maps.GeocoderAddressComponent) => c.types.includes('country'),
-          )
-
-          const placeIdStr = place.place_id ?? ''
-          const cc = countryComponent?.short_name ?? null
-          const defaultName = place.formatted_address || place.name || query
-
-          // Fetch bilingual names before resolving
-          if (placeIdStr) {
-            fetchBilingualNames(placeIdStr, cc).then((bilingual) => {
-              resolve({
-                location_name: bilingual.name_en || defaultName,
-                location_lat: place.geometry!.location!.lat(),
-                location_lng: place.geometry!.location!.lng(),
-                location_place_id: placeIdStr,
-                location_country: countryComponent?.long_name ?? null,
-                location_country_code: cc,
-                location_name_en: bilingual.name_en || defaultName,
-                location_name_local: bilingual.name_local,
-              })
-            }).catch(() => {
-              resolve({
-                location_name: defaultName,
-                location_lat: place.geometry!.location!.lat(),
-                location_lng: place.geometry!.location!.lng(),
-                location_place_id: placeIdStr,
-                location_country: countryComponent?.long_name ?? null,
-                location_country_code: cc,
-                location_name_en: null,
-                location_name_local: null,
-              })
-            })
-          } else {
-            resolve({
-              location_name: defaultName,
-              location_lat: place.geometry!.location!.lat(),
-              location_lng: place.geometry!.location!.lng(),
-              location_place_id: placeIdStr,
-              location_country: countryComponent?.long_name ?? null,
-              location_country_code: cc,
-              location_name_en: null,
-              location_name_local: null,
-            })
+          const locationData = await extractPlaceData(results[0])
+          if (!locationData) {
+            resolve(null)
+            return
           }
+
+          resolve({
+            location_name: locationData.location_name,
+            location_lat: locationData.location_lat,
+            location_lng: locationData.location_lng,
+            location_place_id: locationData.location_place_id,
+            location_country: locationData.location_country,
+            location_country_code: locationData.location_country_code,
+            location_name_en: locationData.location_name_en,
+            location_name_local: locationData.location_name_local,
+          })
         },
       )
     })

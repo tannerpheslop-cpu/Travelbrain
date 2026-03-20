@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { loadGoogleMapsScript, fetchBilingualNames } from '../lib/googleMaps'
+import { loadGoogleMapsScript } from '../lib/googleMaps'
+import { extractPlaceData } from '../lib/extractPlaceData'
 
 export interface LocationSelection {
   name: string              // formatted display name, e.g. "Tokyo, Japan"
@@ -59,79 +60,13 @@ export default function LocationAutocomplete({
     setTimeout(() => setConfirmed(null), 1500)
   }, [])
 
-  // Process a selected place from the autocomplete widget
-  const processPlace = useCallback((place: google.maps.places.PlaceResult) => {
+  // Process a selected place from the autocomplete widget.
+  // Delegates all field extraction to extractPlaceData for consistency.
+  const processPlace = useCallback(async (place: google.maps.places.PlaceResult) => {
     if (!place?.geometry?.location) return
 
-    let country: string | null = null
-    let country_code: string | null = null
-
-    // Try address_components from the place result first
-    const countryComponent = place.address_components?.find(
-      (c: google.maps.GeocoderAddressComponent) => c.types.includes('country')
-    )
-    if (countryComponent) {
-      country = countryComponent.long_name
-      country_code = countryComponent.short_name
-    }
-
-    const placeTypes: string[] = place.types ?? []
-    let location_type: 'city' | 'country' | 'region' = 'city'
-    let proximity_radius_km = 50
-    if (placeTypes.includes('country')) {
-      location_type = 'country'
-      proximity_radius_km = 500
-    } else if (
-      placeTypes.some((t: string) => t.startsWith('administrative_area_level')) ||
-      placeTypes.includes('natural_feature') ||
-      placeTypes.includes('colloquial_area') ||
-      placeTypes.includes('sublocality')
-    ) {
-      location_type = 'region'
-      proximity_radius_km = 200
-    }
-
     const defaultName = place.formatted_address || place.name || ''
-    const placeId = place.place_id ?? ''
     const shortName = defaultName.split(',')[0].trim()
-
-    // If address_components was missing (API field error), extract country from formatted_address
-    if (!country && defaultName) {
-      const parts = defaultName.split(',').map(s => s.trim())
-      if (parts.length > 0) {
-        country = parts[parts.length - 1]
-        // Try to get country code via Geocoder async (best-effort)
-        if (placeId && window.google?.maps?.Geocoder) {
-          const geocoder = new google.maps.Geocoder()
-          geocoder.geocode({ placeId }, (results, status) => {
-            if (status === google.maps.GeocoderStatus.OK && results && results.length > 0) {
-              const cc = results[0].address_components?.find(c => c.types.includes('country'))
-              if (cc) {
-                // Re-emit the selection with the country code
-                onSelectRef.current({
-                  ...selection,
-                  country: cc.long_name,
-                  country_code: cc.short_name,
-                })
-              }
-            }
-          })
-        }
-      }
-    }
-
-    const selection: LocationSelection = {
-      name: defaultName,
-      lat: place.geometry.location.lat(),
-      lng: place.geometry.location.lng(),
-      place_id: placeId,
-      country,
-      country_code,
-      location_type,
-      proximity_radius_km,
-      name_en: null,
-      name_local: null,
-    }
 
     if (clearOnSelect) {
       // Clear input immediately for rapid multi-entry
@@ -143,22 +78,25 @@ export default function LocationAutocomplete({
       setInputValue(defaultName)
     }
 
-    // Fetch bilingual names before emitting selection (wait ~200ms for reliable data)
-    if (placeId) {
-      fetchBilingualNames(placeId, country_code).then((bilingual) => {
-        const enName = bilingual.name_en || defaultName
-        selection.name = enName
-        selection.name_en = enName
-        selection.name_local = bilingual.name_local
-        if (!clearOnSelect) setInputValue(enName)
-      }).catch(() => {
-        // Use defaults already set on selection
-      }).finally(() => {
-        onSelectRef.current({ ...selection })
-      })
-    } else {
-      onSelectRef.current(selection)
+    // extractPlaceData handles: country resolution, location_type, bilingual names
+    const locationData = await extractPlaceData(place)
+    if (!locationData) return
+
+    const selection: LocationSelection = {
+      name: locationData.location_name,
+      lat: locationData.location_lat,
+      lng: locationData.location_lng,
+      place_id: locationData.location_place_id,
+      country: locationData.location_country,
+      country_code: locationData.location_country_code,
+      location_type: locationData.location_type,
+      proximity_radius_km: locationData.proximity_radius_km,
+      name_en: locationData.location_name_en,
+      name_local: locationData.location_name_local,
     }
+
+    if (!clearOnSelect) setInputValue(locationData.location_name)
+    onSelectRef.current(selection)
   }, [clearOnSelect, showConfirmation])
 
   // Load Google Maps script and initialise Autocomplete widget

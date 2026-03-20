@@ -104,6 +104,7 @@ function setupGoogleMock() {
 // Mock the googleMaps module
 vi.mock('../googleMaps', () => ({
   loadGoogleMapsScript: vi.fn().mockResolvedValue(undefined),
+  fetchBilingualNames: vi.fn().mockResolvedValue({ name_en: '', name_local: null }),
 }))
 
 describe('detectLocationFromText', () => {
@@ -247,7 +248,7 @@ describe('detectLocationFromText', () => {
     expect(result!.countryCode).toBe('CN')
   })
 
-  it('returns null countryCode when Place Details fails', async () => {
+  it('returns fallback countryCode "XX" when Place Details fails', async () => {
     // Don't add to placeCountryMap — getDetails will return NOT_FOUND
     mockTextSearch.mockImplementation(
       (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
@@ -262,7 +263,8 @@ describe('detectLocationFromText', () => {
     )
     const result = await detectLocationFromText('Some Place')
     expect(result).not.toBeNull()
-    expect(result!.countryCode).toBeNull()
+    // When Place Details can't resolve the country, extractPlaceData falls back to 'XX'
+    expect(result!.countryCode).toBe('XX')
     // Country falls back to formatted_address parsing
     expect(result!.country).toBe('Unknown Country')
   })
