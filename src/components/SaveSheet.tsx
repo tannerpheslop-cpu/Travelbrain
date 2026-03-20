@@ -5,6 +5,8 @@ import { trackEvent } from '../lib/analytics'
 import { detectLocationFromText } from '../lib/placesTextSearch'
 import { detectUrl } from '../lib/urlDetect'
 import { evaluateImageDisplay } from '../lib/evaluateImageDisplay'
+import { useRapidCapture } from '../hooks/useRapidCapture'
+import { MapPin, Loader2 } from 'lucide-react'
 import ImageWithFade from './ImageWithFade'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
 import type { Category, SavedItem } from '../types'
@@ -45,6 +47,30 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const { user } = useAuth()
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const bulkInputRef = useRef<HTMLTextAreaElement>(null)
+
+  // Bulk entry mode
+  const [bulkMode, setBulkMode] = useState(false)
+  const [bulkInput, setBulkInput] = useState('')
+  const [bulkRecentItems, setBulkRecentItems] = useState<SavedItem[]>([])
+
+  const handleBulkItemCreated = useCallback((item: SavedItem) => {
+    setBulkRecentItems((prev) => [item, ...prev])
+    onSaved(item)
+  }, [onSaved])
+
+  const handleBulkItemUpdated = useCallback((updated: SavedItem) => {
+    setBulkRecentItems((prev) =>
+      prev.map((item) => (item.id === updated.id ? updated : item)),
+    )
+    window.dispatchEvent(new CustomEvent('horizon-item-updated', { detail: updated }))
+  }, [])
+
+  const { createSaves, resolvingIds } = useRapidCapture(
+    user?.id,
+    handleBulkItemCreated,
+    handleBulkItemUpdated,
+  )
 
   // Form state
   const [inputText, setInputText] = useState('')
@@ -82,10 +108,32 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   // Track pending background location updates for already-saved items
   const pendingLocationUpdates = useRef<Map<string, AbortController>>(new Map())
 
-  // Auto-focus input on mount
+  // Auto-focus input on mount or when switching modes
   useEffect(() => {
-    setTimeout(() => inputRef.current?.focus(), 100)
-  }, [])
+    setTimeout(() => {
+      if (bulkMode) {
+        bulkInputRef.current?.focus()
+      } else {
+        inputRef.current?.focus()
+      }
+    }, 100)
+  }, [bulkMode])
+
+  // Bulk entry handlers
+  const handleBulkSubmitLine = useCallback(() => {
+    const val = bulkInput.trim()
+    if (!val) return
+    const lines = val.split('\n').map((l) => l.trim()).filter((l) => l.length > 0)
+    createSaves(lines)
+    setBulkInput('')
+  }, [bulkInput, createSaves])
+
+  const handleBulkKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleBulkSubmitLine()
+    }
+  }, [handleBulkSubmitLine])
 
   // Handle initialFile
   useEffect(() => {
@@ -356,6 +404,78 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
         {/* Scrollable content */}
         <div className="overflow-y-auto flex-1 px-5 pt-4" style={{ paddingBottom: 'calc(1rem + env(safe-area-inset-bottom))' }}>
 
+          {bulkMode ? (
+            /* ── Bulk entry mode ───────────────────────────────────────── */
+            <div>
+              <textarea
+                ref={bulkInputRef}
+                value={bulkInput}
+                onChange={(e) => setBulkInput(e.target.value)}
+                onKeyDown={handleBulkKeyDown}
+                placeholder="Type a place and press Enter..."
+                style={{
+                  width: '100%', minHeight: 80, padding: '12px 14px',
+                  background: '#f5f3f0', borderRadius: 10,
+                  border: '1px solid #e8e6e1', outline: 'none', resize: 'vertical',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#2a2a28',
+                }}
+              />
+              <p style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                color: 'var(--color-text-faint)', marginTop: 6,
+              }}>
+                Enter to save · Paste a list for bulk add
+              </p>
+
+              {/* Recently added items in bulk mode */}
+              {bulkRecentItems.length > 0 && (
+                <div style={{ marginTop: 12 }}>
+                  <p style={{
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                    color: 'var(--color-text-faint)', marginBottom: 6,
+                    textTransform: 'uppercase', letterSpacing: '0.5px',
+                  }}>{bulkRecentItems.length} added</p>
+                  <div style={{ maxHeight: 160, overflowY: 'auto' }}>
+                    {bulkRecentItems.slice(0, 8).map((item) => (
+                      <div
+                        key={item.id}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8,
+                          padding: '6px 0', fontSize: 13, color: 'var(--color-text-secondary)',
+                        }}
+                      >
+                        <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--color-accent)', flexShrink: 0 }} />
+                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {item.title}
+                        </span>
+                        {resolvingIds.has(item.id) && !item.location_name ? (
+                          <Loader2 style={{ width: 12, height: 12, flexShrink: 0, color: 'var(--color-text-faint)' }} className="animate-spin" />
+                        ) : item.location_name ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0, fontSize: 11, color: 'var(--color-text-faint)' }}>
+                            <MapPin style={{ width: 10, height: 10 }} />
+                            {item.location_name.split(',')[0].trim()}
+                          </span>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Back to single entry */}
+              <button
+                type="button"
+                onClick={() => setBulkMode(false)}
+                style={{
+                  marginTop: 14, background: 'none', border: 'none', cursor: 'pointer',
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                  color: 'var(--color-text-faint)',
+                }}
+              >← Back to single entry</button>
+            </div>
+          ) : (
+          /* ── Single entry mode (default) ──────────────────────────── */
+          <>
           {/* 1. Input row */}
           <div
             style={{
@@ -598,6 +718,21 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
 
           {saveError && (
             <p style={{ marginTop: 8, fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#c0392b', textAlign: 'center' }}>{saveError}</p>
+          )}
+
+          {/* Bulk add link */}
+          <div style={{ marginTop: 10, textAlign: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setBulkMode(true)}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
+                color: 'var(--color-text-faint)',
+              }}
+            >Bulk add</button>
+          </div>
+          </>
           )}
         </div>
       </div>
