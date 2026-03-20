@@ -15,7 +15,7 @@ interface TextSearchResult {
  * Calculate word overlap ratio between two strings.
  * Returns 0–1 where 1 means all words overlap.
  */
-function wordOverlap(a: string, b: string): number {
+export function wordOverlap(a: string, b: string): number {
   const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(Boolean))
   const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(Boolean))
   if (wordsA.size === 0 || wordsB.size === 0) return 0

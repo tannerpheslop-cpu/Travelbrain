@@ -3,6 +3,7 @@ import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import { detectLocationFromText } from '../lib/placesTextSearch'
+import { detectUrl } from '../lib/urlDetect'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
 import type { Category, SavedItem } from '../types'
 
@@ -27,14 +28,6 @@ interface Props {
   onSaved: (item: SavedItem) => void
   initialMode?: 'link' | 'screenshot' | 'manual'
   initialFile?: File
-}
-
-// Simple URL detection
-function detectUrl(text: string): string | null {
-  const trimmed = text.trim()
-  if (/^https?:\/\//i.test(trimmed)) return trimmed
-  if (/^[\w-]+\.(com|org|net|io|co|me|tv|app|dev|xyz|info)(\/\S*)?$/i.test(trimmed)) return `https://${trimmed}`
-  return null
 }
 
 // Source icon character
