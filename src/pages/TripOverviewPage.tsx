@@ -11,6 +11,7 @@ import { useRoutes } from '../hooks/useRoutes'
 import type { Trip, TripDestination, TripNote, TripRoute, SharePrivacy } from '../types'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
+import { optimizedImageUrl } from '../lib/optimizedImage'
 import { trySetTripCoverFromName, maybeUpdateCoverFromDestination } from '../lib/tripCoverImage'
 import { type CountryCluster } from '../lib/clusters'
 import { BrandMark, CountryCodeBadge, StatusBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton, ConfirmDeleteModal } from '../components/ui'
@@ -787,7 +788,7 @@ export default function TripOverviewPage() {
     for (const dest of destsData) {
       if (dest.image_url) {
         const img = new Image()
-        img.src = dest.image_url
+        img.src = optimizedImageUrl(dest.image_url, 'destination-card') ?? dest.image_url
       }
     }
   }, [destsData])

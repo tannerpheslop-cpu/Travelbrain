@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { MapPin } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { fetchPlacePhoto } from '../lib/googleMaps'
+import { optimizedImageUrl } from '../lib/optimizedImage'
 
 // ── In-memory cache & concurrency control ────────────────────────────────────
 
@@ -177,7 +178,7 @@ export default function DestinationImage({
   if (photoUrl && !imgFailed) {
     return (
       <img
-        src={photoUrl}
+        src={optimizedImageUrl(photoUrl, 'destination-card') ?? photoUrl}
         alt={alt}
         className={`${className} object-cover`}
         loading="lazy"

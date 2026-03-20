@@ -4,6 +4,7 @@ import { MapPin, Check } from 'lucide-react'
 import type { TripDestination } from '../types'
 import { shortName, shortLocalName } from './BilingualName'
 import { useDestinationImage } from '../hooks/useDestinationImage'
+import { optimizedImageUrl } from '../lib/optimizedImage'
 
 // Gradient palette for destination thumbnails (same as TripsPage)
 const gradients = [
@@ -105,7 +106,7 @@ export default function DestinationCard({
       <div className="w-20 h-20 rounded-xl overflow-hidden shrink-0 flex-none">
         {resolvedImageUrl ? (
           <img
-            src={resolvedImageUrl}
+            src={optimizedImageUrl(resolvedImageUrl, 'destination-card') ?? resolvedImageUrl}
             alt={city}
             className="w-full h-full object-cover"
             loading="lazy"

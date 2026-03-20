@@ -5,6 +5,7 @@ import { trackEvent } from '../lib/analytics'
 import { detectLocationFromText } from '../lib/placesTextSearch'
 import { detectUrl } from '../lib/urlDetect'
 import { evaluateImageDisplay } from '../lib/evaluateImageDisplay'
+import { optimizedImageUrl } from '../lib/optimizedImage'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
 import type { Category, SavedItem } from '../types'
 
@@ -438,7 +439,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 {/* Thumbnail */}
                 {(metadata.image && !imageFailed) ? (
                   <img
-                    src={metadata.image}
+                    src={optimizedImageUrl(metadata.image, 'grid-thumbnail') ?? metadata.image}
                     alt=""
                     style={{ width: 100, height: 80, objectFit: 'cover', background: '#f5f3f0', flexShrink: 0 }}
                     onError={() => setImageFailed(true)}

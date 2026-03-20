@@ -14,6 +14,7 @@ import type { SavedItem } from '../types'
 import { supabase } from '../lib/supabase'
 import { Plus } from 'lucide-react'
 import { CategoryPill, DashedCard } from '../components/ui'
+import { optimizedImageUrl } from '../lib/optimizedImage'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -489,7 +490,7 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                               >
                                 <div className="w-8 h-8 rounded-lg shrink-0 flex-none bg-bg-muted overflow-hidden flex items-center justify-center">
                                   {item.image_url ? (
-                                    <img src={item.image_url} alt={item.title} className="w-full h-full object-cover opacity-60" loading="lazy" />
+                                    <img src={optimizedImageUrl(item.image_url, 'grid-thumbnail') ?? item.image_url!} alt={item.title} className="w-full h-full object-cover opacity-60" loading="lazy" />
                                   ) : (
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-text-ghost">
                                       <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.003 3.5-4.697 3.5-8.338C20 5.945 16.368 2 12 2 7.632 2 4 5.945 4 10.988c0 3.64 1.556 6.334 3.5 8.337a19.578 19.578 0 002.683 2.282 16.944 16.944 0 001.144.742zM12 14a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
@@ -770,7 +771,7 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
         {hasBgImage && (
           <div style={{
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundImage: `url(${coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center',
+            backgroundImage: `url(${optimizedImageUrl(coverImage, 'hero-card') ?? coverImage})`, backgroundSize: 'cover', backgroundPosition: 'center',
           }} />
         )}
         {/* Gradient overlay */}
@@ -1084,7 +1085,7 @@ export default function TripsPage() {
     if (loading) return
     for (const trip of trips) {
       const url = trip.trip_destinations?.find(d => d.image_url)?.image_url ?? trip.cover_image_url
-      if (url) { const img = new Image(); img.src = url }
+      if (url) { const img = new Image(); img.src = optimizedImageUrl(url, 'hero-card') ?? url }
     }
   }, [trips, loading])
 
