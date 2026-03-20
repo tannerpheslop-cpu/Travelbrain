@@ -9,6 +9,7 @@ import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
 import type { Trip, TripDestination, TripNote, TripRoute, SharePrivacy } from '../types'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
+import { trySetTripCoverFromName, maybeUpdateCoverFromDestination } from '../lib/tripCoverImage'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import { BrandMark, CountryCodeBadge, StatusBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton } from '../components/ui'
 import DestinationCard from '../components/DestinationCard'
@@ -1034,7 +1035,17 @@ export default function TripOverviewPage() {
     setEditingTitle(false)
     if (!trip || !trimmed || trimmed === trip.title) return
     const { data, error } = await supabase.from('trips').update({ title: trimmed }).eq('id', trip.id).select().single()
-    if (!error && data) setTrip(data as Trip)
+    if (!error && data) {
+      const updatedTrip = data as Trip
+      setTrip(updatedTrip)
+
+      // If the trip has no destinations and the cover wasn't user-uploaded, re-check new name
+      if (destinations.length === 0 && updatedTrip.cover_image_source !== 'user_upload') {
+        void trySetTripCoverFromName(trip.id, trimmed).then((url) => {
+          if (url) setTrip((prev) => prev ? { ...prev, cover_image_url: url, cover_image_source: 'trip_name' } : prev)
+        })
+      }
+    }
   }
 
   const handleAddDestination = async (loc: LocationSelection | null) => {
@@ -1082,6 +1093,15 @@ export default function TripOverviewPage() {
 
     if (photoUrl) {
       await supabase.from('trip_destinations').update({ image_url: photoUrl }).eq('id', data.id)
+
+      // If trip's cover came from its name (or has none), upgrade to destination image
+      if (trip) {
+        void maybeUpdateCoverFromDestination(id, photoUrl, trip.cover_image_source).then(() => {
+          if (trip.cover_image_source !== 'user_upload') {
+            setTrip((prev) => prev ? { ...prev, cover_image_url: photoUrl, cover_image_source: 'destination' } : prev)
+          }
+        })
+      }
     }
 
     // Nudge trip to planning if aspirational

@@ -5,6 +5,7 @@ import { useAuth } from '../lib/auth'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { fetchDestinationPhoto } from '../lib/unsplash'
+import { trySetTripCoverFromName } from '../lib/tripCoverImage'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import { trackEvent } from '../lib/analytics'
 import { selectFeaturedTrip } from '../utils/featuredTrip'
@@ -200,6 +201,13 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
       const photo = photoResults[i]
       await createDestination(trip.id, destinations[i], i, photo?.url, photo?.source, photo?.creditName, photo?.creditUrl)
     }
+
+    // If no destinations were added, try to get a cover image from the trip name
+    if (destinations.length === 0) {
+      // Fire-and-forget — don't block navigation
+      void trySetTripCoverFromName(trip.id, title)
+    }
+
     onCreated(trip.id)
   }
 

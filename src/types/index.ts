@@ -41,6 +41,8 @@ export interface SavedItem {
   created_at: string
 }
 
+export type CoverImageSource = 'destination' | 'trip_name' | 'user_upload'
+
 export interface Trip {
   id: string
   owner_id: string
@@ -49,6 +51,7 @@ export interface Trip {
   start_date: string | null
   end_date: string | null
   cover_image_url: string | null
+  cover_image_source: CoverImageSource | null
   share_token: string | null
   share_privacy: SharePrivacy | null
   forked_from_trip_id: string | null
