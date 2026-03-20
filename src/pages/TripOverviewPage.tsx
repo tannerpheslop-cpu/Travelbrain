@@ -11,6 +11,7 @@ import { useRoutes } from '../hooks/useRoutes'
 import type { Trip, TripDestination, TripNote, TripRoute, SharePrivacy } from '../types'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
+import { fetchDestinationPhoto } from '../lib/unsplash'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { trySetTripCoverFromName, maybeUpdateCoverFromDestination } from '../lib/tripCoverImage'
 import { type CountryCluster } from '../lib/clusters'
@@ -827,6 +828,7 @@ export default function TripOverviewPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [datePickerDestId, setDatePickerDestId] = useState<string | null>(null)
+  const [actionToast, setActionToast] = useState<string | null>(null)
 
   // Organize mode
   const [organizeMode, setOrganizeMode] = useState(false)
@@ -1248,6 +1250,49 @@ export default function TripOverviewPage() {
 
   const datePickerDest = destinations.find(d => d.id === datePickerDestId) ?? null
 
+  // ── Refresh images handler ──────────────────────────────────────────────────
+  const handleRefreshImages = useCallback(async () => {
+    if (!trip) return
+    setActionToast('Refreshing images...')
+
+    let newCoverUrl: string | null = null
+
+    for (const dest of destinations) {
+      // Don't overwrite user uploads
+      if (dest.image_source === 'user_upload') continue
+
+      try {
+        const photo = await fetchDestinationPhoto(dest.location_name)
+        if (!photo?.url) continue
+
+        await supabase
+          .from('trip_destinations')
+          .update({ image_url: photo.url, image_source: 'unsplash' })
+          .eq('id', dest.id)
+
+        // Track the first new image for cover update
+        if (!newCoverUrl) newCoverUrl = photo.url
+      } catch (err) {
+        console.warn(`[RefreshImages] Failed for ${dest.location_name}:`, err)
+      }
+    }
+
+    // Refresh trip cover if it's sourced from a destination or trip name
+    if (newCoverUrl && trip.cover_image_source !== 'user_upload') {
+      await supabase
+        .from('trips')
+        .update({ cover_image_url: newCoverUrl, cover_image_source: 'destination' as import('../types').CoverImageSource })
+        .eq('id', trip.id)
+    }
+
+    // Invalidate caches so UI updates
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(trip.id) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
+
+    setActionToast('Images refreshed')
+    setTimeout(() => setActionToast(null), 2500)
+  }, [trip, destinations, queryClient, user?.id])
+
   const handleDestDatesConfirm = async (start: string, end: string) => {
     if (!datePickerDestId) return
     const { data } = await supabase
@@ -1594,6 +1639,17 @@ export default function TripOverviewPage() {
                     onMouseEnter={e => (e.currentTarget.style.background = '#f5f3f0')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >{trip?.is_favorited ? 'Unpin' : 'Pin to top'}</button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowActionMenu(false); handleRefreshImages() }}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
+                      fontSize: 14, color: '#2a2a28', cursor: 'pointer', border: 'none',
+                      background: 'transparent', fontFamily: "'DM Sans', sans-serif",
+                    }}
+                    onMouseEnter={e => (e.currentTarget.style.background = '#f5f3f0')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >Refresh images</button>
                   <button
                     type="button"
                     onClick={() => { setShowActionMenu(false); setShowDeleteConfirm(true) }}
@@ -2039,6 +2095,12 @@ export default function TripOverviewPage() {
           onRemove={datePickerDest.start_date ? handleDestDatesRemove : undefined}
           onClose={() => setDatePickerDestId(null)}
         />
+      )}
+      {/* Action toast */}
+      {actionToast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
+          {actionToast}
+        </div>
       )}
     </div>
   )
