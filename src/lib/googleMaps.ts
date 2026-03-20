@@ -3,6 +3,8 @@
  * exactly once, even if called from multiple components simultaneously.
  */
 
+import { extractPlaceData } from './extractPlaceData'
+
 let _promise: Promise<void> | null = null
 
 export function loadGoogleMapsScript(): Promise<void> {
@@ -192,9 +194,6 @@ export async function fetchBilingualNames(
  * Returns null if no confident match is found or the API is unavailable.
  */
 export async function findPlaceByQuery(query: string): Promise<ResolvedLocation | null> {
-  // Lazy import to avoid circular dependency (extractPlaceData imports from googleMaps)
-  const { extractPlaceData } = await import('./extractPlaceData')
-
   try {
     await loadGoogleMapsScript()
     if (!window.google?.maps?.places) return null

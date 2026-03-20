@@ -2,8 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // Mock supabase before importing clusters
 const mockSelect = vi.fn()
-const mockEq = vi.fn()
-const mockNot = vi.fn()
 
 vi.mock('../supabase', () => ({
   supabase: {
