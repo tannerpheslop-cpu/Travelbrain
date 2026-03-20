@@ -584,6 +584,11 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
 - Prefetch images (destination photos) on list pages so they're cached before the user navigates deeper
 - Git commit after each working feature
 - All UI components must reference DESIGN-SYSTEM.md for typography, color, spacing, and component patterns. Use CSS custom properties from the design system. Import DM Sans and JetBrains Mono from Google Fonts.
+- After every code change, run `npm run test:all` to verify all tests pass. If any test fails, fix the issue before committing. Never commit code that breaks existing tests. When adding new features, add corresponding tests.
+  - `npm run test` — run unit tests (Vitest)
+  - `npm run test:e2e` — run end-to-end tests (Playwright, requires dev server running)
+  - `npm run test:all` — run both unit and e2e tests
+- Core user flows are covered by Playwright e2e tests. Run `npm run test:e2e` to execute them. The dev server must be running. Tests use the existing test user account and clean up after themselves.
 
 ---
 

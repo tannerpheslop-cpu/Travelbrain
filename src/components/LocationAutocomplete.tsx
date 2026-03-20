@@ -143,7 +143,7 @@ export default function LocationAutocomplete({
       setInputValue(defaultName)
     }
 
-    // Fetch bilingual names async and update
+    // Fetch bilingual names before emitting selection (wait ~200ms for reliable data)
     if (placeId) {
       fetchBilingualNames(placeId, country_code).then((bilingual) => {
         const enName = bilingual.name_en || defaultName
@@ -151,9 +151,10 @@ export default function LocationAutocomplete({
         selection.name_en = enName
         selection.name_local = bilingual.name_local
         if (!clearOnSelect) setInputValue(enName)
-        onSelectRef.current({ ...selection })
       }).catch(() => {
-        onSelectRef.current(selection)
+        // Use defaults already set on selection
+      }).finally(() => {
+        onSelectRef.current({ ...selection })
       })
     } else {
       onSelectRef.current(selection)

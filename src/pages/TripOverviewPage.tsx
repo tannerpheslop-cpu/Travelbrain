@@ -763,6 +763,7 @@ export default function TripOverviewPage() {
   const [showAddDest, setShowAddDest] = useState(false)
   const [addingDest, setAddingDest] = useState(false)
   const [addDestKey, setAddDestKey] = useState(0)
+  const [addDestError, setAddDestError] = useState<string | null>(null)
 
   // Expanded accordion destination
   const [expandedDestId, setExpandedDestId] = useState<string | null>(null)
@@ -1039,6 +1040,7 @@ export default function TripOverviewPage() {
   const handleAddDestination = async (loc: LocationSelection | null) => {
     if (!loc || !id) return
     setAddingDest(true)
+    setAddDestError(null)
 
     const [insertResult, photoUrl] = await Promise.all([
       supabase.from('trip_destinations').insert({
@@ -1060,25 +1062,30 @@ export default function TripOverviewPage() {
 
     const { data, error } = insertResult
     setAddingDest(false)
-    setShowAddDest(false)
     setAddDestKey((k) => k + 1)
 
-    if (!error && data) {
-      const destData: DestWithCount = {
-        ...(data as TripDestination),
-        image_url: photoUrl ?? null,
-        _count: 0,
-      }
-      setDestinations((prev) => [...prev, destData])
-      trackEvent('destination_added', user?.id ?? null, { trip_id: id, location_name: loc.name, location_type: loc.location_type })
-
-      if (photoUrl) {
-        await supabase.from('trip_destinations').update({ image_url: photoUrl }).eq('id', data.id)
-      }
-
-      // Nudge trip to planning if aspirational
-      void supabase.from('trips').update({ status: 'planning' }).eq('id', id).eq('status', 'aspirational')
+    if (error || !data) {
+      console.error('Failed to create destination:', error)
+      setAddDestError('Failed to add destination. Please try again.')
+      return
     }
+
+    setShowAddDest(false)
+
+    const destData: DestWithCount = {
+      ...(data as TripDestination),
+      image_url: photoUrl ?? null,
+      _count: 0,
+    }
+    setDestinations((prev) => [...prev, destData])
+    trackEvent('destination_added', user?.id ?? null, { trip_id: id, location_name: loc.name, location_type: loc.location_type })
+
+    if (photoUrl) {
+      await supabase.from('trip_destinations').update({ image_url: photoUrl }).eq('id', data.id)
+    }
+
+    // Nudge trip to planning if aspirational
+    void supabase.from('trips').update({ status: 'planning' }).eq('id', id).eq('status', 'aspirational')
   }
 
   const handleAddFromSuggestion = (loc: LocationSelection) => {
@@ -1687,6 +1694,7 @@ export default function TripOverviewPage() {
                   placeholder="e.g. Beijing, Tokyo, France…"
                 />
                 {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
+                {addDestError && <p className="mt-2 text-xs text-error text-center">{addDestError}</p>}
               </DashedCard>
             ) : (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -1913,6 +1921,7 @@ export default function TripOverviewPage() {
                       clearOnSelect
                     />
                     {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
+                {addDestError && <p className="mt-2 text-xs text-error text-center">{addDestError}</p>}
                   </div>
                 ) : (
                   <DashedCard

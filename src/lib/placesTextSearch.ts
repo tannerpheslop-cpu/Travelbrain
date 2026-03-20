@@ -1,13 +1,13 @@
 import { loadGoogleMapsScript } from './googleMaps'
 
-interface TextSearchResult {
+export interface TextSearchResult {
   name: string
   address: string
   lat: number
   lng: number
   placeId: string
   country: string
-  countryCode: string
+  countryCode: string | null
   locationType: 'business' | 'geographic'
 }
 
@@ -15,7 +15,7 @@ interface TextSearchResult {
  * Calculate word overlap ratio between two strings.
  * Returns 0–1 where 1 means all words overlap.
  */
-function wordOverlap(a: string, b: string): number {
+export function wordOverlap(a: string, b: string): number {
   const wordsA = new Set(a.toLowerCase().split(/\s+/).filter(Boolean))
   const wordsB = new Set(b.toLowerCase().split(/\s+/).filter(Boolean))
   if (wordsA.size === 0 || wordsB.size === 0) return 0
@@ -161,25 +161,25 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
         const types: string[] = r.types ?? []
         return types.some(t => GEO_TYPES.has(t)) && r.geometry?.location && r.place_id
       })
-      if (geoHit) return buildResult(geoHit, 'geographic')
+      if (geoHit) return await buildResult(service, geoHit, 'geographic')
       return null // No geographic results — reject
     }
 
     // Step 2: Direct place name lookup?
     if (isDirectPlaceLookup(query, topName)) {
       // User typed a specific place name — return it directly
-      return buildResult(top, isGeoResult ? 'geographic' : 'business')
+      return await buildResult(service, top, isGeoResult ? 'geographic' : 'business')
     }
 
     // Step 3: Descriptive text — extract city-level location
     // If the top result is already geographic (e.g. "things to do in Chengdu" → Chengdu), use it
     if (isGeoResult) {
-      return buildResult(top, 'geographic')
+      return await buildResult(service, top, 'geographic')
     }
 
     // The top result is a business — extract the city from the input or address
     const cityName = extractCitySearchTerm(query, topAddress)
-    if (!cityName) return buildResult(top, 'geographic') // fallback to whatever we got
+    if (!cityName) return await buildResult(service, top, 'geographic') // fallback to whatever we got
 
     // Look for a geographic result in the existing results first
     const geoHit = searchResults.find(r => {
@@ -187,17 +187,17 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
       return types.some(t => GEO_TYPES.has(t))
     })
     if (geoHit?.geometry?.location && geoHit.place_id) {
-      return buildResult(geoHit, 'geographic')
+      return await buildResult(service, geoHit, 'geographic')
     }
 
     // Do a second search for just the city name
     const cityResults = await textSearch(service, cityName)
     if (cityResults.length > 0 && cityResults[0].geometry?.location && cityResults[0].place_id) {
-      return buildResult(cityResults[0], 'geographic')
+      return await buildResult(service, cityResults[0], 'geographic')
     }
 
     // Final fallback: return the business result but labeled as geographic
-    return buildResult(top, 'geographic')
+    return await buildResult(service, top, 'geographic')
   } catch (err) {
     console.warn('[placesTextSearch] Error:', err)
     return null
@@ -205,21 +205,70 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
 }
 
 /**
- * Build a TextSearchResult from a PlaceResult.
+ * Resolve country name and code from a place_id using Place Details API.
+ * Returns { country, countryCode } or null on failure.
  */
-function buildResult(
+function resolveCountryFromPlaceId(
+  service: google.maps.places.PlacesService,
+  placeId: string,
+): Promise<{ country: string; countryCode: string } | null> {
+  return new Promise((resolve) => {
+    service.getDetails(
+      { placeId, fields: ['address_components'] },
+      (result, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK && result?.address_components) {
+          const cc = result.address_components.find(
+            (c: google.maps.GeocoderAddressComponent) => c.types.includes('country'),
+          )
+          if (cc) {
+            resolve({ country: cc.long_name, countryCode: cc.short_name })
+            return
+          }
+        }
+        resolve(null)
+      },
+    )
+  })
+}
+
+/**
+ * Build a TextSearchResult from a PlaceResult.
+ * Resolves country code via Place Details API for reliable data.
+ */
+async function buildResult(
+  service: google.maps.places.PlacesService,
   place: google.maps.places.PlaceResult,
   locationType: 'business' | 'geographic',
-): TextSearchResult {
+): Promise<TextSearchResult> {
   const address = place.formatted_address ?? ''
+  const placeId = place.place_id ?? ''
+
+  // Resolve country + country code from Place Details (reliable source)
+  let country = extractCountryFromAddress(address)
+  let countryCode: string | null = null
+
+  if (placeId) {
+    try {
+      const resolved = await resolveCountryFromPlaceId(service, placeId)
+      if (resolved) {
+        country = resolved.country
+        countryCode = resolved.countryCode
+      }
+    } catch {
+      console.warn('[placesTextSearch] Failed to resolve country code for', placeId)
+    }
+  }
+
+  // If Place Details failed, countryCode stays null (not empty string)
+  // so grouping logic correctly identifies it as unplaced
   return {
     name: place.name ?? '',
     address,
     lat: place.geometry!.location!.lat(),
     lng: place.geometry!.location!.lng(),
-    placeId: place.place_id ?? '',
-    country: extractCountryFromAddress(address),
-    countryCode: '', // Will be resolved by Geocoder fallback in SaveSheet
+    placeId,
+    country,
+    countryCode,
     locationType,
   }
 }
