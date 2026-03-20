@@ -1,13 +1,14 @@
 import { useRef, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { findPlaceByQuery } from '../lib/googleMaps'
+import { detectLocationFromText } from '../lib/placesTextSearch'
+import { detectCategory } from '../lib/detectCategory'
 import { trackEvent } from '../lib/analytics'
 import type { SavedItem } from '../types'
 
 /**
- * Hook that provides rapid-capture save creation + background Google Places
- * resolution.  Saves are inserted immediately with just a title; location
- * data is resolved asynchronously afterwards.
+ * Hook that provides rapid-capture save creation + background location AND
+ * category detection.  Saves are inserted immediately with just a title;
+ * location + category data is resolved asynchronously afterwards.
  */
 export function useRapidCapture(
   userId: string | undefined,
@@ -31,38 +32,50 @@ export function useRapidCapture(
       setResolvingIds((prev) => { const next = new Set(prev); next.add(item.id); return next })
 
       try {
-        const resolved = await findPlaceByQuery(item.title)
-        if (resolved) {
+        const locationResult = await detectLocationFromText(item.title)
+        const placeTypes = locationResult?.placeTypes ?? null
+        const detectedCategory = detectCategory(item.title, placeTypes)
+
+        const update: Record<string, unknown> = {}
+
+        if (locationResult) {
+          update.location_name = locationResult.address
+          update.location_lat = locationResult.lat
+          update.location_lng = locationResult.lng
+          update.location_place_id = locationResult.placeId
+          update.location_country = locationResult.country
+          update.location_country_code = locationResult.countryCode
+          update.location_name_en = locationResult.name
+        }
+
+        if (detectedCategory) {
+          update.category = detectedCategory
+        }
+
+        if (Object.keys(update).length > 0) {
           const { error } = await supabase
             .from('saved_items')
-            .update({
-              location_name: resolved.location_name,
-              location_lat: resolved.location_lat,
-              location_lng: resolved.location_lng,
-              location_place_id: resolved.location_place_id,
-              location_country: resolved.location_country,
-              location_country_code: resolved.location_country_code,
-              location_name_en: resolved.location_name_en,
-              location_name_local: resolved.location_name_local,
-            })
+            .update(update)
             .eq('id', item.id)
 
           if (!error) {
             onItemUpdated({
               ...item,
-              location_name: resolved.location_name,
-              location_lat: resolved.location_lat,
-              location_lng: resolved.location_lng,
-              location_place_id: resolved.location_place_id,
-              location_country: resolved.location_country,
-              location_country_code: resolved.location_country_code,
-              location_name_en: resolved.location_name_en,
-              location_name_local: resolved.location_name_local,
-            })
+              ...(locationResult ? {
+                location_name: locationResult.address,
+                location_lat: locationResult.lat,
+                location_lng: locationResult.lng,
+                location_place_id: locationResult.placeId,
+                location_country: locationResult.country,
+                location_country_code: locationResult.countryCode,
+                location_name_en: locationResult.name,
+              } : {}),
+              ...(detectedCategory ? { category: detectedCategory } : {}),
+            } as SavedItem)
           }
         }
       } catch {
-        // Non-fatal — item stays without location
+        // Non-fatal — item stays without location/category
       }
 
       // Done resolving this item
@@ -70,7 +83,7 @@ export function useRapidCapture(
 
       // Small delay between resolutions to avoid API quota burst
       if (queueRef.current.length > 0) {
-        await new Promise((r) => setTimeout(r, 200))
+        await new Promise((r) => setTimeout(r, 300))
       }
     }
 
@@ -104,6 +117,7 @@ export function useRapidCapture(
             location_country: null,
             location_country_code: null,
             notes: null,
+            image_display: 'none' as const,
           })
           .select()
           .single(),
@@ -125,7 +139,7 @@ export function useRapidCapture(
         }
       }
 
-      // Queue background resolution
+      // Queue background resolution (location + category)
       if (created.length > 0) {
         queueRef.current.push(...created)
         void processQueue()

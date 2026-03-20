@@ -10,6 +10,7 @@ export interface TextSearchResult {
   country: string
   countryCode: string | null
   locationType: 'business' | 'geographic'
+  placeTypes: string[]
 }
 
 /**
@@ -119,6 +120,8 @@ async function buildResult(
   place: google.maps.places.PlaceResult,
   locationType: 'business' | 'geographic',
 ): Promise<TextSearchResult> {
+  const placeTypes: string[] = place.types ?? []
+
   // Use extractPlaceData for country resolution, skip bilingual names
   // (text search results don't need bilingual display names)
   const locationData = await extractPlaceData(place, { skipBilingual: true })
@@ -133,6 +136,7 @@ async function buildResult(
       country: locationData.location_country,
       countryCode: locationData.location_country_code,
       locationType,
+      placeTypes,
     }
   }
 
@@ -146,6 +150,7 @@ async function buildResult(
     country: 'Unknown',
     countryCode: null,
     locationType,
+    placeTypes,
   }
 }
 

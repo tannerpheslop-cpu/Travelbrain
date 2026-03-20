@@ -5,6 +5,7 @@ import { trackEvent } from '../lib/analytics'
 import { detectLocationFromText } from '../lib/placesTextSearch'
 import { detectUrl } from '../lib/urlDetect'
 import { evaluateImageDisplay } from '../lib/evaluateImageDisplay'
+import { detectCategory, detectCategoryFromText } from '../lib/detectCategory'
 import { useRapidCapture } from '../hooks/useRapidCapture'
 import { MapPin, Loader2 } from 'lucide-react'
 import ImageWithFade from './ImageWithFade'
@@ -76,6 +77,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const [inputText, setInputText] = useState('')
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<Category | null>(null)
+  const [categoryManuallySet, setCategoryManuallySet] = useState(false)
   const [location, setLocation] = useState<LocationSelection | null>(null)
   const [notes, setNotes] = useState('')
   const [saveError, setSaveError] = useState('')
@@ -159,6 +161,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   }, [inputText])
 
   // Run location detection and store as suggestion (not auto-applied)
+  // Also runs category auto-detection from place types + text
   const runLocationDetection = useCallback(async (text: string, geoOnly?: boolean) => {
     if (locationManuallySet || suggestionDismissed) return
     const now = Date.now()
@@ -180,16 +183,29 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
           name_en: result.name,
           name_local: null,
         })
+        // Auto-detect category from place types + text (only if user hasn't manually set)
+        if (!categoryManuallySet) {
+          const detected = detectCategory(text, result.placeTypes)
+          if (detected) setCategory(detected)
+        }
       }
     } catch { /* ignore */ }
     setLocationDetecting(false)
-  }, [locationManuallySet, suggestionDismissed])
+  }, [locationManuallySet, suggestionDismissed, categoryManuallySet])
 
   // Debounced text detection: 1.5s (3+ words) or 2s (1-2 words) after typing stops
   useEffect(() => {
     if (detectionDebounce.current) clearTimeout(detectionDebounce.current)
     const trimmed = inputText.trim()
-    if (!trimmed || detectUrl(inputText) || locationManuallySet || suggestionDismissed) return
+    if (!trimmed || detectUrl(inputText)) return
+
+    // Run category detection immediately on text changes (lightweight, no API call)
+    if (!categoryManuallySet && trimmed.length > 3) {
+      const detected = detectCategoryFromText(trimmed)
+      if (detected) setCategory(detected)
+    }
+
+    if (locationManuallySet || suggestionDismissed) return
     const wordCount = trimmed.split(/\s+/).length
     if (wordCount < 1) return
     const delay = wordCount <= 2 ? 2000 : 1500
@@ -198,13 +214,20 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       runLocationDetection(inputText, geoOnly)
     }, delay)
     return () => { if (detectionDebounce.current) clearTimeout(detectionDebounce.current) }
-  }, [inputText, locationManuallySet, suggestionDismissed, runLocationDetection])
+  }, [inputText, locationManuallySet, suggestionDismissed, categoryManuallySet, runLocationDetection])
 
-  // URL metadata → location detection
+  // URL metadata → location detection + category detection
   useEffect(() => {
-    if (!metadata || locationManuallySet || suggestionDismissed) return
+    if (!metadata) return
     const text = [metadata.title, metadata.description].filter(Boolean).join(' ')
-    if (text.length > 10) {
+
+    // Auto-detect category from metadata text (only if user hasn't manually set)
+    if (!categoryManuallySet && text.length > 5) {
+      const detected = detectCategoryFromText(text)
+      if (detected) setCategory(detected)
+    }
+
+    if (!locationManuallySet && !suggestionDismissed && text.length > 10) {
       runLocationDetection(text)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -327,31 +350,44 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
 
     const savedItem = data as SavedItem
 
-    // If no location was set and the input had 3+ words, fire background detection
+    // Background detection for location + category on items saved without them
     const savedWithoutLocation = !location
+    const savedWithDefaultCategory = !categoryManuallySet && (category === null || category === 'general')
     const textForDetection = inputText.trim()
     const metadataText = metadata ? [metadata.title, metadata.description].filter(Boolean).join(' ') : ''
     const detectionInput = detectedUrl ? metadataText : textForDetection
     const wordCount = detectionInput.split(/\s+/).length
 
-    if (savedWithoutLocation && wordCount >= 3 && !locationManuallySet) {
+    if ((savedWithoutLocation || savedWithDefaultCategory) && wordCount >= 2) {
       // Run detection in background and update the item silently
       const itemId = savedItem.id
       const controller = new AbortController()
       pendingLocationUpdates.current.set(itemId, controller)
 
       detectLocationFromText(detectionInput).then(async (result) => {
-        if (controller.signal.aborted || !result) return
-        // Update the saved item with detected location
-        await supabase.from('saved_items').update({
-          location_name: result.address,
-          location_lat: result.lat,
-          location_lng: result.lng,
-          location_place_id: result.placeId,
-          location_country: result.country,
-          location_country_code: result.countryCode,
-          location_name_en: result.name,
-        }).eq('id', itemId)
+        if (controller.signal.aborted) return
+
+        const update: Record<string, unknown> = {}
+
+        if (result && savedWithoutLocation) {
+          update.location_name = result.address
+          update.location_lat = result.lat
+          update.location_lng = result.lng
+          update.location_place_id = result.placeId
+          update.location_country = result.country
+          update.location_country_code = result.countryCode
+          update.location_name_en = result.name
+        }
+
+        if (savedWithDefaultCategory) {
+          const placeTypes = result?.placeTypes ?? null
+          const detectedCat = detectCategory(detectionInput, placeTypes)
+          if (detectedCat) update.category = detectedCat
+        }
+
+        if (Object.keys(update).length > 0) {
+          await supabase.from('saved_items').update(update).eq('id', itemId)
+        }
       }).catch(() => { /* silent */ }).finally(() => {
         pendingLocationUpdates.current.delete(itemId)
       })
@@ -377,6 +413,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       setSaved(false)
       setSaveError('')
       setLocationManuallySet(false)
+      setCategoryManuallySet(false)
       setLocationDetecting(false)
       setDetectedLocation(null)
       setSuggestionDismissed(false)
@@ -614,7 +651,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 <button
                   key={cat.value}
                   type="button"
-                  onClick={() => setCategory(active ? null : cat.value)}
+                  onClick={() => { setCategory(active ? null : cat.value); setCategoryManuallySet(true) }}
                   style={{
                     fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
                     fontWeight: active ? 600 : 400,
