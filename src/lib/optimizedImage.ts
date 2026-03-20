@@ -14,6 +14,30 @@ export type ImageContext =
   | 'detail-page'
   | 'destination-card'
 
+/** Sizing params that optimizedImageUrl manages — strip before re-appending */
+const SIZING_PARAMS = ['w', 'h', 'q', 'fit', 'crop', 'auto']
+
+/**
+ * Strip render-time sizing parameters from an Unsplash URL so the database
+ * stores only the base URL. Returns the URL unchanged if no sizing params found.
+ */
+export function cleanUnsplashUrl(url: string): string {
+  if (!url.includes('unsplash.com')) return url
+  try {
+    const u = new URL(url)
+    let changed = false
+    for (const p of SIZING_PARAMS) {
+      if (u.searchParams.has(p)) {
+        u.searchParams.delete(p)
+        changed = true
+      }
+    }
+    return changed ? u.toString() : url
+  } catch {
+    return url
+  }
+}
+
 export function optimizedImageUrl(
   url: string | null,
   context: ImageContext,
@@ -32,12 +56,14 @@ export function optimizedImageUrl(
   const config = configs[context]
 
   if (url.includes('unsplash.com')) {
-    const separator = url.includes('?') ? '&' : '?'
+    // Strip any existing sizing params so we don't double-append
+    const baseUrl = cleanUnsplashUrl(url)
+    const separator = baseUrl.includes('?') ? '&' : '?'
     let params = `${separator}w=${config.w}&q=${config.q}&auto=format`
     if (config.h) {
       params += `&h=${config.h}&fit=crop&crop=center`
     }
-    return `${url}${params}`
+    return `${baseUrl}${params}`
   }
 
   // Non-Unsplash URLs: return as-is
