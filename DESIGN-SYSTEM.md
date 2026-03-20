@@ -151,7 +151,7 @@ https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Jet
 **Card border radius:** 12-16px for page-level cards, 10-12px for smaller cards, 3-6px for pills and badges.
 
 **Grid layouts:**
-- Inbox: `repeat(auto-fill, minmax(240px, 1fr))`, gap 12px
+- Inbox: 2-column grid (`1fr 1fr`), gap 8px
 - Items within expanded destinations: 2-column grid
 - Trip library: Hero card full-width, then horizontal carousels
 
@@ -302,7 +302,7 @@ Centered. Icon in JetBrains Mono 24-32px, color `--color-text-faint`, opacity 0.
 
 ### Inbox (Travel Brain)
 
-- Grid view: CSS grid `repeat(auto-fill, minmax(240px, 1fr))`, gap 12px
+- Gallery view uses a 2-column grid (1fr 1fr, gap 8px). Two card types: Image cards (image_display='thumbnail') have full-bleed image, dark gradient overlay (transparent to 70% black), white text/pills at bottom. Text cards (image_display='none') have warm --color-bg-muted background, source icon, title, and colored pills. Both card types are 160px tall. Trip link count pill appears in top-right corner when item is linked to 1+ trips. Country grouping headers separate the cards by country.
 - List view: vertical stack with hover background tint
 - Grouped by country with country code badge + spaced-uppercase country header (JetBrains Mono 700, 11px, letter-spacing 2px)
 - Search bar at top of header
@@ -311,7 +311,8 @@ Centered. Icon in JetBrains Mono 24-32px, color `--color-text-faint`, opacity 0.
 - Floating + save button (fixed bottom-right, accent color, circular, 52px, shadow `0 4px 16px rgba(196,90,45,0.35)`)
 - Brand mark "youji 游记" above page title
 - Page metadata line: "{N} saves · {N} countries" in JetBrains Mono
-- Items without images render as text entries — no gray placeholder thumbnail area. Text entries show: source icon + source name at top, title in DM Sans 14px 600, description excerpt in DM Sans 12px 400 `--color-text-secondary` (2-3 lines), city/category pills and date at bottom, and a subtle dashed "+ add photo" prompt (JetBrains Mono 10px, `--color-text-faint`, dashed top border). Text entries should feel intentionally designed, not like missing images.
+- Image cards: full-bleed photo with gradient overlay, white title (DM Sans 12px 600, 2-line clamp), white location pill (JetBrains Mono 7px, rgba(255,255,255,0.85) on rgba(255,255,255,0.18)) + category pill (rgba(255,255,255,0.6) on rgba(255,255,255,0.1)). Image fades in (opacity 0→1 over 0.2s). Falls back to text card on image error.
+- Text cards: --color-bg-muted background, source icon (16px) + source name at top, title (DM Sans 12px 600, 2-line clamp), accent-tinted location pill + neutral category pill at bottom. Content pinned to bottom of card.
 
 ### Trips Library
 

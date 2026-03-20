@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../lib/auth'
-import { useSavedItems, useTripsQuery, useTripItemMappings, useDeleteItem, queryKeys, fetchTrips } from '../hooks/queries'
+import { useSavedItems, useTripsQuery, useTripItemMappings, useTripLinkCounts, useDeleteItem, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
 import { categoryLabel } from '../utils/categoryIcons'
 import { optimizedImageUrl } from '../lib/optimizedImage'
@@ -93,6 +93,7 @@ export default function InboxPage() {
   const { data: tripsWithDests = [] } = useTripsQuery()
   const trips = tripsWithDests // For the filter dropdown we just need id + title
   const { data: allTripItems = [] } = useTripItemMappings()
+  const tripLinkCounts = useTripLinkCounts()
   const deleteItemMutation = useDeleteItem()
 
   const loading = itemsLoading
@@ -220,16 +221,18 @@ export default function InboxPage() {
 
   const geoGroups = useMemo(() => groupByCountry(filtered), [filtered])
 
-  // Preload first-screen thumbnail images
+  // Preload first-screen gallery images
   useEffect(() => {
     if (filtered.length === 0) return
-    filtered.slice(0, 10).forEach((item) => {
-      const url = item.image_url ?? item.places_photo_url
-      if (url && item.image_display === 'thumbnail') {
-        const img = new Image()
-        img.src = optimizedImageUrl(url, 'grid-thumbnail') ?? url
-      }
-    })
+    filtered
+      .filter((i) => i.image_display === 'thumbnail')
+      .slice(0, 6)
+      .forEach((item) => {
+        if (item.image_url) {
+          const img = new Image()
+          img.src = optimizedImageUrl(item.image_url, 'gallery-card') ?? item.image_url
+        }
+      })
   }, [filtered])
 
   const uniqueCountries = useMemo(() => {
@@ -392,9 +395,9 @@ export default function InboxPage() {
 
       {/* ── Loading Skeletons ── */}
       {loading && (
-        <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10 }}>
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="rounded-[10px] animate-pulse bg-bg-muted" style={{ height: 56 }} />
+        <div className="grid grid-cols-2" style={{ gap: 8 }}>
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="rounded-[10px] animate-pulse bg-bg-muted" style={{ height: 160 }} />
           ))}
         </div>
       )}
@@ -448,9 +451,9 @@ export default function InboxPage() {
 
               {/* Grid or List */}
               {viewMode === 'grid' ? (
-                <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 10 }}>
+                <div className="grid grid-cols-2" style={{ gap: 8 }}>
                   {group.items.map((item) => (
-                    <GridCard key={item.id} item={item} onDelete={() => handleDeleteItem(item.id)} />
+                    <GridCard key={item.id} item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} onDelete={() => handleDeleteItem(item.id)} />
                   ))}
                 </div>
               ) : (
@@ -488,25 +491,62 @@ export default function InboxPage() {
 
 function GridCard({
   item,
+  tripCount,
   onDelete,
 }: {
   item: SavedItem
+  tripCount: number
   onDelete: () => void
 }) {
   const display = item.image_display ?? 'none'
 
-  if (display === 'featured') {
-    return <FeaturedCard item={item} onDelete={onDelete} />
-  }
   if (display === 'thumbnail') {
-    return <ThumbnailCard item={item} onDelete={onDelete} />
+    return <ImageCard item={item} tripCount={tripCount} onDelete={onDelete} />
   }
-  return <TextCard item={item} onDelete={onDelete} />
+  return <TextCard item={item} tripCount={tripCount} onDelete={onDelete} />
 }
 
-// ─── Thumbnail Card (image_display = 'thumbnail') ────────────────────────────
+// ─── Trip Count Pill (shared between card types) ─────────────────────────────
 
-function ThumbnailCard({ item, onDelete }: { item: SavedItem; onDelete: () => void }) {
+function TripCountPill({ count, variant }: { count: number; variant: 'image' | 'text' }) {
+  if (count <= 0) return null
+  const label = count === 1 ? '1 trip' : `${count} trips`
+
+  if (variant === 'image') {
+    return (
+      <span
+        className="absolute z-[2] font-mono text-[7px] font-medium"
+        style={{
+          top: 8, right: 8,
+          color: 'rgba(255,255,255,0.9)',
+          background: 'rgba(0,0,0,0.35)',
+          padding: '2px 6px',
+          borderRadius: 4,
+        }}
+      >
+        {label}
+      </span>
+    )
+  }
+
+  return (
+    <span
+      className="absolute font-mono text-[7px] font-medium text-accent"
+      style={{
+        top: 8, right: 8,
+        background: 'var(--color-accent-light)',
+        padding: '2px 6px',
+        borderRadius: 4,
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
+// ─── Image Card (image_display = 'thumbnail') ────────────────────────────────
+
+function ImageCard({ item, tripCount, onDelete }: { item: SavedItem; tripCount: number; onDelete: () => void }) {
   const city = item.location_name ? extractCity(item.location_name) : null
   const imgUrl = item.image_url ?? item.places_photo_url ?? null
   const [imgLoaded, setImgLoaded] = useState(false)
@@ -514,145 +554,149 @@ function ThumbnailCard({ item, onDelete }: { item: SavedItem; onDelete: () => vo
 
   // If image fails, render as text card
   if (imgFailed || !imgUrl) {
-    return <TextCard item={item} onDelete={onDelete} />
+    return <TextCard item={item} tripCount={tripCount} onDelete={onDelete} />
   }
 
   return (
     <SwipeToDelete onDelete={onDelete}>
-      <div className="group">
-        <Link
-          to={`/item/${item.id}`}
-          className="flex bg-bg-card overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-[1px]"
-          style={{ borderRadius: 10, border: '1px solid var(--color-border)', cursor: 'pointer' }}
-        >
-          {/* Left: square image */}
-          <div className="shrink-0 bg-bg-muted" style={{ width: 56, height: 56 }}>
-            <img
-              src={optimizedImageUrl(imgUrl, 'grid-thumbnail') ?? imgUrl}
-              alt=""
-              className="w-full h-full object-cover"
-              style={{ opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.2s ease' }}
-              onLoad={() => setImgLoaded(true)}
-              onError={() => setImgFailed(true)}
-            />
+      <Link
+        to={`/item/${item.id}`}
+        className="block relative overflow-hidden"
+        style={{ borderRadius: 10, height: 160, cursor: 'pointer' }}
+      >
+        {/* Image */}
+        <div className="absolute inset-0 bg-bg-muted">
+          <img
+            src={optimizedImageUrl(imgUrl, 'gallery-card') ?? imgUrl}
+            alt=""
+            className="w-full h-full object-cover"
+            style={{ opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.2s ease' }}
+            onLoad={() => setImgLoaded(true)}
+            onError={() => setImgFailed(true)}
+          />
+        </div>
+        {/* Gradient overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'linear-gradient(to bottom, transparent 35%, rgba(0,0,0,0.7) 100%)' }}
+        />
+        {/* Trip count pill */}
+        <TripCountPill count={tripCount} variant="image" />
+        {/* Content at bottom */}
+        <div className="absolute bottom-0 left-0 right-0" style={{ padding: '8px 10px' }}>
+          <p
+            className="text-[12px] font-semibold text-white"
+            style={{
+              lineHeight: 1.3,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
+            {item.title}
+          </p>
+          <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
+            {city && (
+              <span
+                className="font-mono text-[7px] font-medium truncate"
+                style={{
+                  color: 'rgba(255,255,255,0.85)',
+                  background: 'rgba(255,255,255,0.18)',
+                  padding: '2px 5px',
+                  borderRadius: 3,
+                  maxWidth: 100,
+                }}
+              >
+                {city}
+              </span>
+            )}
+            <span
+              className="font-mono text-[7px]"
+              style={{
+                color: 'rgba(255,255,255,0.6)',
+                background: 'rgba(255,255,255,0.1)',
+                padding: '2px 5px',
+                borderRadius: 3,
+              }}
+            >
+              {categoryLabel[item.category]}
+            </span>
           </div>
-          {/* Right: content */}
-          <div className="flex-1 min-w-0 flex flex-col justify-center" style={{ padding: '8px 10px' }}>
-            <p className="text-[12px] font-semibold text-text-primary truncate leading-snug group-hover:text-accent transition-colors">
-              {item.title}
-            </p>
-            <div className="flex items-center gap-1 mt-1">
-              {city && (
-                <span className="inline-block px-1 py-[1px] rounded bg-accent-light font-mono text-[8px] font-medium text-accent leading-none truncate max-w-[90px]">
-                  {city}
-                </span>
-              )}
-              <CategoryPill label={categoryLabel[item.category]} className="!text-[8px] !px-1 !py-[1px]" />
-            </div>
-          </div>
-        </Link>
-      </div>
+        </div>
+      </Link>
     </SwipeToDelete>
   )
 }
 
 // ─── Text Card (image_display = 'none') ──────────────────────────────────────
 
-function TextCard({ item, onDelete }: { item: SavedItem; onDelete: () => void }) {
+function TextCard({ item, tripCount, onDelete }: { item: SavedItem; tripCount: number; onDelete: () => void }) {
   const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
 
   return (
     <SwipeToDelete onDelete={onDelete}>
-      <div className="group">
-        <Link
-          to={`/item/${item.id}`}
-          className="block bg-bg-card overflow-hidden transition-all duration-150 ease-out hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-[1px]"
-          style={{ borderRadius: 10, border: '1px solid var(--color-border)', padding: '8px 10px', cursor: 'pointer' }}
+      <Link
+        to={`/item/${item.id}`}
+        className="block relative overflow-hidden bg-bg-muted"
+        style={{ borderRadius: 10, height: 160, cursor: 'pointer' }}
+      >
+        {/* Trip count pill */}
+        <TripCountPill count={tripCount} variant="text" />
+        {/* Content — pinned to bottom */}
+        <div
+          className="flex flex-col justify-end"
+          style={{ padding: 10, height: '100%', boxSizing: 'border-box' }}
         >
-          {/* Source line */}
-          <div className="flex items-center gap-1.5">
-            <SourceIcon source={sourceKey} size={18} className="!text-[9px]" />
-            <span className="font-mono text-[8px] text-text-tertiary truncate">
+          {/* Source row */}
+          <div className="flex items-center gap-1.5" style={{ marginBottom: 6 }}>
+            <SourceIcon source={sourceKey} size={16} className="!text-[8px]" />
+            <span className="font-mono text-[8px] text-text-faint truncate">
               {item.site_name ?? item.source_type}
             </span>
           </div>
           {/* Title */}
-          <p className="text-[12px] font-semibold text-text-primary truncate leading-snug mt-1 group-hover:text-accent transition-colors">
+          <p
+            className="text-[12px] font-semibold text-text-primary"
+            style={{
+              lineHeight: 1.3,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+            }}
+          >
             {item.title}
           </p>
           {/* Pills */}
-          <div className="flex items-center gap-1 mt-1">
+          <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
             {city && (
-              <span className="inline-block px-1 py-[1px] rounded bg-accent-light font-mono text-[8px] font-medium text-accent leading-none truncate max-w-[90px]">
+              <span
+                className="font-mono text-[7px] font-medium text-accent truncate"
+                style={{
+                  background: 'var(--color-accent-light)',
+                  padding: '2px 5px',
+                  borderRadius: 3,
+                  maxWidth: 100,
+                }}
+              >
                 {city}
               </span>
             )}
-            <CategoryPill label={categoryLabel[item.category]} className="!text-[8px] !px-1 !py-[1px]" />
+            <span
+              className="font-mono text-[7px] text-text-tertiary"
+              style={{
+                background: 'var(--color-bg-pill)',
+                padding: '2px 5px',
+                borderRadius: 3,
+              }}
+            >
+              {categoryLabel[item.category]}
+            </span>
           </div>
-        </Link>
-      </div>
-    </SwipeToDelete>
-  )
-}
-
-// ─── Featured Card (image_display = 'featured') ─────────────────────────────
-
-function FeaturedCard({ item, onDelete }: { item: SavedItem; onDelete: () => void }) {
-  const city = item.location_name ? extractCity(item.location_name) : null
-  const imgUrl = item.image_url ?? item.places_photo_url ?? null
-  const [imgLoaded, setImgLoaded] = useState(false)
-  const [imgFailed, setImgFailed] = useState(false)
-
-  // If image fails, fall back to thumbnail card
-  if (imgFailed || !imgUrl) {
-    return <ThumbnailCard item={item} onDelete={onDelete} />
-  }
-
-  return (
-    <SwipeToDelete onDelete={onDelete}>
-      <div className="group" style={{ gridColumn: '1 / -1' }}>
-        <Link
-          to={`/item/${item.id}`}
-          className="block overflow-hidden relative transition-all duration-150 ease-out hover:shadow-[0_6px_24px_rgba(0,0,0,0.08)] hover:-translate-y-[1px]"
-          style={{ borderRadius: 12, cursor: 'pointer' }}
-        >
-          {/* Image */}
-          <div className="bg-bg-muted" style={{ height: 100 }}>
-            <img
-              src={optimizedImageUrl(imgUrl, 'featured-card') ?? imgUrl}
-              alt=""
-              className="w-full h-full object-cover"
-              style={{ opacity: imgLoaded ? 1 : 0, transition: 'opacity 0.2s ease' }}
-              onLoad={() => setImgLoaded(true)}
-              onError={() => setImgFailed(true)}
-            />
-          </div>
-          {/* Gradient overlay */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{ background: 'linear-gradient(to bottom, transparent 30%, rgba(0,0,0,0.6) 100%)' }}
-          />
-          {/* Content over gradient */}
-          <div className="absolute bottom-0 left-0 right-0" style={{ padding: '8px 10px' }}>
-            <p className="text-[14px] font-bold text-white leading-snug truncate" style={{ textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
-              {item.title}
-            </p>
-            <div className="flex items-center gap-1 mt-1">
-              {city && (
-                <span className="inline-block px-1 py-[1px] rounded font-mono text-[8px] font-medium leading-none truncate max-w-[120px]"
-                  style={{ background: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.9)' }}>
-                  {city}
-                </span>
-              )}
-              <span className="inline-block px-1 py-[1px] rounded font-mono text-[8px] font-medium leading-none"
-                style={{ background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.8)' }}>
-                {categoryLabel[item.category]}
-              </span>
-            </div>
-          </div>
-        </Link>
-      </div>
+        </div>
+      </Link>
     </SwipeToDelete>
   )
 }
