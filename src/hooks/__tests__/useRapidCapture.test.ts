@@ -69,18 +69,19 @@ vi.mock('../../lib/analytics', () => ({
 }))
 
 import { useRapidCapture } from '../useRapidCapture'
+import type { SavedItem } from '../../types'
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('useRapidCapture', () => {
   const userId = 'user-123'
-  let onItemCreated: ReturnType<typeof vi.fn>
-  let onItemUpdated: ReturnType<typeof vi.fn>
+  let onItemCreated: ReturnType<typeof vi.fn<(item: SavedItem) => void>>
+  let onItemUpdated: ReturnType<typeof vi.fn<(item: SavedItem) => void>>
 
   beforeEach(() => {
     vi.clearAllMocks()
-    onItemCreated = vi.fn()
-    onItemUpdated = vi.fn()
+    onItemCreated = vi.fn<(item: SavedItem) => void>()
+    onItemUpdated = vi.fn<(item: SavedItem) => void>()
     mockDetectLocation.mockResolvedValue(null) // default: no location found
   })
 

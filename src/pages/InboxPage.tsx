@@ -240,7 +240,7 @@ export default function InboxPage() {
   useEffect(() => {
     if (tripsWithDests.length === 0) return
     tripsWithDests.slice(0, 3).forEach((trip) => {
-      const coverUrl = trip.destinations?.[0]?.image_url ?? trip.cover_image_url
+      const coverUrl = trip.trip_destinations?.[0]?.image_url ?? trip.cover_image_url
       if (coverUrl) {
         const img = new Image()
         img.src = optimizedImageUrl(coverUrl, 'hero-card') ?? coverUrl

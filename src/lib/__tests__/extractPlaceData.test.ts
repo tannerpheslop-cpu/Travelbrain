@@ -18,7 +18,7 @@ vi.mock('../googleMaps', () => ({
 //    we test them indirectly through extractPlaceData. But we can also test
 //    the exported extractPlaceData function directly with mock PlaceResults.
 
-import { extractPlaceData, type LocationData } from '../extractPlaceData'
+import { extractPlaceData } from '../extractPlaceData'
 
 // ── Helper to create a mock PlaceResult ──────────────────────────────────────
 
@@ -58,7 +58,7 @@ function makePlaceResult(overrides: {
 beforeEach(() => {
   vi.clearAllMocks()
   // Minimal mock of window.google to prevent resolveCountryFromPlaceId from crashing
-  ;(window as Record<string, unknown>).google = {
+  ;(window as unknown as Record<string, unknown>).google = {
     maps: {
       places: {
         PlacesService: class {
