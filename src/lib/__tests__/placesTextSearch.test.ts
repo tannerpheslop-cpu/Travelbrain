@@ -62,9 +62,31 @@ function makePlaceResult(overrides: {
 
 // Set up mock Google Maps before importing detectLocationFromText
 const mockTextSearch = vi.fn()
+const mockGetDetails = vi.fn()
+
+/** Map from placeId → { country, countryCode } for getDetails mock */
+const placeCountryMap: Record<string, { country: string; countryCode: string }> = {}
 
 function setupGoogleMock() {
-  const mockService = { textSearch: mockTextSearch }
+  // Default getDetails implementation: returns country data from placeCountryMap
+  mockGetDetails.mockImplementation(
+    (req: { placeId: string }, cb: (result: google.maps.places.PlaceResult | null, status: string) => void) => {
+      const entry = placeCountryMap[req.placeId]
+      if (entry) {
+        cb({
+          address_components: [{
+            long_name: entry.country,
+            short_name: entry.countryCode,
+            types: ['country', 'political'],
+          }],
+        } as unknown as google.maps.places.PlaceResult, 'OK')
+      } else {
+        cb(null, 'NOT_FOUND')
+      }
+    }
+  )
+
+  const mockService = { textSearch: mockTextSearch, getDetails: mockGetDetails }
   // Must use a real function (not arrow) so it can be called with `new`
   function MockPlacesService() { return mockService }
   const mockGoogle = {
@@ -89,6 +111,9 @@ describe('detectLocationFromText', () => {
 
   beforeEach(async () => {
     mockTextSearch.mockReset()
+    mockGetDetails.mockReset()
+    // Clear country map
+    for (const key of Object.keys(placeCountryMap)) delete placeCountryMap[key]
     setupGoogleMock()
     // Re-import to pick up fresh mocks
     const mod = await import('../placesTextSearch')
@@ -129,6 +154,7 @@ describe('detectLocationFromText', () => {
   })
 
   it('returns business result for "Ichiran Ramen" (direct place lookup)', async () => {
+    placeCountryMap['ichiran1'] = { country: 'Japan', countryCode: 'JP' }
     mockTextSearch.mockImplementation(
       (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
         cb([makePlaceResult({
@@ -144,9 +170,13 @@ describe('detectLocationFromText', () => {
     expect(result).not.toBeNull()
     expect(result!.name).toBe('Ichiran Ramen')
     expect(result!.locationType).toBe('business')
+    expect(result!.countryCode).toBe('JP')
+    expect(result!.country).toBe('Japan')
   })
 
   it('returns geographic result for "Amazing hotpot in Chengdu"', async () => {
+    placeCountryMap['hotpot1'] = { country: 'China', countryCode: 'CN' }
+    placeCountryMap['chengdu1'] = { country: 'China', countryCode: 'CN' }
     // First call returns business, second call (city search) returns Chengdu
     let callCount = 0
     mockTextSearch.mockImplementation(
@@ -175,9 +205,11 @@ describe('detectLocationFromText', () => {
     expect(result).not.toBeNull()
     expect(result!.name).toBe('Chengdu')
     expect(result!.locationType).toBe('geographic')
+    expect(result!.countryCode).toBe('CN')
   })
 
   it('returns geographic result for "Kunming" (city name)', async () => {
+    placeCountryMap['kunming1'] = { country: 'China', countryCode: 'CN' }
     mockTextSearch.mockImplementation(
       (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
         cb([makePlaceResult({
@@ -193,9 +225,11 @@ describe('detectLocationFromText', () => {
     expect(result).not.toBeNull()
     expect(result!.name).toBe('Kunming')
     expect(result!.locationType).toBe('geographic')
+    expect(result!.countryCode).toBe('CN')
   })
 
   it('returns result for "Great Wall" (landmark)', async () => {
+    placeCountryMap['gw1'] = { country: 'China', countryCode: 'CN' }
     mockTextSearch.mockImplementation(
       (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
         cb([makePlaceResult({
@@ -210,6 +244,27 @@ describe('detectLocationFromText', () => {
     const result = await detectLocationFromText('Great Wall')
     expect(result).not.toBeNull()
     expect(result!.name).toBe('Great Wall of China')
+    expect(result!.countryCode).toBe('CN')
+  })
+
+  it('returns null countryCode when Place Details fails', async () => {
+    // Don't add to placeCountryMap — getDetails will return NOT_FOUND
+    mockTextSearch.mockImplementation(
+      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
+        cb([makePlaceResult({
+          name: 'Some Place',
+          address: 'Somewhere, Unknown Country',
+          lat: 10.0, lng: 20.0,
+          placeId: 'unknown1',
+          types: ['locality', 'political'],
+        })], 'OK')
+      }
+    )
+    const result = await detectLocationFromText('Some Place')
+    expect(result).not.toBeNull()
+    expect(result!.countryCode).toBeNull()
+    // Country falls back to formatted_address parsing
+    expect(result!.country).toBe('Unknown Country')
   })
 
   it('returns null for "travel packing tips" (no location)', async () => {
