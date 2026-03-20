@@ -3,6 +3,8 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import { useSavedItem, useDeleteItem, queryKeys } from '../hooks/queries'
+import { useQueryClient } from '@tanstack/react-query'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { SecondaryButton, ConfirmDeleteModal } from '../components/ui'
@@ -31,9 +33,11 @@ export default function ItemDetailPage() {
   const navigate = useNavigate()
   const navLocation = useLocation()
   const backTo = (navLocation.state as { from?: string })?.from || '/inbox'
+  const queryClient = useQueryClient()
+  const { data: itemData, isLoading: itemLoading, error: itemError } = useSavedItem(id)
+  const deleteItemMutation = useDeleteItem()
 
   const [item, setItem] = useState<SavedItem | null>(null)
-  const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [imgFailed, setImgFailed] = useState(false)
 
@@ -60,49 +64,40 @@ export default function ItemDetailPage() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initializedRef = useRef(false)
 
-  // Fetch item
+  // Derive loading / notFound from React Query state
+  const loading = itemLoading
+
+  // Sync React Query data into local editable state (once on first load)
   useEffect(() => {
-    if (!user || !id) return
-
-    const fetchItem = async () => {
-      const { data, error } = await supabase
-        .from('saved_items')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .single()
-
-      if (error || !data) {
-        setNotFound(true)
-        setLoading(false)
-        return
-      }
-
-      const saved = data as SavedItem
-      setItem(saved)
-      setTitle(saved.title)
-      setCategory(saved.category)
-      setLocation(saved.location_name ? {
-        name: saved.location_name,
-        lat: saved.location_lat ?? 0,
-        lng: saved.location_lng ?? 0,
-        place_id: saved.location_place_id ?? '',
-        country: saved.location_country ?? null,
-        country_code: saved.location_country_code ?? null,
+    if (itemData && !initializedRef.current) {
+      setItem(itemData)
+      setTitle(itemData.title)
+      setCategory(itemData.category)
+      setLocation(itemData.location_name ? {
+        name: itemData.location_name,
+        lat: itemData.location_lat ?? 0,
+        lng: itemData.location_lng ?? 0,
+        place_id: itemData.location_place_id ?? '',
+        country: itemData.location_country ?? null,
+        country_code: itemData.location_country_code ?? null,
         location_type: 'city',
         proximity_radius_km: 50,
-        name_en: saved.location_name_en ?? null,
-        name_local: saved.location_name_local ?? null,
+        name_en: itemData.location_name_en ?? null,
+        name_local: itemData.location_name_local ?? null,
       } : null)
-      setNotes(saved.notes || '')
-      setTags(saved.tags?.join(', ') || '')
-      setLoading(false)
+      setNotes(itemData.notes || '')
+      setTags(itemData.tags?.join(', ') || '')
       // Mark initialized after state is set so debounce doesn't fire on mount
       setTimeout(() => { initializedRef.current = true }, 0)
     }
+  }, [itemData])
 
-    fetchItem()
-  }, [user, id])
+  // Derive notFound from query state
+  useEffect(() => {
+    if (!itemLoading && !itemData && (itemError || !id)) {
+      setNotFound(true)
+    }
+  }, [itemLoading, itemData, itemError, id])
 
   // Auto-save with debounce
   const saveChanges = useCallback(async (updates: Partial<SavedItem>) => {
@@ -116,9 +111,11 @@ export default function ItemDetailPage() {
     setSaveStatus(error ? 'idle' : 'saved')
     if (!error) {
       trackEvent('save_edited', user?.id ?? null, { item_id: id, fields_changed: Object.keys(updates) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.savedItem(id!) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
       setTimeout(() => setSaveStatus('idle'), 1500)
     }
-  }, [id, user?.id])
+  }, [id, user?.id, queryClient])
 
   const debouncedSave = useCallback((updates: Partial<SavedItem>) => {
     if (!initializedRef.current) return
@@ -164,6 +161,8 @@ export default function ItemDetailPage() {
           .eq('id', item.id)
         setItem((prev) => prev ? { ...prev, image_url: data.image ?? null } : prev)
         setImgFailed(false)
+        queryClient.invalidateQueries({ queryKey: queryKeys.savedItem(item.id) })
+        queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
       } else {
         handleToast('No image found for this link')
       }
@@ -190,32 +189,14 @@ export default function ItemDetailPage() {
   const handleDelete = async () => {
     if (!id || !user) return
     setDeleting(true)
-    try {
-      // 1. Delete destination_items referencing this item
-      await supabase.from('destination_items').delete().eq('item_id', id)
-      // 2. Delete trip_general_items referencing this item
-      await supabase.from('trip_general_items').delete().eq('item_id', id)
-      // 3. Delete comments referencing this item
-      await supabase.from('comments').delete().eq('item_id', id)
-      // 4. Delete votes referencing this item
-      await supabase.from('votes').delete().eq('item_id', id)
-      // 5. Delete the saved_item itself
-      const { error } = await supabase.from('saved_items').delete().eq('id', id).eq('user_id', user.id)
-      if (error) {
-        console.error('[item-detail] delete error:', error)
+    deleteItemMutation.mutate(id, {
+      onSuccess: () => navigate('/inbox', { state: { toast: 'Item deleted' } }),
+      onError: () => {
         setDeleting(false)
         setShowDeleteConfirm(false)
         handleToast('Failed to delete item')
-        return
-      }
-      // 6. Navigate back to inbox with toast
-      navigate('/inbox', { state: { toast: 'Item deleted' } })
-    } catch (err) {
-      console.error('[item-detail] delete threw:', err)
-      setDeleting(false)
-      setShowDeleteConfirm(false)
-      handleToast('Failed to delete item')
-    }
+      },
+    })
   }
 
   if (loading) {

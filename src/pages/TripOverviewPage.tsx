@@ -1,16 +1,18 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
-import { useCompanions } from '../hooks/useCompanions'
-import { useRoutes } from '../hooks/useRoutes'
+import { useTripQuery, useTripDestinations, useInboxClusters, useDeleteTrip, useToggleFavorite, useCompanionsQuery, queryKeys, type DestWithCount } from '../hooks/queries'
+import { useCompanions as useCompanionsLegacy } from '../hooks/useCompanions'
 import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
+import { useRoutes } from '../hooks/useRoutes'
 import type { Trip, TripDestination, TripNote, TripRoute, SharePrivacy } from '../types'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { trySetTripCoverFromName, maybeUpdateCoverFromDestination } from '../lib/tripCoverImage'
-import { getInboxClusters, type CountryCluster } from '../lib/clusters'
+import { type CountryCluster } from '../lib/clusters'
 import { BrandMark, CountryCodeBadge, StatusBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton, ConfirmDeleteModal } from '../components/ui'
 import DestinationCard from '../components/DestinationCard'
 import CalendarRangePicker from '../components/CalendarRangePicker'
@@ -39,8 +41,6 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 
 // ── Local types ────────────────────────────────────────────────────────────────
-
-type DestWithCount = TripDestination & { _count: number }
 
 type OverviewEntry =
   | { type: 'destination'; destination: DestWithCount; sortKey: number }
@@ -742,15 +742,44 @@ export default function TripOverviewPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
 
-  // Core state
+  const queryClient = useQueryClient()
+
+  // Core state — from React Query
+  const { data: tripData, isLoading: tripQueryLoading, error: tripError } = useTripQuery(id)
+  const { data: destsData, isLoading: destsQueryLoading } = useTripDestinations(id)
+  useCompanionsQuery(id) // pre-warm cache for companion modal
+  const { data: inboxClustersData } = useInboxClusters()
+  const deleteTripMutation = useDeleteTrip()
+  const toggleFavMutation = useToggleFavorite()
+
+  // Local mutable state derived from query data (for optimistic updates)
   const [trip, setTrip] = useState<Trip | null>(null)
   const [tripLoading, setTripLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
-
   const [destinations, setDestinations] = useState<DestWithCount[]>([])
   const [destsLoading, setDestsLoading] = useState(true)
-
   const [tripNotes, setTripNotes] = useState<TripNote[]>([])
+
+  // Sync React Query data into local state (for optimistic mutations)
+  useEffect(() => {
+    if (tripData) {
+      setTrip(tripData)
+      setTripLoading(false)
+      setNotFound(false)
+    } else if (!tripQueryLoading && !tripData) {
+      if (tripError) setNotFound(true)
+      setTripLoading(false)
+    }
+  }, [tripData, tripQueryLoading, tripError])
+
+  useEffect(() => {
+    if (destsData) {
+      setDestinations(destsData)
+      setDestsLoading(false)
+    } else if (!destsQueryLoading) {
+      setDestsLoading(false)
+    }
+  }, [destsData, destsQueryLoading])
 
   // Active tab
   const [activeTab, setActiveTab] = useState<TabId>('destinations')
@@ -796,8 +825,8 @@ export default function TripOverviewPage() {
   // Routes
   const { routes, fetchRoutes, createRoute, ungroupRoute, renameRoute } = useRoutes(id)
 
-  // Companions
-  const { companions, pendingInvites, inviteByEmail, removeCompanion, removePendingInvite } = useCompanions(id)
+  // Companions (keep legacy hook for mutation functions)
+  const { companions, pendingInvites, inviteByEmail, removeCompanion, removePendingInvite } = useCompanionsLegacy(id)
 
   // Ref for global event listener
   const openAddDestRef = useRef<() => void>(() => {})
@@ -948,39 +977,7 @@ export default function TripOverviewPage() {
     return () => window.removeEventListener('youji-add-destination', handleAddDest)
   }, [])
 
-  // ── Data fetching ─────────────────────────────────────────────────────────
-
-  // Fetch trip
-  useEffect(() => {
-    if (!user || !id) return
-    supabase.from('trips').select('*').eq('id', id).eq('owner_id', user.id).single()
-      .then(({ data, error }) => {
-        if (error || !data) setNotFound(true)
-        else setTrip(data as Trip)
-        setTripLoading(false)
-      })
-  }, [user, id])
-
-  // Fetch destinations with item counts
-  useEffect(() => {
-    if (!id) return
-    supabase
-      .from('trip_destinations')
-      .select('*, destination_items(count)')
-      .eq('trip_id', id)
-      .order('sort_order', { ascending: true })
-      .then(({ data, error }) => {
-        if (!error && data) {
-          const mapped: DestWithCount[] = (data as unknown as Array<TripDestination & { destination_items: Array<{ count: number }> }>)
-            .map(d => ({
-              ...d,
-              _count: d.destination_items?.[0]?.count ?? 0,
-            }))
-          setDestinations(mapped)
-        }
-        setDestsLoading(false)
-      })
-  }, [id])
+  // ── Data fetching (via React Query — see hooks above) ────────────────────
 
   // Fetch routes
   useEffect(() => {
@@ -992,14 +989,13 @@ export default function TripOverviewPage() {
     if (trip) setTripNotes(Array.isArray(trip.notes) ? trip.notes : [])
   }, [trip])
 
-  // Load inbox clusters
+  // Sync inbox clusters from React Query
   useEffect(() => {
-    if (!user) return
-    getInboxClusters(user.id).then((clusters) => {
-      inboxClustersRef.current = clusters
+    if (inboxClustersData) {
+      inboxClustersRef.current = inboxClustersData
       setClustersLoaded(true)
-    })
-  }, [user])
+    }
+  }, [inboxClustersData])
 
   // Recompute trip-page suggestions
   useEffect(() => {
@@ -1038,6 +1034,8 @@ export default function TripOverviewPage() {
     if (!error && data) {
       const updatedTrip = data as Trip
       setTrip(updatedTrip)
+      queryClient.invalidateQueries({ queryKey: queryKeys.trip(trip.id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
 
       // If the trip has no destinations and the cover wasn't user-uploaded, re-check new name
       if (destinations.length === 0 && updatedTrip.cover_image_source !== 'user_upload') {
@@ -1106,6 +1104,9 @@ export default function TripOverviewPage() {
 
     // Nudge trip to planning if aspirational
     void supabase.from('trips').update({ status: 'planning' }).eq('id', id).eq('status', 'aspirational')
+
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id!) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
   }
 
   const handleAddFromSuggestion = (loc: LocationSelection) => {
@@ -1191,6 +1192,7 @@ export default function TripOverviewPage() {
       .update({ notes })
       .eq('id', id)
     if (error) console.error('Failed to save notes:', error)
+    else queryClient.invalidateQueries({ queryKey: queryKeys.trip(id!) })
   }
 
   const handleAddNote = async (text: string) => {
@@ -1254,6 +1256,9 @@ export default function TripOverviewPage() {
       setTrip(prev => prev ? { ...prev, status: 'scheduled' } : prev)
     }
     trackEvent('destination_dates_set', user?.id ?? null, { trip_id: id, destination_id: datePickerDestId })
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id!) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.trip(id!) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
   }
 
   const handleDestDatesRemove = async () => {
@@ -1266,6 +1271,7 @@ export default function TripOverviewPage() {
       ? { ...d, start_date: null, end_date: null } : d
     ))
     setDatePickerDestId(null)
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id!) })
   }
 
   // ── Organize mode ─────────────────────────────────────────────────────────
@@ -1351,6 +1357,8 @@ export default function TripOverviewPage() {
     await supabase.from('trip_destinations').delete().eq('id', destId)
     // 3. Update local state
     setDestinations(prev => prev.filter(d => d.id !== destId))
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id!) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
   }
 
   // ── DnD ───────────────────────────────────────────────────────────────────
@@ -1400,6 +1408,7 @@ export default function TripOverviewPage() {
         supabase.from(u.table).update({ sort_order: u.sort_order }).eq('id', u.id)
       )
     )
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id!) })
   }
 
   // ── Computed values (must be before early returns to satisfy Rules of Hooks) ──
@@ -1558,13 +1567,12 @@ export default function TripOverviewPage() {
                 }}>
                   <button
                     type="button"
-                    onClick={async () => {
+                    onClick={() => {
                       setShowActionMenu(false)
                       if (!trip) return
                       const newVal = !trip.is_favorited
                       setTrip({ ...trip, is_favorited: newVal })
-                      await supabase.from('trips').update({ is_favorited: false }).eq('owner_id', trip.owner_id).eq('is_favorited', true)
-                      if (newVal) await supabase.from('trips').update({ is_favorited: true }).eq('id', trip.id)
+                      toggleFavMutation.mutate({ tripId: trip.id, favorite: newVal })
                     }}
                     style={{
                       display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
@@ -1601,18 +1609,11 @@ export default function TripOverviewPage() {
           loading={deleting}
           onConfirm={async () => {
             setDeleting(true)
-            // Delete in FK order: destination_items, trip_general_items, comments, votes, companions, destinations, trip
             const destIds = destinations.map(d => d.id)
-            if (destIds.length > 0) {
-              await supabase.from('destination_items').delete().in('destination_id', destIds)
-            }
-            await supabase.from('trip_general_items').delete().eq('trip_id', trip.id)
-            await supabase.from('comments').delete().eq('trip_id', trip.id)
-            await supabase.from('votes').delete().eq('trip_id', trip.id)
-            await supabase.from('companions').delete().eq('trip_id', trip.id)
-            await supabase.from('trip_destinations').delete().eq('trip_id', trip.id)
-            await supabase.from('trips').delete().eq('id', trip.id)
-            navigate('/trips')
+            deleteTripMutation.mutate({ tripId: trip.id, destIds }, {
+              onSuccess: () => navigate('/trips'),
+              onError: () => setDeleting(false),
+            })
           }}
         />
       )}

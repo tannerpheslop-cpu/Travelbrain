@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useTrips, type TripWithDestinations } from '../hooks/useTrips'
+import { useTripsQuery, useCreateTrip, useCreateDestination, type TripWithDestinations } from '../hooks/queries'
 import { useAuth } from '../lib/auth'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
@@ -1014,9 +1014,51 @@ function PhaseCarousel({ phaseKey, trips, startNum, onNewTrip }: {
 // ══════════════════════════════════════════════════════════════════════════════
 
 export default function TripsPage() {
-  const { trips, loading, createTrip, createDestination } = useTrips()
+  const { data: trips = [], isLoading: loading } = useTripsQuery()
+  const createTripMutation = useCreateTrip()
+  const createDestMutation = useCreateDestination()
   const [showModal, setShowModal] = useState(false)
   const navigate = useNavigate()
+
+  // Wrap mutations to match the interface expected by CreateTripModal
+  const createTrip = useCallback(
+    async (input: { title: string }): Promise<{ trip: TripWithDestinations | null; error: string | null }> => {
+      try {
+        const trip = await createTripMutation.mutateAsync(input)
+        return { trip, error: null }
+      } catch (err) {
+        return { trip: null, error: (err as Error).message }
+      }
+    },
+    [createTripMutation],
+  )
+  const createDestination = useCallback(
+    async (
+      tripId: string,
+      location: LocationSelection,
+      sortOrder: number,
+      imageUrl?: string,
+      imageSource?: string,
+      imageCreditName?: string,
+      imageCreditUrl?: string,
+    ): Promise<{ destination: unknown; error: string | null }> => {
+      try {
+        const dest = await createDestMutation.mutateAsync({
+          tripId,
+          location,
+          sortOrder,
+          imageUrl,
+          imageSource,
+          imageCreditName,
+          imageCreditUrl,
+        })
+        return { destination: dest, error: null }
+      } catch (err) {
+        return { destination: null, error: (err as Error).message }
+      }
+    },
+    [createDestMutation],
+  )
 
   useEffect(() => {
     const handler = () => setShowModal(true)

@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '../hooks/queries'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useRoutes } from '../hooks/useRoutes'
@@ -63,6 +65,7 @@ export default function RouteOverviewPage() {
   const { id: tripId, routeId } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const [route, setRoute] = useState<TripRoute | null>(null)
   const [destinations, setDestinations] = useState<DestWithCount[]>([])
@@ -152,7 +155,8 @@ export default function RouteOverviewPage() {
     await renameRoute(routeId, trimmed)
     setRoute(prev => prev ? { ...prev, name: trimmed } : prev)
     setEditingName(false)
-  }, [nameDraft, routeId, route, renameRoute])
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripRoutes(tripId!) })
+  }, [nameDraft, routeId, route, renameRoute, queryClient, tripId])
 
   // ── DnD handler ────────────────────────────────────────────────────────────
 
@@ -174,7 +178,8 @@ export default function RouteOverviewPage() {
         .update({ sort_order: i })
         .eq('id', reordered[i].id)
     }
-  }, [destinations])
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(tripId!) })
+  }, [destinations, queryClient, tripId])
 
   // ── Add destination to route ───────────────────────────────────────────────
 
@@ -219,12 +224,14 @@ export default function RouteOverviewPage() {
         _count: 0,
       }
       setDestinations(prev => [...prev, newDest])
+      queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(tripId!) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
     }
 
     setAddingDest(false)
     setShowAddDest(false)
     setAddDestKey(k => k + 1)
-  }, [tripId, routeId, destinations])
+  }, [tripId, routeId, destinations, queryClient, user])
 
   // ── Listen for global add-destination event ────────────────────────────────
 

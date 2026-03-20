@@ -2,16 +2,10 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Search, Map, Compass, Clock, Sparkles } from 'lucide-react'
 import { BrandMark, CountryCodeBadge } from '../components/ui'
-import { supabase } from '../lib/supabase'
-import { useAuth } from '../lib/auth'
-import { getInboxClusters, type CountryCluster } from '../lib/clusters'
+import { useSavedItems, useTripsQuery, useInboxClusters, type TripWithDestinations } from '../hooks/queries'
 import { getCategoryIcon, categoryIconColors } from '../utils/categoryIcons'
 import { shortLocalName } from '../components/BilingualName'
-import type { SavedItem, Trip, TripDestination } from '../types'
-
-interface TripWithDestinations extends Trip {
-  trip_destinations: TripDestination[]
-}
+import type { SavedItem, TripDestination } from '../types'
 
 const RECENT_SEARCHES_KEY = 'youji-recent-searches'
 const MAX_RECENT_SEARCHES = 5
@@ -34,49 +28,20 @@ function addRecentSearch(query: string) {
 }
 
 export default function SearchPage() {
-  const { user } = useAuth()
   const navigate = useNavigate()
   const inputRef = useRef<HTMLInputElement>(null)
 
+  const { data: saves = [], isLoading: savesLoading } = useSavedItems()
+  const { data: tripsData = [], isLoading: tripsLoading } = useTripsQuery()
+  const { data: clusters = [], isLoading: clustersLoading } = useInboxClusters()
+  const trips = tripsData as TripWithDestinations[]
+  const loading = savesLoading || tripsLoading || clustersLoading
+
   const [query, setQuery] = useState('')
-  const [saves, setSaves] = useState<SavedItem[]>([])
-  const [trips, setTrips] = useState<TripWithDestinations[]>([])
-  const [clusters, setClusters] = useState<CountryCluster[]>([])
-  const [loading, setLoading] = useState(true)
   const [showAllSaves, setShowAllSaves] = useState(false)
   const [showAllTrips, setShowAllTrips] = useState(false)
   const [showAllDests, setShowAllDests] = useState(false)
   const [recentSearches, setRecentSearches] = useState<string[]>(getRecentSearches)
-
-  // ── Fetch data on mount ──────────────────────────────────────────────────
-
-  useEffect(() => {
-    if (!user) return
-
-    const fetchData = async () => {
-      const [savesResult, tripsResult, clusterResult] = await Promise.all([
-        supabase
-          .from('saved_items')
-          .select('*')
-          .eq('user_id', user.id)
-          .eq('is_archived', false)
-          .order('created_at', { ascending: false }),
-        supabase
-          .from('trips')
-          .select('*, trip_destinations(*)')
-          .eq('owner_id', user.id)
-          .order('updated_at', { ascending: false }),
-        getInboxClusters(user.id),
-      ])
-
-      if (!savesResult.error) setSaves(savesResult.data as SavedItem[])
-      if (!tripsResult.error) setTrips(tripsResult.data as TripWithDestinations[])
-      setClusters(clusterResult)
-      setLoading(false)
-    }
-
-    void fetchData()
-  }, [user])
 
   // ── Autofocus ────────────────────────────────────────────────────────────
 

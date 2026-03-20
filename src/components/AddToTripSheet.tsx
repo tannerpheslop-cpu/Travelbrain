@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import { queryKeys } from '../hooks/queries'
 import type { Trip, TripDestination } from '../types'
 
 interface AddToTripSheetProps {
@@ -20,6 +22,7 @@ function CloseIcon() {
 
 export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSheetProps) {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
 
   // Level 1 state
   const [trips, setTrips] = useState<Trip[]>([])
@@ -121,6 +124,8 @@ export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSh
       })
     }
 
+    queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripItemMappings(user?.id ?? '') })
     setAddingId(null)
     onClose()
     onAdded?.(selectedTrip.title)
@@ -195,6 +200,9 @@ export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSh
       }
     }
 
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(dest.trip_id) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripItemMappings(user?.id ?? '') })
     setAddingId(null)
     onClose()
     onAdded?.(selectedTrip!.title)
