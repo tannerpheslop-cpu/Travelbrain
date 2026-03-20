@@ -1,11 +1,14 @@
 /**
- * Comprehensive backfill script for ALL users' saved_items.
+ * Comprehensive backfill script for saved_items and trip_destinations.
  *
- * 1. Re-evaluates image_display for every item
- * 2. Cleans Unsplash URLs (strips render-time sizing params)
+ * 1. Re-evaluates image_display for every saved_item
+ * 2. Cleans Unsplash URLs (strips render-time sizing params) in saved_items + trip_destinations
  * 3. Verifies image_url accessibility via HEAD requests
+ * 4. Clears broken images and sets image_display = 'none'
  *
  * Usage:  npx tsx scripts/backfill-comprehensive.ts
+ *
+ * Requires TEST_USER_EMAIL and TEST_USER_PASSWORD in .env.local for auth (RLS).
  */
 
 import * as fs from 'fs'
@@ -112,6 +115,27 @@ function sleep(ms: number): Promise<void> {
 async function main() {
   console.log('=== Comprehensive Image Backfill ===\n')
 
+  // ── Authenticate ──────────────────────────────────────────────────────────
+  const email = process.env.TEST_USER_EMAIL ?? process.env.VITE_DEV_LOGIN_EMAIL
+  const password = process.env.TEST_USER_PASSWORD ?? process.env.VITE_DEV_LOGIN_PASSWORD
+  if (email && password) {
+    console.log(`Authenticating as ${email}...`)
+    const { error: authErr } = await supabase.auth.signInWithPassword({ email, password })
+    if (authErr) {
+      console.error('Auth failed:', authErr.message)
+      process.exit(1)
+    }
+    console.log('Authenticated successfully.\n')
+  } else {
+    console.log('No TEST_USER_EMAIL / TEST_USER_PASSWORD set — running without auth (may be limited by RLS).\n')
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Part 1: saved_items
+  // ══════════════════════════════════════════════════════════════════════════
+
+  console.log('─── Part 1: saved_items ───\n')
+
   let offset = 0
   const batchSize = 500
   let totalProcessed = 0
@@ -122,7 +146,7 @@ async function main() {
   while (true) {
     const { data: items, error } = await supabase
       .from('saved_items')
-      .select('id, title, source_type, image_url, image_display, site_name, category')
+      .select('id, title, source_type, image_url, places_photo_url, image_display, site_name, category')
       .range(offset, offset + batchSize - 1)
       .order('created_at', { ascending: true })
 
@@ -137,7 +161,7 @@ async function main() {
       totalProcessed++
       const updates: Record<string, unknown> = {}
 
-      // ── Step 1: Clean Unsplash URL ──────────────────────────────────────
+      // ── Step 1: Clean Unsplash URL on image_url ───────────────────────
       let effectiveImageUrl = item.image_url
       if (item.image_url) {
         const cleaned = cleanUnsplashUrl(item.image_url)
@@ -145,11 +169,21 @@ async function main() {
           updates.image_url = cleaned
           effectiveImageUrl = cleaned
           unsplashCleaned++
-          console.log(`  [CLEAN] ${item.id}: stripped sizing params from Unsplash URL`)
+          console.log(`  [CLEAN] ${item.id}: stripped sizing params from image_url`)
         }
       }
 
-      // ── Step 2: Re-evaluate image_display ───────────────────────────────
+      // ── Step 1b: Clean Unsplash URL on places_photo_url ───────────────
+      if (item.places_photo_url) {
+        const cleaned = cleanUnsplashUrl(item.places_photo_url)
+        if (cleaned !== null) {
+          updates.places_photo_url = cleaned
+          unsplashCleaned++
+          console.log(`  [CLEAN] ${item.id}: stripped sizing params from places_photo_url`)
+        }
+      }
+
+      // ── Step 2: Re-evaluate image_display ─────────────────────────────
       const newDisplay = evaluateImageDisplay({
         source_type: item.source_type,
         image_url: effectiveImageUrl,
@@ -163,20 +197,20 @@ async function main() {
         console.log(`  [DISPLAY] ${item.id}: ${item.image_display ?? 'null'} → ${newDisplay} (${item.title})`)
       }
 
-      // ── Step 3: Verify image accessibility ──────────────────────────────
+      // ── Step 3: Verify image accessibility ────────────────────────────
       if (effectiveImageUrl) {
         const accessible = await isUrlAccessible(effectiveImageUrl)
         if (!accessible) {
           updates.image_url = null
           updates.image_display = 'none'
           brokenFound++
-          console.log(`  [BROKEN] ${item.id}: ${item.title} — URL: ${effectiveImageUrl}`)
+          console.log(`  [BROKEN] Broken image cleared for: ${item.title} — URL: ${effectiveImageUrl}`)
         }
         // Rate limit: 100ms between HEAD requests
         await sleep(100)
       }
 
-      // ── Apply updates if any ────────────────────────────────────────────
+      // ── Apply updates if any ──────────────────────────────────────────
       if (Object.keys(updates).length > 0) {
         const { error: updateErr } = await supabase
           .from('saved_items')
@@ -189,18 +223,176 @@ async function main() {
       }
     }
 
-    console.log(`  ... processed ${offset + items.length} items so far`)
+    console.log(`  ... processed ${offset + items.length} saved_items so far`)
 
     if (items.length < batchSize) break
     offset += batchSize
   }
 
   console.log(`
-Backfill complete:
-- Total items processed: ${totalProcessed}
-- image_display updated: ${displayUpdated}
-- Unsplash URLs cleaned: ${unsplashCleaned}
-- Broken images found and cleared: ${brokenFound}
+saved_items summary:
+  Total processed:          ${totalProcessed}
+  image_display updated:    ${displayUpdated}
+  Unsplash URLs cleaned:    ${unsplashCleaned}
+  Broken images cleared:    ${brokenFound}
+`)
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Part 2: trip_destinations — clean Unsplash URLs + verify accessibility
+  // ══════════════════════════════════════════════════════════════════════════
+
+  console.log('─── Part 2: trip_destinations ───\n')
+
+  let destOffset = 0
+  let destProcessed = 0
+  let destUnsplashCleaned = 0
+  let destBrokenFound = 0
+
+  while (true) {
+    const { data: dests, error: destErr } = await supabase
+      .from('trip_destinations')
+      .select('id, location_name, image_url, image_source')
+      .range(destOffset, destOffset + batchSize - 1)
+      .order('created_at', { ascending: true })
+
+    if (destErr) {
+      console.error('Error fetching destinations:', destErr.message)
+      break
+    }
+
+    if (!dests || dests.length === 0) break
+
+    for (const dest of dests) {
+      destProcessed++
+
+      if (!dest.image_url) continue
+
+      const updates: Record<string, unknown> = {}
+      let effectiveUrl = dest.image_url
+
+      // Clean Unsplash URL
+      const cleaned = cleanUnsplashUrl(dest.image_url)
+      if (cleaned !== null) {
+        updates.image_url = cleaned
+        effectiveUrl = cleaned
+        destUnsplashCleaned++
+        console.log(`  [CLEAN] dest ${dest.id}: stripped sizing params (${dest.location_name})`)
+      }
+
+      // Verify accessibility
+      const accessible = await isUrlAccessible(effectiveUrl)
+      if (!accessible) {
+        updates.image_url = null
+        // Don't clear image_source — it records provenance
+        destBrokenFound++
+        console.log(`  [BROKEN] Broken image cleared for destination: ${dest.location_name} — URL: ${effectiveUrl}`)
+      }
+      await sleep(100)
+
+      if (Object.keys(updates).length > 0) {
+        const { error: updateErr } = await supabase
+          .from('trip_destinations')
+          .update(updates)
+          .eq('id', dest.id)
+
+        if (updateErr) {
+          console.error(`  [ERROR] Failed to update dest ${dest.id}: ${updateErr.message}`)
+        }
+      }
+    }
+
+    console.log(`  ... processed ${destOffset + dests.length} destinations so far`)
+
+    if (dests.length < batchSize) break
+    destOffset += batchSize
+  }
+
+  console.log(`
+trip_destinations summary:
+  Total processed:          ${destProcessed}
+  Unsplash URLs cleaned:    ${destUnsplashCleaned}
+  Broken images cleared:    ${destBrokenFound}
+`)
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Part 3: trips — clean cover_image_url
+  // ══════════════════════════════════════════════════════════════════════════
+
+  console.log('─── Part 3: trips (cover_image_url) ───\n')
+
+  let tripOffset = 0
+  let tripProcessed = 0
+  let tripUnsplashCleaned = 0
+  let tripBrokenFound = 0
+
+  while (true) {
+    const { data: trips, error: tripErr } = await supabase
+      .from('trips')
+      .select('id, title, cover_image_url')
+      .range(tripOffset, tripOffset + batchSize - 1)
+      .order('created_at', { ascending: true })
+
+    if (tripErr) {
+      console.error('Error fetching trips:', tripErr.message)
+      break
+    }
+
+    if (!trips || trips.length === 0) break
+
+    for (const trip of trips) {
+      tripProcessed++
+
+      if (!trip.cover_image_url) continue
+
+      const updates: Record<string, unknown> = {}
+      let effectiveUrl = trip.cover_image_url
+
+      const cleaned = cleanUnsplashUrl(trip.cover_image_url)
+      if (cleaned !== null) {
+        updates.cover_image_url = cleaned
+        effectiveUrl = cleaned
+        tripUnsplashCleaned++
+        console.log(`  [CLEAN] trip ${trip.id}: stripped sizing params (${trip.title})`)
+      }
+
+      const accessible = await isUrlAccessible(effectiveUrl)
+      if (!accessible) {
+        updates.cover_image_url = null
+        tripBrokenFound++
+        console.log(`  [BROKEN] Broken cover image cleared for trip: ${trip.title} — URL: ${effectiveUrl}`)
+      }
+      await sleep(100)
+
+      if (Object.keys(updates).length > 0) {
+        const { error: updateErr } = await supabase
+          .from('trips')
+          .update(updates)
+          .eq('id', trip.id)
+
+        if (updateErr) {
+          console.error(`  [ERROR] Failed to update trip ${trip.id}: ${updateErr.message}`)
+        }
+      }
+    }
+
+    console.log(`  ... processed ${tripOffset + trips.length} trips so far`)
+
+    if (trips.length < batchSize) break
+    tripOffset += batchSize
+  }
+
+  console.log(`
+trips summary:
+  Total processed:          ${tripProcessed}
+  Unsplash URLs cleaned:    ${tripUnsplashCleaned}
+  Broken covers cleared:    ${tripBrokenFound}
+
+════════════════════════════════════════════════════════════════════════════════
+GRAND TOTAL
+  saved_items:    ${totalProcessed} processed, ${displayUpdated} display updated, ${unsplashCleaned} URLs cleaned, ${brokenFound} broken
+  destinations:   ${destProcessed} processed, ${destUnsplashCleaned} URLs cleaned, ${destBrokenFound} broken
+  trips:          ${tripProcessed} processed, ${tripUnsplashCleaned} URLs cleaned, ${tripBrokenFound} broken
+════════════════════════════════════════════════════════════════════════════════
 `)
 }
 
