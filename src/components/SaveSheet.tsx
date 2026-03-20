@@ -4,6 +4,7 @@ import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import { detectLocationFromText } from '../lib/placesTextSearch'
 import { detectUrl } from '../lib/urlDetect'
+import { evaluateImageDisplay } from '../lib/evaluateImageDisplay'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
 import type { Category, SavedItem } from '../types'
 
@@ -239,6 +240,13 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     // User-attached image takes priority over OG metadata image
     const imageUrl = attachedUrl || metadata?.image || null
 
+    const imageDisplay = evaluateImageDisplay({
+      source_type: sourceType,
+      image_url: imageUrl,
+      site_name: metadata?.site_name ?? null,
+      category: category ?? 'general',
+    })
+
     const { data, error } = await supabase.from('saved_items').insert({
       user_id: user.id,
       source_type: sourceType,
@@ -257,6 +265,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       location_name_local: location?.name_local ?? null,
       category: category ?? 'general',
       notes: notes.trim() || null,
+      image_display: imageDisplay,
     }).select().single()
 
     if (error) {

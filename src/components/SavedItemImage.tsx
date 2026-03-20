@@ -118,10 +118,14 @@ export default function SavedItemImage({ item, size, className = '', readOnly = 
       if (cancelled || !url) return
       setPhotoUrl(url)
 
-      // Persist to DB (fire-and-forget)
+      // Persist to DB (fire-and-forget) and upgrade image_display if it was 'none'
       if (!readOnly) {
+        const updates: Record<string, unknown> = { places_photo_url: url }
+        if ('image_display' in item && item.image_display === 'none') {
+          updates.image_display = 'thumbnail'
+        }
         supabase.from('saved_items')
-          .update({ places_photo_url: url })
+          .update(updates)
           .eq('id', item.id)
           .then(({ error }) => {
             if (error) console.warn('[SavedItemImage] failed to persist places_photo_url:', error.message)

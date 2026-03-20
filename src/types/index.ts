@@ -38,6 +38,7 @@ export interface SavedItem {
   notes: string | null
   tags: string[] | null
   is_archived: boolean
+  image_display: 'featured' | 'thumbnail' | 'none' | null
   created_at: string
 }
 
