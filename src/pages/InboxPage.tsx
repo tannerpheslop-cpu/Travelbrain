@@ -291,12 +291,19 @@ export default function InboxPage() {
 
   const handleDeleteItem = useCallback(async (itemId: string) => {
     setItems((prev) => prev.filter((item) => item.id !== itemId))
-    const { error } = await supabase
-      .from('saved_items')
-      .update({ is_archived: true })
-      .eq('id', itemId)
-    if (error) {
-      console.error('[inbox] archive error:', error)
+    try {
+      // Cascading delete in FK-safe order
+      await supabase.from('destination_items').delete().eq('item_id', itemId)
+      await supabase.from('trip_general_items').delete().eq('item_id', itemId)
+      await supabase.from('comments').delete().eq('item_id', itemId)
+      await supabase.from('votes').delete().eq('item_id', itemId)
+      const { error } = await supabase.from('saved_items').delete().eq('id', itemId)
+      if (error) {
+        console.error('[inbox] delete error:', error)
+        fetchAll()
+      }
+    } catch (err) {
+      console.error('[inbox] delete error:', err)
       fetchAll()
     }
   }, [user])

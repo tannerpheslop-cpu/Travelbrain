@@ -1385,7 +1385,7 @@ export default function DestinationDetailPage() {
                     {activeDay === null ? 'All items are assigned to days' : `Nothing planned for Day ${activeDay} yet`}
                   </p>
                   <p className="mt-1 text-xs text-text-faint">
-                    {activeDay === null ? 'Add items from your horizon below' : 'Move items here from Unplanned or another day'}
+                    {activeDay === null ? 'Add items from your Horizon below' : 'Move items here from Unplanned or another day'}
                   </p>
                 </div>
               ) : (

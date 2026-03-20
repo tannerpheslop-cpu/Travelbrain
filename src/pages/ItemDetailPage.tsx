@@ -45,7 +45,6 @@ export default function ItemDetailPage() {
   const [tags, setTags] = useState('')
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
-  const [archiving, setArchiving] = useState(false)
   const [showTripSheet, setShowTripSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [refreshingImage, setRefreshingImage] = useState(false)
@@ -152,16 +151,6 @@ export default function ItemDetailPage() {
     saveChanges({ category: newCategory })
   }
 
-  const handleArchive = async () => {
-    if (!id) return
-    setArchiving(true)
-    await supabase
-      .from('saved_items')
-      .update({ is_archived: true })
-      .eq('id', id)
-    navigate(backTo)
-  }
-
   const handleRefreshImage = async () => {
     if (!item?.source_url || !user) return
     setRefreshingImage(true)
@@ -260,7 +249,7 @@ export default function ItemDetailPage() {
         </button>
         <div className="mt-16 text-center">
           <p className="text-text-tertiary font-medium">Item not found</p>
-          <p className="mt-1 text-sm text-text-faint">It may have been deleted or archived</p>
+          <p className="mt-1 text-sm text-text-faint">It may have been deleted</p>
         </div>
       </div>
     )
@@ -474,14 +463,6 @@ export default function ItemDetailPage() {
           />
         </div>
 
-        {/* Archive Button */}
-        <button
-          onClick={handleArchive}
-          disabled={archiving}
-          className="w-full px-4 py-3 border border-error/25 text-error rounded-xl text-sm font-medium hover:bg-error-bg active:bg-error-bg transition-colors disabled:opacity-50"
-        >
-          {archiving ? 'Archiving...' : 'Archive Item'}
-        </button>
       </div>
     </div>
   )
