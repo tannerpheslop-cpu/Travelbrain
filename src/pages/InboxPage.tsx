@@ -11,6 +11,7 @@ import { BrandMark, CategoryPill, CountryCodeBadge, FilterPill, MetadataLine, So
 import { useLocationResolver } from '../hooks/useLocationResolver'
 import SwipeToDelete from '../components/SwipeToDelete'
 import ImageWithFade from '../components/ImageWithFade'
+import { getPlacePhoto } from '../components/SavedItemImage'
 import type { SavedItem } from '../types'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -226,12 +227,13 @@ export default function InboxPage() {
   useEffect(() => {
     if (filtered.length === 0) return
     filtered
-      .filter((i) => i.image_display === 'thumbnail')
+      .filter((i) => i.image_url || i.places_photo_url)
       .slice(0, 6)
       .forEach((item) => {
-        if (item.image_url) {
+        const url = item.image_url ?? item.places_photo_url
+        if (url) {
           const img = new Image()
-          img.src = optimizedImageUrl(item.image_url, 'gallery-card') ?? item.image_url
+          img.src = optimizedImageUrl(url, 'gallery-card') ?? url
         }
       })
   }, [filtered])
@@ -517,9 +519,21 @@ function GridCard({
   onDelete: () => void
   eager?: boolean
 }) {
-  const display = item.image_display ?? 'none'
+  // Show image card if item has any image source:
+  // 1. image_display is 'thumbnail' or 'featured' (backfilled)
+  // 2. image_url or places_photo_url is set (fallback if image_display is null)
+  // 3. location_place_id is set (SavedItemImage can auto-fetch from Google Places)
+  const hasImageSource =
+    (item.image_url && item.image_url.trim() !== '') ||
+    (item.places_photo_url && item.places_photo_url.trim() !== '') ||
+    !!item.location_place_id
 
-  if (display === 'thumbnail') {
+  const showImage =
+    item.image_display === 'thumbnail' ||
+    item.image_display === 'featured' ||
+    (item.image_display !== 'none' && hasImageSource)
+
+  if (showImage) {
     return <ImageCard item={item} tripCount={tripCount} onDelete={onDelete} eager={eager} />
   }
   return <TextCard item={item} tripCount={tripCount} onDelete={onDelete} />
@@ -567,11 +581,35 @@ function TripCountPill({ count, variant }: { count: number; variant: 'image' | '
 
 function ImageCard({ item, tripCount, onDelete, eager }: { item: SavedItem; tripCount: number; onDelete: () => void; eager?: boolean }) {
   const city = item.location_name ? extractCity(item.location_name) : null
-  const imgUrl = item.image_url ?? item.places_photo_url ?? null
+  const rawUrl = item.image_url ?? item.places_photo_url ?? null
+  const [photoUrl, setPhotoUrl] = useState<string | null>(rawUrl)
   const [imgFailed, setImgFailed] = useState(false)
 
-  // If image fails, render as text card
-  if (imgFailed || !imgUrl) {
+  // Auto-fetch from Google Places if no image cached but place_id exists
+  useEffect(() => {
+    if (photoUrl || imgFailed || !item.location_place_id) return
+    let cancelled = false
+    getPlacePhoto(item.location_place_id).then((url) => {
+      if (cancelled || !url) return
+      setPhotoUrl(url)
+    })
+    return () => { cancelled = true }
+  }, [photoUrl, imgFailed, item.location_place_id])
+
+  // If image fails and no fallback available, render as text card
+  if (imgFailed || !photoUrl) {
+    // Still waiting for Places fetch? Show placeholder with muted bg
+    if (!imgFailed && item.location_place_id && !photoUrl) {
+      return (
+        <SwipeToDelete onDelete={onDelete}>
+          <Link to={`/item/${item.id}`} className="block relative overflow-hidden bg-bg-muted" style={{ borderRadius: 10, height: 160 }}>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-5 h-5 border-2 border-text-ghost border-t-accent rounded-full animate-spin" />
+            </div>
+          </Link>
+        </SwipeToDelete>
+      )
+    }
     return <TextCard item={item} tripCount={tripCount} onDelete={onDelete} />
   }
 
@@ -585,7 +623,7 @@ function ImageCard({ item, tripCount, onDelete, eager }: { item: SavedItem; trip
         {/* Image */}
         <div className="absolute inset-0 bg-bg-muted">
           <ImageWithFade
-            src={imgUrl}
+            src={photoUrl}
             context="gallery-card"
             className="w-full h-full object-cover"
             eager={eager}

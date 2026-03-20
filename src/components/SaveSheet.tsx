@@ -312,12 +312,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     // User-attached image takes priority over OG metadata image
     const imageUrl = attachedUrl || metadata?.image || null
 
-    const imageDisplay = evaluateImageDisplay({
-      source_type: sourceType,
-      image_url: imageUrl,
-      site_name: metadata?.site_name ?? null,
-      category: category ?? 'general',
-    })
+    const imageDisplay = evaluateImageDisplay({ image_url: imageUrl })
 
     const { data, error } = await supabase.from('saved_items').insert({
       user_id: user.id,

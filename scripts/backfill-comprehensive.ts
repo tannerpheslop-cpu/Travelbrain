@@ -50,20 +50,11 @@ const supabase = createClient(supabaseUrl, supabaseKey)
 type ImageDisplay = 'featured' | 'thumbnail' | 'none'
 
 function evaluateImageDisplay(item: {
-  source_type: string
   image_url: string | null
-  site_name: string | null
-  category: string | null
+  places_photo_url?: string | null
 }): ImageDisplay {
-  if (!item.image_url) return 'none'
-  if (item.source_type === 'manual' && item.image_url.includes('supabase')) return 'thumbnail'
-  if (item.image_url.includes('unsplash.com')) return 'thumbnail'
-  if (item.source_type === 'url' && item.site_name) {
-    const sn = item.site_name.toLowerCase()
-    if (sn.includes('tiktok') || sn.includes('instagram') || sn.includes('youtube')) return 'thumbnail'
-  }
-  if (item.source_type === 'url' && item.image_url) return 'thumbnail'
-  if (item.source_type === 'screenshot') return 'thumbnail'
+  if (item.image_url && item.image_url.trim() !== '') return 'thumbnail'
+  if (item.places_photo_url && item.places_photo_url.trim() !== '') return 'thumbnail'
   return 'none'
 }
 
@@ -185,10 +176,8 @@ async function main() {
 
       // ── Step 2: Re-evaluate image_display ─────────────────────────────
       const newDisplay = evaluateImageDisplay({
-        source_type: item.source_type,
         image_url: effectiveImageUrl,
-        site_name: item.site_name,
-        category: item.category,
+        places_photo_url: item.places_photo_url,
       })
 
       if (newDisplay !== item.image_display) {
