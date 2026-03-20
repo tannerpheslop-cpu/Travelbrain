@@ -55,6 +55,59 @@ export const queryKeys = {
   tripItemMappings: (userId: string) => ['trip-item-mappings', userId] as const,
 }
 
+// ── Standalone fetch functions (for prefetchQuery — no hooks) ────────────────
+
+export async function fetchTrips(userId: string) {
+  let result = await supabase
+    .from('trips')
+    .select('*, trip_destinations(*)')
+    .eq('owner_id', userId)
+    .order('updated_at', { ascending: false })
+
+  if (result.error) {
+    result = await supabase
+      .from('trips')
+      .select('*, trip_destinations(*)')
+      .eq('owner_id', userId)
+      .order('created_at', { ascending: false })
+  }
+
+  if (result.error) throw result.error
+
+  return ((result.data as TripWithDestinations[]) ?? []).map((t) => ({
+    ...t,
+    is_featured: t.is_featured ?? false,
+    is_favorited: t.is_favorited ?? false,
+    updated_at: t.updated_at ?? t.created_at,
+    trip_destinations: (t.trip_destinations ?? []).sort((a, b) => a.sort_order - b.sort_order),
+  }))
+}
+
+export async function fetchTrip(tripId: string, userId: string) {
+  const { data, error } = await supabase
+    .from('trips')
+    .select('*')
+    .eq('id', tripId)
+    .eq('owner_id', userId)
+    .single()
+  if (error) throw error
+  return data as Trip
+}
+
+export async function fetchTripDestinations(tripId: string) {
+  const { data, error } = await supabase
+    .from('trip_destinations')
+    .select('*, destination_items(count)')
+    .eq('trip_id', tripId)
+    .order('sort_order', { ascending: true })
+  if (error) throw error
+  return ((data as unknown as Array<TripDestination & { destination_items: { count: number }[] }>) ?? [])
+    .map((d) => ({
+      ...d,
+      _count: d.destination_items?.[0]?.count ?? 0,
+    })) as DestWithCount[]
+}
+
 // ── Queries ───────────────────────────────────────────────────────────────────
 
 /** All saved items for the current user (Horizon page). */
@@ -100,32 +153,7 @@ export function useTripsQuery() {
   const { user } = useAuth()
   return useQuery({
     queryKey: queryKeys.trips(user?.id ?? ''),
-    queryFn: async () => {
-      // Try updated_at first (requires migration), fall back to created_at
-      let result = await supabase
-        .from('trips')
-        .select('*, trip_destinations(*)')
-        .eq('owner_id', user!.id)
-        .order('updated_at', { ascending: false })
-
-      if (result.error) {
-        result = await supabase
-          .from('trips')
-          .select('*, trip_destinations(*)')
-          .eq('owner_id', user!.id)
-          .order('created_at', { ascending: false })
-      }
-
-      if (result.error) throw result.error
-
-      return ((result.data as TripWithDestinations[]) ?? []).map((t) => ({
-        ...t,
-        is_featured: t.is_featured ?? false,
-        is_favorited: t.is_favorited ?? false,
-        updated_at: t.updated_at ?? t.created_at,
-        trip_destinations: (t.trip_destinations ?? []).sort((a, b) => a.sort_order - b.sort_order),
-      }))
-    },
+    queryFn: () => fetchTrips(user!.id),
     enabled: !!user,
   })
 }
@@ -135,16 +163,7 @@ export function useTripQuery(tripId: string | undefined) {
   const { user } = useAuth()
   return useQuery({
     queryKey: queryKeys.trip(tripId ?? ''),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('trips')
-        .select('*')
-        .eq('id', tripId!)
-        .eq('owner_id', user!.id)
-        .single()
-      if (error) throw error
-      return data as Trip
-    },
+    queryFn: () => fetchTrip(tripId!, user!.id),
     enabled: !!user && !!tripId,
   })
 }
@@ -153,19 +172,7 @@ export function useTripQuery(tripId: string | undefined) {
 export function useTripDestinations(tripId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.tripDestinations(tripId ?? ''),
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('trip_destinations')
-        .select('*, destination_items(count)')
-        .eq('trip_id', tripId!)
-        .order('sort_order', { ascending: true })
-      if (error) throw error
-      return ((data as unknown as Array<TripDestination & { destination_items: { count: number }[] }>) ?? [])
-        .map((d) => ({
-          ...d,
-          _count: d.destination_items?.[0]?.count ?? 0,
-        })) as DestWithCount[]
-    },
+    queryFn: () => fetchTripDestinations(tripId!),
     enabled: !!tripId,
   })
 }

@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../lib/auth'
-import { useSavedItems, useTripsQuery, useTripItemMappings, useDeleteItem, queryKeys } from '../hooks/queries'
+import { useSavedItems, useTripsQuery, useTripItemMappings, useDeleteItem, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { categoryLabel } from '../utils/categoryIcons'
@@ -98,6 +98,15 @@ export default function InboxPage() {
 
   const loading = itemsLoading
   const error = itemsError ? 'Could not load your saves. Tap to retry.' : null
+
+  // ── Prefetch trips data so Trips tab loads instantly ────────────────────
+  useEffect(() => {
+    if (!user) return
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.trips(user.id),
+      queryFn: () => fetchTrips(user.id),
+    })
+  }, [user, queryClient])
 
   // ── Local UI state ─────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('')

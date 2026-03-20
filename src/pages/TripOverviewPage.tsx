@@ -781,6 +781,17 @@ export default function TripOverviewPage() {
     }
   }, [destsData, destsQueryLoading])
 
+  // Prefetch destination images so they're cached before user taps a card
+  useEffect(() => {
+    if (!destsData) return
+    for (const dest of destsData) {
+      if (dest.image_url) {
+        const img = new Image()
+        img.src = dest.image_url
+      }
+    }
+  }, [destsData])
+
   // Active tab
   const [activeTab, setActiveTab] = useState<TabId>('destinations')
 
