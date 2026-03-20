@@ -203,38 +203,6 @@ export default function InboxPage() {
     setLoading(false)
   }
 
-  const refreshTripItems = async () => {
-    if (!user || trips.length === 0) return
-    const tripIds = trips.map((t) => t.id)
-    const { data: destRows } = await supabase
-      .from('trip_destinations')
-      .select('id, trip_id')
-      .in('trip_id', tripIds)
-    const destMap = new Map(
-      (destRows ?? []).map((d: { id: string; trip_id: string }) => [d.id, d.trip_id]),
-    )
-    const destIds = [...destMap.keys()]
-    const [diRes, giRes] = await Promise.all([
-      destIds.length > 0
-        ? supabase.from('destination_items').select('item_id, destination_id').in('destination_id', destIds)
-        : Promise.resolve({ data: [] as { item_id: string; destination_id: string }[], error: null }),
-      supabase.from('trip_general_items').select('item_id, trip_id').in('trip_id', tripIds),
-    ])
-    const combined: { trip_id: string; item_id: string }[] = [
-      ...(diRes.data ?? [])
-        .map((di: { item_id: string; destination_id: string }) => ({
-          item_id: di.item_id,
-          trip_id: destMap.get(di.destination_id) ?? '',
-        }))
-        .filter((x: { trip_id: string; item_id: string }) => x.trip_id !== ''),
-      ...(giRes.data ?? []).map((gi: { item_id: string; trip_id: string }) => ({
-        item_id: gi.item_id,
-        trip_id: gi.trip_id,
-      })),
-    ]
-    setAllTripItems(combined)
-  }
-
   useEffect(() => { if (user) fetchAll() }, [user])
 
   // ── Derived data ─────────────────────────────────────────────────────────
@@ -528,13 +496,13 @@ export default function InboxPage() {
               {viewMode === 'grid' ? (
                 <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))' }}>
                   {group.items.map((item) => (
-                    <GridCard key={item.id} item={item} onTripAdded={refreshTripItems} onDelete={() => handleDeleteItem(item.id)} />
+                    <GridCard key={item.id} item={item} onDelete={() => handleDeleteItem(item.id)} />
                   ))}
                 </div>
               ) : (
                 <div className="flex flex-col">
                   {group.items.map((item) => (
-                    <ListRow key={item.id} item={item} onTripAdded={refreshTripItems} onDelete={() => handleDeleteItem(item.id)} />
+                    <ListRow key={item.id} item={item} onDelete={() => handleDeleteItem(item.id)} />
                   ))}
                 </div>
               )}

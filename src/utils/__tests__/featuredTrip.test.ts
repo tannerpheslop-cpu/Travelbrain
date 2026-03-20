@@ -11,6 +11,7 @@ function makeTrip(overrides: Partial<TripWithDestinations> = {}): TripWithDestin
     start_date: null,
     end_date: null,
     cover_image_url: null,
+    cover_image_source: null,
     share_token: null,
     share_privacy: null,
     forked_from_trip_id: null,
