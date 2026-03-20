@@ -1,9 +1,11 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 
 const navItems = [
   {
     to: '/inbox',
     label: 'Horizon',
+    /** Also highlight for /item/* routes (item detail is a Horizon sub-page) */
+    matchPaths: ['/inbox', '/item/'],
     icon: (active: boolean) => (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-7 h-7 transition-transform ${active ? 'scale-110' : ''}`}>
         <path d="M3 13h1" />
@@ -21,6 +23,8 @@ const navItems = [
   {
     to: '/trips',
     label: 'Trips',
+    /** Also highlight for /trip/* routes (trip detail, destination, route pages) */
+    matchPaths: ['/trips', '/trip/'],
     icon: (active: boolean) => (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-6 h-6 transition-transform ${active ? 'scale-110' : ''}`}>
         <path fillRule="evenodd" d="M9.315 7.584C12.195 3.883 16.695 1.5 21.75 1.5a.75.75 0 01.75.75c0 5.056-2.383 9.555-6.084 12.436A6.75 6.75 0 019.75 22.5a.75.75 0 01-.75-.75v-4.131A15.838 15.838 0 016.382 15H2.25a.75.75 0 01-.75-.75 6.75 6.75 0 017.815-6.666zM15 6.75a2.25 2.25 0 100 4.5 2.25 2.25 0 000-4.5z" clipRule="evenodd" />
@@ -31,6 +35,7 @@ const navItems = [
   {
     to: '/search',
     label: 'Search',
+    matchPaths: ['/search'],
     icon: (active: boolean) => (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-6 h-6 transition-transform ${active ? 'scale-110' : ''}`}>
         <circle cx="11" cy="11" r="8" />
@@ -41,6 +46,7 @@ const navItems = [
   {
     to: '/profile',
     label: 'Profile',
+    matchPaths: ['/profile'],
     icon: (active: boolean) => (
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-6 h-6 transition-transform ${active ? 'scale-110' : ''}`}>
         <circle cx="12" cy="8" r="5" />
@@ -51,29 +57,32 @@ const navItems = [
 ]
 
 export default function BottomNav() {
+  const location = useLocation()
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-20 bg-bg-card border-t border-border pb-[env(safe-area-inset-bottom)]">
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto px-2">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 px-5 py-2 rounded-2xl text-xs font-semibold transition-all ${
-                isActive
-                  ? 'text-accent bg-accent-light'
-                  : 'text-text-faint hover:text-text-tertiary hover:bg-bg-muted'
-              }`
-            }
-          >
-            {({ isActive }) => (
-              <>
-                {item.icon(isActive)}
-                <span>{item.label}</span>
-              </>
-            )}
-          </NavLink>
-        ))}
+        {navItems.map((item) => {
+          // Custom active check: match any of the item's matchPaths as prefixes
+          const isActive = item.matchPaths.some((p) => location.pathname.startsWith(p))
+
+          return (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              className={
+                `flex flex-col items-center gap-0.5 px-5 py-2 rounded-2xl text-xs font-semibold transition-all ${
+                  isActive
+                    ? 'text-accent bg-accent-light'
+                    : 'text-text-faint hover:text-text-tertiary hover:bg-bg-muted'
+                }`
+              }
+            >
+              {item.icon(isActive)}
+              <span>{item.label}</span>
+            </NavLink>
+          )
+        })}
       </div>
     </nav>
   )

@@ -627,7 +627,7 @@ function InboxPickerRow({ item, onAdd }: { item: SavedItem; onAdd: (item: SavedI
   )
 }
 
-// ── Add from Inbox Sheet ───────────────────────────────────────────────────────
+// ── Add from Horizon Sheet ─────────────────────────────────────────────────────
 
 function AddFromInboxSheet({
   items, linkedItemIds, loading, onAdd, onClose,
@@ -750,7 +750,7 @@ export default function DestinationDetailPage() {
   // Day view state
   const [activeDay, setActiveDay] = useState<number | null>(null)
 
-  // Add from inbox sheet
+  // Add from Horizon sheet
   const [showInboxSheet, setShowInboxSheet] = useState(false)
   const [inboxItems, setInboxItems] = useState<SavedItem[]>([])
   const [inboxLoading, setInboxLoading] = useState(false)
@@ -1319,36 +1319,38 @@ export default function DestinationDetailPage() {
 
       {/* 3. Header: name + country + dates + item count */}
       <div className="px-4 mb-4">
-        <h1 className="text-2xl font-bold text-text-primary">
+        <h1 className="text-2xl font-bold text-text-primary truncate">
           {city}
           {cityLocal && <span className="ml-2 font-normal text-text-faint text-lg">{cityLocal}</span>}
         </h1>
         {destination.location_country && <p className="text-sm text-text-faint mt-0.5">{destination.location_country}</p>}
 
-        {/* Date + item count bar */}
-        <div className="flex items-center justify-between mt-3">
-          {hasSchedule ? (
-            <div className="flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-text-faint shrink-0">
-                <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
-              </svg>
-              <span className="text-xs text-text-secondary font-medium">{formatDateRange(destination.start_date!, destination.end_date!)}</span>
-              {canEdit && (
-                <button onClick={() => setShowAddDates(true)} className="text-xs text-accent hover:text-accent font-medium transition-colors">
-                  Edit
-                </button>
-              )}
-            </div>
-          ) : canEdit ? (
-            <button onClick={() => setShowAddDates(true)} className="flex items-center gap-1.5 text-xs text-accent hover:text-accent font-medium transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-              </svg>
-              Add dates
-            </button>
-          ) : (
-            <span className="text-xs text-text-faint">No dates set</span>
-          )}
+        {/* Add dates CTA — directly below name */}
+        {hasSchedule ? (
+          <div className="flex items-center gap-2 mt-2">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-text-faint shrink-0">
+              <path fillRule="evenodd" d="M5.75 2a.75.75 0 01.75.75V4h7V2.75a.75.75 0 011.5 0V4h.25A2.75 2.75 0 0118 6.75v8.5A2.75 2.75 0 0115.25 18H4.75A2.75 2.75 0 012 15.25v-8.5A2.75 2.75 0 014.75 4H5V2.75A.75.75 0 015.75 2zm-1 5.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h10.5c.69 0 1.25-.56 1.25-1.25v-6.5c0-.69-.56-1.25-1.25-1.25H4.75z" clipRule="evenodd" />
+            </svg>
+            <span className="text-xs text-text-secondary font-medium">{formatDateRange(destination.start_date!, destination.end_date!)}</span>
+            {canEdit && (
+              <button onClick={() => setShowAddDates(true)} className="text-xs text-accent hover:text-accent font-medium transition-colors">
+                Edit
+              </button>
+            )}
+          </div>
+        ) : canEdit ? (
+          <button onClick={() => setShowAddDates(true)} className="flex items-center gap-1.5 mt-2 text-xs text-accent hover:text-accent font-medium transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
+              <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
+            </svg>
+            Add dates
+          </button>
+        ) : (
+          <span className="mt-2 text-xs text-text-faint block">No dates set</span>
+        )}
+
+        {/* Item count */}
+        <div className="mt-2">
           <MetadataLine items={[`${linkedItems.length} place${linkedItems.length !== 1 ? 's' : ''}`]} />
         </div>
       </div>
