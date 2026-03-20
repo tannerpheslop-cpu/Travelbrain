@@ -328,6 +328,8 @@ These are non-negotiable and must guide every UI decision:
 
 ## 8. Save Flow Details
 
+**CRITICAL: The unified save flow (single input bottom sheet triggered by the FAB) is a core product feature. Do NOT remove, replace, or restructure this flow without explicit instruction. Do NOT replace it with a menu of options (Save a link / Photo / Add places). If a page redesign touches the Horizon page, verify the FAB still opens the unified save sheet after the change. The e2e test 'save-text.spec.ts' must pass after any Horizon page changes.**
+
 The save flow uses a single unified input triggered by a floating + button on the Horizon page. It opens as a bottom sheet with all fields visible immediately (category pills, location, notes, save button). Users type text, paste URLs, or attach images — the app auto-detects the content type. URL previews animate smoothly without layout shift. Clipboard paste of images is supported. Save commits the entry, resets the form, and keeps the sheet open for rapid successive saves. To close the sheet, the user swipes down on the drag handle or taps outside.
 
 ### How It Works
