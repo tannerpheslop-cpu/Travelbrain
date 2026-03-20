@@ -143,6 +143,7 @@ export default function SavedItemImage({ item, size, className = '', readOnly = 
         src={photoUrl}
         alt=""
         className={`${s.wrapper} object-cover bg-bg-muted shrink-0 ${className}`}
+        loading="lazy"
         onError={() => setImgFailed(true)}
       />
     )

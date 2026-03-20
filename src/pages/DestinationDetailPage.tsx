@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { MapPin, Search, ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import { queryKeys } from '../hooks/queries'
 import SavedItemImage from '../components/SavedItemImage'
 import { CategoryPill, MetadataLine } from '../components/ui'
 import type { TripDestination, SavedItem, Category } from '../types'
@@ -722,6 +724,7 @@ function AddFromInboxSheet({
 export default function DestinationDetailPage() {
   const { id: tripId, destId } = useParams()
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const itemBackTo = `/trip/${tripId}/dest/${destId}`
 
@@ -814,11 +817,17 @@ export default function DestinationDetailPage() {
   useEffect(() => {
     const handler = (e: Event) => {
       const item = (e as CustomEvent<SavedItem>).detail
-      if (item) setInboxItems((prev) => [item, ...prev.filter((i) => i.id !== item.id)])
+      if (item) {
+        setInboxItems((prev) => [item, ...prev.filter((i) => i.id !== item.id)])
+        queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+      }
     }
     const updateHandler = (e: Event) => {
       const item = (e as CustomEvent<SavedItem>).detail
-      if (item) setInboxItems((prev) => prev.map((i) => i.id === item.id ? item : i))
+      if (item) {
+        setInboxItems((prev) => prev.map((i) => i.id === item.id ? item : i))
+        queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+      }
     }
     window.addEventListener('horizon-item-created', handler)
     window.addEventListener('horizon-item-updated', updateHandler)
@@ -826,7 +835,7 @@ export default function DestinationDetailPage() {
       window.removeEventListener('horizon-item-created', handler)
       window.removeEventListener('horizon-item-updated', updateHandler)
     }
-  }, [])
+  }, [queryClient, user?.id])
 
   // ── Load interaction data ──────────────────────────────────────────────────
 
@@ -982,6 +991,9 @@ export default function DestinationDetailPage() {
         const removedIds = new Set(city.items.map((it) => it.id))
         return prev.filter((s) => !removedIds.has(s.id))
       })
+      // Invalidate caches
+      queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(tripId!) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
       // Navigate to new destination
       navigate(`/trip/${tripId}/dest/${(newDest as TripDestination).id}`)
     }
@@ -993,9 +1005,11 @@ export default function DestinationDetailPage() {
   const handleSaveDestNotes = useCallback((notes: string | null) => {
     setDestNotes(notes)
     if (destination) {
-      supabase.from('trip_destinations').update({ notes }).eq('id', destination.id).then(() => {/* best-effort */})
+      supabase.from('trip_destinations').update({ notes }).eq('id', destination.id).then(() => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(tripId!) })
+      })
     }
-  }, [destination?.id])
+  }, [destination?.id, queryClient, tripId])
 
   // ── Activity notes handler ─────────────────────────────────────────────────
 
@@ -1007,8 +1021,11 @@ export default function DestinationDetailPage() {
           : li,
       ),
     )
-    supabase.from('saved_items').update({ notes }).eq('id', itemId).then(() => {/* best-effort */})
-  }, [])
+    supabase.from('saved_items').update({ notes }).eq('id', itemId).then(() => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+      queryClient.invalidateQueries({ queryKey: queryKeys.savedItem(itemId) })
+    })
+  }, [queryClient, user?.id])
 
   // ── Open inbox sheet (lazy fetch once) ─────────────────────────────────────
 
@@ -1072,6 +1089,11 @@ export default function DestinationDetailPage() {
     void supabase.from('trips').update({ status: 'planning' }).eq('id', tripId!).eq('status', 'aspirational')
       .then(() => {/* no-op */})
 
+    // Invalidate caches so other pages stay in sync
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(tripId!) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripItemMappings(user?.id ?? '') })
+
     return true
   }
 
@@ -1107,6 +1129,10 @@ export default function DestinationDetailPage() {
       trackEvent('item_added_to_destination', user!.id, { destination_id: destination.id, item_id: item.id, source: 'place_search' })
       // Nudge trip to planning status
       void supabase.from('trips').update({ status: 'planning' }).eq('id', tripId!).eq('status', 'aspirational')
+      // Invalidate caches
+      queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(tripId!) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tripItemMappings(user?.id ?? '') })
     }
     setShowPlaceSearch(false)
   }
@@ -1130,6 +1156,8 @@ export default function DestinationDetailPage() {
     }
     if (expandedItemId === removed?.item_id) setExpandedItemId(null)
     await supabase.from('destination_items').delete().eq('id', linkId)
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(tripId!) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripItemMappings(user?.id ?? '') })
   }
 
   // ── Move item to a different day ───────────────────────────────────────────
@@ -1142,6 +1170,7 @@ export default function DestinationDetailPage() {
       prev.map((li) => li.id === linkId ? { ...li, day_index: newDayIndex, sort_order: targetCount } : li),
     )
     await supabase.from('destination_items').update({ day_index: newDayIndex, sort_order: targetCount }).eq('id', linkId)
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(tripId!) })
     if (newDayIndex !== null && destination) {
       trackEvent('item_assigned_to_day', user!.id, { destination_id: destination.id, item_id: item.item_id, day_index: newDayIndex })
     }
@@ -1164,6 +1193,7 @@ export default function DestinationDetailPage() {
     await Promise.all(
       reordered.map((li, idx) => supabase.from('destination_items').update({ sort_order: idx }).eq('id', li.id)),
     )
+    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(tripId!) })
   }
 
   // ── Toggle vote ────────────────────────────────────────────────────────────
@@ -1452,7 +1482,7 @@ export default function DestinationDetailPage() {
                               {/* Ghost thumbnail — item image (muted) or map pin */}
                               <div className="w-11 h-11 rounded-xl overflow-hidden shrink-0 flex-none bg-bg-muted flex items-center justify-center">
                                 {thumbUrl ? (
-                                  <img src={thumbUrl} alt={cityItem.cityName} className="w-full h-full object-cover opacity-50" />
+                                  <img src={thumbUrl} alt={cityItem.cityName} className="w-full h-full object-cover opacity-50" loading="lazy" />
                                 ) : (
                                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-text-ghost">
                                     <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-1.99 3.963-4.98 3.963-8.827a8.25 8.25 0 00-16.5 0c0 3.846 2.02 6.837 3.963 8.827a19.58 19.58 0 002.682 2.282 16.975 16.975 0 001.145.742zM12 13.5a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
@@ -1664,6 +1694,7 @@ export default function DestinationDetailPage() {
           onClose={() => setShowAddDates(false)}
           onSaved={(updated) => {
             setDestination(updated)
+            queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(tripId!) })
             if (updated.start_date && updated.end_date) {
               trackEvent('destination_dates_set', user!.id, {
                 destination_id: updated.id,

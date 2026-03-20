@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../lib/auth'
+import { useSavedItems, useTripsQuery, useTripItemMappings, useDeleteItem, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { categoryLabel } from '../utils/categoryIcons'
@@ -10,7 +11,7 @@ import { BrandMark, CategoryPill, CountryCodeBadge, FilterPill, MetadataLine, So
 import { shortLocalName } from '../components/BilingualName'
 import { useLocationResolver } from '../hooks/useLocationResolver'
 import SwipeToDelete from '../components/SwipeToDelete'
-import type { SavedItem, Trip } from '../types'
+import type { SavedItem } from '../types'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -86,11 +87,28 @@ type ViewMode = 'grid' | 'list'
 export default function InboxPage() {
   const { user } = useAuth()
   const navLocation = useLocation()
-  const [items, setItems] = useState<SavedItem[]>([])
-  const [trips, setTrips] = useState<Trip[]>([])
-  const [allTripItems, setAllTripItems] = useState<{ trip_id: string; item_id: string }[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
+  // ── React Query data ───────────────────────────────────────────────────
+  const { data: items = [], isLoading: itemsLoading, error: itemsError } = useSavedItems()
+  const { data: tripsWithDests = [] } = useTripsQuery()
+  const trips = tripsWithDests // For the filter dropdown we just need id + title
+  const { data: allTripItems = [] } = useTripItemMappings()
+  const deleteItemMutation = useDeleteItem()
+
+  const loading = itemsLoading
+  const error = itemsError ? 'Could not load your saves. Tap to retry.' : null
+
+  // ── Prefetch trips data so Trips tab loads instantly ────────────────────
+  useEffect(() => {
+    if (!user) return
+    queryClient.prefetchQuery({
+      queryKey: queryKeys.trips(user.id),
+      queryFn: () => fetchTrips(user.id),
+    })
+  }, [user, queryClient])
+
+  // ── Local UI state ─────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('')
   const [unassignedOnly, setUnassignedOnly] = useState(false)
   const [selectedTripId, setSelectedTripId] = useState('')
@@ -113,21 +131,29 @@ export default function InboxPage() {
   }, [navLocation.state])
 
   // Background location resolver
-  const handleResolved = useCallback((updated: SavedItem) => {
-    setItems((prev) => prev.map((item) => item.id === updated.id ? updated : item))
-  }, [])
+  const handleResolved = useCallback(() => {
+    // When items are resolved with new location data, invalidate the cache
+    queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+  }, [queryClient, user?.id])
   const { resolveItems } = useLocationResolver(user?.id, handleResolved)
+
+  // Trigger location resolution when items first load
+  const resolvedRef = useRef(false)
+  useEffect(() => {
+    if (items.length > 0 && !resolvedRef.current) {
+      resolvedRef.current = true
+      resolveItems(items)
+    }
+  }, [items, resolveItems])
 
   // ── Listen for saves created/updated ─────────────────────────────────────
 
   useEffect(() => {
-    const handleCreated = (e: Event) => {
-      const item = (e as CustomEvent<SavedItem>).detail
-      setItems((prev) => [item, ...prev])
+    const handleCreated = () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
     }
-    const handleUpdated = (e: Event) => {
-      const updated = (e as CustomEvent<SavedItem>).detail
-      setItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)))
+    const handleUpdated = () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
     }
     window.addEventListener('horizon-item-created', handleCreated)
     window.addEventListener('horizon-item-updated', handleUpdated)
@@ -135,75 +161,7 @@ export default function InboxPage() {
       window.removeEventListener('horizon-item-created', handleCreated)
       window.removeEventListener('horizon-item-updated', handleUpdated)
     }
-  }, [])
-
-  // ── Data fetching ────────────────────────────────────────────────────────
-
-  const fetchAll = async () => {
-    if (!user) return
-    setError(null)
-
-    const [itemsResult, tripsResult] = await Promise.all([
-      supabase
-        .from('saved_items')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_archived', false)
-        .order('created_at', { ascending: false }),
-      supabase
-        .from('trips')
-        .select('*')
-        .eq('owner_id', user.id)
-        .order('created_at', { ascending: false }),
-    ])
-
-    if (itemsResult.error) {
-      setError('Could not load your saves. Tap to retry.')
-      setLoading(false)
-      return
-    }
-
-    const fetchedItems = (itemsResult.data ?? []) as SavedItem[]
-    const fetchedTrips = (tripsResult.data ?? []) as Trip[]
-    setItems(fetchedItems)
-    setTrips(fetchedTrips)
-    resolveItems(fetchedItems)
-    setAllTripItems([])
-
-    if (fetchedTrips.length > 0) {
-      const tripIds = fetchedTrips.map((t) => t.id)
-      const { data: destRows } = await supabase
-        .from('trip_destinations')
-        .select('id, trip_id')
-        .in('trip_id', tripIds)
-      const destMap = new Map(
-        (destRows ?? []).map((d: { id: string; trip_id: string }) => [d.id, d.trip_id]),
-      )
-      const destIds = [...destMap.keys()]
-      const [diRes, giRes] = await Promise.all([
-        destIds.length > 0
-          ? supabase.from('destination_items').select('item_id, destination_id').in('destination_id', destIds)
-          : Promise.resolve({ data: [] as { item_id: string; destination_id: string }[], error: null }),
-        supabase.from('trip_general_items').select('item_id, trip_id').in('trip_id', tripIds),
-      ])
-      const combined: { trip_id: string; item_id: string }[] = [
-        ...(diRes.data ?? [])
-          .map((di: { item_id: string; destination_id: string }) => ({
-            item_id: di.item_id,
-            trip_id: destMap.get(di.destination_id) ?? '',
-          }))
-          .filter((x: { trip_id: string; item_id: string }) => x.trip_id !== ''),
-        ...(giRes.data ?? []).map((gi: { item_id: string; trip_id: string }) => ({
-          item_id: gi.item_id,
-          trip_id: gi.trip_id,
-        })),
-      ]
-      setAllTripItems(combined)
-    }
-    setLoading(false)
-  }
-
-  useEffect(() => { if (user) fetchAll() }, [user])
+  }, [queryClient, user?.id])
 
   // ── Derived data ─────────────────────────────────────────────────────────
 
@@ -257,24 +215,9 @@ export default function InboxPage() {
     [items, unassignedOnly, assignedItemIds, selectedTripId, selectedTripItemIds, selectedCity, searchQuery],
   )
 
-  const handleDeleteItem = useCallback(async (itemId: string) => {
-    setItems((prev) => prev.filter((item) => item.id !== itemId))
-    try {
-      // Cascading delete in FK-safe order
-      await supabase.from('destination_items').delete().eq('item_id', itemId)
-      await supabase.from('trip_general_items').delete().eq('item_id', itemId)
-      await supabase.from('comments').delete().eq('item_id', itemId)
-      await supabase.from('votes').delete().eq('item_id', itemId)
-      const { error } = await supabase.from('saved_items').delete().eq('id', itemId)
-      if (error) {
-        console.error('[inbox] delete error:', error)
-        fetchAll()
-      }
-    } catch (err) {
-      console.error('[inbox] delete error:', err)
-      fetchAll()
-    }
-  }, [user])
+  const handleDeleteItem = useCallback((itemId: string) => {
+    deleteItemMutation.mutate(itemId)
+  }, [deleteItemMutation])
 
   const geoGroups = useMemo(() => groupByCountry(filtered), [filtered])
 
@@ -450,7 +393,7 @@ export default function InboxPage() {
         <div className="mt-16 text-center py-16">
           <span className="font-mono text-[28px] text-text-faint opacity-30 block mb-3">!</span>
           <p className="text-sm text-text-faint">Couldn't load your saves</p>
-          <PrimaryButton onClick={fetchAll} className="mt-4">Retry</PrimaryButton>
+          <PrimaryButton onClick={() => queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })} className="mt-4">Retry</PrimaryButton>
         </div>
       )}
 
@@ -516,7 +459,7 @@ export default function InboxPage() {
     {showSaveSheet && (
       <SaveSheet
         onClose={() => setShowSaveSheet(false)}
-        onSaved={(newItem) => setItems((prev) => [newItem, ...prev])}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })}
       />
     )}
 

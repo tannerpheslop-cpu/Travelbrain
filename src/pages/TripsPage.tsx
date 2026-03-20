@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useTrips, type TripWithDestinations } from '../hooks/useTrips'
+import { useQueryClient } from '@tanstack/react-query'
+import { useTripsQuery, useCreateTrip, useCreateDestination, queryKeys, fetchTrip, fetchTripDestinations, type TripWithDestinations } from '../hooks/queries'
 import { useAuth } from '../lib/auth'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
@@ -488,7 +489,7 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
                               >
                                 <div className="w-8 h-8 rounded-lg shrink-0 flex-none bg-bg-muted overflow-hidden flex items-center justify-center">
                                   {item.image_url ? (
-                                    <img src={item.image_url} alt={item.title} className="w-full h-full object-cover opacity-60" />
+                                    <img src={item.image_url} alt={item.title} className="w-full h-full object-cover opacity-60" loading="lazy" />
                                   ) : (
                                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-text-ghost">
                                       <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.003 3.5-4.697 3.5-8.338C20 5.945 16.368 2 12 2 7.632 2 4 5.945 4 10.988c0 3.64 1.556 6.334 3.5 8.337a19.578 19.578 0 002.683 2.282 16.944 16.944 0 001.144.742zM12 14a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
@@ -1014,9 +1015,53 @@ function PhaseCarousel({ phaseKey, trips, startNum, onNewTrip }: {
 // ══════════════════════════════════════════════════════════════════════════════
 
 export default function TripsPage() {
-  const { trips, loading, createTrip, createDestination } = useTrips()
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const { data: trips = [], isLoading: loading } = useTripsQuery()
+  const createTripMutation = useCreateTrip()
+  const createDestMutation = useCreateDestination()
   const [showModal, setShowModal] = useState(false)
   const navigate = useNavigate()
+
+  // Wrap mutations to match the interface expected by CreateTripModal
+  const createTrip = useCallback(
+    async (input: { title: string }): Promise<{ trip: TripWithDestinations | null; error: string | null }> => {
+      try {
+        const trip = await createTripMutation.mutateAsync(input)
+        return { trip, error: null }
+      } catch (err) {
+        return { trip: null, error: (err as Error).message }
+      }
+    },
+    [createTripMutation],
+  )
+  const createDestination = useCallback(
+    async (
+      tripId: string,
+      location: LocationSelection,
+      sortOrder: number,
+      imageUrl?: string,
+      imageSource?: string,
+      imageCreditName?: string,
+      imageCreditUrl?: string,
+    ): Promise<{ destination: unknown; error: string | null }> => {
+      try {
+        const dest = await createDestMutation.mutateAsync({
+          tripId,
+          location,
+          sortOrder,
+          imageUrl,
+          imageSource,
+          imageCreditName,
+          imageCreditUrl,
+        })
+        return { destination: dest, error: null }
+      } catch (err) {
+        return { destination: null, error: (err as Error).message }
+      }
+    },
+    [createDestMutation],
+  )
 
   useEffect(() => {
     const handler = () => setShowModal(true)
@@ -1034,7 +1079,7 @@ export default function TripsPage() {
     aspirational: remainingTrips.filter(t => t.status === 'aspirational'),
   }), [remainingTrips])
 
-  // Preload destination images
+  // Preload destination images for all trips
   useEffect(() => {
     if (loading) return
     for (const trip of trips) {
@@ -1042,6 +1087,21 @@ export default function TripsPage() {
       if (url) { const img = new Image(); img.src = url }
     }
   }, [trips, loading])
+
+  // Prefetch trip detail + destinations for the first 4 trips (hero + top carousel)
+  useEffect(() => {
+    if (loading || !user) return
+    trips.slice(0, 4).forEach((trip) => {
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.trip(trip.id),
+        queryFn: () => fetchTrip(trip.id, user.id),
+      })
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.tripDestinations(trip.id),
+        queryFn: () => fetchTripDestinations(trip.id),
+      })
+    })
+  }, [trips, loading, user, queryClient])
 
   const totalCountries = useMemo(() => {
     const codes = new Set<string>()
