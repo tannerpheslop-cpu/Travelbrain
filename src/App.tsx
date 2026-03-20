@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { AuthProvider } from './lib/auth'
 import ProtectedRoute from './components/ProtectedRoute'
 import BottomNav from './components/BottomNav'
@@ -14,6 +16,17 @@ import SearchPage from './pages/SearchPage'
 import SharedTripPage from './pages/SharedTripPage'
 import GlobalActions from './components/GlobalActions'
 import DevLoginPage from './pages/DevLoginPage'
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 2,     // Data is fresh for 2 minutes
+      gcTime: 1000 * 60 * 10,        // Cache kept for 10 minutes even if unused
+      refetchOnWindowFocus: false,    // Don't refetch on tab focus
+      retry: 1,                       // Retry failed queries once
+    },
+  },
+})
 
 function AppLayout() {
   return (
@@ -41,15 +54,18 @@ function AppLayout() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          {import.meta.env.DEV && <Route path="/dev-login" element={<DevLoginPage />} />}
-          <Route path="/s/:shareToken" element={<SharedTripPage />} />
-          <Route path="/*" element={<AppLayout />} />
-        </Routes>
-      </AuthProvider>
-    </BrowserRouter>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            {import.meta.env.DEV && <Route path="/dev-login" element={<DevLoginPage />} />}
+            <Route path="/s/:shareToken" element={<SharedTripPage />} />
+            <Route path="/*" element={<AppLayout />} />
+          </Routes>
+        </AuthProvider>
+      </BrowserRouter>
+      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+    </QueryClientProvider>
   )
 }
