@@ -5,7 +5,7 @@ import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SavedItemImage from '../components/SavedItemImage'
-import { SecondaryButton } from '../components/ui'
+import { SecondaryButton, ConfirmDeleteModal } from '../components/ui'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import type { SavedItem, Category } from '../types'
 
@@ -49,6 +49,10 @@ export default function ItemDetailPage() {
   const [showTripSheet, setShowTripSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [refreshingImage, setRefreshingImage] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
 
   const handleToast = (msg: string) => {
     setToast(msg)
@@ -182,6 +186,49 @@ export default function ItemDetailPage() {
     }
   }
 
+  // Close menu on outside click
+  useEffect(() => {
+    if (!showMenu) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showMenu])
+
+  const handleDelete = async () => {
+    if (!id || !user) return
+    setDeleting(true)
+    try {
+      // 1. Delete destination_items referencing this item
+      await supabase.from('destination_items').delete().eq('item_id', id)
+      // 2. Delete trip_general_items referencing this item
+      await supabase.from('trip_general_items').delete().eq('item_id', id)
+      // 3. Delete comments referencing this item
+      await supabase.from('comments').delete().eq('item_id', id)
+      // 4. Delete votes referencing this item
+      await supabase.from('votes').delete().eq('item_id', id)
+      // 5. Delete the saved_item itself
+      const { error } = await supabase.from('saved_items').delete().eq('id', id).eq('user_id', user.id)
+      if (error) {
+        console.error('[item-detail] delete error:', error)
+        setDeleting(false)
+        setShowDeleteConfirm(false)
+        handleToast('Failed to delete item')
+        return
+      }
+      // 6. Navigate back to inbox with toast
+      navigate('/inbox', { state: { toast: 'Item deleted' } })
+    } catch (err) {
+      console.error('[item-detail] delete threw:', err)
+      setDeleting(false)
+      setShowDeleteConfirm(false)
+      handleToast('Failed to delete item')
+    }
+  }
+
   if (loading) {
     return (
       <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
@@ -225,7 +272,7 @@ export default function ItemDetailPage() {
 
   return (
     <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-      {/* Header: Back + Save Status */}
+      {/* Header: Back + Save Status + Menu */}
       <div className="flex items-center justify-between mb-4">
         <button
           onClick={() => navigate(backTo)}
@@ -236,12 +283,50 @@ export default function ItemDetailPage() {
           </svg>
           Back
         </button>
-        {saveStatus !== 'idle' && (
-          <span className={`text-xs font-medium ${saveStatus === 'saving' ? 'text-text-faint' : 'text-success'}`}>
-            {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          {saveStatus !== 'idle' && (
+            <span className={`text-xs font-medium ${saveStatus === 'saving' ? 'text-text-faint' : 'text-success'}`}>
+              {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
+            </span>
+          )}
+          {/* ··· overflow menu */}
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setShowMenu((v) => !v)}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-bg-muted transition-colors"
+              aria-label="More options"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-text-tertiary">
+                <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
+              </svg>
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl border border-border shadow-lg py-1 z-30">
+                <button
+                  type="button"
+                  onClick={() => { setShowMenu(false); setShowDeleteConfirm(true) }}
+                  className="w-full text-left px-4 py-2.5 text-[14px] transition-colors"
+                  style={{ color: '#c0392b' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#fdf0ef')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      {showDeleteConfirm && (
+        <ConfirmDeleteModal
+          onConfirm={handleDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
+          loading={deleting}
+        />
+      )}
 
       {/* Image — SavedItemImage handles Places photo fallback automatically */}
       {hasAnyImage ? (

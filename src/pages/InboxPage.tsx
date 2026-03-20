@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import SaveSheet from '../components/SaveSheet'
@@ -85,6 +85,7 @@ type ViewMode = 'grid' | 'list'
 
 export default function InboxPage() {
   const { user } = useAuth()
+  const navLocation = useLocation()
   const [items, setItems] = useState<SavedItem[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
   const [allTripItems, setAllTripItems] = useState<{ trip_id: string; item_id: string }[]>([])
@@ -97,7 +98,19 @@ export default function InboxPage() {
   const [showSaveSheet, setShowSaveSheet] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [inboxToast, setInboxToast] = useState<string | null>(null)
   const filterPanelRef = useRef<HTMLDivElement>(null)
+
+  // Show toast from navigation state (e.g. after deleting an item)
+  useEffect(() => {
+    const toastMsg = (navLocation.state as { toast?: string })?.toast
+    if (toastMsg) {
+      setInboxToast(toastMsg)
+      setTimeout(() => setInboxToast(null), 2500)
+      // Clear the state so it doesn't re-trigger
+      window.history.replaceState({}, '')
+    }
+  }, [navLocation.state])
 
   // Background location resolver
   const handleResolved = useCallback((updated: SavedItem) => {
@@ -530,6 +543,13 @@ export default function InboxPage() {
         onClose={() => setShowSaveSheet(false)}
         onSaved={(newItem) => setItems((prev) => [newItem, ...prev])}
       />
+    )}
+
+    {/* Toast */}
+    {inboxToast && (
+      <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
+        {inboxToast}
+      </div>
     )}
     </>
   )
