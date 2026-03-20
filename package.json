@@ -14,7 +14,8 @@
     "test:unit": "vitest run --dir src",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:all": "vitest run && playwright test"
+    "test:all": "vitest run && playwright test",
+    "precommit": "vitest run"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

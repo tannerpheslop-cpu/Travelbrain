@@ -575,6 +575,20 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
 
 ## 14. Code Quality Standards
 
+**MANDATORY: Every code change MUST include corresponding tests. This is not optional.**
+- When adding a new feature: write unit tests for any new utility functions/logic AND an e2e test for the user-facing flow.
+- When fixing a bug: write a regression test that verifies the bug is fixed. The test should fail without the fix and pass with it.
+- When modifying existing functionality: update any existing tests that are affected AND verify all existing tests still pass.
+- Before EVERY commit: run `npm run test:all`. If any test fails, fix it before committing. If new code was added without tests, write the tests before committing.
+- NEVER commit code without running tests. NEVER skip writing tests for new functionality.
+
+**Test coverage expectations:**
+- Every utility function in `/lib/` has unit tests
+- Every user-facing flow (save, create trip, add destination, delete, pin, share, adopt) has e2e tests
+- Every auto-detection feature (location detection, category detection, image display evaluation) has unit tests with the test cases specified in the original implementation prompts
+
+---
+
 - Use TypeScript strictly — no `any` types unless absolutely necessary
 - Components should be small and reusable
 - Use Supabase client from a shared /lib/supabase.ts file
