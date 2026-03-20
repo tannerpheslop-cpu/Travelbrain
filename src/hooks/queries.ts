@@ -4,6 +4,7 @@
  * Each hook wraps a Supabase query with React Query's caching layer so that
  * page switches serve cached data instantly and background refetches keep it fresh.
  */
+import { useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -278,6 +279,27 @@ export function useTripItemMappings() {
     },
     enabled: !!user,
   })
+}
+
+/**
+ * Derives a map of item_id → number of distinct trips the item is linked to.
+ * Consumes the same cache as useTripItemMappings() — no extra network request.
+ */
+export function useTripLinkCounts(): Map<string, number> {
+  const { data: mappings = [] } = useTripItemMappings()
+  return useMemo(() => {
+    const perItem = new Map<string, Set<string>>()
+    for (const { item_id, trip_id } of mappings) {
+      let s = perItem.get(item_id)
+      if (!s) { s = new Set(); perItem.set(item_id, s) }
+      s.add(trip_id)
+    }
+    const counts = new Map<string, number>()
+    for (const [itemId, tripSet] of perItem) {
+      counts.set(itemId, tripSet.size)
+    }
+    return counts
+  }, [mappings])
 }
 
 // ── Mutations ─────────────────────────────────────────────────────────────────
