@@ -856,6 +856,15 @@ function ImageCard({ item, tripCount, onDelete, eager, showShimmer }: { item: Sa
   const [photoUrl, setPhotoUrl] = useState<string | null>(rawUrl)
   const [imgFailed, setImgFailed] = useState(false)
 
+  // Sync photoUrl when item prop updates from React Query (e.g., server-side detection fills in places_photo_url)
+  useEffect(() => {
+    const newUrl = item.image_url ?? item.places_photo_url ?? null
+    if (newUrl && newUrl !== photoUrl) {
+      setPhotoUrl(newUrl)
+      setImgFailed(false)
+    }
+  }, [item.image_url, item.places_photo_url]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Auto-fetch from Google Places if no image cached but place_id exists
   useEffect(() => {
     if (photoUrl || imgFailed || !item.location_place_id) return

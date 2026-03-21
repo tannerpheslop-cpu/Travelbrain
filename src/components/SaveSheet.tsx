@@ -347,6 +347,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       location_country_code: location?.country_code ?? null,
       category: (selectedTags.find((t) => ['restaurant', 'activity', 'hotel', 'transit'].includes(t)) as Category) ?? 'general',
       notes: notes.trim() || null,
+      image_display: imageDisplay,
     }
 
     // Extended columns (from recent migrations — may not exist yet)
@@ -354,7 +355,6 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       ...corePayload,
       location_name_en: location?.name_en ?? null,
       location_name_local: location?.name_local ?? null,
-      image_display: imageDisplay,
     }
 
     // Try with all columns first; fall back to core columns if a column doesn't exist

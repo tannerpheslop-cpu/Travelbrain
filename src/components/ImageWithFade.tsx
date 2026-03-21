@@ -21,6 +21,7 @@ interface ImageWithFadeProps {
  * - Smooth fade-in (opacity 0 → 1 over 0.2s)
  * - Eager / lazy loading control
  * - Handles already-cached images (checks img.complete on mount)
+ * - Resets error/loaded state when src changes
  *
  * Returns null when src is falsy or the image errors, letting the parent
  * render its own fallback.
@@ -41,11 +42,17 @@ export default function ImageWithFade({
 
   const optimizedSrc = optimizedImageUrl(src, context)
 
-  // Handle images that are already cached — onLoad may not fire
+  // Reset loaded/error state when src changes, then check if already cached
   useEffect(() => {
-    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
-      setLoaded(true)
-    }
+    setLoaded(false)
+    setError(false)
+
+    // Use requestAnimationFrame to ensure the new <img> has mounted with the new src
+    requestAnimationFrame(() => {
+      if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+        setLoaded(true)
+      }
+    })
   }, [optimizedSrc])
 
   if (error || !optimizedSrc) return null
