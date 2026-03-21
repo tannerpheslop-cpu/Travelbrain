@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
+import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../lib/auth'
@@ -10,7 +10,6 @@ import { categoryLabel } from '../utils/categoryIcons'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
 import { BrandMark, CategoryPill, CountryCodeBadge, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
-import { useLocationResolver } from '../hooks/useLocationResolver'
 import SwipeToDelete from '../components/SwipeToDelete'
 import ScrollToTop from '../components/ScrollToTop'
 import { processUnlocatedItems } from '../lib/backgroundLocationWorker'
@@ -145,21 +144,6 @@ export default function InboxPage() {
     }
   }, [navLocation.state])
 
-  // Background location resolver
-  const handleResolved = useCallback(() => {
-    // When items are resolved with new location data, invalidate the cache
-    queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
-  }, [queryClient, user?.id])
-  const { resolveItems } = useLocationResolver(user?.id, handleResolved)
-
-  // Trigger location resolution when items first load
-  const resolvedRef = useRef(false)
-  useEffect(() => {
-    if (items.length > 0 && !resolvedRef.current) {
-      resolvedRef.current = true
-      resolveItems(items)
-    }
-  }, [items, resolveItems])
 
   // ── Listen for saves created/updated ─────────────────────────────────────
 

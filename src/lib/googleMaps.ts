@@ -5,7 +5,6 @@ import { invokeEdgeFunction } from './supabase'
  * exactly once, even if called from multiple components simultaneously.
  */
 
-import { extractPlaceData } from './extractPlaceData'
 
 let _promise: Promise<void> | null = null
 
@@ -48,18 +47,6 @@ export function loadGoogleMapsScript(): Promise<void> {
  * Uses PlacesService.getDetails with fields: ['photos'].
  * Returns null if no photo is available, the API is unavailable, or any error occurs.
  */
-/** Resolved location data returned by findPlaceByQuery. */
-export interface ResolvedLocation {
-  location_name: string
-  location_lat: number
-  location_lng: number
-  location_place_id: string
-  location_country: string | null
-  location_country_code: string | null
-  location_name_en: string | null
-  location_name_local: string | null
-}
-
 /** Bilingual name data for a place. */
 export interface BilingualNames {
   name_en: string
@@ -189,62 +176,6 @@ export async function fetchBilingualNames(
   }
 }
 
-/**
- * Attempts to resolve a text query (e.g. "Ramen Nagi Tokyo") into structured
- * location data using the Google Places JS API.
- * Delegates all field extraction to extractPlaceData for consistency.
- * Returns null if no confident match is found or the API is unavailable.
- */
-export async function findPlaceByQuery(query: string): Promise<ResolvedLocation | null> {
-  try {
-    await loadGoogleMapsScript()
-    if (!window.google?.maps?.places) return null
-
-    return new Promise<ResolvedLocation | null>((resolve) => {
-      const service = new window.google.maps.places.PlacesService(
-        document.createElement('div'),
-      )
-      service.findPlaceFromQuery(
-        {
-          query,
-          fields: ['formatted_address', 'geometry', 'name', 'place_id', 'addressComponents', 'types'],
-        },
-        async (
-          results: google.maps.places.PlaceResult[] | null,
-          status: google.maps.places.PlacesServiceStatus,
-        ) => {
-          if (
-            status !== window.google.maps.places.PlacesServiceStatus.OK ||
-            !results?.length ||
-            !results[0].geometry?.location
-          ) {
-            resolve(null)
-            return
-          }
-
-          const locationData = await extractPlaceData(results[0])
-          if (!locationData) {
-            resolve(null)
-            return
-          }
-
-          resolve({
-            location_name: locationData.location_name,
-            location_lat: locationData.location_lat,
-            location_lng: locationData.location_lng,
-            location_place_id: locationData.location_place_id,
-            location_country: locationData.location_country,
-            location_country_code: locationData.location_country_code,
-            location_name_en: locationData.location_name_en,
-            location_name_local: locationData.location_name_local,
-          })
-        },
-      )
-    })
-  } catch {
-    return null
-  }
-}
 
 /**
  * Fetches a photo for a Google Place, persists it to Supabase Storage
