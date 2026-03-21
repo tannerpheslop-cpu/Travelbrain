@@ -12,7 +12,6 @@ import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
 import { BrandMark, CategoryPill, CountryCodeBadge, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import SwipeToDelete from '../components/SwipeToDelete'
 import ScrollToTop from '../components/ScrollToTop'
-import { processUnlocatedItems } from '../lib/backgroundLocationWorker'
 import ImageWithFade from '../components/ImageWithFade'
 import { getPlacePhoto } from '../components/SavedItemImage'
 import type { SavedItem, Category } from '../types'
@@ -111,15 +110,6 @@ export default function InboxPage() {
       queryKey: queryKeys.trips(user.id),
       queryFn: () => fetchTrips(user.id),
     })
-  }, [user, queryClient])
-
-  // ── Background location worker: process unlocated items on mount ─────────
-  useEffect(() => {
-    if (!user) return
-    const timer = setTimeout(() => {
-      void processUnlocatedItems(user.id, queryClient)
-    }, 2000)
-    return () => clearTimeout(timer)
   }, [user, queryClient])
 
   // ── Custom tags data ─────────────────────────────────────────────────────
@@ -571,13 +561,7 @@ export default function InboxPage() {
     {showSaveSheet && (
       <SaveSheet
         onClose={() => setShowSaveSheet(false)}
-        onSaved={() => {
-          queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
-          // Trigger background worker after 3s to detect location for newly saved items
-          if (user) {
-            setTimeout(() => void processUnlocatedItems(user.id, queryClient), 3000)
-          }
-        }}
+        onSaved={() => queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })}
       />
     )}
 

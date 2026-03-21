@@ -1,15 +1,15 @@
 import { useRef, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import { detectLocationFromText } from '../lib/placesTextSearch'
 import { detectCategory, detectCategories } from '../lib/detectCategory'
 import { writeItemTags } from './queries'
 import { trackEvent } from '../lib/analytics'
 import type { SavedItem } from '../types'
 
 /**
- * Hook that provides rapid-capture save creation + background location AND
- * category detection.  Saves are inserted immediately with just a title;
- * location + category data is resolved asynchronously afterwards.
+ * Hook that provides rapid-capture save creation + background category detection.
+ * Saves are inserted immediately with just a title; category is resolved
+ * asynchronously afterwards. Location detection is NOT done here — that's
+ * handled separately.
  */
 export function useRapidCapture(
   userId: string | undefined,
@@ -33,25 +33,11 @@ export function useRapidCapture(
       setResolvingIds((prev) => { const next = new Set(prev); next.add(item.id); return next })
 
       try {
-        const locationResult = await detectLocationFromText(item.title)
-        // Use originalPlaceTypes (from before city resolution) for category detection
-        const placeTypes = locationResult?.originalPlaceTypes ?? null
-        // Single category for backwards-compat saved_items.category column
-        const detectedCategory = detectCategory(item.title, placeTypes)
-        // Multi-category for the new item_tags table
-        const detectedCategories = detectCategories(item.title, placeTypes)
+        // Category detection only (text-based, no API call)
+        const detectedCategory = detectCategory(item.title, null)
+        const detectedCategories = detectCategories(item.title, null)
 
         const update: Record<string, unknown> = {}
-
-        if (locationResult) {
-          update.location_name = locationResult.name
-          update.location_lat = locationResult.lat
-          update.location_lng = locationResult.lng
-          update.location_place_id = locationResult.placeId
-          update.location_country = locationResult.country
-          update.location_country_code = locationResult.countryCode
-          update.location_name_en = locationResult.name
-        }
 
         if (detectedCategory) {
           update.category = detectedCategory
@@ -66,15 +52,6 @@ export function useRapidCapture(
           if (!error) {
             onItemUpdated({
               ...item,
-              ...(locationResult ? {
-                location_name: locationResult.name,
-                location_lat: locationResult.lat,
-                location_lng: locationResult.lng,
-                location_place_id: locationResult.placeId,
-                location_country: locationResult.country,
-                location_country_code: locationResult.countryCode,
-                location_name_en: locationResult.name,
-              } : {}),
               ...(detectedCategory ? { category: detectedCategory } : {}),
             } as SavedItem)
           }
@@ -89,20 +66,20 @@ export function useRapidCapture(
           await writeItemTags(item.id, userId, tags)
         }
       } catch {
-        // Non-fatal — item stays without location/category
+        // Non-fatal — item stays without category
       }
 
       // Done resolving this item
       setResolvingIds((prev) => { const next = new Set(prev); next.delete(item.id); return next })
 
-      // Small delay between resolutions to avoid API quota burst
+      // Small delay between resolutions
       if (queueRef.current.length > 0) {
         await new Promise((r) => setTimeout(r, 300))
       }
     }
 
     processingRef.current = false
-  }, [onItemUpdated])
+  }, [onItemUpdated, userId])
 
   // ── Create saves ─────────────────────────────────────────────────────────
 
@@ -153,7 +130,7 @@ export function useRapidCapture(
         }
       }
 
-      // Queue background resolution (location + category)
+      // Queue background category resolution
       if (created.length > 0) {
         queueRef.current.push(...created)
         void processQueue()

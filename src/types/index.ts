@@ -38,7 +38,6 @@ export interface SavedItem {
   notes: string | null
   tags: string[] | null
   is_archived: boolean
-  location_auto_declined: boolean
   image_display: 'featured' | 'thumbnail' | 'none' | null
   created_at: string
 }

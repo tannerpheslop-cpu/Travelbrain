@@ -1,12 +1,6 @@
 /**
  * Tests for useRapidCapture hook — rapid multi-entry save + background
- * location AND category detection.
- *
- * Since this is a React hook with Supabase calls and Google Places resolution,
- * we test the core logic by mocking dependencies and verifying the flow:
- * 1. createSaves() inserts items immediately
- * 2. Background detection queue processes items sequentially
- * 3. Resolved location AND category data is persisted via onItemUpdated
+ * category detection (no location detection).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
@@ -46,25 +40,19 @@ vi.mock('../../lib/supabase', () => ({
   },
 }))
 
-const mockDetectLocation = vi.fn()
-vi.mock('../../lib/placesTextSearch', () => ({
-  detectLocationFromText: (...args: unknown[]) => mockDetectLocation(...args),
-}))
-
 vi.mock('../../lib/detectCategory', () => {
-  const detect = (text: string, placeTypes: string[] | null) => {
+  const detect = (text: string, _placeTypes: string[] | null) => {
     const lower = text.toLowerCase()
-    if (placeTypes?.includes('restaurant')) return 'restaurant'
     if (lower.includes('ramen') || lower.includes('hotpot') || lower.includes('food')) return 'restaurant'
     if (lower.includes('hike') || lower.includes('hiking') || lower.includes('temple')) return 'activity'
     if (lower.includes('hotel') || lower.includes('hostel')) return 'hotel'
     if (lower.includes('train') || lower.includes('airport')) return 'transit'
     return null
   }
-  const detectMulti = (text: string, placeTypes: string[] | null) => {
+  const detectMulti = (text: string, _placeTypes: string[] | null) => {
     const result: string[] = []
     const lower = text.toLowerCase()
-    if (placeTypes?.includes('restaurant') || lower.includes('ramen') || lower.includes('hotpot') || lower.includes('food')) result.push('restaurant')
+    if (lower.includes('ramen') || lower.includes('hotpot') || lower.includes('food')) result.push('restaurant')
     if (lower.includes('hike') || lower.includes('hiking') || lower.includes('temple')) result.push('activity')
     if (lower.includes('hotel') || lower.includes('hostel')) result.push('hotel')
     if (lower.includes('train') || lower.includes('airport')) result.push('transit')
@@ -100,7 +88,6 @@ describe('useRapidCapture', () => {
     vi.clearAllMocks()
     onItemCreated = vi.fn()
     onItemUpdated = vi.fn()
-    mockDetectLocation.mockResolvedValue(null) // default: no location found
   })
 
   it('returns createSaves function and resolvingIds set', () => {
@@ -164,53 +151,7 @@ describe('useRapidCapture', () => {
     expect(mockInsert).not.toHaveBeenCalled()
   })
 
-  it('queues background location + category resolution after save', async () => {
-    mockDetectLocation.mockResolvedValue({
-      name: 'Shibuya',
-      address: 'Shibuya, Tokyo, Japan',
-      lat: 35.658,
-      lng: 139.7016,
-      placeId: 'shibuya123',
-      country: 'Japan',
-      countryCode: 'JP',
-      locationType: 'geographic',
-      placeTypes: ['locality'],
-      originalPlaceTypes: ['locality'],
-    })
-
-    const { result } = renderHook(() => useRapidCapture(userId, onItemCreated, onItemUpdated))
-
-    await act(async () => {
-      await result.current.createSaves(['Ichiran Ramen Shibuya'])
-      // Wait for background resolution to complete
-      await new Promise((r) => setTimeout(r, 500))
-    })
-
-    expect(mockDetectLocation).toHaveBeenCalledWith('Ichiran Ramen Shibuya')
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        location_name: 'Shibuya',
-        location_country: 'Japan',
-        location_country_code: 'JP',
-      }),
-    )
-    expect(onItemUpdated).toHaveBeenCalled()
-  })
-
-  it('detects category from text when no place types match', async () => {
-    mockDetectLocation.mockResolvedValue({
-      name: 'Chengdu',
-      address: 'Chengdu, Sichuan, China',
-      lat: 30.5728,
-      lng: 104.0668,
-      placeId: 'chengdu123',
-      country: 'China',
-      countryCode: 'CN',
-      locationType: 'geographic',
-      placeTypes: ['locality'],
-      originalPlaceTypes: ['locality'],
-    })
-
+  it('detects category from text keywords in background', async () => {
     const { result } = renderHook(() => useRapidCapture(userId, onItemCreated, onItemUpdated))
 
     await act(async () => {
@@ -218,46 +159,15 @@ describe('useRapidCapture', () => {
       await new Promise((r) => setTimeout(r, 500))
     })
 
-    // Category detected from text keywords ("hotpot" → restaurant)
-    expect(mockUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({
-        category: 'restaurant',
-        location_name: 'Chengdu',
-      }),
-    )
-  })
-
-  it('detects category from original place types (before city resolution)', async () => {
-    mockDetectLocation.mockResolvedValue({
-      name: 'Tokyo',
-      address: 'Tokyo, Japan',
-      lat: 35.6762,
-      lng: 139.6503,
-      placeId: 'tokyo1',
-      country: 'Japan',
-      countryCode: 'JP',
-      locationType: 'geographic',
-      placeTypes: ['locality', 'political'],
-      originalPlaceTypes: ['restaurant', 'food', 'point_of_interest'],
-    })
-
-    const { result } = renderHook(() => useRapidCapture(userId, onItemCreated, onItemUpdated))
-
-    await act(async () => {
-      await result.current.createSaves(['Some obscure place name'])
-      await new Promise((r) => setTimeout(r, 500))
-    })
-
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         category: 'restaurant',
       }),
     )
+    expect(onItemUpdated).toHaveBeenCalled()
   })
 
-  it('detects category even when location detection returns null', async () => {
-    mockDetectLocation.mockResolvedValue(null)
-
+  it('detects activity category from text', async () => {
     const { result } = renderHook(() => useRapidCapture(userId, onItemCreated, onItemUpdated))
 
     await act(async () => {
@@ -265,7 +175,6 @@ describe('useRapidCapture', () => {
       await new Promise((r) => setTimeout(r, 500))
     })
 
-    // No location found, but category should still be detected from text
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         category: 'activity',
@@ -278,38 +187,37 @@ describe('useRapidCapture', () => {
     )
   })
 
-  it('handles resolution failure gracefully (item stays without location)', async () => {
-    mockDetectLocation.mockRejectedValue(new Error('API quota exceeded'))
-
+  it('does not update when no category is detected', async () => {
     const { result } = renderHook(() => useRapidCapture(userId, onItemCreated, onItemUpdated))
 
     await act(async () => {
-      await result.current.createSaves(['Some place'])
+      await result.current.createSaves(['Random thoughts about travel'])
       await new Promise((r) => setTimeout(r, 500))
     })
 
     // Item was created
     expect(onItemCreated).toHaveBeenCalledOnce()
-    // But location/category update was not called
+    // No category detected → no update
+    expect(mockUpdate).not.toHaveBeenCalled()
     expect(onItemUpdated).not.toHaveBeenCalled()
   })
 
-  it('processes multiple items in queue sequentially', async () => {
-    const callOrder: string[] = []
-    mockDetectLocation.mockImplementation(async (text: string) => {
-      callOrder.push(text)
-      await new Promise((r) => setTimeout(r, 50))
-      if (text.includes('ramen')) {
-        return {
-          name: 'Shibuya', address: 'Shibuya, Tokyo, Japan',
-          lat: 35.658, lng: 139.7016, placeId: 'p1',
-          country: 'Japan', countryCode: 'JP',
-          locationType: 'geographic', placeTypes: ['locality'],
-        }
-      }
-      return null
+  it('writes detected categories to item_tags table', async () => {
+    const { result } = renderHook(() => useRapidCapture(userId, onItemCreated, onItemUpdated))
+
+    await act(async () => {
+      await result.current.createSaves(['Ichiran ramen Shibuya'])
+      await new Promise((r) => setTimeout(r, 500))
     })
 
+    expect(mockWriteItemTags).toHaveBeenCalledWith(
+      expect.any(String), // item id
+      userId,
+      [{ tagName: 'restaurant', tagType: 'category' }],
+    )
+  })
+
+  it('processes multiple items sequentially', async () => {
     const { result } = renderHook(() => useRapidCapture(userId, onItemCreated, onItemUpdated))
 
     await act(async () => {
@@ -318,17 +226,13 @@ describe('useRapidCapture', () => {
         'Tiger Leaping Gorge hike',
         'Random thoughts',
       ])
-      // Wait for all background resolutions
       await new Promise((r) => setTimeout(r, 2000))
     })
 
     // All 3 created instantly
     expect(onItemCreated).toHaveBeenCalledTimes(3)
 
-    // Detection ran for all 3
-    expect(callOrder).toHaveLength(3)
-    expect(callOrder[0]).toBe('Ichiran ramen Shibuya')
-    expect(callOrder[1]).toBe('Tiger Leaping Gorge hike')
-    expect(callOrder[2]).toBe('Random thoughts')
+    // Only 2 items had detectable categories (ramen→restaurant, hike→activity)
+    expect(mockUpdate).toHaveBeenCalledTimes(2)
   })
 })
