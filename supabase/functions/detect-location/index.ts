@@ -62,7 +62,7 @@ Deno.serve(async (req) => {
 
     // ── Step 3: Determine if this is already a city/region/country ─────────
     console.log(`Step 3: Checking place types for ${firstResult.name}`)
-    const geoTypes = ["locality", "administrative_area_level_1", "administrative_area_level_2", "country", "sublocality"]
+    const geoTypes = ["locality", "postal_town", "administrative_area_level_1", "administrative_area_level_2", "country"]
     const isGeo = placeTypes.some((t: string) => geoTypes.includes(t))
 
     let cityName: string | null = null

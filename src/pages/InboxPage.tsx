@@ -9,7 +9,7 @@ import PillSheet from '../components/PillSheet'
 import type { PillGroup } from '../components/PillSheet'
 import { categoryLabel } from '../utils/categoryIcons'
 import { optimizedImageUrl } from '../lib/optimizedImage'
-import { LayoutGrid, List, SlidersHorizontal, Search, X, Globe, MapPin } from 'lucide-react'
+import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
 import { BrandMark, CategoryPill, CountryCodeBadge, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import SwipeToDelete from '../components/SwipeToDelete'
 import ScrollToTop from '../components/ScrollToTop'
@@ -476,30 +476,42 @@ export default function InboxPage() {
         </button>
 
         {/* Group mode toggle */}
-        <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
+        <div className="flex rounded-md border border-border-input overflow-hidden shrink-0">
           <button
             type="button"
             onClick={() => setGroupMode('country')}
-            className={`w-8 h-8 flex items-center justify-center transition-colors ${
-              groupMode === 'country'
-                ? 'bg-text-primary text-white'
-                : 'bg-transparent text-text-faint hover:text-text-secondary'
-            }`}
+            className="transition-colors"
+            style={{
+              padding: '4px 8px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              fontWeight: groupMode === 'country' ? 500 : 400,
+              background: groupMode === 'country' ? 'var(--color-bg-muted)' : 'transparent',
+              color: groupMode === 'country' ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+              border: 'none',
+              cursor: 'pointer',
+            }}
             aria-label="Group by country"
           >
-            <Globe className="w-3.5 h-3.5" />
+            Country
           </button>
           <button
             type="button"
             onClick={() => setGroupMode('city')}
-            className={`w-8 h-8 flex items-center justify-center transition-colors ${
-              groupMode === 'city'
-                ? 'bg-text-primary text-white'
-                : 'bg-transparent text-text-faint hover:text-text-secondary'
-            }`}
+            className="transition-colors"
+            style={{
+              padding: '4px 8px',
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              fontWeight: groupMode === 'city' ? 500 : 400,
+              background: groupMode === 'city' ? 'var(--color-bg-muted)' : 'transparent',
+              color: groupMode === 'city' ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
+              border: 'none',
+              cursor: 'pointer',
+            }}
             aria-label="Group by city"
           >
-            <MapPin className="w-3.5 h-3.5" />
+            City
           </button>
         </div>
 

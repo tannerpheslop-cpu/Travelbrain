@@ -74,7 +74,7 @@ const GEO_TYPES = new Set([
   'continent', 'archipelago',
 ])
 
-const CITY_TYPES = new Set(['locality', 'sublocality', 'neighborhood', 'colloquial_area'])
+const CITY_TYPES = new Set(['locality', 'postal_town', 'colloquial_area'])
 const ADMIN_TYPES = new Set(['administrative_area_level_1', 'administrative_area_level_2'])
 
 /** Generic words that are not locations — skip detection entirely. */
@@ -245,8 +245,10 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
       }
     }
 
-    // Absolute fallback — return the original result labeled as geographic
-    return await buildResult(top, originalPlaceTypes)
+    // Absolute fallback — could not resolve to city level. Return null to avoid
+    // labeling items with business names or overly specific locations.
+    console.warn('[placesTextSearch] Could not resolve to city level:', query)
+    return null
   } catch (err) {
     console.warn('[placesTextSearch] Error:', err)
     return null
