@@ -53,7 +53,9 @@ export function useCompanions(tripId: string | undefined) {
     ])
 
     if (!companionsRes.error && companionsRes.data) {
-      setCompanions(companionsRes.data as unknown as CompanionWithUser[])
+      // Filter out companions whose user join returned null (user row doesn't exist yet)
+      const valid = (companionsRes.data as unknown as CompanionWithUser[]).filter(c => c.user != null)
+      setCompanions(valid)
     }
     if (!pendingRes.error && pendingRes.data) {
       setPendingInvites(pendingRes.data as PendingInvite[])

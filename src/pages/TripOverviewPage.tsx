@@ -265,14 +265,14 @@ function InviteCompanionModal({
               <p className="text-sm font-medium text-text-secondary mb-2">Companions</p>
               <div className="space-y-2">
                 {companions.map((c) => {
-                  const name = c.user.display_name ?? c.user.email
+                  const name = c.user?.display_name ?? c.user?.email ?? 'Unknown'
                   const initials = name.split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('')
                   return (
                     <div key={c.id} className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-full bg-accent-light text-accent flex items-center justify-center text-sm font-semibold shrink-0">{initials || '?'}</div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-text-primary truncate">{name}</p>
-                        {c.user.display_name && <p className="text-xs text-text-faint truncate">{c.user.email}</p>}
+                        {c.user?.display_name && <p className="text-xs text-text-faint truncate">{c.user?.email}</p>}
                       </div>
                       <button type="button" onClick={() => onRemove(c.id)} className="text-xs text-text-faint hover:text-error transition-colors shrink-0">Remove</button>
                     </div>
