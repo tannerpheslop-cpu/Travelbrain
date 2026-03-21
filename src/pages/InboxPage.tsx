@@ -350,57 +350,46 @@ export default function InboxPage() {
       {/* ── Divider ── */}
       <div className="mt-4 mb-3 border-t border-border" />
 
-      {/* ── Search + Filter Row ── */}
-      <div className="flex gap-2 items-center mb-3">
-        <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-faint pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search saves..."
-            className="w-full pl-9 pr-3 py-2 bg-bg-card border border-border-input rounded-lg text-sm text-text-primary placeholder:text-text-ghost focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-secondary"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
+      {/* ── Row 1: Search bar (full width) ── */}
+      <div className="relative mb-2">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-faint pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search saves..."
+          className="w-full pl-9 pr-3 py-2 bg-bg-card border border-border-input rounded-lg text-sm text-text-primary placeholder:text-text-ghost focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-secondary"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
 
-        {/* Filter button */}
+      {/* ── Row 2: Filter icon + View toggle ── */}
+      <div className="flex items-center justify-between mb-3">
+        {/* Filter button — icon only */}
         <button
           type="button"
           onClick={() => setShowPillSheet(true)}
-          className="flex items-center gap-1.5 shrink-0 transition-colors"
+          className="flex items-center justify-center shrink-0 transition-colors"
           style={{
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 11,
+            width: 36,
+            height: 36,
             color: selectedFilters.length > 0 ? 'var(--color-accent)' : 'var(--color-text-secondary)',
             border: `1px solid ${selectedFilters.length > 0 ? 'var(--color-accent)' : 'var(--color-border-input)'}`,
-            borderRadius: 6,
-            padding: '6px 14px',
+            borderRadius: 8,
             background: selectedFilters.length > 0 ? 'var(--color-accent-light)' : 'transparent',
           }}
           data-testid="horizon-filter-btn"
+          aria-label="Filter"
         >
-          <SlidersHorizontal className="w-3.5 h-3.5" />
-          Filter
-          {selectedFilters.length > 0 && (
-            <span
-              className="ml-0.5 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center"
-              style={{
-                background: 'var(--color-accent)',
-                color: '#fff',
-              }}
-            >
-              {selectedFilters.length}
-            </span>
-          )}
+          <SlidersHorizontal className="w-4 h-4" />
         </button>
 
         {/* View toggle */}
@@ -432,15 +421,15 @@ export default function InboxPage() {
         </div>
       </div>
 
-      {/* ── Active Filter Pills ── */}
+      {/* ── Row 3: Active Filter Pills (horizontal scroll + Clear all) ── */}
       {selectedFilters.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-3" data-testid="active-filter-pills">
+        <div className="flex items-center gap-1.5 mb-3 overflow-x-auto scrollbar-hide" data-testid="active-filter-pills">
           {selectedFilters.map((filter) => (
             <button
               key={filter}
               type="button"
               onClick={() => setSelectedFilters((prev) => prev.filter((f) => f !== filter))}
-              className="flex items-center gap-1 transition-colors"
+              className="flex items-center gap-1 shrink-0 transition-colors"
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 10,
@@ -457,6 +446,20 @@ export default function InboxPage() {
               {filter}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setSelectedFilters([])}
+            className="shrink-0 ml-1 transition-colors hover:text-text-secondary"
+            style={{
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10,
+              fontWeight: 500,
+              color: 'var(--color-text-tertiary)',
+            }}
+            data-testid="clear-all-filters"
+          >
+            Clear all
+          </button>
         </div>
       )}
 

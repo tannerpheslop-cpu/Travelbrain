@@ -8,7 +8,7 @@ import { shortLocalName } from '../components/BilingualName'
 import type { SavedItem, TripDestination } from '../types'
 
 const RECENT_SEARCHES_KEY = 'youji-recent-searches'
-const MAX_RECENT_SEARCHES = 5
+const MAX_RECENT_SEARCHES = 3
 
 function getRecentSearches(): string[] {
   try {

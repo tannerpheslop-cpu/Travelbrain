@@ -465,9 +465,27 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
         className="fixed inset-x-0 bottom-0 z-50 bg-bg-card rounded-t-3xl flex flex-col"
         style={{ maxHeight: '90dvh' }}
       >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-3 shrink-0">
+        {/* Drag handle + close button */}
+        <div className="relative flex justify-center pt-3 shrink-0">
           <div style={{ width: 36, height: 4, background: 'var(--color-border-input)', borderRadius: 2 }} />
+          {!saving && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-4 top-2 flex items-center justify-center transition-colors hover:text-text-secondary"
+              style={{
+                width: 32,
+                height: 32,
+                color: 'var(--color-text-tertiary)',
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: 18,
+                lineHeight: 1,
+              }}
+              aria-label="Close"
+            >
+              ×
+            </button>
+          )}
         </div>
 
         {/* Scrollable content */}
