@@ -175,6 +175,7 @@ describe('useRapidCapture', () => {
       countryCode: 'JP',
       locationType: 'geographic',
       placeTypes: ['locality'],
+      originalPlaceTypes: ['locality'],
     })
 
     const { result } = renderHook(() => useRapidCapture(userId, onItemCreated, onItemUpdated))
@@ -188,7 +189,7 @@ describe('useRapidCapture', () => {
     expect(mockDetectLocation).toHaveBeenCalledWith('Ichiran Ramen Shibuya')
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
-        location_name: 'Shibuya, Tokyo, Japan',
+        location_name: 'Shibuya',
         location_country: 'Japan',
         location_country_code: 'JP',
       }),
@@ -207,6 +208,7 @@ describe('useRapidCapture', () => {
       countryCode: 'CN',
       locationType: 'geographic',
       placeTypes: ['locality'],
+      originalPlaceTypes: ['locality'],
     })
 
     const { result } = renderHook(() => useRapidCapture(userId, onItemCreated, onItemUpdated))
@@ -220,22 +222,23 @@ describe('useRapidCapture', () => {
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         category: 'restaurant',
-        location_name: 'Chengdu, Sichuan, China',
+        location_name: 'Chengdu',
       }),
     )
   })
 
-  it('detects category from place types (types take priority)', async () => {
+  it('detects category from original place types (before city resolution)', async () => {
     mockDetectLocation.mockResolvedValue({
-      name: 'Some Restaurant',
+      name: 'Tokyo',
       address: 'Tokyo, Japan',
       lat: 35.6762,
       lng: 139.6503,
-      placeId: 'rest123',
+      placeId: 'tokyo1',
       country: 'Japan',
       countryCode: 'JP',
-      locationType: 'business',
-      placeTypes: ['restaurant', 'food', 'point_of_interest'],
+      locationType: 'geographic',
+      placeTypes: ['locality', 'political'],
+      originalPlaceTypes: ['restaurant', 'food', 'point_of_interest'],
     })
 
     const { result } = renderHook(() => useRapidCapture(userId, onItemCreated, onItemUpdated))

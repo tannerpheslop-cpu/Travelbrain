@@ -34,7 +34,8 @@ export function useRapidCapture(
 
       try {
         const locationResult = await detectLocationFromText(item.title)
-        const placeTypes = locationResult?.placeTypes ?? null
+        // Use originalPlaceTypes (from before city resolution) for category detection
+        const placeTypes = locationResult?.originalPlaceTypes ?? null
         // Single category for backwards-compat saved_items.category column
         const detectedCategory = detectCategory(item.title, placeTypes)
         // Multi-category for the new item_tags table
@@ -43,7 +44,7 @@ export function useRapidCapture(
         const update: Record<string, unknown> = {}
 
         if (locationResult) {
-          update.location_name = locationResult.address
+          update.location_name = locationResult.name
           update.location_lat = locationResult.lat
           update.location_lng = locationResult.lng
           update.location_place_id = locationResult.placeId
@@ -66,7 +67,7 @@ export function useRapidCapture(
             onItemUpdated({
               ...item,
               ...(locationResult ? {
-                location_name: locationResult.address,
+                location_name: locationResult.name,
                 location_lat: locationResult.lat,
                 location_lng: locationResult.lng,
                 location_place_id: locationResult.placeId,

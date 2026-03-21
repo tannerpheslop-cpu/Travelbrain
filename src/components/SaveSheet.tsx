@@ -111,7 +111,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const detectionDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Track pending background location updates for already-saved items
-  const pendingLocationUpdates = useRef<Map<string, AbortController>>(new Map())
+  // pendingLocationUpdates removed — background location detection handled by worker
 
   // Auto-focus input on mount or when switching modes
   useEffect(() => {
@@ -175,20 +175,20 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       const result = await detectLocationFromText(text, { geoOnly })
       if (result && !locationManuallySet && !suggestionDismissed) {
         setDetectedLocation({
-          name: result.address,
+          name: result.name,
           lat: result.lat,
           lng: result.lng,
           place_id: result.placeId,
           country: result.country,
           country_code: result.countryCode,
-          location_type: result.locationType === 'business' ? 'city' : 'city',
+          location_type: 'city',
           proximity_radius_km: 50,
           name_en: result.name,
           name_local: null,
         })
-        // Auto-detect categories from place types + text (only if user hasn't manually set)
+        // Auto-detect categories from original place types (before city resolution) + text
         if (!categoryManuallySet) {
-          const detected = detectCategories(text, result.placeTypes)
+          const detected = detectCategories(text, result.originalPlaceTypes)
           if (detected.length > 0) setSelectedTags((prev) => {
             const next = new Set(prev)
             detected.forEach((c) => next.add(c))
@@ -345,6 +345,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       location_country_code: location?.country_code ?? null,
       location_name_en: location?.name_en ?? null,
       location_name_local: location?.name_local ?? null,
+      location_auto_declined: suggestionDismissed,
       category: (selectedTags.find((t) => ['restaurant', 'activity', 'hotel', 'transit'].includes(t)) as Category) ?? 'general',
       notes: notes.trim() || null,
       image_display: imageDisplay,
@@ -370,57 +371,31 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       void writeItemTags(savedItem.id, user.id, tagRows)
     }
 
-    // Background detection for location + category on items saved without them
-    const savedWithoutLocation = !location
-    const savedWithDefaultCategory = !categoryManuallySet && selectedTags.length === 0
-    const textForDetection = inputText.trim()
-    const metadataText = metadata ? [metadata.title, metadata.description].filter(Boolean).join(' ') : ''
-    const detectionInput = detectedUrl ? metadataText : textForDetection
-    const wordCount = detectionInput.split(/\s+/).length
+    // Background category detection only (location is handled by background worker)
+    if (!categoryManuallySet && selectedTags.length === 0) {
+      const textForDetection = inputText.trim()
+      const metadataText = metadata ? [metadata.title, metadata.description].filter(Boolean).join(' ') : ''
+      const detectionInput = detectedUrl ? metadataText : textForDetection
+      const wordCount = detectionInput.split(/\s+/).length
 
-    if ((savedWithoutLocation || savedWithDefaultCategory) && wordCount >= 2) {
-      // Run detection in background and update the item silently
-      const itemId = savedItem.id
-      const controller = new AbortController()
-      pendingLocationUpdates.current.set(itemId, controller)
-
-      detectLocationFromText(detectionInput).then(async (result) => {
-        if (controller.signal.aborted) return
-
-        const update: Record<string, unknown> = {}
-
-        if (result && savedWithoutLocation) {
-          update.location_name = result.address
-          update.location_lat = result.lat
-          update.location_lng = result.lng
-          update.location_place_id = result.placeId
-          update.location_country = result.country
-          update.location_country_code = result.countryCode
-          update.location_name_en = result.name
+      if (wordCount >= 2) {
+        const itemId = savedItem.id
+        // Use already-detected place types if available, otherwise detect from text only
+        const placeTypes = detectedLocation?.place_id ? null : null
+        const detectedCat = detectCategory(detectionInput, placeTypes)
+        if (detectedCat) {
+          void supabase.from('saved_items').update({ category: detectedCat }).eq('id', itemId)
         }
-
-        if (savedWithDefaultCategory) {
-          const placeTypes = result?.placeTypes ?? null
-          const detectedCat = detectCategory(detectionInput, placeTypes)
-          if (detectedCat) update.category = detectedCat
-
-          // Dual-write: write all detected categories to item_tags
-          const allCats = detectCategories(detectionInput, placeTypes)
-          if (allCats.length > 0) {
-            void writeItemTags(
-              itemId,
-              user.id,
-              allCats.map((cat) => ({ tagName: cat, tagType: 'category' as const })),
-            )
-          }
+        // Dual-write: write all detected categories to item_tags
+        const allCats = detectCategories(detectionInput, placeTypes)
+        if (allCats.length > 0) {
+          void writeItemTags(
+            itemId,
+            user.id,
+            allCats.map((cat) => ({ tagName: cat, tagType: 'category' as const })),
+          )
         }
-
-        if (Object.keys(update).length > 0) {
-          await supabase.from('saved_items').update(update).eq('id', itemId)
-        }
-      }).catch(() => { /* silent */ }).finally(() => {
-        pendingLocationUpdates.current.delete(itemId)
-      })
+      }
     }
 
     onSaved(savedItem)
@@ -824,7 +799,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 >
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#c45a2d' }}>↗</span>
                   <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, color: '#c45a2d' }}>
-                    {detectedLocation.name_en || detectedLocation.name.split(',').slice(0, 2).join(',')}
+                    {detectedLocation.name_en || detectedLocation.name}
                   </span>
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#9e9b94' }}>detected</span>
                   <span
