@@ -3,6 +3,9 @@ import {
   detectCategoryFromPlaceTypes,
   detectCategoryFromText,
   detectCategory,
+  detectCategoriesFromPlaceTypes,
+  detectCategoriesFromText,
+  detectCategories,
 } from '../detectCategory'
 
 // ── detectCategoryFromPlaceTypes ─────────────────────────────────────────────
@@ -184,5 +187,100 @@ describe('detectCategory', () => {
 
   it('returns null when nothing matches', () => {
     expect(detectCategory('Random thoughts', ['store', 'establishment'])).toBeNull()
+  })
+})
+
+// ── Multi-category detection ────────────────────────────────────────────────
+
+describe('detectCategoriesFromPlaceTypes', () => {
+  it('returns multiple categories for mixed place types', () => {
+    const result = detectCategoriesFromPlaceTypes(['lodging', 'restaurant'])
+    expect(result).toContain('restaurant')
+    expect(result).toContain('hotel')
+    expect(result).toHaveLength(2)
+  })
+
+  it('returns single category when only one matches', () => {
+    expect(detectCategoriesFromPlaceTypes(['museum'])).toEqual(['activity'])
+  })
+
+  it('returns empty array when nothing matches', () => {
+    expect(detectCategoriesFromPlaceTypes(['store', 'establishment'])).toEqual([])
+  })
+
+  it('returns empty array for empty input', () => {
+    expect(detectCategoriesFromPlaceTypes([])).toEqual([])
+  })
+})
+
+describe('detectCategoriesFromText', () => {
+  it('detects activity + hotel from "hiking lodge near the gorge"', () => {
+    const result = detectCategoriesFromText('hiking lodge near the gorge')
+    expect(result).toContain('activity')
+    expect(result).toContain('hotel')
+    expect(result).toHaveLength(2)
+  })
+
+  it('detects restaurant + activity from "food tour in Bangkok"', () => {
+    const result = detectCategoriesFromText('food tour in Bangkok')
+    expect(result).toContain('restaurant')
+    expect(result).toContain('activity')
+    expect(result).toHaveLength(2)
+  })
+
+  it('detects hotel + transit from "hotel near airport"', () => {
+    const result = detectCategoriesFromText('hotel near airport')
+    expect(result).toContain('hotel')
+    expect(result).toContain('transit')
+    expect(result).toHaveLength(2)
+  })
+
+  it('detects single category for simple text', () => {
+    expect(detectCategoriesFromText('Best ramen in Shibuya')).toEqual(['restaurant'])
+  })
+
+  it('returns empty array for generic text', () => {
+    expect(detectCategoriesFromText('Random thoughts about life')).toEqual([])
+  })
+
+  it('does NOT match "bar" inside "Barcelona"', () => {
+    expect(detectCategoriesFromText('Barcelona sightseeing')).toEqual([])
+  })
+
+  it('detects three categories from "hiking lodge near train station"', () => {
+    const result = detectCategoriesFromText('hiking lodge near train station')
+    expect(result).toContain('activity')
+    expect(result).toContain('hotel')
+    expect(result).toContain('transit')
+    expect(result).toHaveLength(3)
+  })
+})
+
+describe('detectCategories (combined multi)', () => {
+  it('combines place type and text categories', () => {
+    // Place types say restaurant, text says activity (hiking)
+    const result = detectCategories('Great hiking spot', ['restaurant'])
+    expect(result).toContain('restaurant')
+    expect(result).toContain('activity')
+    expect(result).toHaveLength(2)
+  })
+
+  it('deduplicates matching categories from both sources', () => {
+    const result = detectCategories('Best ramen', ['restaurant'])
+    expect(result).toEqual(['restaurant'])
+  })
+
+  it('uses text-only when place types are null', () => {
+    const result = detectCategories('Hiking resort in the mountains', null)
+    expect(result).toContain('activity')
+    expect(result).toContain('hotel')
+  })
+
+  it('returns empty array when nothing matches', () => {
+    expect(detectCategories('Random thoughts', null)).toEqual([])
+  })
+
+  it('handles place types + no text match', () => {
+    expect(detectCategories('Something generic', ['museum'])).toEqual(['activity'])
   })
 })

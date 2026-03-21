@@ -10,7 +10,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import { getInboxClusters } from '../lib/clusters'
-import type { SavedItem, Trip, TripDestination, TripRoute } from '../types'
+import type { SavedItem, Trip, TripDestination, TripRoute, ItemTag, TagType } from '../types'
 import type { LocationSelection } from '../components/LocationAutocomplete'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -54,6 +54,9 @@ export const queryKeys = {
   companions: (tripId: string) => ['companions', tripId] as const,
   inboxClusters: (userId: string) => ['inbox-clusters', userId] as const,
   tripItemMappings: (userId: string) => ['trip-item-mappings', userId] as const,
+  itemTags: (itemId: string) => ['item-tags', itemId] as const,
+  allUserTags: (userId: string) => ['all-user-tags', userId] as const,
+  userCustomTags: (userId: string) => ['user-custom-tags', userId] as const,
 }
 
 // ── Standalone fetch functions (for prefetchQuery — no hooks) ────────────────
@@ -540,4 +543,132 @@ export function useUpdateItem() {
       queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
     },
   })
+}
+
+// ── Item Tags ─────────────────────────────────────────────────────────────────
+
+/** Tags for a specific saved item. */
+export function useItemTags(itemId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.itemTags(itemId ?? ''),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('item_tags')
+        .select('*')
+        .eq('item_id', itemId!)
+        .order('created_at', { ascending: true })
+      if (error) throw error
+      return (data ?? []) as ItemTag[]
+    },
+    enabled: !!itemId,
+  })
+}
+
+/** All tags for a user (for autocomplete / tag management). */
+export function useAllUserTags(userId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.allUserTags(userId ?? ''),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('item_tags')
+        .select('*')
+        .eq('user_id', userId!)
+        .order('tag_name', { ascending: true })
+      if (error) throw error
+      return (data ?? []) as ItemTag[]
+    },
+    enabled: !!userId,
+  })
+}
+
+/** Distinct custom tags for a user (for autocomplete suggestions). */
+export function useUserCustomTags(userId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.userCustomTags(userId ?? ''),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('item_tags')
+        .select('tag_name')
+        .eq('user_id', userId!)
+        .eq('tag_type', 'custom')
+        .order('tag_name', { ascending: true })
+      if (error) throw error
+      // Deduplicate tag names
+      const unique = [...new Set((data ?? []).map((t: { tag_name: string }) => t.tag_name))]
+      return unique
+    },
+    enabled: !!userId,
+  })
+}
+
+/** Add a tag to an item. */
+export function useAddTag() {
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
+
+  return useMutation({
+    mutationFn: async (input: { itemId: string; tagName: string; tagType: TagType }) => {
+      const { data, error } = await supabase
+        .from('item_tags')
+        .insert({
+          item_id: input.itemId,
+          tag_name: input.tagName,
+          tag_type: input.tagType,
+          user_id: user!.id,
+        })
+        .select()
+        .single()
+      if (error) throw error
+      return data as ItemTag
+    },
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.itemTags(input.itemId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.allUserTags(user?.id ?? '') })
+      queryClient.invalidateQueries({ queryKey: queryKeys.userCustomTags(user?.id ?? '') })
+    },
+  })
+}
+
+/** Remove a tag from an item (by item_id + tag_name). */
+export function useRemoveTag() {
+  const queryClient = useQueryClient()
+  const { user } = useAuth()
+
+  return useMutation({
+    mutationFn: async (input: { itemId: string; tagName: string }) => {
+      const { error } = await supabase
+        .from('item_tags')
+        .delete()
+        .eq('item_id', input.itemId)
+        .eq('tag_name', input.tagName)
+        .eq('user_id', user!.id)
+      if (error) throw error
+    },
+    onSuccess: (_data, input) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.itemTags(input.itemId) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.allUserTags(user?.id ?? '') })
+      queryClient.invalidateQueries({ queryKey: queryKeys.userCustomTags(user?.id ?? '') })
+    },
+  })
+}
+
+/**
+ * Write tags for a newly created item (batch insert).
+ * Used by save flows to write category + custom tags in one operation.
+ * Silently ignores conflicts (duplicate tags).
+ */
+export async function writeItemTags(
+  itemId: string,
+  userId: string,
+  tags: { tagName: string; tagType: TagType }[],
+): Promise<void> {
+  if (tags.length === 0) return
+  const rows = tags.map((t) => ({
+    item_id: itemId,
+    tag_name: t.tagName,
+    tag_type: t.tagType,
+    user_id: userId,
+  }))
+  // Use upsert with onConflict to silently skip duplicates
+  await supabase.from('item_tags').upsert(rows, { onConflict: 'item_id,tag_name' })
 }

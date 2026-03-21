@@ -1,7 +1,8 @@
 import { useRef, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { detectLocationFromText } from '../lib/placesTextSearch'
-import { detectCategory } from '../lib/detectCategory'
+import { detectCategory, detectCategories } from '../lib/detectCategory'
+import { writeItemTags } from './queries'
 import { trackEvent } from '../lib/analytics'
 import type { SavedItem } from '../types'
 
@@ -34,7 +35,10 @@ export function useRapidCapture(
       try {
         const locationResult = await detectLocationFromText(item.title)
         const placeTypes = locationResult?.placeTypes ?? null
+        // Single category for backwards-compat saved_items.category column
         const detectedCategory = detectCategory(item.title, placeTypes)
+        // Multi-category for the new item_tags table
+        const detectedCategories = detectCategories(item.title, placeTypes)
 
         const update: Record<string, unknown> = {}
 
@@ -73,6 +77,15 @@ export function useRapidCapture(
               ...(detectedCategory ? { category: detectedCategory } : {}),
             } as SavedItem)
           }
+        }
+
+        // Dual-write: also write detected categories to item_tags table
+        if (detectedCategories.length > 0 && userId) {
+          const tags = detectedCategories.map((cat) => ({
+            tagName: cat,
+            tagType: 'category' as const,
+          }))
+          await writeItemTags(item.id, userId, tags)
         }
       } catch {
         // Non-fatal — item stays without location/category

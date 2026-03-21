@@ -134,3 +134,14 @@ export interface Vote {
   item_id: string
   user_id: string
 }
+
+export type TagType = 'category' | 'custom'
+
+export interface ItemTag {
+  id: string
+  item_id: string
+  tag_name: string
+  tag_type: TagType
+  user_id: string
+  created_at: string
+}

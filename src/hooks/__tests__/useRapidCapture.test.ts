@@ -51,17 +51,34 @@ vi.mock('../../lib/placesTextSearch', () => ({
   detectLocationFromText: (...args: unknown[]) => mockDetectLocation(...args),
 }))
 
-vi.mock('../../lib/detectCategory', () => ({
-  detectCategory: (text: string, placeTypes: string[] | null) => {
+vi.mock('../../lib/detectCategory', () => {
+  const detect = (text: string, placeTypes: string[] | null) => {
     const lower = text.toLowerCase()
-    // Simplified detection for testing
     if (placeTypes?.includes('restaurant')) return 'restaurant'
     if (lower.includes('ramen') || lower.includes('hotpot') || lower.includes('food')) return 'restaurant'
     if (lower.includes('hike') || lower.includes('hiking') || lower.includes('temple')) return 'activity'
     if (lower.includes('hotel') || lower.includes('hostel')) return 'hotel'
     if (lower.includes('train') || lower.includes('airport')) return 'transit'
     return null
-  },
+  }
+  const detectMulti = (text: string, placeTypes: string[] | null) => {
+    const result: string[] = []
+    const lower = text.toLowerCase()
+    if (placeTypes?.includes('restaurant') || lower.includes('ramen') || lower.includes('hotpot') || lower.includes('food')) result.push('restaurant')
+    if (lower.includes('hike') || lower.includes('hiking') || lower.includes('temple')) result.push('activity')
+    if (lower.includes('hotel') || lower.includes('hostel')) result.push('hotel')
+    if (lower.includes('train') || lower.includes('airport')) result.push('transit')
+    return result
+  }
+  return {
+    detectCategory: detect,
+    detectCategories: detectMulti,
+  }
+})
+
+const mockWriteItemTags = vi.fn().mockResolvedValue(undefined)
+vi.mock('../queries', () => ({
+  writeItemTags: (...args: unknown[]) => mockWriteItemTags(...args),
 }))
 
 vi.mock('../../lib/analytics', () => ({

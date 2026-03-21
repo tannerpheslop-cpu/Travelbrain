@@ -5,7 +5,8 @@ import { trackEvent } from '../lib/analytics'
 import { detectLocationFromText } from '../lib/placesTextSearch'
 import { detectUrl } from '../lib/urlDetect'
 import { evaluateImageDisplay } from '../lib/evaluateImageDisplay'
-import { detectCategory, detectCategoryFromText } from '../lib/detectCategory'
+import { detectCategory, detectCategoryFromText, detectCategories } from '../lib/detectCategory'
+import { writeItemTags } from '../hooks/queries'
 import { useRapidCapture } from '../hooks/useRapidCapture'
 import { MapPin, Loader2 } from 'lucide-react'
 import ImageWithFade from './ImageWithFade'
@@ -345,6 +346,13 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
 
     const savedItem = data as SavedItem
 
+    // Dual-write: write selected category to item_tags table
+    // If user manually set a category, write that as a category tag
+    // If no category set (general), skip — background detection will handle it
+    if (category && category !== 'general') {
+      void writeItemTags(savedItem.id, user.id, [{ tagName: category, tagType: 'category' }])
+    }
+
     // Background detection for location + category on items saved without them
     const savedWithoutLocation = !location
     const savedWithDefaultCategory = !categoryManuallySet && (category === null || category === 'general')
@@ -378,6 +386,16 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
           const placeTypes = result?.placeTypes ?? null
           const detectedCat = detectCategory(detectionInput, placeTypes)
           if (detectedCat) update.category = detectedCat
+
+          // Dual-write: write all detected categories to item_tags
+          const allCats = detectCategories(detectionInput, placeTypes)
+          if (allCats.length > 0) {
+            void writeItemTags(
+              itemId,
+              user.id,
+              allCats.map((cat) => ({ tagName: cat, tagType: 'category' as const })),
+            )
+          }
         }
 
         if (Object.keys(update).length > 0) {
