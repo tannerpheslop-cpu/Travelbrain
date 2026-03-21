@@ -39,6 +39,7 @@ export interface SavedItem {
   tags: string[] | null
   is_archived: boolean
   image_display: 'featured' | 'thumbnail' | 'none' | null
+  first_viewed_at: string | null
   created_at: string
 }
 

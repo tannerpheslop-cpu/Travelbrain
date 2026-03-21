@@ -297,7 +297,28 @@ export default function InboxPage() {
     deleteItemMutation.mutate(itemId)
   }, [deleteItemMutation])
 
-  const geoGroups = useMemo(() => groupByCountry(filtered), [filtered])
+  // ── Recently Added: entries < 48h old, not viewed, not in a trip ────────
+  const recentlyAdded = useMemo(() => {
+    const now = Date.now()
+    return filtered
+      .filter((item) => {
+        const ageHours = (now - new Date(item.created_at).getTime()) / (1000 * 60 * 60)
+        const isRecent = ageHours <= 48
+        const notViewed = !item.first_viewed_at
+        const notInTrip = (tripLinkCounts.get(item.id) || 0) === 0
+        return isRecent && notViewed && notInTrip
+      })
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, 5)
+  }, [filtered, tripLinkCounts])
+
+  const recentlyAddedIds = useMemo(() => new Set(recentlyAdded.map((i) => i.id)), [recentlyAdded])
+
+  // Country groups exclude recently added to avoid duplication
+  const geoGroups = useMemo(
+    () => groupByCountry(filtered.filter((item) => !recentlyAddedIds.has(item.id))),
+    [filtered, recentlyAddedIds],
+  )
 
   // Preload first-screen gallery images
   useEffect(() => {
@@ -515,6 +536,23 @@ export default function InboxPage() {
         </div>
       )}
 
+      {/* ── Recently Added Section ── */}
+      {!loading && !error && recentlyAdded.length > 0 && (
+        <section className="mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[14px] font-semibold text-text-primary" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+              Recently added
+            </h2>
+            <span className="font-mono text-[10px] text-text-tertiary">{recentlyAdded.length}</span>
+          </div>
+          <div className="grid grid-cols-2" style={{ gap: 8 }}>
+            {recentlyAdded.map((item) => (
+              <GridCard key={item.id} item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} onDelete={() => handleDeleteItem(item.id)} eager showShimmer={!item.location_name && (Date.now() - new Date(item.created_at).getTime()) < 30000} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* ── Country-Grouped Content ── */}
       {!loading && !error && filtered.length > 0 && (() => {
         let gridIndex = 0
@@ -600,11 +638,13 @@ function GridCard({
   tripCount,
   onDelete,
   eager,
+  showShimmer,
 }: {
   item: SavedItem
   tripCount: number
   onDelete: () => void
   eager?: boolean
+  showShimmer?: boolean
 }) {
   // Show image card if item has any image source:
   // 1. image_display is 'thumbnail' or 'featured' (backfilled)
@@ -621,9 +661,9 @@ function GridCard({
     (item.image_display !== 'none' && hasImageSource)
 
   if (showImage) {
-    return <ImageCard item={item} tripCount={tripCount} onDelete={onDelete} eager={eager} />
+    return <ImageCard item={item} tripCount={tripCount} onDelete={onDelete} eager={eager} showShimmer={showShimmer} />
   }
-  return <TextCard item={item} tripCount={tripCount} onDelete={onDelete} />
+  return <TextCard item={item} tripCount={tripCount} onDelete={onDelete} showShimmer={showShimmer} />
 }
 
 // ─── Trip Count Pill (shared between card types) ─────────────────────────────
@@ -664,9 +704,34 @@ function TripCountPill({ count, variant }: { count: number; variant: 'image' | '
   )
 }
 
+// ─── Location Shimmer (pending server-side detection) ─────────────────────────
+
+function LocationShimmer({ variant }: { variant: 'image' | 'text' }) {
+  return (
+    <span
+      className="inline-block overflow-hidden"
+      style={{
+        width: 60, height: 14, borderRadius: 4,
+        background: variant === 'image' ? 'rgba(255,255,255,0.15)' : 'var(--color-bg-muted)',
+      }}
+    >
+      <span
+        className="block w-full h-full"
+        style={{
+          background: variant === 'image'
+            ? 'linear-gradient(90deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0.05) 100%)'
+            : 'linear-gradient(90deg, var(--color-bg-muted) 0%, var(--color-border) 50%, var(--color-bg-muted) 100%)',
+          backgroundSize: '200% 100%',
+          animation: 'shimmer 1.5s ease-in-out infinite',
+        }}
+      />
+    </span>
+  )
+}
+
 // ─── Image Card (image_display = 'thumbnail') ────────────────────────────────
 
-function ImageCard({ item, tripCount, onDelete, eager }: { item: SavedItem; tripCount: number; onDelete: () => void; eager?: boolean }) {
+function ImageCard({ item, tripCount, onDelete, eager, showShimmer }: { item: SavedItem; tripCount: number; onDelete: () => void; eager?: boolean; showShimmer?: boolean }) {
   const city = item.location_name ? extractCity(item.location_name) : null
   const rawUrl = item.image_url ?? item.places_photo_url ?? null
   const [photoUrl, setPhotoUrl] = useState<string | null>(rawUrl)
@@ -739,7 +804,9 @@ function ImageCard({ item, tripCount, onDelete, eager }: { item: SavedItem; trip
             {item.title}
           </p>
           <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
-            {city && (
+            {showShimmer && !city ? (
+              <LocationShimmer variant="image" />
+            ) : city ? (
               <span
                 className="font-mono text-[7px] font-medium truncate"
                 style={{
@@ -752,7 +819,7 @@ function ImageCard({ item, tripCount, onDelete, eager }: { item: SavedItem; trip
               >
                 {city}
               </span>
-            )}
+            ) : null}
             <span
               className="font-mono text-[7px]"
               style={{
@@ -773,7 +840,7 @@ function ImageCard({ item, tripCount, onDelete, eager }: { item: SavedItem; trip
 
 // ─── Text Card (image_display = 'none') ──────────────────────────────────────
 
-function TextCard({ item, tripCount, onDelete }: { item: SavedItem; tripCount: number; onDelete: () => void }) {
+function TextCard({ item, tripCount, onDelete, showShimmer }: { item: SavedItem; tripCount: number; onDelete: () => void; showShimmer?: boolean }) {
   const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
 
@@ -813,7 +880,9 @@ function TextCard({ item, tripCount, onDelete }: { item: SavedItem; tripCount: n
           </p>
           {/* Pills */}
           <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
-            {city && (
+            {showShimmer && !city ? (
+              <LocationShimmer variant="text" />
+            ) : city ? (
               <span
                 className="font-mono text-[7px] font-medium text-accent truncate"
                 style={{
@@ -825,7 +894,7 @@ function TextCard({ item, tripCount, onDelete }: { item: SavedItem; tripCount: n
               >
                 {city}
               </span>
-            )}
+            ) : null}
             <span
               className="font-mono text-[7px] text-text-tertiary"
               style={{

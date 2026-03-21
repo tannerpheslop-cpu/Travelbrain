@@ -65,3 +65,9 @@ body {
 input, textarea, select {
   font-size: 16px !important;
 }
+
+/* Shimmer animation for pending location detection */
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

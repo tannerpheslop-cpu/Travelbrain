@@ -105,6 +105,19 @@ export default function ItemDetailPage() {
     }
   }, [itemLoading, itemData, itemError, id])
 
+  // Mark first_viewed_at on first visit (for "Recently added" graduation)
+  useEffect(() => {
+    if (itemData && !itemData.first_viewed_at && id) {
+      supabase
+        .from('saved_items')
+        .update({ first_viewed_at: new Date().toISOString() })
+        .eq('id', id)
+        .then(() => {
+          // No need to update local state — this only affects "Recently added" on Horizon
+        })
+    }
+  }, [itemData, id])
+
   // Auto-save with debounce
   const saveChanges = useCallback(async (updates: Partial<SavedItem>) => {
     if (!id) return
