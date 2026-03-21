@@ -208,9 +208,7 @@ export default function InboxPage() {
         if (searchQuery) {
           const q = searchQuery.toLowerCase()
           const matchTitle = item.title?.toLowerCase().includes(q)
-          const matchLocation = item.location_name?.toLowerCase().includes(q)
-          const matchNotes = item.notes?.toLowerCase().includes(q)
-          if (!matchTitle && !matchLocation && !matchNotes) return false
+          if (!matchTitle) return false
         }
         return true
       }),

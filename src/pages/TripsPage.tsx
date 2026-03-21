@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTripsQuery, useCreateTrip, useCreateDestination, queryKeys, fetchTrip, fetchTripDestinations, type TripWithDestinations } from '../hooks/queries'
@@ -97,10 +97,19 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
   const { user } = useAuth()
   const [step, setStep] = useState<CreateStep>('name')
   const [title, setTitle] = useState('')
+  const titleInputRef = useRef<HTMLInputElement>(null)
   const [destinations, setDestinations] = useState<LocationSelection[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [autocompleteKey, setAutocompleteKey] = useState(0)
+
+  // Programmatic focus after modal animation completes (more reliable than autoFocus on mobile)
+  useEffect(() => {
+    if (step === 'name') {
+      const timer = setTimeout(() => titleInputRef.current?.focus(), 150)
+      return () => clearTimeout(timer)
+    }
+  }, [step])
 
   // Cluster suggestion state
   const [clusters, setClusters] = useState<CountryCluster[]>([])
@@ -405,11 +414,11 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
           {step === 'name' && (
             <form onSubmit={handleNextStep} className="space-y-3">
               <input
+                ref={titleInputRef}
                 type="text"
                 value={title}
                 onChange={(e) => { setTitle(e.target.value); setError(null) }}
                 placeholder="Trip name, e.g. China 2026"
-                autoFocus
                 className="w-full px-4 py-3 border border-border-input rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint"
               />
               {error && <p className="text-sm text-error">{error}</p>}

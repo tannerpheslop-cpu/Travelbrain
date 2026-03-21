@@ -433,19 +433,15 @@ function GeneralSection({
     setDraft('')
   }
 
-  // Sort: unchecked first by sort_order, then checked by sort_order
+  // Sort by sort_order only — checked items stay in place (just strikethrough)
   const sortedNotes = useMemo(() => {
-    const unchecked = notes.filter(n => !n.completed).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    const checked = notes.filter(n => n.completed).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-    return [...unchecked, ...checked]
+    return [...notes].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
   }, [notes])
 
   const uncheckedIds = useMemo(
     () => sortedNotes.filter(n => !n.completed).map(n => n.id),
     [sortedNotes],
   )
-
-  const hasCompleted = notes.some(n => n.completed)
 
   const noteSensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -457,15 +453,13 @@ function GeneralSection({
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    const unchecked = sortedNotes.filter(n => !n.completed)
-    const checked = sortedNotes.filter(n => n.completed)
-
-    const oldIdx = unchecked.findIndex(n => n.id === active.id)
-    const newIdx = unchecked.findIndex(n => n.id === over.id)
+    // Reorder within the full list (checked items stay in place)
+    const oldIdx = sortedNotes.findIndex(n => n.id === active.id)
+    const newIdx = sortedNotes.findIndex(n => n.id === over.id)
     if (oldIdx === -1 || newIdx === -1) return
 
-    const reordered = arrayMove(unchecked, oldIdx, newIdx)
-    const all = [...reordered, ...checked].map((n, i) => ({ ...n, sort_order: i }))
+    const reordered = arrayMove(sortedNotes, oldIdx, newIdx)
+    const all = reordered.map((n, i) => ({ ...n, sort_order: i }))
     onReorderNotes(all)
   }
 
@@ -516,10 +510,25 @@ function GeneralSection({
             <p className="text-sm text-text-faint py-1">Type above and press Enter to add your first note.</p>
           ) : (
         <>
+          {/* All items in a single list — checked items stay in place with strikethrough */}
           <DndContext sensors={noteSensors} collisionDetection={closestCenter} onDragEnd={handleNoteDragEnd}>
             <SortableContext items={uncheckedIds} strategy={verticalListSortingStrategy}>
               <div className="space-y-1.5">
-                {sortedNotes.filter(n => !n.completed).map(note => (
+                {sortedNotes.map(note => note.completed ? (
+                  <div key={note.id} className="flex items-center gap-2.5 bg-bg-card rounded-xl border border-border-subtle px-3 py-2.5 shadow-sm opacity-60">
+                    <button
+                      type="button"
+                      onClick={() => onUpdateNote(note.id, { completed: false })}
+                      className="w-5 h-5 rounded-md border-2 bg-accent border-accent flex items-center justify-center shrink-0"
+                      aria-label="Uncheck"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white">
+                        <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    <span className="flex-1 text-sm text-text-faint line-through min-w-0 truncate">{note.text}</span>
+                  </div>
+                ) : (
                   <SortableChecklistItem
                     key={note.id}
                     note={note}
@@ -532,29 +541,8 @@ function GeneralSection({
             </SortableContext>
           </DndContext>
 
-          {/* Checked items (not draggable, just strikethrough + muted) */}
-          {hasCompleted && (
-            <div className="space-y-1.5 mt-2">
-              {sortedNotes.filter(n => n.completed).map(note => (
-                <div key={note.id} className="flex items-center gap-2.5 bg-bg-card rounded-xl border border-border-subtle px-3 py-2.5 shadow-sm opacity-60">
-                  <button
-                    type="button"
-                    onClick={() => onUpdateNote(note.id, { completed: false })}
-                    className="w-5 h-5 rounded-md border-2 bg-accent border-accent flex items-center justify-center shrink-0"
-                    aria-label="Uncheck"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5 text-white">
-                      <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  <span className="flex-1 text-sm text-text-faint line-through min-w-0 truncate">{note.text}</span>
-                </div>
-              ))}
-            </div>
-          )}
-
           {/* Clear completed */}
-          {hasCompleted && (
+          {notes.some(n => n.completed) && (
             <button
               type="button"
               onClick={onClearCompleted}

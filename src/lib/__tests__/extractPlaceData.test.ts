@@ -58,7 +58,8 @@ function makePlaceResult(overrides: {
 beforeEach(() => {
   vi.clearAllMocks()
   // Minimal mock of window.google to prevent resolveCountryFromPlaceId from crashing
-  ;(window as unknown as Record<string, unknown>).google = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(window as any).google = {
     maps: {
       places: {
         PlacesService: class {
