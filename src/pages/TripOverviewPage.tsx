@@ -1096,7 +1096,7 @@ export default function TripOverviewPage() {
     } else {
       queryClient.invalidateQueries({ queryKey: queryKeys.trip(trip.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
-      trackEvent('trip_status_changed', { trip_id: trip.id, from: oldStatus, to: newStatus })
+      trackEvent('trip_status_changed', user?.id ?? null, { trip_id: trip.id, from: oldStatus, to: newStatus })
     }
   }
 
