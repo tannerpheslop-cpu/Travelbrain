@@ -37,6 +37,9 @@ vi.mock('../../lib/supabase', () => ({
       }
       return { insert: vi.fn(), update: vi.fn() }
     }),
+    auth: {
+      getSession: vi.fn().mockResolvedValue({ data: { session: { access_token: 'test-token' } } }),
+    },
   },
 }))
 
@@ -72,6 +75,10 @@ vi.mock('../queries', () => ({
 vi.mock('../../lib/analytics', () => ({
   trackEvent: vi.fn(),
 }))
+
+// Mock fetch for fire-and-forget Edge Function calls
+const mockFetch = vi.fn().mockResolvedValue({ ok: true })
+vi.stubGlobal('fetch', mockFetch)
 
 import { useRapidCapture } from '../useRapidCapture'
 

@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useSavedItems, useTripsQuery, useTripItemMappings, useTripLinkCounts, useDeleteItem, useUserCustomTags, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
@@ -110,6 +111,23 @@ export default function InboxPage() {
       queryKey: queryKeys.trips(user.id),
       queryFn: () => fetchTrips(user.id),
     })
+  }, [user, queryClient])
+
+  // ── Realtime: refresh when server-side detection fills in a location ────
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel('location-updates')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'saved_items',
+        filter: `user_id=eq.${user.id}`,
+      }, () => {
+        queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user.id) })
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [user, queryClient])
 
   // ── Custom tags data ─────────────────────────────────────────────────────

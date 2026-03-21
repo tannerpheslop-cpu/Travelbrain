@@ -134,6 +134,22 @@ export function useRapidCapture(
       if (created.length > 0) {
         queueRef.current.push(...created)
         void processQueue()
+
+        // Fire-and-forget server-side location detection for each bulk entry
+        const session = (await supabase.auth.getSession()).data.session
+        if (session) {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+          for (const item of created) {
+            fetch(`${supabaseUrl}/functions/v1/detect-location`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`,
+              },
+              body: JSON.stringify({ item_id: item.id, title: item.title }),
+            }).catch(() => {})
+          }
+        }
       }
     },
     [userId, onItemCreated, processQueue],

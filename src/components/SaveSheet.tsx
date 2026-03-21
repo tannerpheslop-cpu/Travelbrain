@@ -388,8 +388,21 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       void writeItemTags(savedItem.id, user.id, tagRows)
     }
 
-    // No background detection here — the background worker handles
-    // location + category detection independently.
+    // If saved without a location, fire-and-forget server-side detection
+    if (!location && savedItem.title && savedItem.title.trim() !== '') {
+      const session = (await supabase.auth.getSession()).data.session
+      if (session) {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+        fetch(`${supabaseUrl}/functions/v1/detect-location`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ item_id: savedItem.id, title: savedItem.title }),
+        }).catch(() => {}) // Best-effort — ignore errors
+      }
+    }
 
     onSaved(savedItem)
 
