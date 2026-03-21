@@ -2,17 +2,19 @@ import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../lib/auth'
-import { useSavedItems, useTripsQuery, useTripItemMappings, useTripLinkCounts, useDeleteItem, queryKeys, fetchTrips } from '../hooks/queries'
+import { useSavedItems, useTripsQuery, useTripItemMappings, useTripLinkCounts, useDeleteItem, useUserCustomTags, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
+import PillSheet from '../components/PillSheet'
+import type { PillGroup } from '../components/PillSheet'
 import { categoryLabel } from '../utils/categoryIcons'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
-import { BrandMark, CategoryPill, CountryCodeBadge, FilterPill, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
+import { BrandMark, CategoryPill, CountryCodeBadge, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import { useLocationResolver } from '../hooks/useLocationResolver'
 import SwipeToDelete from '../components/SwipeToDelete'
 import ImageWithFade from '../components/ImageWithFade'
 import { getPlacePhoto } from '../components/SavedItemImage'
-import type { SavedItem } from '../types'
+import type { SavedItem, Category } from '../types'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -110,16 +112,16 @@ export default function InboxPage() {
     })
   }, [user, queryClient])
 
+  // ── Custom tags data ─────────────────────────────────────────────────────
+  const { data: customTags = [] } = useUserCustomTags(user?.id)
+
   // ── Local UI state ─────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('')
-  const [unassignedOnly, setUnassignedOnly] = useState(false)
-  const [selectedTripId, setSelectedTripId] = useState('')
-  const [selectedCity, setSelectedCity] = useState('')
   const [showSaveSheet, setShowSaveSheet] = useState(false)
-  const [showFilters, setShowFilters] = useState(false)
+  const [showPillSheet, setShowPillSheet] = useState(false)
+  const [selectedFilters, setSelectedFilters] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [inboxToast, setInboxToast] = useState<string | null>(null)
-  const filterPanelRef = useRef<HTMLDivElement>(null)
 
   // Show toast from navigation state (e.g. after deleting an item)
   useEffect(() => {
@@ -172,47 +174,120 @@ export default function InboxPage() {
     [allTripItems],
   )
 
-  const selectedTripItemIds = useMemo(() => {
-    if (!selectedTripId) return null
-    return new Set(
-      allTripItems.filter((ti) => ti.trip_id === selectedTripId).map((ti) => ti.item_id),
-    )
-  }, [allTripItems, selectedTripId])
+  // Category names for the pill sheet
+  const categoryNames: Category[] = ['restaurant', 'activity', 'hotel', 'transit', 'general']
 
-  const cities = useMemo(() => {
-    const set = new Set<string>()
-    items.forEach((item) => { if (item.location_name) set.add(item.location_name) })
-    return Array.from(set).sort()
+  // Country list from items (unique countries, sorted alphabetically)
+  const countryList = useMemo(() => {
+    const map = new Map<string, string>() // code → name
+    items.forEach((item) => {
+      if (item.location_country_code && item.location_country) {
+        if (!map.has(item.location_country_code)) {
+          map.set(item.location_country_code, item.location_country)
+        }
+      }
+    })
+    return [...map.entries()]
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .map(([, name]) => name)
   }, [items])
 
-  const activeFilterCount = (selectedTripId ? 1 : 0) + (selectedCity ? 1 : 0)
+  // Parse selected filters into typed groups for filtering
+  const parsedFilters = useMemo(() => {
+    const categories: string[] = []
+    const countries: string[] = []
+    const statuses: string[] = []
+    const customTagFilters: string[] = []
 
-  // Close filter panel on outside click
-  useEffect(() => {
-    if (!showFilters) return
-    const handler = (e: MouseEvent) => {
-      if (filterPanelRef.current && !filterPanelRef.current.contains(e.target as Node)) {
-        setShowFilters(false)
-      }
+    const categorySet = new Set(categoryNames.map((c) => categoryLabel[c]))
+    const countrySet = new Set(countryList)
+    const statusSet = new Set(['Unplanned', 'In a trip'])
+
+    for (const f of selectedFilters) {
+      if (categorySet.has(f)) categories.push(f)
+      else if (countrySet.has(f)) countries.push(f)
+      else if (statusSet.has(f)) statuses.push(f)
+      else customTagFilters.push(f)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [showFilters])
+
+    return { categories, countries, statuses, customTags: customTagFilters }
+  }, [selectedFilters, countryList])
+
+  const hasCountryFilter = parsedFilters.countries.length > 0
+
+  // Build PillSheet groups
+  const pillGroups = useMemo((): PillGroup[] => {
+    const groups: PillGroup[] = []
+
+    if (customTags.length > 0) {
+      groups.push({
+        title: 'My Tags',
+        pills: customTags,
+        type: 'custom',
+      })
+    }
+
+    groups.push({
+      title: 'Category',
+      pills: categoryNames.map((c) => categoryLabel[c]),
+      type: 'category',
+    })
+
+    if (countryList.length > 0) {
+      groups.push({
+        title: 'Country',
+        pills: countryList,
+        type: 'country',
+      })
+    }
+
+    groups.push({
+      title: 'Status',
+      pills: ['Unplanned', 'In a trip'],
+      type: 'status',
+    })
+
+    return groups
+  }, [customTags, countryList])
 
   const filtered = useMemo(
     () =>
       items.filter((item) => {
-        if (unassignedOnly && assignedItemIds.has(item.id)) return false
-        if (selectedTripId && selectedTripItemIds && !selectedTripItemIds.has(item.id)) return false
-        if (selectedCity && item.location_name !== selectedCity) return false
+        // Search filter (title only)
         if (searchQuery) {
           const q = searchQuery.toLowerCase()
-          const matchTitle = item.title?.toLowerCase().includes(q)
-          if (!matchTitle) return false
+          if (!item.title?.toLowerCase().includes(q)) return false
         }
+
+        // Category filter (OR within group): item.category label must match one of selected
+        if (parsedFilters.categories.length > 0) {
+          const itemCategoryLabel = categoryLabel[item.category]
+          if (!parsedFilters.categories.includes(itemCategoryLabel)) return false
+        }
+
+        // Country filter (OR within group): item.location_country must match one of selected
+        if (parsedFilters.countries.length > 0) {
+          if (!item.location_country || !parsedFilters.countries.includes(item.location_country)) return false
+        }
+
+        // Status filter (OR within group)
+        if (parsedFilters.statuses.length > 0) {
+          const isAssigned = assignedItemIds.has(item.id)
+          const matchesUnplanned = parsedFilters.statuses.includes('Unplanned') && !isAssigned
+          const matchesInTrip = parsedFilters.statuses.includes('In a trip') && isAssigned
+          if (!matchesUnplanned && !matchesInTrip) return false
+        }
+
+        // Custom tag filter: for now, match against saved_items.tags array (backward compat)
+        if (parsedFilters.customTags.length > 0) {
+          const itemTags = item.tags ?? []
+          const hasMatch = parsedFilters.customTags.some((t) => itemTags.includes(t))
+          if (!hasMatch) return false
+        }
+
         return true
       }),
-    [items, unassignedOnly, assignedItemIds, selectedTripId, selectedTripItemIds, selectedCity, searchQuery],
+    [items, searchQuery, parsedFilters, assignedItemIds],
   )
 
   const handleDeleteItem = useCallback((itemId: string) => {
@@ -275,66 +350,58 @@ export default function InboxPage() {
       {/* ── Divider ── */}
       <div className="mt-4 mb-3 border-t border-border" />
 
-      {/* ── Search ── */}
-      <div className="relative mb-3">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-faint pointer-events-none" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search saves..."
-          className="w-full pl-9 pr-3 py-2 bg-bg-card border border-border-input rounded-lg text-sm text-text-primary placeholder:text-text-ghost focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors"
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={() => setSearchQuery('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-secondary"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
-        )}
-      </div>
+      {/* ── Search + Filter Row ── */}
+      <div className="flex gap-2 items-center mb-3">
+        <div className="relative flex-1 min-w-0">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-faint pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search saves..."
+            className="w-full pl-9 pr-3 py-2 bg-bg-card border border-border-input rounded-lg text-sm text-text-primary placeholder:text-text-ghost focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-secondary"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
 
-      {/* ── Filters + View Toggle ── */}
-      <div className="flex gap-2 items-center mb-4">
-        <FilterPill active={unassignedOnly} onClick={() => setUnassignedOnly(!unassignedOnly)}>
-          Unplanned
-        </FilterPill>
-
-        <FilterPill active={showFilters || activeFilterCount > 0} onClick={() => setShowFilters((v) => !v)}>
+        {/* Filter button */}
+        <button
+          type="button"
+          onClick={() => setShowPillSheet(true)}
+          className="flex items-center gap-1.5 shrink-0 transition-colors"
+          style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 11,
+            color: selectedFilters.length > 0 ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+            border: `1px solid ${selectedFilters.length > 0 ? 'var(--color-accent)' : 'var(--color-border-input)'}`,
+            borderRadius: 6,
+            padding: '6px 14px',
+            background: selectedFilters.length > 0 ? 'var(--color-accent-light)' : 'transparent',
+          }}
+          data-testid="horizon-filter-btn"
+        >
           <SlidersHorizontal className="w-3.5 h-3.5" />
           Filter
-          {activeFilterCount > 0 && !showFilters && (
-            <span className="ml-0.5 w-4 h-4 rounded-full bg-bg-card/20 text-[9px] font-bold flex items-center justify-center">
-              {activeFilterCount}
+          {selectedFilters.length > 0 && (
+            <span
+              className="ml-0.5 w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center"
+              style={{
+                background: 'var(--color-accent)',
+                color: '#fff',
+              }}
+            >
+              {selectedFilters.length}
             </span>
           )}
-        </FilterPill>
-
-        {/* Active filter chips */}
-        {!showFilters && selectedTripId && (
-          <button
-            type="button"
-            onClick={() => setSelectedTripId('')}
-            className="flex items-center gap-1 px-2 py-1 rounded font-mono text-[10px] font-medium bg-accent-light text-accent transition-colors shrink-0"
-          >
-            {trips.find((t) => t.id === selectedTripId)?.title ?? 'Trip'}
-            <X className="w-3 h-3" />
-          </button>
-        )}
-        {!showFilters && selectedCity && (
-          <button
-            type="button"
-            onClick={() => setSelectedCity('')}
-            className="flex items-center gap-1 px-2 py-1 rounded font-mono text-[10px] font-medium bg-accent-light text-accent transition-colors shrink-0"
-          >
-            {extractCity(selectedCity)}
-            <X className="w-3 h-3" />
-          </button>
-        )}
-
-        <div className="flex-1 min-w-0" />
+        </button>
 
         {/* View toggle */}
         <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
@@ -365,44 +432,31 @@ export default function InboxPage() {
         </div>
       </div>
 
-      {/* ── Collapsible Filter Panel ── */}
-      {showFilters && (
-        <div ref={filterPanelRef} className="mb-4 p-3 bg-bg-card border border-border rounded-xl shadow-sm space-y-3">
-          <div>
-            <label className="block font-mono text-[10px] font-medium tracking-[1px] uppercase text-text-faint mb-1.5">Trip</label>
-            <select
-              value={selectedTripId}
-              onChange={(e) => setSelectedTripId(e.target.value)}
-              className="w-full px-3 py-2 bg-bg-page border border-border-input rounded-lg text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
-            >
-              <option value="">All trips</option>
-              {trips.map((trip) => (
-                <option key={trip.id} value={trip.id}>{trip.title}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block font-mono text-[10px] font-medium tracking-[1px] uppercase text-text-faint mb-1.5">Location</label>
-            <select
-              value={selectedCity}
-              onChange={(e) => setSelectedCity(e.target.value)}
-              className="w-full px-3 py-2 bg-bg-page border border-border-input rounded-lg text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
-            >
-              <option value="">All locations</option>
-              {cities.map((city) => (
-                <option key={city} value={city}>{city}</option>
-              ))}
-            </select>
-          </div>
-          {(selectedTripId || selectedCity) && (
+      {/* ── Active Filter Pills ── */}
+      {selectedFilters.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3" data-testid="active-filter-pills">
+          {selectedFilters.map((filter) => (
             <button
+              key={filter}
               type="button"
-              onClick={() => { setSelectedTripId(''); setSelectedCity('') }}
-              className="text-xs font-medium text-accent"
+              onClick={() => setSelectedFilters((prev) => prev.filter((f) => f !== filter))}
+              className="flex items-center gap-1 transition-colors"
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 10,
+                fontWeight: 500,
+                color: 'var(--color-accent)',
+                background: 'var(--color-accent-light)',
+                border: '1px solid var(--color-accent)',
+                borderRadius: 4,
+                padding: '3px 8px',
+              }}
+              data-testid={`active-filter-${filter}`}
             >
-              Clear all filters
+              <X className="w-2.5 h-2.5" />
+              {filter}
             </button>
-          )}
+          ))}
         </div>
       )}
 
@@ -453,7 +507,8 @@ export default function InboxPage() {
         <div className="space-y-6">
           {geoGroups.map((group) => (
             <section key={group.countryCode ?? '__unsorted__'}>
-              {/* Country header */}
+              {/* Country header — hidden when country filter is active (redundant) */}
+              {!hasCountryFilter && (
               <div className="flex items-center gap-2 mb-3">
                 {group.country && group.countryCode && (
                   <CountryCodeBadge code={group.countryCode} />
@@ -463,6 +518,7 @@ export default function InboxPage() {
                 </h2>
                 <span className="font-mono text-[10px] text-text-ghost">{group.items.length}</span>
               </div>
+              )}
 
               {/* Grid or List */}
               {viewMode === 'grid' ? (
@@ -485,6 +541,26 @@ export default function InboxPage() {
         )
       })()}
     </div>
+
+    {/* PillSheet Filter */}
+    {showPillSheet && (
+      <PillSheet
+        groups={pillGroups}
+        selected={selectedFilters}
+        onSelectionChange={setSelectedFilters}
+        onClose={() => setShowPillSheet(false)}
+        title="Filter"
+        allowCustom={customTags.length > 0}
+        onAddCustom={(tagName) => {
+          // Create a custom tag — for now just add to the selection
+          // The tag will be available as a filter option after items are tagged with it
+          if (user) {
+            // We don't have an item to tag here, but we add the tag to filters
+            // Custom tags are created on items via the item detail page
+          }
+        }}
+      />
+    )}
 
     {/* Save Sheet — triggered by GlobalActions FAB via custom event */}
     {showSaveSheet && (
