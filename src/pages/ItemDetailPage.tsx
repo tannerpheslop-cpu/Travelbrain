@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
-import { useSavedItem, useDeleteItem, useItemTags, useAddTag, useRemoveTag, queryKeys, writeItemTags } from '../hooks/queries'
+import { useSavedItem, useDeleteItem, useItemTags, useAddTag, useRemoveTag, queryKeys } from '../hooks/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SavedItemImage from '../components/SavedItemImage'
@@ -18,8 +18,6 @@ const categoryPills: { value: Category; label: string }[] = [
   { value: 'hotel', label: 'Stay' },
   { value: 'transit', label: 'Transit' },
 ]
-
-const CATEGORY_VALUES = ['restaurant', 'activity', 'hotel', 'transit'] as const
 
 const categoryPlaceholderColors: Record<Category, { bg: string; icon: string }> = {
   restaurant: { bg: 'bg-bg-card',  icon: 'text-text-faint' },
@@ -53,7 +51,6 @@ export default function ItemDetailPage() {
   const [category, setCategory] = useState<Category>('general')
   const [location, setLocation] = useState<LocationSelection | null>(null)
   const [notes, setNotes] = useState('')
-  const [tags, setTags] = useState('')
   const [showTagInput, setShowTagInput] = useState(false)
   const [tagDraft, setTagDraft] = useState('')
   const tagInputRef = useRef<HTMLInputElement>(null)
@@ -96,7 +93,6 @@ export default function ItemDetailPage() {
         name_local: itemData.location_name_local ?? null,
       } : null)
       setNotes(itemData.notes || '')
-      setTags(itemData.tags?.join(', ') || '')
       // Mark initialized after state is set so debounce doesn't fire on mount
       setTimeout(() => { initializedRef.current = true }, 0)
     }
