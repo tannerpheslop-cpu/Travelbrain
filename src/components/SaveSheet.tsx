@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import { detectLocationFromText } from '../lib/placesTextSearch'
 import { detectUrl } from '../lib/urlDetect'
 import { evaluateImageDisplay } from '../lib/evaluateImageDisplay'
 import { detectCategoriesFromText } from '../lib/detectCategory'
@@ -81,6 +82,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const [customTagDraft, setCustomTagDraft] = useState('')
   const customTagInputRef = useRef<HTMLInputElement>(null)
   const [location, setLocation] = useState<LocationSelection | null>(null)
+  const [userSelectedLocation, setUserSelectedLocation] = useState(false)
   const [notes, setNotes] = useState('')
   const [saveError, setSaveError] = useState('')
 
@@ -166,6 +168,70 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       })
     }
   }, [inputText, categoryManuallySet])
+
+  // Location auto-detection: runs on text input, writes directly to location state
+  useEffect(() => {
+    const trimmed = inputText.trim()
+    if (!trimmed || trimmed.length === 0) return
+    if (userSelectedLocation) return
+    if (detectUrl(inputText)) return // Don't detect location from raw URLs
+
+    const wordCount = trimmed.split(/\s+/).length
+    const delay = wordCount <= 2 ? 2000 : 1500
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await detectLocationFromText(trimmed)
+        if (result && !userSelectedLocation) {
+          setLocation({
+            name: result.name,
+            lat: result.lat,
+            lng: result.lng,
+            place_id: result.placeId,
+            country: result.country,
+            country_code: result.countryCode,
+            location_type: 'city',
+            proximity_radius_km: 50,
+            name_en: result.name,
+            name_local: null,
+          })
+        }
+      } catch { /* ignore detection errors */ }
+    }, delay)
+
+    return () => clearTimeout(timer)
+  }, [inputText, userSelectedLocation])
+
+  // URL metadata → location detection
+  useEffect(() => {
+    if (!metadata) return
+    if (userSelectedLocation) return
+    const text = [metadata.title, metadata.description].filter(Boolean).join(' ')
+    if (text.length < 10) return
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await detectLocationFromText(text)
+        if (result && !userSelectedLocation) {
+          setLocation({
+            name: result.name,
+            lat: result.lat,
+            lng: result.lng,
+            place_id: result.placeId,
+            country: result.country,
+            country_code: result.countryCode,
+            location_type: 'city',
+            proximity_radius_km: 50,
+            name_en: result.name,
+            name_local: null,
+          })
+        }
+      } catch { /* ignore */ }
+    }, 1500)
+
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metadata])
 
   // URL metadata → category detection
   useEffect(() => {
@@ -345,6 +411,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       setSaved(false)
       setSaveError('')
       setCategoryManuallySet(false)
+      setUserSelectedLocation(false)
       setShowCustomTagInput(false)
       setCustomTagDraft('')
       inputRef.current?.focus()
@@ -702,14 +769,33 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
             )}
           </div>
 
-          {/* 4. Location input */}
+          {/* 4. Location pill + input */}
           <div style={{ marginTop: 12 }}>
+            {/* Location pill — shown when location is set (auto-detected or manual) */}
+            {location && (
+              <div
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '6px 10px', borderRadius: 8, marginBottom: 6,
+                  background: 'rgba(196,90,45,0.06)', border: '1px solid rgba(196,90,45,0.2)',
+                }}
+              >
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#c45a2d' }}>↗</span>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, color: '#c45a2d' }}>
+                  {location.name_en || location.name}
+                </span>
+                <span
+                  onClick={() => { setLocation(null); setUserSelectedLocation(false) }}
+                  style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#b5b2ab', cursor: 'pointer', padding: '0 4px' }}
+                >×</span>
+              </div>
+            )}
             <LocationAutocomplete
               value={location?.name ?? ''}
-              onSelect={setLocation}
+              onSelect={(loc) => { setLocation(loc); if (loc) setUserSelectedLocation(true) }}
               label=""
               optional
-              placeholder="Location..."
+              placeholder={location ? 'Change location...' : 'Location...'}
               className="!py-[10px] !px-3 !rounded-lg !text-[13px]"
             />
           </div>
