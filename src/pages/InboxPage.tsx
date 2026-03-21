@@ -9,7 +9,7 @@ import PillSheet from '../components/PillSheet'
 import type { PillGroup } from '../components/PillSheet'
 import { categoryLabel } from '../utils/categoryIcons'
 import { optimizedImageUrl } from '../lib/optimizedImage'
-import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
+import { LayoutGrid, List, SlidersHorizontal, Search, X, Globe, MapPin } from 'lucide-react'
 import { BrandMark, CategoryPill, CountryCodeBadge, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import SwipeToDelete from '../components/SwipeToDelete'
 import ScrollToTop from '../components/ScrollToTop'
@@ -44,9 +44,13 @@ function getSourceKey(item: SavedItem): string {
 
 // ── Geo Grouping ─────────────────────────────────────────────────────────────
 
+type GroupMode = 'country' | 'city'
+
 interface GeoGroup {
   country: string | null
   countryCode: string | null
+  /** For city mode: the city label. Null in country mode. */
+  city?: string | null
   items: SavedItem[]
 }
 
@@ -78,6 +82,52 @@ function groupByCountry(items: SavedItem[]): GeoGroup[] {
   }
   if (unsorted.length > 0) {
     groups.push({ country: null, countryCode: null, items: unsorted })
+  }
+  return groups
+}
+
+function groupByCity(items: SavedItem[]): GeoGroup[] {
+  // Key: "countryCode:cityName" for dedup; items without city go under "countryCode:(general)"
+  const cityMap = new Map<string, { city: string; country: string; countryCode: string; items: SavedItem[] }>()
+  const unsorted: SavedItem[] = []
+
+  for (const item of items) {
+    const code = item.location_country_code
+    if (!code) {
+      unsorted.push(item)
+      continue
+    }
+    const cityName = item.location_name ? extractCity(item.location_name) : null
+    const key = cityName ? `${code}:${cityName}` : `${code}:(general)`
+    let entry = cityMap.get(key)
+    if (!entry) {
+      entry = {
+        city: cityName ?? `${item.location_country ?? code} (general)`,
+        country: item.location_country ?? code,
+        countryCode: code,
+        items: [],
+      }
+      cityMap.set(key, entry)
+    }
+    entry.items.push(item)
+  }
+
+  // Sort: alphabetically by country, then alphabetically by city within each country
+  const sorted = [...cityMap.values()].sort((a, b) => {
+    const countryCompare = a.country.localeCompare(b.country)
+    if (countryCompare !== 0) return countryCompare
+    return a.city.localeCompare(b.city)
+  })
+
+  const groups: GeoGroup[] = sorted.map(({ city, country, countryCode, items: cityItems }) => ({
+    country,
+    countryCode,
+    city,
+    items: cityItems,
+  }))
+
+  if (unsorted.length > 0) {
+    groups.push({ country: null, countryCode: null, city: null, items: unsorted })
   }
   return groups
 }
@@ -139,7 +189,16 @@ export default function InboxPage() {
   const [showPillSheet, setShowPillSheet] = useState(false)
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  const [groupMode, setGroupMode] = useState<GroupMode>(() => {
+    const saved = localStorage.getItem('horizon-group-mode')
+    return saved === 'city' ? 'city' : 'country'
+  })
   const [inboxToast, setInboxToast] = useState<string | null>(null)
+
+  // Persist group mode preference
+  useEffect(() => {
+    localStorage.setItem('horizon-group-mode', groupMode)
+  }, [groupMode])
 
   // Show toast from navigation state (e.g. after deleting an item)
   useEffect(() => {
@@ -314,11 +373,11 @@ export default function InboxPage() {
 
   const recentlyAddedIds = useMemo(() => new Set(recentlyAdded.map((i) => i.id)), [recentlyAdded])
 
-  // Country groups exclude recently added to avoid duplication
-  const geoGroups = useMemo(
-    () => groupByCountry(filtered.filter((item) => !recentlyAddedIds.has(item.id))),
-    [filtered, recentlyAddedIds],
-  )
+  // Geo groups exclude recently added to avoid duplication
+  const geoGroups = useMemo(() => {
+    const groupItems = filtered.filter((item) => !recentlyAddedIds.has(item.id))
+    return groupMode === 'city' ? groupByCity(groupItems) : groupByCountry(groupItems)
+  }, [filtered, recentlyAddedIds, groupMode])
 
   // Preload first-screen gallery images
   useEffect(() => {
@@ -415,6 +474,34 @@ export default function InboxPage() {
         >
           <SlidersHorizontal className="w-4 h-4" />
         </button>
+
+        {/* Group mode toggle */}
+        <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
+          <button
+            type="button"
+            onClick={() => setGroupMode('country')}
+            className={`w-8 h-8 flex items-center justify-center transition-colors ${
+              groupMode === 'country'
+                ? 'bg-text-primary text-white'
+                : 'bg-transparent text-text-faint hover:text-text-secondary'
+            }`}
+            aria-label="Group by country"
+          >
+            <Globe className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setGroupMode('city')}
+            className={`w-8 h-8 flex items-center justify-center transition-colors ${
+              groupMode === 'city'
+                ? 'bg-text-primary text-white'
+                : 'bg-transparent text-text-faint hover:text-text-secondary'
+            }`}
+            aria-label="Group by city"
+          >
+            <MapPin className="w-3.5 h-3.5" />
+          </button>
+        </div>
 
         {/* View toggle */}
         <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
@@ -567,17 +654,29 @@ export default function InboxPage() {
         return (
         <div className="space-y-6">
           {geoGroups.map((group) => (
-            <section key={group.countryCode ?? '__unsorted__'}>
-              {/* Country header — hidden when country filter is active (redundant) */}
-              {!hasCountryFilter && (
+            <section key={group.city ? `${group.countryCode}:${group.city}` : (group.countryCode ?? '__unsorted__')}>
+              {/* Group header — hidden when country filter is active in country mode */}
+              {!(hasCountryFilter && groupMode === 'country') && (
               <div className="flex items-center gap-2 mb-3">
-                {group.country && group.countryCode && (
-                  <CountryCodeBadge code={group.countryCode} />
+                {groupMode === 'city' && group.city ? (
+                  <>
+                    <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, margin: 0 }} className="text-text-primary">
+                      {group.city}
+                    </h2>
+                    {group.countryCode && <CountryCodeBadge code={group.countryCode} />}
+                    <span className="font-mono text-[10px] text-text-ghost">{group.items.length}</span>
+                  </>
+                ) : (
+                  <>
+                    {group.country && group.countryCode && (
+                      <CountryCodeBadge code={group.countryCode} />
+                    )}
+                    <h2 className="font-mono text-[11px] font-bold uppercase tracking-[1.5px] text-text-faint">
+                      {group.country ?? 'Unplaced'}
+                    </h2>
+                    <span className="font-mono text-[10px] text-text-ghost">{group.items.length}</span>
+                  </>
                 )}
-                <h2 className="font-mono text-[11px] font-bold uppercase tracking-[1.5px] text-text-faint">
-                  {group.country ?? 'Unplaced'}
-                </h2>
-                <span className="font-mono text-[10px] text-text-ghost">{group.items.length}</span>
               </div>
               )}
 
