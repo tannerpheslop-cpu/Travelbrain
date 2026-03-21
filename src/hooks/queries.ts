@@ -17,6 +17,7 @@ import type { LocationSelection } from '../components/LocationAutocomplete'
 
 export interface TripWithDestinations extends Trip {
   trip_destinations: TripDestination[]
+  companion_count?: number
 }
 
 export interface DestWithCount extends TripDestination {
@@ -64,27 +65,33 @@ export const queryKeys = {
 export async function fetchTrips(userId: string) {
   let result = await supabase
     .from('trips')
-    .select('*, trip_destinations(*)')
+    .select('*, trip_destinations(*), companions(count)')
     .eq('owner_id', userId)
     .order('updated_at', { ascending: false })
 
   if (result.error) {
     result = await supabase
       .from('trips')
-      .select('*, trip_destinations(*)')
+      .select('*, trip_destinations(*), companions(count)')
       .eq('owner_id', userId)
       .order('created_at', { ascending: false })
   }
 
   if (result.error) throw result.error
 
-  return ((result.data as TripWithDestinations[]) ?? []).map((t) => ({
-    ...t,
-    is_featured: t.is_featured ?? false,
-    is_favorited: t.is_favorited ?? false,
-    updated_at: t.updated_at ?? t.created_at,
-    trip_destinations: (t.trip_destinations ?? []).sort((a, b) => a.sort_order - b.sort_order),
-  }))
+  return ((result.data ?? []) as Array<Record<string, unknown>>).map((t) => {
+    const companions = t.companions as Array<{ count: number }> | undefined
+    const companion_count = companions?.[0]?.count ?? 0
+    const trip = t as unknown as TripWithDestinations
+    return {
+      ...trip,
+      is_featured: trip.is_featured ?? false,
+      is_favorited: trip.is_favorited ?? false,
+      updated_at: trip.updated_at ?? trip.created_at,
+      trip_destinations: (trip.trip_destinations ?? []).sort((a, b) => a.sort_order - b.sort_order),
+      companion_count,
+    }
+  })
 }
 
 export async function fetchTrip(tripId: string, userId: string) {
@@ -206,7 +213,7 @@ export function useCompanionsQuery(tripId: string | undefined) {
       const [companionsRes, pendingRes] = await Promise.all([
         supabase
           .from('companions')
-          .select('id, trip_id, user_id, role, invited_at, user:users(id, email, display_name)')
+          .select('id, trip_id, user_id, role, invited_at, user:users(id, email, display_name, avatar_url)')
           .eq('trip_id', tripId!)
           .order('invited_at', { ascending: true }),
         supabase

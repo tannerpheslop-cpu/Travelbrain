@@ -14,6 +14,7 @@ export interface CompanionWithUser {
     id: string
     email: string
     display_name: string | null
+    avatar_url: string | null
   }
 }
 
@@ -42,7 +43,7 @@ export function useCompanions(tripId: string | undefined) {
     const [companionsRes, pendingRes] = await Promise.all([
       supabase
         .from('companions')
-        .select('id, trip_id, user_id, role, invited_at, user:users(id, email, display_name)')
+        .select('id, trip_id, user_id, role, invited_at, user:users(id, email, display_name, avatar_url)')
         .eq('trip_id', tripId)
         .order('invited_at', { ascending: true }),
       supabase

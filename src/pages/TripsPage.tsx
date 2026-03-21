@@ -952,7 +952,18 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#9e9b94' }}>
           {dests.length} dest · {dests.length} saves
         </span>
-        <div style={{ display: 'flex', gap: 3 }}>
+        <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
+          {(trip.companion_count ?? 0) > 0 && (
+            <span style={{
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
+              color: '#9e9b94', display: 'inline-flex', alignItems: 'center', gap: 2,
+            }}>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: 11, height: 11 }}>
+                <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
+              </svg>
+              {trip.companion_count}
+            </span>
+          )}
           {trip.is_favorited && (
             <span style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 500,

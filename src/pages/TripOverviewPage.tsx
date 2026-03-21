@@ -8,7 +8,7 @@ import { useTripQuery, useTripDestinations, useInboxClusters, useDeleteTrip, use
 import { useCompanions as useCompanionsLegacy } from '../hooks/useCompanions'
 import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
 import { useRoutes } from '../hooks/useRoutes'
-import type { Trip, TripDestination, TripNote, TripRoute, SharePrivacy } from '../types'
+import type { Trip, TripStatus, TripDestination, TripNote, TripRoute, SharePrivacy } from '../types'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { fetchDestinationPhoto } from '../lib/unsplash'
@@ -22,7 +22,8 @@ import RouteCard from '../components/RouteCard'
 import DottedConnector from '../components/DottedConnector'
 import SwipeToDelete from '../components/SwipeToDelete'
 import { shortName } from '../components/BilingualName'
-import { Plus, Share2, ChevronDown } from 'lucide-react'
+import { Plus, Share2, ChevronDown, Check } from 'lucide-react'
+import CompanionAvatarStack from '../components/CompanionAvatarStack'
 import {
   DndContext,
   closestCenter,
@@ -813,6 +814,9 @@ export default function TripOverviewPage() {
   const [showShareModal, setShowShareModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showActionMenu, setShowActionMenu] = useState(false)
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false)
+  const statusDropdownRef = useRef<HTMLDivElement>(null)
+  const [titleSavedVisible, setTitleSavedVisible] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [datePickerDestId, setDatePickerDestId] = useState<string | null>(null)
@@ -1051,6 +1055,10 @@ export default function TripOverviewPage() {
       queryClient.invalidateQueries({ queryKey: queryKeys.trip(trip.id) })
       queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
 
+      // Show brief "Saved" confirmation
+      setTitleSavedVisible(true)
+      setTimeout(() => setTitleSavedVisible(false), 1500)
+
       // If the trip has no destinations and the cover wasn't user-uploaded, re-check new name
       if (destinations.length === 0 && updatedTrip.cover_image_source !== 'user_upload') {
         void trySetTripCoverFromName(trip.id, trimmed).then((url) => {
@@ -1062,6 +1070,47 @@ export default function TripOverviewPage() {
       setTrip((prev) => prev ? { ...prev, title: trip.title } : prev)
     }
   }
+
+  // ── Status change handler ──────────────────────────────────────────────
+  const statusOptions: Array<{ value: TripStatus; label: string }> = [
+    { value: 'aspirational', label: 'Someday' },
+    { value: 'planning', label: 'Planning' },
+    { value: 'scheduled', label: 'Upcoming' },
+  ]
+
+  const handleChangeStatus = async (newStatus: TripStatus) => {
+    if (!trip || newStatus === trip.status) {
+      setShowStatusDropdown(false)
+      return
+    }
+    setShowStatusDropdown(false)
+    const oldStatus = trip.status
+    // Optimistic update
+    setTrip((prev) => prev ? { ...prev, status: newStatus } : prev)
+    const { error: statusErr } = await supabase
+      .from('trips')
+      .update({ status: newStatus })
+      .eq('id', trip.id)
+    if (statusErr) {
+      setTrip((prev) => prev ? { ...prev, status: oldStatus } : prev)
+    } else {
+      queryClient.invalidateQueries({ queryKey: queryKeys.trip(trip.id) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
+      trackEvent('trip_status_changed', { trip_id: trip.id, from: oldStatus, to: newStatus })
+    }
+  }
+
+  // Close status dropdown on outside click
+  useEffect(() => {
+    if (!showStatusDropdown) return
+    const handleClick = (e: MouseEvent) => {
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(e.target as Node)) {
+        setShowStatusDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [showStatusDropdown])
 
   const handleAddDestination = async (loc: LocationSelection | null) => {
     if (!loc || !id) return
@@ -1554,32 +1603,83 @@ export default function TripOverviewPage() {
           <BrandMark />
         </div>
 
-        {/* Trip title */}
-        {editingTitle ? (
-          <input
-            ref={titleInputRef}
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            onBlur={handleSaveTitle}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleSaveTitle()
-              if (e.key === 'Escape') setEditingTitle(false)
-            }}
-            className="text-[32px] font-bold text-text-primary leading-[1.2] tracking-[-0.5px] bg-transparent border-b-2 border-accent focus:outline-none w-full pb-0.5"
-          />
-        ) : (
-          <button type="button" onClick={handleStartEditTitle} className="group flex items-center gap-2 text-left">
-            <h1 className="text-[32px] font-bold text-text-primary leading-[1.2] tracking-[-0.5px]">{trip?.title}</h1>
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-              className="w-4 h-4 text-text-ghost group-hover:text-text-tertiary transition-colors shrink-0 mt-2">
-              <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
-            </svg>
-          </button>
-        )}
+        {/* Trip title row + avatar stack */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            {editingTitle ? (
+              <div className="flex items-center gap-2">
+                <input
+                  ref={titleInputRef}
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  onBlur={handleSaveTitle}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveTitle()
+                    if (e.key === 'Escape') setEditingTitle(false)
+                  }}
+                  className="text-[32px] font-bold text-text-primary leading-[1.2] tracking-[-0.5px] bg-transparent border-b-2 border-accent focus:outline-none w-full pb-0.5"
+                />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={handleStartEditTitle} className="group flex items-center gap-2 text-left">
+                  <h1 className="text-[32px] font-bold text-text-primary leading-[1.2] tracking-[-0.5px]">{trip?.title}</h1>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
+                    className="w-4 h-4 text-text-ghost group-hover:text-text-tertiary transition-colors shrink-0 mt-2">
+                    <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
+                  </svg>
+                </button>
+                {/* "Saved" confirmation */}
+                <span
+                  className={`text-xs font-medium text-accent transition-opacity duration-300 ${titleSavedVisible ? 'opacity-100' : 'opacity-0'}`}
+                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                >
+                  <Check className="w-3 h-3 inline mr-0.5" />Saved
+                </span>
+              </div>
+            )}
+          </div>
+          {/* Companion avatar stack */}
+          <div className="mt-2 shrink-0">
+            <CompanionAvatarStack
+              companions={companions}
+              onClick={() => setShowInviteModal(true)}
+            />
+          </div>
+        </div>
 
-        {/* Metadata line + status badge */}
+        {/* Metadata line + tappable status badge */}
         <div className="flex items-center gap-2 mt-1.5">
-          {trip && <StatusBadge status={trip.status} />}
+          {trip && (
+            <div className="relative" ref={statusDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setShowStatusDropdown((v) => !v)}
+                className="cursor-pointer hover:ring-2 hover:ring-accent/30 rounded transition-all"
+              >
+                <StatusBadge status={trip.status} />
+              </button>
+              {showStatusDropdown && (
+                <div className="absolute top-full left-0 mt-1.5 bg-bg-card border border-border-subtle rounded-xl shadow-lg overflow-hidden z-50 min-w-[140px]">
+                  {statusOptions.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => handleChangeStatus(opt.value)}
+                      className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors flex items-center justify-between gap-2 ${
+                        opt.value === trip.status
+                          ? 'text-accent bg-accent-light font-medium'
+                          : 'text-text-secondary hover:bg-bg-muted'
+                      }`}
+                    >
+                      {opt.label}
+                      {opt.value === trip.status && <Check className="w-3.5 h-3.5" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           {metadataItems.length > 0 && <MetadataLine items={metadataItems} />}
         </div>
 
