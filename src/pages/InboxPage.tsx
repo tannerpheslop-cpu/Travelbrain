@@ -637,7 +637,7 @@ export default function InboxPage() {
 
       {/* ── Recently Added — Horizontal Scroll ── */}
       {!loading && !error && recentlyAdded.length > 0 && (
-        <section style={{ background: '#f5f0eb', borderRadius: 12, padding: 14, marginBottom: 20 }}>
+        <section style={{ borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)', paddingTop: 16, paddingBottom: 16, marginBottom: 20 }}>
           <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
             <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
               Recently added
@@ -649,6 +649,7 @@ export default function InboxPage() {
             style={{
               display: 'flex', gap: 10, overflowX: 'auto',
               scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
+              margin: '0 -20px', padding: '0 20px',
             }}
           >
             {recentlyAdded.map((item) => (
