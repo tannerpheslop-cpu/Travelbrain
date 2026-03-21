@@ -555,10 +555,18 @@ export default function ItemDetailPage() {
           <textarea
             id="detail-notes"
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => {
+              e.target.style.height = 'auto'
+              e.target.style.height = e.target.scrollHeight + 'px'
+              setNotes(e.target.value)
+            }}
+            onFocus={(e) => {
+              e.target.style.height = 'auto'
+              e.target.style.height = e.target.scrollHeight + 'px'
+            }}
             placeholder="Any notes about this place..."
-            rows={3}
-            className="w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint resize-none"
+            className="w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint resize-none overflow-hidden"
+            style={{ minHeight: 80 }}
           />
         </div>
 

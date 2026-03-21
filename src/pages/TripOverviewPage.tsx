@@ -24,6 +24,7 @@ import SwipeToDelete from '../components/SwipeToDelete'
 import { shortName } from '../components/BilingualName'
 import { Plus, Share2, ChevronDown, Check } from 'lucide-react'
 import CompanionAvatarStack from '../components/CompanionAvatarStack'
+import ScrollToTop from '../components/ScrollToTop'
 import {
   DndContext,
   closestCenter,
@@ -169,20 +170,19 @@ function ShareTripModal({ trip, onClose, onUpdated }: { trip: Trip; onClose: () 
             </PrimaryButton>
           )}
           {shareUrl && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 bg-bg-page border border-border rounded-xl px-3 py-2.5">
-                <p className="flex-1 text-xs text-text-secondary font-mono truncate">{shareUrl}</p>
-              </div>
-              <div className="flex gap-2">
-                <PrimaryButton onClick={handleCopy}
-                  className={`flex-1 py-2.5 rounded-xl ${copied ? '!bg-success' : ''}`}>
-                  {copied ? 'Copied!' : 'Copy Link'}
-                </PrimaryButton>
-                <SecondaryButton onClick={() => setShareUrl(null)} className="px-4 py-2.5 rounded-xl">
-                  Change
-                </SecondaryButton>
-              </div>
-            </div>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="w-full flex items-center gap-2 bg-bg-page border border-border rounded-xl px-3 py-2.5 hover:border-accent/40 transition-colors cursor-pointer"
+            >
+              <p className="flex-1 text-xs font-mono truncate text-left" style={{ color: copied ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>
+                {copied ? 'Copied!' : shareUrl}
+              </p>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0" style={{ color: copied ? 'var(--color-accent)' : 'var(--color-text-faint)' }}>
+                <path d="M7 3.5A1.5 1.5 0 018.5 2h3.879a1.5 1.5 0 011.06.44l3.122 3.12A1.5 1.5 0 0117 6.622V12.5a1.5 1.5 0 01-1.5 1.5h-1v-3.379a3 3 0 00-.879-2.121L10.5 5.379A3 3 0 008.379 4.5H7v-1z" />
+                <path d="M4.5 6A1.5 1.5 0 003 7.5v9A1.5 1.5 0 004.5 18h7a1.5 1.5 0 001.5-1.5v-5.879a1.5 1.5 0 00-.44-1.06L9.44 6.439A1.5 1.5 0 008.378 6H4.5z" />
+              </svg>
+            </button>
           )}
           {error && <p className="text-sm text-error">{error}</p>}
         </div>
@@ -839,10 +839,40 @@ export default function TripOverviewPage() {
 
   // ── Build suggestions ─────────────────────────────────────────────────────
 
+  // Detect geographic scope from trip name (e.g. "New York 2026" → only show US suggestions)
+  const tripNameScopedCodes = useMemo(() => {
+    if (!trip?.title) return null
+    const clusters = inboxClustersRef.current
+    if (!clusters.length) return null
+    const titleLower = trip.title.toLowerCase()
+    const matchedCodes = new Set<string>()
+    for (const cluster of clusters) {
+      // Check if country name appears in trip title
+      if (titleLower.includes(cluster.country.toLowerCase())) {
+        matchedCodes.add(cluster.country_code)
+        continue
+      }
+      // Check if any city name appears in trip title
+      for (const city of cluster.cities) {
+        const cityName = city.name.split(',')[0].trim().toLowerCase()
+        if (cityName.length >= 3 && titleLower.includes(cityName)) {
+          matchedCodes.add(cluster.country_code)
+          break
+        }
+      }
+    }
+    return matchedCodes.size > 0 ? matchedCodes : null
+  }, [trip?.title])
+
   const buildTripPageSuggestions = useCallback(
     (currentDests: DestWithCount[]) => {
-      const clusters = inboxClustersRef.current
+      let clusters = inboxClustersRef.current
       if (!clusters.length) return []
+      // If trip name implies a geographic scope, only suggest from those countries
+      if (tripNameScopedCodes && currentDests.length === 0) {
+        clusters = clusters.filter((c) => tripNameScopedCodes.has(c.country_code))
+        if (!clusters.length) return []
+      }
       const existingCodes = new Set(currentDests.map((d) => d.location_country_code))
       const suggs: Array<{ key: string; label: string; countryCode: string; itemCount: number; loc: LocationSelection }> = []
       for (const cluster of clusters) {
@@ -898,7 +928,7 @@ export default function TripOverviewPage() {
       }
       return suggs
     },
-    [],
+    [tripNameScopedCodes],
   )
 
   // ── Overview entries (destinations + routes) ──────────────────────────────
@@ -1186,8 +1216,13 @@ export default function TripOverviewPage() {
   }
 
   const openAddDest = () => {
-    const clusters = inboxClustersRef.current
+    let clusters = inboxClustersRef.current
     const suggestions: typeof frozenSuggestions = []
+
+    // If trip name implies a geographic scope and no destinations yet, filter clusters
+    if (tripNameScopedCodes && destinations.length === 0 && clusters.length) {
+      clusters = clusters.filter((c) => tripNameScopedCodes.has(c.country_code))
+    }
 
     if (clusters.length) {
       const existingCodes = new Set(destinations.map((d) => d.location_country_code))
@@ -2199,6 +2234,8 @@ export default function TripOverviewPage() {
           onClose={() => setDatePickerDestId(null)}
         />
       )}
+      {/* Scroll to top */}
+      <ScrollToTop bottom={80} />
       {/* Action toast */}
       {actionToast && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
