@@ -1,23 +1,25 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
-import { useSavedItem, useDeleteItem, queryKeys } from '../hooks/queries'
+import { useSavedItem, useDeleteItem, useItemTags, useAddTag, useRemoveTag, queryKeys, writeItemTags } from '../hooks/queries'
 import { useQueryClient } from '@tanstack/react-query'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { SecondaryButton, ConfirmDeleteModal } from '../components/ui'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import type { SavedItem, Category } from '../types'
+import { X } from 'lucide-react'
 
-const categories: { value: Category; label: string }[] = [
-  { value: 'restaurant', label: 'Restaurant' },
+const categoryPills: { value: Category; label: string }[] = [
+  { value: 'restaurant', label: 'Food' },
   { value: 'activity', label: 'Activity' },
-  { value: 'hotel', label: 'Hotel' },
+  { value: 'hotel', label: 'Stay' },
   { value: 'transit', label: 'Transit' },
-  { value: 'general', label: 'General' },
 ]
+
+const CATEGORY_VALUES = ['restaurant', 'activity', 'hotel', 'transit'] as const
 
 const categoryPlaceholderColors: Record<Category, { bg: string; icon: string }> = {
   restaurant: { bg: 'bg-bg-card',  icon: 'text-text-faint' },
@@ -41,12 +43,20 @@ export default function ItemDetailPage() {
   const [notFound, setNotFound] = useState(false)
   const [imgFailed, setImgFailed] = useState(false)
 
+  // Item tags from the new item_tags table
+  const { data: itemTagsData } = useItemTags(id)
+  const addTagMutation = useAddTag()
+  const removeTagMutation = useRemoveTag()
+
   // Editable fields
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<Category>('general')
   const [location, setLocation] = useState<LocationSelection | null>(null)
   const [notes, setNotes] = useState('')
   const [tags, setTags] = useState('')
+  const [showTagInput, setShowTagInput] = useState(false)
+  const [tagDraft, setTagDraft] = useState('')
+  const tagInputRef = useRef<HTMLInputElement>(null)
 
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [showTripSheet, setShowTripSheet] = useState(false)
@@ -137,15 +147,55 @@ export default function ItemDetailPage() {
       location_name_en: location?.name_en ?? null,
       location_name_local: location?.name_local ?? null,
       notes: notes.trim() || null,
-      tags: tags.trim() ? tags.split(',').map((t) => t.trim()).filter(Boolean) : null,
     })
-  }, [title, location, notes, tags, debouncedSave])
+  }, [title, location, notes, debouncedSave])
 
-  // Save category immediately (no need to debounce a tap)
-  const handleCategoryChange = (newCategory: Category) => {
-    setCategory(newCategory)
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    saveChanges({ category: newCategory })
+  // Derived: current tags from item_tags table (with fallback to old category column)
+  const activeTags = useMemo(() => {
+    if (itemTagsData && itemTagsData.length > 0) {
+      return itemTagsData.map((t) => ({ name: t.tag_name, type: t.tag_type }))
+    }
+    // Fallback: derive from old category column
+    if (category && category !== 'general') {
+      return [{ name: category, type: 'category' }]
+    }
+    return []
+  }, [itemTagsData, category])
+
+  const activeCategoryTags = activeTags.filter((t) => t.type === 'category').map((t) => t.name)
+  const activeCustomTags = activeTags.filter((t) => t.type === 'custom').map((t) => t.name)
+
+  // Toggle a category tag
+  const handleToggleCategoryTag = async (catValue: string) => {
+    if (!id || !user) return
+    const isActive = activeCategoryTags.includes(catValue)
+    if (isActive) {
+      removeTagMutation.mutate({ itemId: id, tagName: catValue })
+    } else {
+      addTagMutation.mutate({ itemId: id, tagName: catValue, tagType: 'category' })
+    }
+    // Also update the backwards-compat category column
+    if (!isActive) {
+      // Set the primary category to this one
+      setCategory(catValue as Category)
+      saveChanges({ category: catValue as Category })
+    } else if (activeCategoryTags.length <= 1) {
+      // Removing the last category → set to general
+      setCategory('general')
+      saveChanges({ category: 'general' })
+    }
+  }
+
+  // Add a custom tag
+  const handleAddCustomTag = (tagName: string) => {
+    if (!id || !user || !tagName.trim()) return
+    addTagMutation.mutate({ itemId: id, tagName: tagName.trim(), tagType: 'custom' })
+  }
+
+  // Remove a custom tag
+  const handleRemoveTag = (tagName: string) => {
+    if (!id || !user) return
+    removeTagMutation.mutate({ itemId: id, tagName })
   }
 
   const handleRefreshImage = async () => {
@@ -385,24 +435,111 @@ export default function ItemDetailPage() {
       )}
 
       <div className="mt-5 space-y-5">
-        {/* Category */}
+        {/* Tags — multi-select categories + custom */}
         <div>
-          <label className="block text-sm font-medium text-text-secondary mb-2">Category</label>
+          <label className="block text-sm font-medium text-text-secondary mb-2">Tags</label>
           <div className="flex flex-wrap gap-2">
-            {categories.map((cat) => (
+            {/* Category pills */}
+            {categoryPills.map((cat) => {
+              const active = activeCategoryTags.includes(cat.value)
+              return (
+                <button
+                  key={cat.value}
+                  type="button"
+                  onClick={() => handleToggleCategoryTag(cat.value)}
+                  className="transition-all duration-150"
+                  style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                    fontWeight: active ? 500 : 400,
+                    padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
+                    border: active ? '1.5px solid var(--color-accent)' : '1.5px solid var(--color-border-input)',
+                    background: active ? 'var(--color-accent-light)' : 'transparent',
+                    color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                  }}
+                >
+                  {cat.label}
+                </button>
+              )
+            })}
+
+            {/* Custom tag pills with × */}
+            {activeCustomTags.map((tag) => (
               <button
-                key={cat.value}
+                key={tag}
                 type="button"
-                onClick={() => handleCategoryChange(cat.value)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-                  category === cat.value
-                    ? 'bg-accent text-white'
-                    : 'bg-bg-muted text-text-secondary hover:bg-bg-pill-dark active:bg-bg-pill-dark'
-                }`}
+                onClick={() => handleRemoveTag(tag)}
+                className="flex items-center gap-1 transition-all duration-150"
+                style={{
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                  fontWeight: 500,
+                  padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
+                  border: '1.5px dotted var(--color-accent)',
+                  background: 'var(--color-accent-light)',
+                  color: 'var(--color-accent)',
+                }}
               >
-                {cat.label}
+                {tag}
+                <X className="w-3 h-3" />
               </button>
             ))}
+
+            {/* + Tag button / inline input */}
+            {showTagInput ? (
+              <div
+                className="inline-flex items-center"
+                style={{
+                  border: '1.5px dashed var(--color-border-input)',
+                  borderRadius: 20, padding: '4px 10px',
+                }}
+              >
+                <input
+                  ref={tagInputRef}
+                  type="text"
+                  value={tagDraft}
+                  onChange={(e) => setTagDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      const trimmed = tagDraft.trim()
+                      if (trimmed) handleAddCustomTag(trimmed)
+                      setTagDraft('')
+                      setShowTagInput(false)
+                    }
+                    if (e.key === 'Escape') {
+                      setTagDraft('')
+                      setShowTagInput(false)
+                    }
+                  }}
+                  onBlur={() => {
+                    if (!tagDraft.trim()) setShowTagInput(false)
+                  }}
+                  placeholder="Tag name"
+                  className="outline-none bg-transparent"
+                  style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                    color: 'var(--color-text-primary)',
+                    width: 80,
+                  }}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowTagInput(true)
+                  setTimeout(() => tagInputRef.current?.focus(), 50)
+                }}
+                className="transition-all duration-150"
+                style={{
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                  fontWeight: 400,
+                  padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
+                  border: '1.5px dashed var(--color-border-input)',
+                  background: 'transparent',
+                  color: 'var(--color-text-faint)',
+                }}
+              >+ Tag</button>
+            )}
           </div>
         </div>
 
@@ -426,21 +563,6 @@ export default function ItemDetailPage() {
             placeholder="Any notes about this place..."
             rows={3}
             className="w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint resize-none"
-          />
-        </div>
-
-        {/* Tags */}
-        <div>
-          <label htmlFor="detail-tags" className="block text-sm font-medium text-text-secondary mb-1.5">
-            Tags <span className="text-text-faint font-normal">(comma-separated)</span>
-          </label>
-          <input
-            id="detail-tags"
-            type="text"
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="e.g. must-try, rooftop, budget"
-            className="w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint"
           />
         </div>
 

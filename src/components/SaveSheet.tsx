@@ -5,7 +5,7 @@ import { trackEvent } from '../lib/analytics'
 import { detectLocationFromText } from '../lib/placesTextSearch'
 import { detectUrl } from '../lib/urlDetect'
 import { evaluateImageDisplay } from '../lib/evaluateImageDisplay'
-import { detectCategory, detectCategoryFromText, detectCategories } from '../lib/detectCategory'
+import { detectCategory, detectCategories, detectCategoriesFromText } from '../lib/detectCategory'
 import { writeItemTags } from '../hooks/queries'
 import { useRapidCapture } from '../hooks/useRapidCapture'
 import { MapPin, Loader2 } from 'lucide-react'
@@ -21,12 +21,11 @@ interface Metadata {
   url: string
 }
 
-const categories: { value: Category; label: string }[] = [
+const categoryPills: { value: Category; label: string }[] = [
   { value: 'restaurant', label: 'Food' },
   { value: 'activity', label: 'Activity' },
   { value: 'hotel', label: 'Stay' },
   { value: 'transit', label: 'Transit' },
-  { value: 'general', label: 'General' },
 ]
 
 interface Props {
@@ -77,8 +76,11 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   // Form state
   const [inputText, setInputText] = useState('')
   const [title, setTitle] = useState('')
-  const [category, setCategory] = useState<Category | null>(null)
+  const [selectedTags, setSelectedTags] = useState<string[]>([]) // category values or custom tag names
   const [categoryManuallySet, setCategoryManuallySet] = useState(false)
+  const [showCustomTagInput, setShowCustomTagInput] = useState(false)
+  const [customTagDraft, setCustomTagDraft] = useState('')
+  const customTagInputRef = useRef<HTMLInputElement>(null)
   const [location, setLocation] = useState<LocationSelection | null>(null)
   const [notes, setNotes] = useState('')
   const [saveError, setSaveError] = useState('')
@@ -184,10 +186,14 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
           name_en: result.name,
           name_local: null,
         })
-        // Auto-detect category from place types + text (only if user hasn't manually set)
+        // Auto-detect categories from place types + text (only if user hasn't manually set)
         if (!categoryManuallySet) {
-          const detected = detectCategory(text, result.placeTypes)
-          if (detected) setCategory(detected)
+          const detected = detectCategories(text, result.placeTypes)
+          if (detected.length > 0) setSelectedTags((prev) => {
+            const next = new Set(prev)
+            detected.forEach((c) => next.add(c))
+            return [...next]
+          })
         }
       }
     } catch { /* ignore */ }
@@ -202,8 +208,12 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
 
     // Run category detection immediately on text changes (lightweight, no API call)
     if (!categoryManuallySet && trimmed.length > 3) {
-      const detected = detectCategoryFromText(trimmed)
-      if (detected) setCategory(detected)
+      const detected = detectCategoriesFromText(trimmed)
+      if (detected.length > 0) setSelectedTags((prev) => {
+        const next = new Set(prev)
+        detected.forEach((c) => next.add(c))
+        return [...next]
+      })
     }
 
     if (locationManuallySet || suggestionDismissed) return
@@ -222,10 +232,14 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     if (!metadata) return
     const text = [metadata.title, metadata.description].filter(Boolean).join(' ')
 
-    // Auto-detect category from metadata text (only if user hasn't manually set)
+    // Auto-detect categories from metadata text (only if user hasn't manually set)
     if (!categoryManuallySet && text.length > 5) {
-      const detected = detectCategoryFromText(text)
-      if (detected) setCategory(detected)
+      const detected = detectCategoriesFromText(text)
+      if (detected.length > 0) setSelectedTags((prev) => {
+        const next = new Set(prev)
+        detected.forEach((c) => next.add(c))
+        return [...next]
+      })
     }
 
     if (!locationManuallySet && !suggestionDismissed && text.length > 10) {
@@ -331,7 +345,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       location_country_code: location?.country_code ?? null,
       location_name_en: location?.name_en ?? null,
       location_name_local: location?.name_local ?? null,
-      category: category ?? 'general',
+      category: (selectedTags.find((t) => ['restaurant', 'activity', 'hotel', 'transit'].includes(t)) as Category) ?? 'general',
       notes: notes.trim() || null,
       image_display: imageDisplay,
     }).select().single()
@@ -342,20 +356,23 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       return
     }
 
-    trackEvent('save_created', user.id, { source_type: sourceType, category: category ?? 'general', location_name: location?.name ?? null })
+    const primaryCategory = selectedTags.find((t) => ['restaurant', 'activity', 'hotel', 'transit'].includes(t)) ?? 'general'
+    trackEvent('save_created', user.id, { source_type: sourceType, category: primaryCategory, tags: selectedTags, location_name: location?.name ?? null })
 
     const savedItem = data as SavedItem
 
-    // Dual-write: write selected category to item_tags table
-    // If user manually set a category, write that as a category tag
-    // If no category set (general), skip — background detection will handle it
-    if (category && category !== 'general') {
-      void writeItemTags(savedItem.id, user.id, [{ tagName: category, tagType: 'category' }])
+    // Write all selected tags to item_tags table
+    if (selectedTags.length > 0) {
+      const tagRows = selectedTags.map((t) => ({
+        tagName: t,
+        tagType: (['restaurant', 'activity', 'hotel', 'transit'].includes(t) ? 'category' : 'custom') as 'category' | 'custom',
+      }))
+      void writeItemTags(savedItem.id, user.id, tagRows)
     }
 
     // Background detection for location + category on items saved without them
     const savedWithoutLocation = !location
-    const savedWithDefaultCategory = !categoryManuallySet && (category === null || category === 'general')
+    const savedWithDefaultCategory = !categoryManuallySet && selectedTags.length === 0
     const textForDetection = inputText.trim()
     const metadataText = metadata ? [metadata.title, metadata.description].filter(Boolean).join(' ') : ''
     const detectionInput = detectedUrl ? metadataText : textForDetection
@@ -414,7 +431,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     setTimeout(() => {
       setInputText('')
       setTitle('')
-      setCategory(null)
+      setSelectedTags([])
       setLocation(null)
       setNotes('')
       setDetectedUrl(null)
@@ -427,6 +444,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       setSaveError('')
       setLocationManuallySet(false)
       setCategoryManuallySet(false)
+      setShowCustomTagInput(false)
+      setCustomTagDraft('')
       setLocationDetecting(false)
       setDetectedLocation(null)
       setSuggestionDismissed(false)
@@ -656,27 +675,115 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
             )}
           </div>
 
-          {/* 3. Category pills */}
+          {/* 3. Tag pills — multi-select categories + custom tags */}
           <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {categories.map(cat => {
-              const active = category === cat.value
+            {categoryPills.map(cat => {
+              const active = selectedTags.includes(cat.value)
               return (
                 <button
                   key={cat.value}
                   type="button"
-                  onClick={() => { setCategory(active ? null : cat.value); setCategoryManuallySet(true) }}
+                  onClick={() => {
+                    setSelectedTags((prev) =>
+                      active ? prev.filter((t) => t !== cat.value) : [...prev, cat.value],
+                    )
+                    setCategoryManuallySet(true)
+                  }}
+                  data-testid={`save-tag-${cat.value}`}
                   style={{
                     fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
                     fontWeight: active ? 600 : 400,
-                    padding: '6px 14px', borderRadius: 6, cursor: 'pointer',
-                    border: active ? '1.5px solid #c45a2d' : '1px solid #e0ddd7',
-                    background: active ? 'rgba(196,90,45,0.06)' : 'transparent',
-                    color: active ? '#c45a2d' : '#6b6860',
-                    transition: 'all 0.1s ease',
+                    padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
+                    border: active ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border-input)',
+                    background: active ? 'var(--color-accent-light)' : 'transparent',
+                    color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                    transition: 'all 0.15s ease',
                   }}
                 >{cat.label}</button>
               )
             })}
+            {/* Custom tags already selected */}
+            {selectedTags
+              .filter((t) => !['restaurant', 'activity', 'hotel', 'transit'].includes(t))
+              .map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => setSelectedTags((prev) => prev.filter((t) => t !== tag))}
+                  data-testid={`save-custom-tag-${tag}`}
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                    fontWeight: 600,
+                    padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
+                    border: '1.5px dotted var(--color-accent)',
+                    background: 'var(--color-accent-light)',
+                    color: 'var(--color-accent)',
+                    transition: 'all 0.15s ease',
+                  }}
+                >{tag}</button>
+              ))}
+            {/* + Tag button / inline input */}
+            {showCustomTagInput ? (
+              <div
+                style={{
+                  display: 'inline-flex', alignItems: 'center',
+                  border: '1.5px dashed var(--color-border-input)',
+                  borderRadius: 20, padding: '4px 10px',
+                }}
+              >
+                <input
+                  ref={customTagInputRef}
+                  type="text"
+                  value={customTagDraft}
+                  onChange={(e) => setCustomTagDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      const trimmed = customTagDraft.trim()
+                      if (trimmed && !selectedTags.includes(trimmed)) {
+                        setSelectedTags((prev) => [...prev, trimmed])
+                        setCategoryManuallySet(true)
+                      }
+                      setCustomTagDraft('')
+                      setShowCustomTagInput(false)
+                    }
+                    if (e.key === 'Escape') {
+                      setCustomTagDraft('')
+                      setShowCustomTagInput(false)
+                    }
+                  }}
+                  onBlur={() => {
+                    if (!customTagDraft.trim()) setShowCustomTagInput(false)
+                  }}
+                  placeholder="Tag name"
+                  data-testid="save-custom-tag-input"
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                    color: 'var(--color-text-primary)',
+                    outline: 'none', border: 'none', background: 'transparent',
+                    width: 80,
+                  }}
+                />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCustomTagInput(true)
+                  setTimeout(() => customTagInputRef.current?.focus(), 50)
+                }}
+                data-testid="save-add-tag-btn"
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                  fontWeight: 400,
+                  padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
+                  border: '1.5px dashed var(--color-border-input)',
+                  background: 'transparent',
+                  color: 'var(--color-text-faint)',
+                  transition: 'all 0.15s ease',
+                }}
+              >+ Tag</button>
+            )}
           </div>
 
           {/* 4. Location suggestion pill + input */}
