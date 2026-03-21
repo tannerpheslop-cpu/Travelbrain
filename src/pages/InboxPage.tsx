@@ -62,9 +62,9 @@ function groupByCountry(items: SavedItem[]): GeoGroup[] {
     }
     let entry = countryMap.get(code)
     if (!entry) {
-      const name = item.location_name_en
-        ? (item.location_name_en.split(',').pop()?.trim() ?? item.location_country ?? code)
-        : (item.location_country ?? code)
+      // Always use location_country for the group label — NOT location_name_en
+      // which could be a city or place name (e.g., "Mt Emei" instead of "China")
+      const name = item.location_country ?? code
       entry = { name, code, items: [] }
       countryMap.set(code, entry)
     }

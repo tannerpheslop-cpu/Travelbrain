@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { optimizedImageUrl, type ImageContext } from '../lib/optimizedImage'
 
 interface ImageWithFadeProps {
@@ -20,6 +20,7 @@ interface ImageWithFadeProps {
  * - Automatic Unsplash URL optimisation via optimizedImageUrl
  * - Smooth fade-in (opacity 0 → 1 over 0.2s)
  * - Eager / lazy loading control
+ * - Handles already-cached images (checks img.complete on mount)
  *
  * Returns null when src is falsy or the image errors, letting the parent
  * render its own fallback.
@@ -36,13 +37,22 @@ export default function ImageWithFade({
 }: ImageWithFadeProps) {
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState(false)
+  const imgRef = useRef<HTMLImageElement>(null)
 
   const optimizedSrc = optimizedImageUrl(src, context)
+
+  // Handle images that are already cached — onLoad may not fire
+  useEffect(() => {
+    if (imgRef.current?.complete && imgRef.current.naturalWidth > 0) {
+      setLoaded(true)
+    }
+  }, [optimizedSrc])
 
   if (error || !optimizedSrc) return null
 
   return (
     <img
+      ref={imgRef}
       src={optimizedSrc}
       alt={alt}
       className={className}
