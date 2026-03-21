@@ -95,7 +95,7 @@ export default function InboxPage() {
   // ── React Query data ───────────────────────────────────────────────────
   const { data: items = [], isLoading: itemsLoading, error: itemsError } = useSavedItems()
   const { data: tripsWithDests = [] } = useTripsQuery()
-  const trips = tripsWithDests // For the filter dropdown we just need id + title
+
   const { data: allTripItems = [] } = useTripItemMappings()
   const tripLinkCounts = useTripLinkCounts()
   const deleteItemMutation = useDeleteItem()
@@ -551,13 +551,8 @@ export default function InboxPage() {
         onClose={() => setShowPillSheet(false)}
         title="Filter"
         allowCustom={customTags.length > 0}
-        onAddCustom={(tagName) => {
-          // Create a custom tag — for now just add to the selection
-          // The tag will be available as a filter option after items are tagged with it
-          if (user) {
-            // We don't have an item to tag here, but we add the tag to filters
-            // Custom tags are created on items via the item detail page
-          }
+        onAddCustom={() => {
+          // Custom tags are created on items via the item detail page
         }}
       />
     )}
