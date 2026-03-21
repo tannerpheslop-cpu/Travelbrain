@@ -536,18 +536,26 @@ export default function InboxPage() {
         </div>
       )}
 
-      {/* ── Recently Added Section ── */}
+      {/* ── Recently Added — Horizontal Scroll ── */}
       {!loading && !error && recentlyAdded.length > 0 && (
-        <section className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-[14px] font-semibold text-text-primary" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+        <section style={{ background: '#f5f0eb', borderRadius: 12, padding: 14, marginBottom: 20 }}>
+          <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
               Recently added
             </h2>
-            <span className="font-mono text-[10px] text-text-tertiary">{recentlyAdded.length}</span>
+            <span className="font-mono" style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>{recentlyAdded.length}</span>
           </div>
-          <div className="grid grid-cols-2" style={{ gap: 8 }}>
+          <div
+            className="scrollbar-hide"
+            style={{
+              display: 'flex', gap: 10, overflowX: 'auto',
+              scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
+            }}
+          >
             {recentlyAdded.map((item) => (
-              <GridCard key={item.id} item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} onDelete={() => handleDeleteItem(item.id)} eager showShimmer={!item.location_name && (Date.now() - new Date(item.created_at).getTime()) < 30000} />
+              <div key={item.id} style={{ width: 170, flexShrink: 0 }}>
+                <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} onDelete={() => handleDeleteItem(item.id)} eager showShimmer={!item.location_name && (Date.now() - new Date(item.created_at).getTime()) < 30000} />
+              </div>
             ))}
           </div>
         </section>
