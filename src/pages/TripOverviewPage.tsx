@@ -1023,16 +1023,28 @@ export default function TripOverviewPage() {
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
+  const titleSavingRef = useRef(false)
+
   const handleStartEditTitle = () => {
     setTitleDraft(trip?.title ?? '')
     setEditingTitle(true)
   }
 
   const handleSaveTitle = async () => {
+    // Guard against double-fire (blur + unmount on mobile)
+    if (titleSavingRef.current) return
     const trimmed = titleDraft.trim()
+    if (!trip || !trimmed || trimmed === trip.title) {
+      setEditingTitle(false)
+      return
+    }
+    // Mark as saving BEFORE any state changes to prevent re-entry
+    titleSavingRef.current = true
     setEditingTitle(false)
-    if (!trip || !trimmed || trimmed === trip.title) return
+    // Optimistic update — show the new title immediately
+    setTrip((prev) => prev ? { ...prev, title: trimmed } : prev)
     const { data, error } = await supabase.from('trips').update({ title: trimmed }).eq('id', trip.id).select().single()
+    titleSavingRef.current = false
     if (!error && data) {
       const updatedTrip = data as Trip
       setTrip(updatedTrip)
@@ -1045,6 +1057,9 @@ export default function TripOverviewPage() {
           if (url) setTrip((prev) => prev ? { ...prev, cover_image_url: url, cover_image_source: 'trip_name' } : prev)
         })
       }
+    } else {
+      // Revert optimistic update on failure
+      setTrip((prev) => prev ? { ...prev, title: trip.title } : prev)
     }
   }
 
