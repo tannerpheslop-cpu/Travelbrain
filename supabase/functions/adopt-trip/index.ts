@@ -7,29 +7,37 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
-function jsonError(msg: string, status: number) {
-  return new Response(JSON.stringify({ error: msg }), {
+function jsonResponse(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   })
 }
 
-function jsonOk(body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  })
-}
-
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders })
-  if (req.method !== "POST") return jsonError("Method not allowed", 405)
+  console.log("adopt-trip: function invoked, method:", req.method)
+
+  if (req.method === "OPTIONS") {
+    console.log("adopt-trip: CORS preflight")
+    return new Response("ok", { headers: corsHeaders })
+  }
+  if (req.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405)
+  }
 
   try {
-    // ── 1. Identify caller from JWT ─────────────────────────────────────────
+    // ── Step 1: Parse authorization header ──────────────────────────────
+    console.log("Step 1: checking authorization header")
     const authHeader = req.headers.get("Authorization")
-    if (!authHeader) return jsonError("Unauthorized", 401)
+    console.log("Step 1: Authorization header present:", !!authHeader)
 
+    if (!authHeader) {
+      console.error("Step 1 FAILED: no Authorization header")
+      return jsonResponse({ error: "Unauthorized" }, 401)
+    }
+
+    // ── Step 2: Decode JWT to get caller ID ─────────────────────────────
+    console.log("Step 2: decoding JWT")
     let callerId: string | null = null
     try {
       const token = authHeader.replace(/^Bearer\s+/i, "")
@@ -38,24 +46,41 @@ Deno.serve(async (req) => {
       const payloadB64 = (payloadB64Url + padding).replace(/-/g, "+").replace(/_/g, "/")
       const payload = JSON.parse(atob(payloadB64))
       callerId = payload.sub ?? null
-    } catch (err) {
-      console.error("JWT decode error:", err)
+      console.log("Step 2: decoded callerId:", callerId)
+    } catch (jwtErr) {
+      console.error("Step 2 FAILED: JWT decode error:", (jwtErr as Error).message, (jwtErr as Error).stack)
     }
 
-    if (!callerId) return jsonError("Could not identify caller from JWT", 401)
+    if (!callerId) {
+      console.error("Step 2 FAILED: callerId is null after decode")
+      return jsonResponse({ error: "Could not identify caller from JWT" }, 401)
+    }
 
-    // ── 2. Parse request ────────────────────────────────────────────────────
+    // ── Step 3: Parse request body ──────────────────────────────────────
+    console.log("Step 3: parsing request body")
     const { share_token } = await req.json() as { share_token: string }
-    if (!share_token) return jsonError("share_token required", 400)
+    console.log("Step 3: share_token:", share_token)
 
-    // ── 3. Admin client (bypasses RLS) ──────────────────────────────────────
+    if (!share_token) {
+      console.error("Step 3 FAILED: missing share_token")
+      return jsonResponse({ error: "share_token required" }, 400)
+    }
+
+    // ── Step 4: Create admin client ─────────────────────────────────────
+    console.log("Step 4: creating admin client")
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+    console.log("Step 4: SUPABASE_URL present:", !!supabaseUrl, "SERVICE_ROLE_KEY present:", !!serviceRoleKey)
+
     const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      supabaseUrl!,
+      serviceRoleKey!,
       { auth: { autoRefreshToken: false, persistSession: false } },
     )
+    console.log("Step 4: admin client created")
 
-    // ── 4. Fetch original trip ──────────────────────────────────────────────
+    // ── Step 5: Fetch original trip ─────────────────────────────────────
+    console.log("Step 5: looking up trip by share_token:", share_token)
     const { data: originalTrip, error: tripErr } = await admin
       .from("trips")
       .select("*")
@@ -63,26 +88,35 @@ Deno.serve(async (req) => {
       .single()
 
     if (tripErr || !originalTrip) {
-      console.error("Trip lookup failed:", tripErr?.message)
-      return jsonError("Trip not found", 404)
+      console.error("Step 5 FAILED: trip lookup error:", tripErr?.message, tripErr?.code)
+      return jsonResponse({ error: "Trip not found" }, 404)
     }
+    console.log("Step 5: trip found, id:", originalTrip.id, "owner:", originalTrip.owner_id)
 
     // Don't let the owner clone their own trip
     if (originalTrip.owner_id === callerId) {
-      return jsonError("You already own this trip", 409)
+      console.log("Step 5: caller is the owner, rejecting")
+      return jsonResponse({ error: "You already own this trip" }, 409)
     }
 
-    // ── 5. Fetch destinations ───────────────────────────────────────────────
-    const { data: originalDests } = await admin
+    // ── Step 6: Fetch destinations ──────────────────────────────────────
+    console.log("Step 6: fetching destinations for trip:", originalTrip.id)
+    const { data: originalDests, error: destsErr } = await admin
       .from("trip_destinations")
       .select("*")
       .eq("trip_id", originalTrip.id)
       .order("sort_order")
 
+    if (destsErr) {
+      console.error("Step 6: destinations fetch error:", destsErr.message)
+    }
+
     const dests = (originalDests ?? []) as Record<string, unknown>[]
     const destIds = dests.map((d) => d.id as string)
+    console.log("Step 6: found", dests.length, "destinations")
 
-    // ── 6. Fetch destination_items ──────────────────────────────────────────
+    // ── Step 7: Fetch destination_items ──────────────────────────────────
+    console.log("Step 7: fetching destination_items for", destIds.length, "destinations")
     const allDestItemsRes = destIds.length > 0
       ? await admin
           .from("destination_items")
@@ -90,16 +124,24 @@ Deno.serve(async (req) => {
           .in("destination_id", destIds)
       : { data: [] }
     const allDestItems = (allDestItemsRes.data ?? []) as Record<string, unknown>[]
+    console.log("Step 7: found", allDestItems.length, "destination items")
 
-    // ── 7. Fetch trip_general_items ─────────────────────────────────────────
-    const { data: giData } = await admin
+    // ── Step 8: Fetch trip_general_items ─────────────────────────────────
+    console.log("Step 8: fetching trip_general_items")
+    const { data: giData, error: giErr } = await admin
       .from("trip_general_items")
       .select("*, saved_item:saved_items(*)")
       .eq("trip_id", originalTrip.id)
       .order("sort_order")
-    const generalItems = (giData ?? []) as Record<string, unknown>[]
 
-    // ── 8. Create new trip for the adopting user ────────────────────────────
+    if (giErr) {
+      console.error("Step 8: general items fetch error:", giErr.message)
+    }
+    const generalItems = (giData ?? []) as Record<string, unknown>[]
+    console.log("Step 8: found", generalItems.length, "general items")
+
+    // ── Step 9: Create new trip for the adopting user ────────────────────
+    console.log("Step 9: creating new trip for caller:", callerId)
     const { data: newTrip, error: newTripErr } = await admin
       .from("trips")
       .insert({
@@ -115,13 +157,15 @@ Deno.serve(async (req) => {
       .single()
 
     if (newTripErr || !newTrip) {
-      console.error("Failed to create trip:", newTripErr?.message)
-      return jsonError("Failed to create trip", 500)
+      console.error("Step 9 FAILED: create trip error:", newTripErr?.message, newTripErr?.code)
+      return jsonResponse({ error: "Failed to create trip" }, 500)
     }
 
     const newTripId = (newTrip as { id: string }).id
+    console.log("Step 9: new trip created:", newTripId)
 
-    // ── 9. Collect all unique saved_items to copy ───────────────────────────
+    // ── Step 10: Collect all unique saved_items to copy ──────────────────
+    console.log("Step 10: collecting unique saved items")
     const uniqueItems = new Map<string, Record<string, unknown>>()
     for (const di of allDestItems) {
       const item = di.saved_item as Record<string, unknown>
@@ -135,12 +179,14 @@ Deno.serve(async (req) => {
         uniqueItems.set(item.id as string, item)
       }
     }
+    console.log("Step 10: found", uniqueItems.size, "unique items to copy")
 
-    // ── 10. Copy saved_items with new owner ─────────────────────────────────
+    // ── Step 11: Copy saved_items with new owner ────────────────────────
+    console.log("Step 11: copying saved items")
     const itemIdMap = new Map<string, string>() // original → new
 
     for (const [originalId, src] of uniqueItems) {
-      const { data: newItem } = await admin
+      const { data: newItem, error: itemErr } = await admin
         .from("saved_items")
         .insert({
           user_id: callerId,
@@ -162,12 +208,17 @@ Deno.serve(async (req) => {
         .select("id")
         .single()
 
+      if (itemErr) {
+        console.error("Step 11: failed to copy item", originalId, ":", itemErr.message)
+      }
       if (newItem) itemIdMap.set(originalId, (newItem as { id: string }).id)
     }
+    console.log("Step 11: copied", itemIdMap.size, "items")
 
-    // ── 11. Copy destinations + their items ─────────────────────────────────
+    // ── Step 12: Copy destinations + their items ────────────────────────
+    console.log("Step 12: copying destinations")
     for (const dest of dests) {
-      const { data: newDest } = await admin
+      const { data: newDest, error: destErr } = await admin
         .from("trip_destinations")
         .insert({
           trip_id: newTripId,
@@ -183,37 +234,52 @@ Deno.serve(async (req) => {
         .select("id")
         .single()
 
+      if (destErr) {
+        console.error("Step 12: failed to copy destination", dest.id, ":", destErr.message)
+      }
       if (!newDest) continue
       const newDestId = (newDest as { id: string }).id
 
       const forThisDest = allDestItems.filter((di) => di.destination_id === dest.id)
+      console.log("Step 12: copying", forThisDest.length, "items for destination", dest.location_name)
       for (const di of forThisDest) {
         const newItemId = itemIdMap.get(di.item_id as string)
         if (!newItemId) continue
-        await admin.from("destination_items").insert({
+        const { error: diErr } = await admin.from("destination_items").insert({
           destination_id: newDestId,
           item_id: newItemId,
           day_index: di.day_index,
           sort_order: di.sort_order,
         })
+        if (diErr) {
+          console.error("Step 12: failed to link item to destination:", diErr.message)
+        }
       }
     }
+    console.log("Step 12: destinations copied")
 
-    // ── 12. Copy general items ──────────────────────────────────────────────
+    // ── Step 13: Copy general items ─────────────────────────────────────
+    console.log("Step 13: copying general items")
     for (const gi of generalItems) {
       const newItemId = itemIdMap.get(gi.item_id as string)
       if (!newItemId) continue
-      await admin.from("trip_general_items").insert({
+      const { error: giInsertErr } = await admin.from("trip_general_items").insert({
         trip_id: newTripId,
         item_id: newItemId,
         sort_order: gi.sort_order,
       })
+      if (giInsertErr) {
+        console.error("Step 13: failed to copy general item:", giInsertErr.message)
+      }
     }
+    console.log("Step 13: general items copied")
 
-    console.log(`Trip ${originalTrip.id} adopted by ${callerId} → new trip ${newTripId}`)
-    return jsonOk({ trip_id: newTripId })
+    console.log(`adopt-trip: completed successfully — trip ${originalTrip.id} adopted by ${callerId} → ${newTripId}`)
+    return jsonResponse({ trip_id: newTripId })
   } catch (err) {
-    console.error("adopt-trip error:", err)
-    return jsonError(String(err), 500)
+    const error = err as Error
+    console.error("adopt-trip CRASHED:", error.message)
+    console.error("Stack trace:", error.stack)
+    return jsonResponse({ error: error.message || String(err) }, 500)
   }
 })
