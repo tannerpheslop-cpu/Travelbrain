@@ -5,7 +5,7 @@ import { trackEvent } from '../lib/analytics'
 import { detectLocationFromText } from '../lib/placesTextSearch'
 import { detectUrl } from '../lib/urlDetect'
 import { evaluateImageDisplay } from '../lib/evaluateImageDisplay'
-import { detectCategory, detectCategories, detectCategoriesFromText } from '../lib/detectCategory'
+import { detectCategories, detectCategoriesFromText } from '../lib/detectCategory'
 import { writeItemTags } from '../hooks/queries'
 import { useRapidCapture } from '../hooks/useRapidCapture'
 import { MapPin, Loader2 } from 'lucide-react'
@@ -110,8 +110,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const lastDetectionTime = useRef(0)
   const detectionDebounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Track pending background location updates for already-saved items
-  // pendingLocationUpdates removed — background location detection handled by worker
+  // Location detection state
 
   // Auto-focus input on mount or when switching modes
   useEffect(() => {
@@ -371,32 +370,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       void writeItemTags(savedItem.id, user.id, tagRows)
     }
 
-    // Background category detection only (location is handled by background worker)
-    if (!categoryManuallySet && selectedTags.length === 0) {
-      const textForDetection = inputText.trim()
-      const metadataText = metadata ? [metadata.title, metadata.description].filter(Boolean).join(' ') : ''
-      const detectionInput = detectedUrl ? metadataText : textForDetection
-      const wordCount = detectionInput.split(/\s+/).length
-
-      if (wordCount >= 2) {
-        const itemId = savedItem.id
-        // Use already-detected place types if available, otherwise detect from text only
-        const placeTypes = detectedLocation?.place_id ? null : null
-        const detectedCat = detectCategory(detectionInput, placeTypes)
-        if (detectedCat) {
-          void supabase.from('saved_items').update({ category: detectedCat }).eq('id', itemId)
-        }
-        // Dual-write: write all detected categories to item_tags
-        const allCats = detectCategories(detectionInput, placeTypes)
-        if (allCats.length > 0) {
-          void writeItemTags(
-            itemId,
-            user.id,
-            allCats.map((cat) => ({ tagName: cat, tagType: 'category' as const })),
-          )
-        }
-      }
-    }
+    // No background detection here — the background worker handles
+    // location + category detection independently.
 
     onSaved(savedItem)
 
