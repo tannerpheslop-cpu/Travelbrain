@@ -714,6 +714,18 @@ export default function InboxPage() {
         onAddCustom={() => {
           // Custom tags are created on items via the item detail page
         }}
+        onDeleteCustomTag={async (tagName) => {
+          if (!user) return
+          await supabase
+            .from('item_tags')
+            .delete()
+            .eq('tag_name', tagName)
+            .eq('tag_type', 'custom')
+            .eq('user_id', user.id)
+          // Invalidate tags cache so the pill disappears
+          queryClient.invalidateQueries({ queryKey: ['user-custom-tags'] })
+          queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user.id) })
+        }}
       />
     )}
 

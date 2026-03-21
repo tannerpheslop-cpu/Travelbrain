@@ -17,6 +17,8 @@ export interface PillSheetProps {
   title?: string
   allowCustom?: boolean
   onAddCustom?: (tagName: string) => void
+  /** Called when user deletes a custom tag in edit mode */
+  onDeleteCustomTag?: (tagName: string) => void
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -29,10 +31,13 @@ export default function PillSheet({
   title = 'Filter',
   allowCustom = false,
   onAddCustom,
+  onDeleteCustomTag,
 }: PillSheetProps) {
   const [visible, setVisible] = useState(false)
   const [customInput, setCustomInput] = useState('')
   const [showCustomInput, setShowCustomInput] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const customInputRef = useRef<HTMLInputElement>(null)
   const sheetRef = useRef<HTMLDivElement>(null)
 
@@ -171,17 +176,38 @@ export default function PillSheet({
           {/* Custom tags section (if allowCustom) */}
           {allowCustom && (
             <div className="mb-3">
-              <p
-                style={{
-                  fontFamily: "'DM Sans', sans-serif",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: 'var(--color-text-primary)',
-                  marginBottom: 8,
-                }}
-              >
-                {customGroup?.title ?? 'My Tags'}
-              </p>
+              <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                <p
+                  style={{
+                    fontFamily: "'DM Sans', sans-serif",
+                    fontSize: 14,
+                    fontWeight: 600,
+                    color: 'var(--color-text-primary)',
+                    margin: 0,
+                  }}
+                >
+                  {customGroup?.title ?? 'My Tags'}
+                </p>
+                {onDeleteCustomTag && (customGroup?.pills ?? []).length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setEditMode(!editMode)}
+                    style={{
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: editMode ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '2px 4px',
+                    }}
+                    data-testid="edit-custom-tags-btn"
+                  >
+                    {editMode ? 'Done' : 'Edit'}
+                  </button>
+                )}
+              </div>
               <div
                 style={{
                   background: 'var(--color-bg-muted)',
@@ -191,12 +217,30 @@ export default function PillSheet({
               >
                 <div className="flex flex-wrap gap-2">
                   {(customGroup?.pills ?? []).map((pill) => (
-                    <Pill
-                      key={pill}
-                      label={pill}
-                      isSelected={selected.includes(pill)}
-                      onToggle={() => togglePill(pill)}
-                    />
+                    <div key={pill} className="relative inline-flex">
+                      <Pill
+                        label={pill}
+                        isSelected={selected.includes(pill)}
+                        onToggle={() => !editMode && togglePill(pill)}
+                      />
+                      {editMode && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setConfirmDelete(pill) }}
+                          style={{
+                            position: 'absolute', top: -4, right: -4,
+                            width: 18, height: 18, borderRadius: '50%',
+                            background: '#c0392b', color: 'white',
+                            border: 'none', cursor: 'pointer',
+                            fontSize: 11, fontWeight: 700,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            lineHeight: 1,
+                          }}
+                          data-testid={`delete-tag-${pill}`}
+                          aria-label={`Delete tag ${pill}`}
+                        >×</button>
+                      )}
+                    </div>
                   ))}
 
                   {/* Add custom tag button / input */}
@@ -346,6 +390,63 @@ export default function PillSheet({
             Done
           </button>
         </div>
+
+        {/* Delete confirmation dialog */}
+        {confirmDelete && (
+          <div
+            className="absolute inset-0 z-10 flex items-center justify-center"
+            style={{ background: 'rgba(0,0,0,0.4)', borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
+            onClick={() => setConfirmDelete(null)}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                background: 'var(--color-bg-card)',
+                borderRadius: 14,
+                padding: '20px 24px',
+                maxWidth: 280,
+                width: '85%',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+              }}
+            >
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 8 }}>
+                Delete tag &lsquo;{confirmDelete}&rsquo;?
+              </p>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-tertiary)', marginBottom: 16 }}>
+                This will remove it from all entries.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(null)}
+                  style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
+                    color: 'var(--color-text-secondary)', background: 'none', border: 'none',
+                    cursor: 'pointer', padding: '8px 14px',
+                  }}
+                  data-testid="cancel-delete-tag"
+                >Cancel</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    onDeleteCustomTag?.(confirmDelete)
+                    // Also remove from selected filters if present
+                    if (selected.includes(confirmDelete)) {
+                      onSelectionChange(selected.filter((s) => s !== confirmDelete))
+                    }
+                    setConfirmDelete(null)
+                  }}
+                  style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+                    color: '#ffffff', background: '#c0392b', border: 'none',
+                    borderRadius: 8, cursor: 'pointer', padding: '8px 14px',
+                  }}
+                  data-testid="confirm-delete-tag"
+                >Delete</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
