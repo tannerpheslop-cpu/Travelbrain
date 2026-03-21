@@ -328,7 +328,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
 
     const imageDisplay = evaluateImageDisplay({ image_url: imageUrl })
 
-    const { data, error } = await supabase.from('saved_items').insert({
+    // Build the core payload (columns guaranteed to exist)
+    const corePayload: Record<string, unknown> = {
       user_id: user.id,
       source_type: sourceType,
       source_url: detectedUrl ?? null,
@@ -342,15 +343,31 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       location_place_id: location?.place_id ?? null,
       location_country: location?.country ?? null,
       location_country_code: location?.country_code ?? null,
+      category: (selectedTags.find((t) => ['restaurant', 'activity', 'hotel', 'transit'].includes(t)) as Category) ?? 'general',
+      notes: notes.trim() || null,
+    }
+
+    // Extended columns (from recent migrations — may not exist yet)
+    const extendedPayload: Record<string, unknown> = {
+      ...corePayload,
       location_name_en: location?.name_en ?? null,
       location_name_local: location?.name_local ?? null,
       location_auto_declined: suggestionDismissed,
-      category: (selectedTags.find((t) => ['restaurant', 'activity', 'hotel', 'transit'].includes(t)) as Category) ?? 'general',
-      notes: notes.trim() || null,
       image_display: imageDisplay,
-    }).select().single()
+    }
+
+    // Try with all columns first; fall back to core columns if a column doesn't exist
+    let { data, error } = await supabase.from('saved_items').insert(extendedPayload).select().single()
 
     if (error) {
+      console.warn('Save with extended columns failed, retrying with core columns:', error.message)
+      const retry = await supabase.from('saved_items').insert(corePayload).select().single()
+      data = retry.data
+      error = retry.error
+    }
+
+    if (error) {
+      console.error('Save failed:', error.message, error.details, error.hint)
       setSaveError('Failed to save. Please try again.')
       setSaving(false)
       return

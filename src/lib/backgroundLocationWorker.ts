@@ -36,7 +36,10 @@ export async function processUnlocatedItems(
   const limit = options?.limit ?? 10
 
   try {
-    const { data: items, error } = await supabase
+    // Try with location_auto_declined column; fall back without it
+    interface UnlocatedItem { id: string; title: string; category: string; location_name: string | null; location_auto_declined?: boolean }
+    let items: UnlocatedItem[] | null = null
+    const { data: extData, error: extError } = await supabase
       .from('saved_items')
       .select('id, title, category, location_name, location_auto_declined')
       .eq('user_id', userId)
@@ -45,7 +48,21 @@ export async function processUnlocatedItems(
       .order('created_at', { ascending: false })
       .limit(limit)
 
-    if (error || !items || items.length === 0) {
+    if (!extError && extData) {
+      items = extData as unknown as UnlocatedItem[]
+    } else {
+      // Column may not exist yet — query without it
+      const { data: coreData } = await supabase
+        .from('saved_items')
+        .select('id, title, category, location_name')
+        .eq('user_id', userId)
+        .is('location_name', null)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      items = coreData as unknown as UnlocatedItem[] | null
+    }
+
+    if (!items || items.length === 0) {
       return 0
     }
 
@@ -56,21 +73,21 @@ export async function processUnlocatedItems(
         const result = await detectLocationFromText(item.title)
 
         if (result) {
-          const update: Record<string, unknown> = {
+          // Core columns (guaranteed to exist)
+          const coreUpdate: Record<string, unknown> = {
             location_name: result.name,
             location_lat: result.lat,
             location_lng: result.lng,
             location_place_id: result.placeId,
             location_country: result.country,
             location_country_code: result.countryCode,
-            location_name_en: result.name,
           }
 
           // Also detect and update category if still 'general'
           if (item.category === 'general') {
             const detectedCat = detectCategory(item.title, result.originalPlaceTypes)
             if (detectedCat) {
-              update.category = detectedCat
+              coreUpdate.category = detectedCat
             }
 
             // Dual-write categories to item_tags
@@ -84,10 +101,20 @@ export async function processUnlocatedItems(
             }
           }
 
-          await supabase
+          // Try with extended columns first, fall back to core
+          const extendedUpdate = { ...coreUpdate, location_name_en: result.name }
+          const { error: updateErr } = await supabase
             .from('saved_items')
-            .update(update)
+            .update(extendedUpdate)
             .eq('id', item.id)
+
+          if (updateErr) {
+            // Retry without extended columns
+            await supabase
+              .from('saved_items')
+              .update(coreUpdate)
+              .eq('id', item.id)
+          }
 
           processed++
           console.log(`[bg-worker] located "${item.title}" → ${result.name}, ${result.country}`)
@@ -121,13 +148,25 @@ export async function backfillAllUnlocatedItems(
   userId: string,
   queryClient: QueryClient,
 ): Promise<number> {
-  // Count how many need processing
-  const { count } = await supabase
+  // Count how many need processing (resilient to missing column)
+  let count: number | null = null
+  const { count: extCount, error: extErr } = await supabase
     .from('saved_items')
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
     .is('location_name', null)
     .eq('location_auto_declined', false)
+
+  if (!extErr) {
+    count = extCount
+  } else {
+    const { count: coreCount } = await supabase
+      .from('saved_items')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .is('location_name', null)
+    count = coreCount
+  }
 
   if (!count || count === 0) return 0
 
