@@ -190,6 +190,12 @@ export default function InboxPage() {
   const [showPillSheet, setShowPillSheet] = useState(false)
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  // Tick state to force re-render for shimmer timeout (every 10s)
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 10000)
+    return () => clearInterval(interval)
+  }, [])
   const [groupMode, setGroupMode] = useState<GroupMode>(() => {
     const saved = localStorage.getItem('horizon-group-mode')
     return saved === 'city' ? 'city' : 'country'
@@ -746,7 +752,12 @@ export default function InboxPage() {
     {showSaveSheet && (
       <SaveSheet
         onClose={() => setShowSaveSheet(false)}
-        onSaved={() => queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })}
+        onSaved={() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+          // Re-fetch after Edge Function has had time to detect location (5s + 10s)
+          setTimeout(() => queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') }), 5000)
+          setTimeout(() => queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') }), 10000)
+        }}
       />
     )}
 
