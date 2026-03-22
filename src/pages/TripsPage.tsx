@@ -408,8 +408,8 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
           </div>
         </div>
 
-        {/* Scrollable body — compact spacing */}
-        <div className="px-4 py-3 max-h-[80vh] overflow-y-auto">
+        {/* Scrollable body — compact spacing, leave room for sticky footer */}
+        <div className="px-4 py-3 max-h-[65vh] overflow-y-auto">
           {/* ── Step 1: Name ── */}
           {step === 'name' && (
             <form onSubmit={handleNextStep} className="space-y-3">
@@ -425,7 +425,8 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
               <button
                 type="submit"
                 disabled={!title.trim()}
-                className="w-full py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="w-full py-3.5 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                style={{ minHeight: 48 }}
               >
                 Next
               </button>
@@ -734,22 +735,28 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
               )}
 
               {error && <p className="text-sm text-error">{error}</p>}
-
-              <button
-                type="button"
-                onClick={handleCreate}
-                disabled={saving}
-                className="w-full py-3 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {saving
-                  ? 'Creating…'
-                  : destinations.length === 0
-                  ? 'Create Trip'
-                  : `Create with ${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`}
-              </button>
             </div>
           )}
         </div>
+
+        {/* Sticky footer — Create Trip button (Step 2) or Next button area */}
+        {step === 'destinations' && (
+          <div className="px-4 py-3 border-t border-border-subtle bg-bg-card" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={saving}
+              className="w-full py-3.5 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ minHeight: 48 }}
+            >
+              {saving
+                ? 'Creating…'
+                : destinations.length === 0
+                ? 'Create Trip'
+                : `Create with ${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
