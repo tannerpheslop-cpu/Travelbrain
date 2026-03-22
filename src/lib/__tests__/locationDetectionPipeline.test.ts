@@ -506,3 +506,99 @@ describe('hasGeographicRelevance', () => {
     expect(hasGeographicRelevance(input, resultName, address, city, country)).toBe(expected)
   })
 })
+
+// ── City-level resolution tests ──────────────────────────────────────────────
+
+describe('City-level resolution for city-states and districts', () => {
+  let detectLocationFromText: typeof import('../placesTextSearch').detectLocationFromText
+
+  beforeEach(async () => {
+    setupGoogleMock()
+    const mod = await import('../placesTextSearch')
+    detectLocationFromText = mod.detectLocationFromText
+  })
+
+  it('REGRESSION: "Restaurant in Hong Kong" → Hong Kong, not Kowloon', async () => {
+    // Geocoding "Hong Kong" returns locality=Kowloon, adminArea=Hong Kong
+    // Should prefer adminArea because it matches the input
+    mockGeocode.mockImplementation(
+      (req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        if (req.address.toLowerCase().includes('hong kong')) {
+          cb([{
+            address_components: [
+              { long_name: 'Kowloon', short_name: 'Kowloon', types: ['locality', 'political'] },
+              { long_name: 'Hong Kong', short_name: 'HK', types: ['administrative_area_level_1', 'political'] },
+              { long_name: 'Hong Kong', short_name: 'HK', types: ['country', 'political'] },
+            ],
+            geometry: { location: { lat: () => 22.32, lng: () => 114.17 } },
+            place_id: 'geo_hk',
+            formatted_address: 'Kowloon, Hong Kong',
+            types: ['locality'],
+          }], 'OK')
+        } else {
+          cb(null, 'ZERO_RESULTS')
+        }
+      },
+    )
+
+    const result = await detectLocationFromText('Restaurant in Hong Kong')
+    expect(result).not.toBeNull()
+    expect(result!.name).toBe('Hong Kong')
+    expect(result!.name).not.toBe('Kowloon')
+  })
+
+  it('"Singapore hawker food" → Singapore (city-state)', async () => {
+    mockGeocode.mockImplementation(
+      (req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        if (req.address.toLowerCase().includes('singapore')) {
+          cb([{
+            address_components: [
+              { long_name: 'Singapore', short_name: 'SG', types: ['country', 'political'] },
+            ],
+            geometry: { location: { lat: () => 1.35, lng: () => 103.82 } },
+            place_id: 'geo_sg',
+            formatted_address: 'Singapore',
+            types: ['country'],
+          }], 'OK')
+        } else {
+          cb(null, 'ZERO_RESULTS')
+        }
+      },
+    )
+    mockTextSearch.mockImplementation(
+      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
+        cb([], 'ZERO_RESULTS')
+      },
+    )
+
+    const result = await detectLocationFromText('Singapore hawker food')
+    expect(result).not.toBeNull()
+    expect(result!.country).toBe('Singapore')
+  })
+
+  it('"Seattle coffee" → Seattle (locality matches input)', async () => {
+    mockGeocode.mockImplementation(
+      (req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        if (req.address.toLowerCase().includes('seattle')) {
+          cb([{
+            address_components: [
+              { long_name: 'Seattle', short_name: 'Seattle', types: ['locality', 'political'] },
+              { long_name: 'Washington', short_name: 'WA', types: ['administrative_area_level_1', 'political'] },
+              { long_name: 'United States', short_name: 'US', types: ['country', 'political'] },
+            ],
+            geometry: { location: { lat: () => 47.6, lng: () => -122.33 } },
+            place_id: 'geo_sea',
+            formatted_address: 'Seattle, WA, USA',
+            types: ['locality'],
+          }], 'OK')
+        } else {
+          cb(null, 'ZERO_RESULTS')
+        }
+      },
+    )
+
+    const result = await detectLocationFromText('Seattle coffee')
+    expect(result).not.toBeNull()
+    expect(result!.name).toBe('Seattle')
+  })
+})

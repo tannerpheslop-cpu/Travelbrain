@@ -102,14 +102,14 @@ export async function geocodeText(text: string): Promise<{
       const top = results[0]
       const components = top.address_components ?? []
 
-      let city: string | null = null
+      let locality: string | null = null
       let adminArea: string | null = null
       let country: string | null = null
       let countryCode: string | null = null
 
       for (const comp of components) {
-        if (comp.types.includes('locality') && !city) {
-          city = comp.long_name
+        if (comp.types.includes('locality') && !locality) {
+          locality = comp.long_name
         }
         if (comp.types.includes('administrative_area_level_1') && !adminArea) {
           adminArea = comp.long_name
@@ -118,6 +118,21 @@ export async function geocodeText(text: string): Promise<{
           country = comp.long_name
           countryCode = comp.short_name
         }
+      }
+
+      // Prefer the geographic level that best matches the input text.
+      // Handles city-states (Hong Kong, Singapore, Monaco) where locality
+      // returns a district (Kowloon) but adminArea matches the input (Hong Kong).
+      const inputLower = text.toLowerCase()
+      let city: string | null = null
+      if (adminArea && inputLower.includes(adminArea.toLowerCase())) {
+        city = adminArea // "Hong Kong" input → adminArea "Hong Kong" matches → use it
+      } else if (locality && inputLower.includes(locality.toLowerCase())) {
+        city = locality // "Shibuya" input → locality "Shibuya" matches → use it
+      } else if (locality) {
+        city = locality // Default: use locality
+      } else if (adminArea) {
+        city = adminArea // Fallback: use admin area
       }
 
       resolve({

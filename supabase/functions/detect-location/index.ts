@@ -370,18 +370,33 @@ async function geocodeAddress(text: string, apiKey: string): Promise<{
     const top = data.results[0]
     const components: AddressComponent[] = top.address_components ?? []
 
-    let city: string | null = null
+    let locality: string | null = null
     let adminArea: string | null = null
     let country: string | null = null
     let countryCode: string | null = null
 
     for (const comp of components) {
-      if (comp.types.includes("locality") && !city) city = comp.long_name
+      if (comp.types.includes("locality") && !locality) locality = comp.long_name
       if (comp.types.includes("administrative_area_level_1") && !adminArea) adminArea = comp.long_name
       if (comp.types.includes("country")) {
         country = comp.long_name
         countryCode = comp.short_name
       }
+    }
+
+    // Prefer the level that best matches the input text.
+    // Handles city-states where locality is a district (Kowloon) but
+    // adminArea matches the input (Hong Kong).
+    const inputLower = text.toLowerCase()
+    let city: string | null = null
+    if (adminArea && inputLower.includes(adminArea.toLowerCase())) {
+      city = adminArea
+    } else if (locality && inputLower.includes(locality.toLowerCase())) {
+      city = locality
+    } else if (locality) {
+      city = locality
+    } else if (adminArea) {
+      city = adminArea
     }
 
     return {
