@@ -171,10 +171,13 @@ export default function InboxPage() {
         schema: 'public',
         table: 'saved_items',
         filter: `user_id=eq.${user.id}`,
-      }, () => {
+      }, (payload) => {
+        console.log('[Realtime] UPDATE received:', payload.new?.id, 'location_name:', (payload.new as Record<string, unknown>)?.location_name)
         queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user.id) })
       })
-      .subscribe()
+      .subscribe((status) => {
+        console.log('[Realtime] Subscription status:', status)
+      })
     return () => { supabase.removeChannel(channel) }
   }, [user, queryClient])
 
