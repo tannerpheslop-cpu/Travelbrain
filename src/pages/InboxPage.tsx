@@ -753,10 +753,17 @@ export default function InboxPage() {
       <SaveSheet
         onClose={() => setShowSaveSheet(false)}
         onSaved={() => {
+          console.log('[onSaved] Invalidating cache now, user:', user?.id)
           queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
           // Re-fetch after Edge Function has had time to detect location (5s + 10s)
-          setTimeout(() => queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') }), 5000)
-          setTimeout(() => queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') }), 10000)
+          setTimeout(() => {
+            console.log('[onSaved] 5s delayed refetch')
+            queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+          }, 5000)
+          setTimeout(() => {
+            console.log('[onSaved] 10s delayed refetch')
+            queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+          }, 10000)
         }}
       />
     )}
