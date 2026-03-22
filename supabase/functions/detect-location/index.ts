@@ -328,13 +328,16 @@ async function updateItem(adminClient: any, itemId: string, title: string, updat
 async function getPlaceDetails(placeId: string, apiKey: string): Promise<PlaceDetails | null> {
   try {
     const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=address_components,name&key=${apiKey}`
+    console.log(`[placeDetails] Fetching for placeId: ${placeId}`)
     const resp = await fetch(url)
     const data = await resp.json()
+    console.log(`[placeDetails] Status: ${data.status}`, data.error_message ? `error: ${data.error_message}` : '')
     if (data.status === "OK" && data.result) {
       return data.result as PlaceDetails
     }
     return null
-  } catch {
+  } catch (err) {
+    console.error(`[placeDetails] Error:`, err instanceof Error ? err.message : String(err))
     return null
   }
 }
@@ -350,8 +353,10 @@ async function geocodeAddress(text: string, apiKey: string): Promise<{
 } | null> {
   try {
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(text)}&key=${apiKey}`
+    console.log(`[geocode] Calling: address=${text}`)
     const resp = await fetch(url)
     const data = await resp.json()
+    console.log(`[geocode] Response status: ${data.status}, results: ${data.results?.length ?? 0}`, data.error_message ? `error: ${data.error_message}` : '')
 
     if (data.status !== "OK" || !data.results || data.results.length === 0) {
       return null
@@ -383,7 +388,8 @@ async function geocodeAddress(text: string, apiKey: string): Promise<{
       lng: top.geometry?.location?.lng ?? 0,
       placeId: top.place_id ?? "",
     }
-  } catch {
+  } catch (err) {
+    console.error(`[geocode] Error:`, err instanceof Error ? err.message : String(err))
     return null
   }
 }
