@@ -64,8 +64,18 @@ Deno.serve(async (req) => {
       )
     }
 
+    // ── Pre-filter: skip generic text ──────────────────────────────────
+    const meaningfulWords = extractMeaningfulWords(title)
+    if (meaningfulWords.length === 0) {
+      console.log(`Skipping generic text: "${title}"`)
+      return new Response(
+        JSON.stringify({ success: true, message: "No meaningful words" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      )
+    }
+
     // ── Location Detection ───────────────────────────────────────────────
-    console.log(`Detecting location for "${title}"`)
+    console.log(`Detecting location for "${title}" (meaningful: ${meaningfulWords.join(", ")})`)
     const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(title)}&key=${GOOGLE_API_KEY}`
     const searchResp = await fetch(searchUrl)
     const searchData = await searchResp.json()
@@ -154,6 +164,16 @@ Deno.serve(async (req) => {
       )
     }
 
+    // ── Relevance check: reject false positives ─────────────────────────
+    const address = searchData.results?.[0]?.formatted_address ?? ""
+    if (!checkGeographicRelevance(title, cityName, country ?? "", address, meaningfulWords)) {
+      console.log(`Rejected false positive: "${title}" → "${cityName}, ${country}"`)
+      return new Response(
+        JSON.stringify({ success: true, message: "No geographic relevance" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      )
+    }
+
     // ── Update ───────────────────────────────────────────────────────────
     const { error: updateError } = await adminClient
       .from("saved_items")
@@ -222,4 +242,57 @@ async function getPlaceDetails(
   } catch {
     return null
   }
+}
+
+const EDGE_BLOCKLIST = new Set([
+  'example', 'test', 'hello', 'world', 'foo', 'bar', 'asdf', 'lol', 'ok', 'okay',
+  'todo', 'note', 'notes', 'reminder', 'idea', 'ideas', 'list', 'check',
+  'plan', 'plans', 'planning', 'pack', 'packing', 'buy', 'book', 'booking',
+  'food', 'hotel', 'restaurant', 'activity', 'general', 'guide', 'tips',
+  'museum', 'bar', 'cafe', 'coffee', 'shop', 'store', 'market', 'mall',
+  'park', 'beach', 'hike', 'hostel', 'airbnb', 'spa', 'gym',
+  'flight', 'train', 'bus', 'taxi', 'uber', 'car',
+  'good', 'great', 'best', 'amazing', 'awesome', 'nice', 'top',
+  'new', 'old', 'big', 'small', 'long', 'short',
+  'get', 'got', 'make', 'made', 'take', 'took', 'go', 'going', 'went',
+  'come', 'came', 'think', 'know', 'want', 'need', 'like', 'love',
+  'see', 'look', 'find', 'ask', 'tell', 'say', 'said', 'try',
+  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'do', 'does', 'did',
+  'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'about',
+  'my', 'our', 'your', 'their', 'his', 'her', 'its', 'i', 'me', 'we', 'you',
+  'he', 'she', 'it', 'they', 'this', 'that', 'these', 'those',
+  'and', 'or', 'but', 'not', 'no', 'yes',
+  'have', 'has', 'had', 'will', 'would', 'could', 'should', 'may', 'might',
+  'thing', 'things', 'stuff', 'something', 'anything', 'place', 'places',
+  'trip', 'travel', 'traveling', 'day', 'days', 'week', 'month', 'year', 'time',
+  'maybe', 'probably', 'definitely', 'really', 'very', 'just', 'still', 'already',
+  'also', 'too', 'some', 'any', 'all', 'each', 'every',
+  'first', 'last', 'next', 'before', 'after',
+  'here', 'there', 'where', 'when', 'how', 'what', 'why', 'who',
+])
+
+function extractMeaningfulWords(text: string): string[] {
+  return text.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !EDGE_BLOCKLIST.has(w))
+}
+
+function checkGeographicRelevance(
+  inputText: string,
+  cityName: string,
+  country: string,
+  address: string,
+  meaningfulWords: string[],
+): boolean {
+  const inputLower = inputText.toLowerCase()
+  const cityLower = cityName.toLowerCase()
+  const countryLower = country.toLowerCase()
+  const addressLower = address.toLowerCase()
+
+  if (inputLower.includes(cityLower)) return true
+  if (countryLower && inputLower.includes(countryLower)) return true
+  if (meaningfulWords.some(w => cityLower.includes(w) || addressLower.includes(w))) return true
+
+  const cityWords = cityLower.split(/[\s,]+/).filter(w => w.length > 2 && !EDGE_BLOCKLIST.has(w))
+  if (cityWords.some(w => inputLower.includes(w))) return true
+
+  return false
 }

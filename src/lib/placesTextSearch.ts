@@ -77,14 +77,77 @@ const GEO_TYPES = new Set([
 const CITY_TYPES = new Set(['locality', 'postal_town', 'colloquial_area'])
 const ADMIN_TYPES = new Set(['administrative_area_level_1', 'administrative_area_level_2'])
 
-/** Generic words that are not locations — skip detection entirely. */
+/** Generic words that are not locations — if ALL input words are in this set, skip detection. */
 const BLOCKLIST = new Set([
-  'food', 'hotel', 'restaurant', 'activity', 'guide', 'tips', 'best', 'top',
-  'things', 'place', 'travel', 'trip', 'plan', 'idea', 'note', 'todo',
-  'reminder', 'booking', 'flight', 'train', 'bus', 'taxi', 'uber', 'car',
+  // Test/placeholder
+  'example', 'test', 'hello', 'world', 'foo', 'bar', 'asdf', 'lol', 'ok', 'okay',
+  // Notes/planning
+  'todo', 'note', 'notes', 'reminder', 'idea', 'ideas', 'list', 'check',
+  'plan', 'plans', 'planning', 'pack', 'packing', 'buy', 'book', 'booking',
+  // Travel categories
+  'food', 'hotel', 'restaurant', 'activity', 'general', 'guide', 'tips',
   'museum', 'bar', 'cafe', 'coffee', 'shop', 'store', 'market', 'mall',
   'park', 'beach', 'hike', 'hostel', 'airbnb', 'spa', 'gym',
+  'flight', 'train', 'bus', 'taxi', 'uber', 'car',
+  // Adjectives/opinions
+  'good', 'great', 'best', 'amazing', 'awesome', 'nice', 'top',
+  'new', 'old', 'big', 'small', 'long', 'short',
+  // Common verbs
+  'get', 'got', 'make', 'made', 'take', 'took', 'go', 'going', 'went',
+  'come', 'came', 'think', 'know', 'want', 'need', 'like', 'love',
+  'see', 'look', 'find', 'ask', 'tell', 'say', 'said', 'try',
+  // Pronouns/articles/prepositions
+  'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'do', 'does', 'did',
+  'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from', 'about',
+  'my', 'our', 'your', 'their', 'his', 'her', 'its', 'i', 'me', 'we', 'you',
+  'he', 'she', 'it', 'they', 'this', 'that', 'these', 'those',
+  'and', 'or', 'but', 'not', 'no', 'yes',
+  'have', 'has', 'had', 'will', 'would', 'could', 'should', 'may', 'might',
+  // Nouns/misc
+  'thing', 'things', 'stuff', 'something', 'anything', 'place', 'places',
+  'trip', 'travel', 'traveling', 'day', 'days', 'week', 'month', 'year', 'time',
+  'maybe', 'probably', 'definitely', 'really', 'very', 'just', 'still', 'already',
+  'also', 'too', 'some', 'any', 'all', 'each', 'every',
+  'first', 'last', 'next', 'before', 'after',
+  'here', 'there', 'where', 'when', 'how', 'what', 'why', 'who',
 ])
+
+/**
+ * Extract meaningful (non-blocklisted) words from input text.
+ * If no meaningful words remain, the input is too generic for location detection.
+ */
+function extractMeaningfulWords(text: string): string[] {
+  return text.toLowerCase().split(/\s+/).filter(w => w.length > 1 && !BLOCKLIST.has(w))
+}
+
+/**
+ * Check if the detected location has geographic relevance to the input text.
+ * Prevents false positives like "example" matching a business in New York.
+ */
+function hasGeographicRelevance(
+  inputText: string,
+  result: { name: string; address: string; country: string; countryCode: string | null },
+  meaningfulWords: string[],
+): boolean {
+  const inputLower = inputText.toLowerCase()
+  const nameLower = result.name.toLowerCase()
+  const countryLower = result.country.toLowerCase()
+  const addressLower = result.address.toLowerCase()
+
+  // Check if city/country name appears in input
+  if (inputLower.includes(nameLower)) return true
+  if (countryLower && inputLower.includes(countryLower)) return true
+  if (result.countryCode && inputLower.includes(result.countryCode.toLowerCase())) return true
+
+  // Check if any meaningful word appears in the result's name or address
+  if (meaningfulWords.some(w => nameLower.includes(w) || addressLower.includes(w))) return true
+
+  // Check if any word from the result name appears in the input
+  const nameWords = nameLower.split(/[\s,]+/).filter(w => w.length > 2 && !BLOCKLIST.has(w))
+  if (nameWords.some(w => inputLower.includes(w))) return true
+
+  return false
+}
 
 interface DetectOptions {
   /** If true, only accept geographic results (reject businesses). Used for 1-2 word inputs. */
@@ -167,9 +230,9 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
   const query = text.trim()
   if (!query || query.length < 2) return null
 
-  // Block common generic words
-  const words = query.toLowerCase().split(/\s+/)
-  if (words.length <= 2 && words.every(w => BLOCKLIST.has(w))) return null
+  // Extract meaningful words — if none remain, input is too generic
+  const meaningfulWords = extractMeaningfulWords(query)
+  if (meaningfulWords.length === 0) return null
 
   try {
     await loadGoogleMapsScript()
@@ -192,19 +255,40 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
                            topTypes.some(t => ADMIN_TYPES.has(t)) ||
                            topTypes.includes('country')
 
+    // Original result info (before city resolution) — used for relevance check
+    const originalAddress = top.formatted_address ?? ''
+    const originalName = top.name ?? ''
+
+    // Helper: validate result before returning — reject false positives
+    const validateAndReturn = async (result: TextSearchResult): Promise<TextSearchResult | null> => {
+      // Check relevance against both the resolved result AND the original search result
+      const combinedAddress = `${result.address} ${originalAddress}`
+      const combinedName = `${result.name} ${originalName}`
+      if (!hasGeographicRelevance(query, {
+        name: combinedName,
+        address: combinedAddress,
+        country: result.country,
+        countryCode: result.countryCode,
+      }, meaningfulWords)) {
+        console.warn(`[placesTextSearch] Rejected false positive: "${query}" → "${result.name}, ${result.country}"`)
+        return null
+      }
+      return result
+    }
+
     // For geoOnly mode, reject if the first result isn't geographic at all
     if (options?.geoOnly && !isGeoResult) {
       const geoHit = searchResults.find(r => {
         const types: string[] = r.types ?? []
         return types.some(t => GEO_TYPES.has(t)) && r.geometry?.location && r.place_id
       })
-      if (geoHit) return await buildResult(geoHit, originalPlaceTypes)
+      if (geoHit) return await validateAndReturn(await buildResult(geoHit, originalPlaceTypes))
       return null
     }
 
     // Step 2: If the result IS already city-level or higher, return it directly
     if (isCityOrHigher) {
-      return await buildResult(top, originalPlaceTypes)
+      return await validateAndReturn(await buildResult(top, originalPlaceTypes))
     }
 
     // Step 3: Result is a business, POI, landmark, or natural feature.
@@ -218,7 +302,7 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
         // Do a second search for the city/region/country name to get clean coords + place_id
         const cityResults = await textSearch(service, cityInfo.name)
         if (cityResults.length > 0 && cityResults[0].geometry?.location && cityResults[0].place_id) {
-          return await buildResult(cityResults[0], originalPlaceTypes)
+          return await validateAndReturn(await buildResult(cityResults[0], originalPlaceTypes))
         }
       }
     }
@@ -228,7 +312,7 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
       const types: string[] = r.types ?? []
       return types.some(t => GEO_TYPES.has(t)) && r.geometry?.location && r.place_id
     })
-    if (geoHit) return await buildResult(geoHit, originalPlaceTypes)
+    if (geoHit) return await validateAndReturn(await buildResult(geoHit, originalPlaceTypes))
 
     // Step 5: Last resort — extract city from formatted_address
     const addressParts = (top.formatted_address ?? '').split(',').map(s => s.trim())
@@ -239,7 +323,7 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
         if (partResults.length > 0) {
           const partTypes: string[] = partResults[0].types ?? []
           if (partTypes.some(t => GEO_TYPES.has(t)) && partResults[0].geometry?.location && partResults[0].place_id) {
-            return await buildResult(partResults[0], originalPlaceTypes)
+            return await validateAndReturn(await buildResult(partResults[0], originalPlaceTypes))
           }
         }
       }

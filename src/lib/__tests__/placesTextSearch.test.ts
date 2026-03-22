@@ -327,15 +327,15 @@ describe('detectLocationFromText', () => {
     mockTextSearch.mockImplementation(
       (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
         cb([makePlaceResult({
-          name: 'Some Place',
-          address: 'Somewhere, Unknown Country',
+          name: 'Zaranj',
+          address: 'Zaranj, Unknown Country',
           lat: 10.0, lng: 20.0,
           placeId: 'unknown1',
           types: ['locality', 'political'],
         })], 'OK')
       }
     )
-    const result = await detectLocationFromText('Some Place')
+    const result = await detectLocationFromText('Zaranj')
     expect(result).not.toBeNull()
     expect(result!.countryCode).toBe('XX')
     expect(result!.country).toBe('Unknown Country')
