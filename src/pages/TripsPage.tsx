@@ -387,13 +387,14 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
   })()
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-lg bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden" style={{ maxHeight: 'calc(100vh - 5rem - env(safe-area-inset-bottom, 0px))' }}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      {/* Backdrop — click/tap to close */}
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      {/* Sheet content — stops event propagation so taps inside don't close */}
+      <div
+        className="relative w-full max-w-lg bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="w-10 h-1 bg-border-input rounded-full mx-auto mt-2 sm:hidden" />
 
         {/* Header — compact */}
@@ -429,8 +430,8 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
           </div>
         </div>
 
-        {/* Scrollable body — compact spacing, leave room for sticky footer */}
-        <div className="px-4 py-3 max-h-[65vh] overflow-y-auto">
+        {/* Scrollable body */}
+        <div className="px-4 py-3 max-h-[75vh] overflow-y-auto">
           {/* ── Step 1: Name ── */}
           {step === 'name' && (
             <form onSubmit={handleNextStep} className="space-y-3">
@@ -756,28 +757,26 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
               )}
 
               {error && <p className="text-sm text-error">{error}</p>}
+
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={saving}
+                className="w-full py-3.5 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                style={{ minHeight: 48 }}
+              >
+                {saving
+                  ? 'Creating…'
+                  : destinations.length === 0
+                  ? 'Create Trip'
+                  : `Create with ${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`}
+              </button>
+
+              {/* Extra padding so button scrolls above bottom nav on mobile */}
+              <div style={{ height: 80 }} />
             </div>
           )}
         </div>
-
-        {/* Sticky footer — Create Trip button (Step 2) or Next button area */}
-        {step === 'destinations' && (
-          <div className="px-4 py-3 border-t border-border-subtle bg-bg-card" style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}>
-            <button
-              type="button"
-              onClick={handleCreate}
-              disabled={saving}
-              className="w-full py-3.5 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              style={{ minHeight: 48 }}
-            >
-              {saving
-                ? 'Creating…'
-                : destinations.length === 0
-                ? 'Create Trip'
-                : `Create with ${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   )
