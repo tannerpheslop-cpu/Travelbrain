@@ -82,6 +82,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const customTagInputRef = useRef<HTMLInputElement>(null)
   const [location, setLocation] = useState<LocationSelection | null>(null)
   const [userSelectedLocation, setUserSelectedLocation] = useState(false)
+  const userSelectedRef = useRef(false) // Ref mirrors state for use in async callbacks
+  const dismissedAutoDetectRef = useRef(false) // Prevents re-detection after user dismisses pill
   const [notes, setNotes] = useState('')
   const [saveError, setSaveError] = useState('')
 
@@ -173,6 +175,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     const trimmed = inputText.trim()
     if (!trimmed || trimmed.length === 0) return
     if (userSelectedLocation) return
+    if (dismissedAutoDetectRef.current) return // User dismissed — don't re-detect
     if (detectUrl(inputText)) return // Don't detect location from raw URLs
 
     const wordCount = trimmed.split(/\s+/).length
@@ -180,8 +183,10 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
 
     const timer = setTimeout(async () => {
       try {
+        // Check refs at execution time (not closure capture time)
+        if (userSelectedRef.current || dismissedAutoDetectRef.current) return
         const result = await detectLocationFromText(trimmed)
-        if (result && !userSelectedLocation) {
+        if (result && !userSelectedRef.current && !dismissedAutoDetectRef.current) {
           setLocation({
             name: result.name,
             lat: result.lat,
@@ -442,6 +447,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       setSaveError('')
       setCategoryManuallySet(false)
       setUserSelectedLocation(false)
+      userSelectedRef.current = false
+      dismissedAutoDetectRef.current = false
       setShowCustomTagInput(false)
       setCustomTagDraft('')
     }
@@ -845,14 +852,14 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                   {location.name_en || location.name}
                 </span>
                 <span
-                  onClick={() => { setLocation(null); setUserSelectedLocation(false) }}
+                  onClick={() => { setLocation(null); setUserSelectedLocation(false); userSelectedRef.current = false; dismissedAutoDetectRef.current = true }}
                   style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#b5b2ab', cursor: 'pointer', padding: '0 4px' }}
                 >×</span>
               </div>
             )}
             <LocationAutocomplete
               value={location?.name ?? ''}
-              onSelect={(loc) => { setLocation(loc); if (loc) setUserSelectedLocation(true) }}
+              onSelect={(loc) => { setLocation(loc); if (loc) { setUserSelectedLocation(true); userSelectedRef.current = true } }}
               label=""
               optional
               placeholder={location ? 'Change location...' : 'Location...'}
