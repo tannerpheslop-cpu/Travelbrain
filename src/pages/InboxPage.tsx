@@ -774,27 +774,15 @@ function GridCard({
   // 1. image_display is 'thumbnail' or 'featured' (backfilled)
   // 2. image_url or places_photo_url is set (fallback if image_display is null)
   // 3. location_place_id is set (SavedItemImage can auto-fetch from Google Places)
-  const hasImageSource =
+  // If the item has an actual image URL, always show the image card.
+  // image_display='none' should only suppress when there truly is no image source.
+  const hasDirectImage =
     (item.image_url && item.image_url.trim() !== '') ||
-    (item.places_photo_url && item.places_photo_url.trim() !== '') ||
-    !!item.location_place_id
+    (item.places_photo_url && item.places_photo_url.trim() !== '')
 
-  const showImage =
-    item.image_display === 'thumbnail' ||
-    item.image_display === 'featured' ||
-    (item.image_display !== 'none' && hasImageSource)
+  const hasImageSource = hasDirectImage || !!item.location_place_id
 
-  // DEBUG: temporary logging for image diagnosis
-  console.log('CARD RENDER:', {
-    id: item.id,
-    title: item.title?.substring(0, 30),
-    image_display: item.image_display,
-    hasImageSource,
-    showImage,
-    image_url: item.image_url?.substring(0, 50),
-    places_photo_url: item.places_photo_url?.substring(0, 50),
-    location_place_id: item.location_place_id?.substring(0, 20),
-  })
+  const showImage = hasDirectImage || (item.image_display !== 'none' && hasImageSource)
 
   if (showImage) {
     return <ImageCard item={item} tripCount={tripCount} eager={eager} showShimmer={showShimmer} />
@@ -872,9 +860,6 @@ function ImageCard({ item, tripCount, eager, showShimmer }: { item: SavedItem; t
   const rawUrl = item.image_url ?? item.places_photo_url ?? null
   const [photoUrl, setPhotoUrl] = useState<string | null>(rawUrl)
   const [imgFailed, setImgFailed] = useState(false)
-  // DEBUG: track image load state for overlay
-  const [debugLoaded, setDebugLoaded] = useState(false)
-  const [debugError, setDebugError] = useState(false)
 
   // Sync photoUrl when item prop updates from React Query (e.g., server-side detection fills in places_photo_url)
   useEffect(() => {
@@ -917,19 +902,6 @@ function ImageCard({ item, tripCount, eager, showShimmer }: { item: SavedItem; t
       className="block relative overflow-hidden"
       style={{ borderRadius: 10, height: 160, cursor: 'pointer' }}
     >
-      {/* DEBUG: visible overlay */}
-      <div style={{
-        position: 'absolute', top: 4, left: 4, zIndex: 100,
-        background: 'rgba(0,0,0,0.85)', color: '#0f0', fontFamily: 'monospace',
-        fontSize: 7, padding: 3, borderRadius: 3, maxWidth: 160,
-        wordBreak: 'break-all', lineHeight: 1.3, pointerEvents: 'none',
-      }}>
-        disp: {item.image_display ?? 'null'}<br/>
-        url: {photoUrl ? photoUrl.substring(0, 35) : 'null'}<br/>
-        loaded: {String(debugLoaded)}<br/>
-        error: {String(debugError)}<br/>
-        failed: {String(imgFailed)}
-      </div>
       {/* Image */}
       <div className="absolute inset-0 bg-bg-muted">
         <ImageWithFade
@@ -937,8 +909,7 @@ function ImageCard({ item, tripCount, eager, showShimmer }: { item: SavedItem; t
           context="gallery-card"
           className="w-full h-full object-cover"
           eager={eager}
-            onLoad={() => setDebugLoaded(true)}
-            onError={() => { setDebugError(true); setImgFailed(true) }}
+            onError={() => setImgFailed(true)}
           />
         </div>
         {/* Gradient overlay */}
