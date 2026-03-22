@@ -417,7 +417,9 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       }
     }
 
+    console.log('[SaveSheet] Calling onSaved for:', savedItem.id)
     onSaved(savedItem)
+    console.log('[SaveSheet] onSaved completed')
 
     setSaving(false)
     setSaved(true)
