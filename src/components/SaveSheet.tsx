@@ -393,9 +393,13 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     // If saved without a location, fire-and-forget server-side detection
     if (!location && savedItem.title && savedItem.title.trim() !== '') {
       const session = (await supabase.auth.getSession()).data.session
+      console.log('[detect-location] Session:', session ? 'exists' : 'null', 'Token length:', session?.access_token?.length)
       if (session) {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
         const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+        console.log('[detect-location] Calling for:', savedItem.id, savedItem.title)
+        console.log('[detect-location] URL:', `${supabaseUrl}/functions/v1/detect-location`)
+        console.log('[detect-location] apikey present:', !!anonKey, 'length:', anonKey?.length)
         fetch(`${supabaseUrl}/functions/v1/detect-location`, {
           method: 'POST',
           headers: {
@@ -405,7 +409,10 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
           },
           body: JSON.stringify({ item_id: savedItem.id, title: savedItem.title }),
         })
-          .then(r => { if (!r.ok) console.warn('[detect-location] returned:', r.status) })
+          .then(async r => {
+            const text = await r.text()
+            console.log('[detect-location] Response:', r.status, text.substring(0, 200))
+          })
           .catch(e => console.warn('[detect-location] failed:', e.message))
       }
     }
