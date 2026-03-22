@@ -849,6 +849,15 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 >×</span>
               </div>
             )}
+            {/* Auto-detection hint — only when location was auto-detected, not manually selected */}
+            {location && !userSelectedLocation && (
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
+                color: 'var(--color-text-faint, #b5b2ab)', marginTop: 2, marginBottom: 4,
+              }}>
+                Wrong? Tap × to change
+              </div>
+            )}
             <LocationAutocomplete
               value={location?.name ?? ''}
               onSelect={(loc) => { setLocation(loc); if (loc) setUserSelectedLocation(true) }}
