@@ -61,6 +61,7 @@ export default function ItemDetailPage() {
   }
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const initializedRef = useRef(false)
+  const locationManuallyChanged = useRef(false)
 
   // Derive loading / notFound from React Query state
   const loading = itemLoading
@@ -136,7 +137,7 @@ export default function ItemDetailPage() {
   // Trigger debounced save when text fields change
   useEffect(() => {
     if (!initializedRef.current) return
-    debouncedSave({
+    const updates: Partial<SavedItem> = {
       title: title.trim() || 'Untitled',
       location_name: location?.name ?? null,
       location_lat: location?.lat ?? null,
@@ -147,7 +148,13 @@ export default function ItemDetailPage() {
       location_name_en: location?.name_en ?? null,
       location_name_local: location?.name_local ?? null,
       notes: notes.trim() || null,
-    })
+    }
+    // Lock location if user manually changed it — prevents Edge Function from overwriting
+    if (locationManuallyChanged.current) {
+      updates.location_locked = true
+      locationManuallyChanged.current = false
+    }
+    debouncedSave(updates)
   }, [title, location, notes, debouncedSave])
 
   // Derived: current tags from item_tags table (with fallback to old category column)
@@ -486,7 +493,7 @@ export default function ItemDetailPage() {
         {/* Location */}
         <LocationAutocomplete
           value={location?.name ?? ''}
-          onSelect={setLocation}
+          onSelect={(loc) => { setLocation(loc); locationManuallyChanged.current = true }}
           label="Location"
           optional
         />

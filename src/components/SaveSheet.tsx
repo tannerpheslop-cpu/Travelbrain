@@ -346,6 +346,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       location_place_id: location?.place_id ?? null,
       location_country: location?.country ?? null,
       location_country_code: location?.country_code ?? null,
+      // Lock location if user manually selected it (not auto-detected)
+      location_locked: location && userSelectedLocation ? true : false,
       category: (selectedTags.find((t) => ['restaurant', 'activity', 'hotel', 'transit'].includes(t)) as Category) ?? 'general',
       notes: notes.trim() || null,
       image_display: imageDisplay,

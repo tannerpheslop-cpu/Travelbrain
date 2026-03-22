@@ -46,6 +46,7 @@ export interface SavedItem {
   image_option_index: number | null
   first_viewed_at: string | null
   left_recent: boolean
+  location_locked: boolean
   created_at: string
 }
 

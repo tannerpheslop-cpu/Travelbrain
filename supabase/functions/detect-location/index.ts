@@ -53,19 +53,24 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 
-    // Check if location already set
+    // Check if location already set or locked by user
     console.log("Checking if item already has location...")
     const { data: currentItem, error: lookupError } = await adminClient
       .from("saved_items")
-      .select("location_name")
+      .select("location_name, location_locked")
       .eq("id", item_id)
       .single()
 
-    console.log("Item lookup result:", currentItem ? `location_name=${currentItem.location_name}` : "NOT FOUND", lookupError ? `error=${lookupError.message}` : "")
+    console.log("Item lookup result:", currentItem ? `location_name=${currentItem.location_name}, locked=${currentItem.location_locked}` : "NOT FOUND", lookupError ? `error=${lookupError.message}` : "")
 
     if (!currentItem) {
       console.log("Item not found, returning 404")
       return jsonResponse({ error: "Item not found" }, 404)
+    }
+
+    if (currentItem.location_locked) {
+      console.log("Skipping: location_locked=true (user manually set it)")
+      return jsonResponse({ success: true, message: "Location locked by user" })
     }
 
     if (currentItem.location_name) {
