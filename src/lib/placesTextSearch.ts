@@ -492,9 +492,25 @@ export async function detectLocationFromText(text: string): Promise<TextSearchRe
         })
       }
 
-      // Geocoding returned country/region but no city
-      // → biased Text Search to find the right city
-      console.log(`[detect] Step 3b: biased text search within ${geocodeResult.country}`)
+      // Geocoding returned country/region but no city.
+      // For city-states (Hong Kong, Singapore, Monaco), the country IS the city.
+      // If the geo portion matches the country name, return the country directly.
+      const geoLower = geocodeInput.toLowerCase()
+      if (geocodeResult.country && geoLower === geocodeResult.country.toLowerCase()) {
+        console.log(`[detect] City-state match: "${geocodeInput}" = country "${geocodeResult.country}" — using country as city`)
+        return buildResultFromGeoData({
+          city: geocodeResult.country, // Use country name as city name
+          adminArea: geocodeResult.adminArea,
+          country: geocodeResult.country,
+          countryCode: geocodeResult.countryCode,
+          lat: geocodeResult.lat,
+          lng: geocodeResult.lng,
+          placeId: geocodeResult.placeId,
+        })
+      }
+
+      // Otherwise, biased Text Search to find the right city within the country
+      console.log(`[detect] Biased text search within ${geocodeResult.country}`)
       const biasedResult = await textSearchBiased(
         query, // Use full input for the search
         geocodeResult.lat,

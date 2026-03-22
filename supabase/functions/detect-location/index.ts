@@ -129,8 +129,23 @@ Deno.serve(async (req) => {
         return await updateItem(adminClient, item_id, title, update)
       }
 
+      // For city-states (Hong Kong, Singapore, Monaco), the country IS the city.
+      const geoLower = geocodeInput.toLowerCase()
+      if (geocodeResult.country && geoLower === geocodeResult.country.toLowerCase()) {
+        console.log(`[detect] City-state match: "${geocodeInput}" = country "${geocodeResult.country}"`)
+        const update = {
+          location_name: geocodeResult.country,
+          location_lat: geocodeResult.lat,
+          location_lng: geocodeResult.lng,
+          location_place_id: geocodeResult.placeId,
+          location_country: geocodeResult.country,
+          location_country_code: geocodeResult.countryCode,
+        }
+        return await updateItem(adminClient, item_id, title, update)
+      }
+
       // Country/region only — biased Text Search for city
-      console.log(`[detect] Step 3b: biased text search within ${geocodeResult.country}`)
+      console.log(`[detect] Biased text search within ${geocodeResult.country}`)
       const biased = await textSearchBiased(
         title,
         geocodeResult.lat,
