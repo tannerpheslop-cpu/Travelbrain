@@ -839,7 +839,6 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                   background: 'rgba(196,90,45,0.06)', border: '1px solid rgba(196,90,45,0.2)',
                 }}
               >
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#c45a2d' }}>↗</span>
                 <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, color: '#c45a2d' }}>
                   {location.name_en || location.name}
                 </span>
@@ -847,15 +846,6 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                   onClick={() => { setLocation(null); setUserSelectedLocation(false) }}
                   style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#b5b2ab', cursor: 'pointer', padding: '0 4px' }}
                 >×</span>
-              </div>
-            )}
-            {/* Auto-detection hint — only when location was auto-detected, not manually selected */}
-            {location && !userSelectedLocation && (
-              <div style={{
-                fontFamily: "'JetBrains Mono', monospace", fontSize: 9,
-                color: 'var(--color-text-faint, #b5b2ab)', marginTop: 2, marginBottom: 4,
-              }}>
-                Wrong? Tap × to change
               </div>
             )}
             <LocationAutocomplete
