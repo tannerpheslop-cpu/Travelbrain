@@ -244,52 +244,62 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
   }, [selectedSuggestions, destinations, clusters, addDestination, user])
 
   const handleCreate = async () => {
+    console.log('[handleCreate] Starting, title:', title, 'destinations:', destinations.length)
     setSaving(true)
     setError(null)
 
     try {
-      // Fetch photos in parallel with trip creation
-      const [tripResult, photoResults] = await Promise.all([
-        createTrip({ title }),
-        Promise.all(destinations.map(async (d) => {
-          // Try Unsplash first
-          const unsplash = await fetchDestinationPhoto(d.name).catch(() => null)
-          if (unsplash?.url) return { url: unsplash.url, source: 'unsplash' as const, creditName: unsplash.photographer, creditUrl: unsplash.profileUrl }
-          // Fall back to Google Places
-          const gPhoto = await fetchPlacePhoto(d.place_id).catch(() => null)
-          if (gPhoto) return { url: gPhoto, source: 'google_places' as const, creditName: undefined, creditUrl: undefined }
-          return null
-        })),
-      ])
-
+      // Step 1: Create the trip first — don't block on photos
+      console.log('[handleCreate] Creating trip...')
+      const tripResult = await createTrip({ title })
       const { trip, error: tripError } = tripResult
+      console.log('[handleCreate] Trip result:', trip?.id ?? 'null', 'error:', tripError)
+
       if (tripError || !trip) {
         setError(tripError ?? 'Failed to create trip.')
         return
       }
 
-      // Add destinations — don't block trip creation if any fail
-      for (let i = 0; i < destinations.length; i++) {
-        try {
-          const photo = photoResults[i]
-          await createDestination(trip.id, destinations[i], i, photo?.url, photo?.source, photo?.creditName, photo?.creditUrl)
-        } catch (destErr) {
-          console.error('Failed to add destination during trip creation:', destinations[i].name, destErr)
-          // Continue — trip was created, user can add destinations manually
-        }
-      }
+      // Step 2: Add destinations with photos — best effort, don't block
+      if (destinations.length > 0) {
+        for (let i = 0; i < destinations.length; i++) {
+          try {
+            console.log('[handleCreate] Adding destination:', destinations[i].name)
+            // Photo fetch with 5s timeout to prevent hanging
+            let photo: { url: string; source: 'unsplash' | 'google_places'; creditName?: string; creditUrl?: string } | null = null
+            try {
+              const photoPromise = (async () => {
+                const unsplash = await fetchDestinationPhoto(destinations[i].name).catch(() => null)
+                if (unsplash?.url) return { url: unsplash.url, source: 'unsplash' as const, creditName: unsplash.photographer, creditUrl: unsplash.profileUrl }
+                const gPhoto = await fetchPlacePhoto(destinations[i].place_id).catch(() => null)
+                if (gPhoto) return { url: gPhoto, source: 'google_places' as const, creditName: undefined, creditUrl: undefined }
+                return null
+              })()
+              photo = await Promise.race([
+                photoPromise,
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+              ])
+            } catch { /* ignore photo errors */ }
 
-      // Set cover image from trip name if no destinations
-      if (destinations.length === 0) {
+            await createDestination(trip.id, destinations[i], i, photo?.url, photo?.source, photo?.creditName, photo?.creditUrl)
+            console.log('[handleCreate] Destination added:', destinations[i].name)
+          } catch (destErr) {
+            console.error('[handleCreate] Failed to add destination:', destinations[i].name, destErr)
+          }
+        }
+      } else {
+        // No destinations — set cover from trip name
         void trySetTripCoverFromName(trip.id, title)
       }
 
-      // ALWAYS close modal and navigate after trip is created
+      // ALWAYS close modal and navigate
+      console.log('[handleCreate] Calling onCreated:', trip.id)
       onCreated(trip.id)
     } catch (err) {
-      console.error('Failed to create trip:', err)
+      console.error('[handleCreate] Failed:', err)
       setError('Failed to create trip. Please try again.')
     } finally {
+      console.log('[handleCreate] Finally — resetting saving state')
       setSaving(false)
     }
   }
