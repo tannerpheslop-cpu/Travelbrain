@@ -406,10 +406,10 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
 
     onSaved(savedItem)
 
-    // Reset form for rapid successive saves — sheet stays open
     setSaving(false)
     setSaved(true)
-    setTimeout(() => {
+
+    const resetForm = () => {
       setInputText('')
       setTitle('')
       setSelectedTags([])
@@ -427,8 +427,21 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       setUserSelectedLocation(false)
       setShowCustomTagInput(false)
       setCustomTagDraft('')
-      inputRef.current?.focus()
-    }, 800)
+    }
+
+    if (bulkMode) {
+      // Bulk mode: reset form and keep sheet open for rapid successive saves
+      setTimeout(() => {
+        resetForm()
+        inputRef.current?.focus()
+      }, 800)
+    } else {
+      // Single entry mode: close sheet after brief confirmation
+      setTimeout(() => {
+        resetForm()
+        onClose()
+      }, 300)
+    }
   }
 
   const previewVisible = !!(detectedUrl && (urlLoading || metadata))
