@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { supabase, invokeEdgeFunction } from '../lib/supabase'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import { useSavedItem, useDeleteItem, useItemTags, useAddTag, useRemoveTag, queryKeys } from '../hooks/queries'
@@ -19,14 +19,6 @@ const categoryPills: { value: Category; label: string }[] = [
   { value: 'transit', label: 'Transit' },
 ]
 
-const categoryPlaceholderColors: Record<Category, { bg: string; icon: string }> = {
-  restaurant: { bg: 'bg-bg-card',  icon: 'text-text-faint' },
-  activity:   { bg: 'bg-bg-pill',  icon: 'text-text-faint' },
-  hotel:      { bg: 'bg-bg-muted', icon: 'text-text-faint' },
-  transit:    { bg: 'bg-bg-pill',  icon: 'text-text-faint' },
-  general:    { bg: 'bg-bg-muted', icon: 'text-text-faint' },
-}
-
 export default function ItemDetailPage() {
   const { id } = useParams()
   const { user } = useAuth()
@@ -39,7 +31,7 @@ export default function ItemDetailPage() {
 
   const [item, setItem] = useState<SavedItem | null>(null)
   const [notFound, setNotFound] = useState(false)
-  const [imgFailed, setImgFailed] = useState(false)
+  const [imgFailed] = useState(false)
 
   // Item tags from the new item_tags table
   const { data: itemTagsData } = useItemTags(id)
@@ -58,7 +50,6 @@ export default function ItemDetailPage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [showTripSheet, setShowTripSheet] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
-  const [refreshingImage, setRefreshingImage] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -205,32 +196,6 @@ export default function ItemDetailPage() {
   const handleRemoveTag = (tagName: string) => {
     if (!id || !user) return
     removeTagMutation.mutate({ itemId: id, tagName })
-  }
-
-  const handleRefreshImage = async () => {
-    if (!item?.source_url || !user) return
-    setRefreshingImage(true)
-    try {
-      const data = await invokeEdgeFunction<{ image?: string | null }>('extract-metadata', { url: item.source_url })
-      console.log('[item-detail] extract-metadata result:', data)
-      if (data?.image) {
-        await supabase
-          .from('saved_items')
-          .update({ image_url: data.image })
-          .eq('id', item.id)
-        setItem((prev) => prev ? { ...prev, image_url: data.image ?? null } : prev)
-        setImgFailed(false)
-        queryClient.invalidateQueries({ queryKey: queryKeys.savedItem(item.id) })
-        queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
-      } else {
-        handleToast('No image found for this link')
-      }
-    } catch (err) {
-      console.error('[item-detail] handleRefreshImage threw:', err)
-      handleToast('Could not fetch image — try again')
-    } finally {
-      setRefreshingImage(false)
-    }
   }
 
   // Close menu on outside click
@@ -421,41 +386,7 @@ export default function ItemDetailPage() {
             </>
           )}
         </div>
-      ) : item.location_place_id ? (
-        /* Item has a place_id but no cached image yet — SavedItemImage will fetch from Places API */
-        <SavedItemImage item={item} size="full" className="rounded-2xl" />
-      ) : (
-        <div className={`relative w-full h-56 ${categoryPlaceholderColors[category].bg} rounded-2xl flex flex-col items-center justify-center gap-3`}>
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={`w-12 h-12 ${categoryPlaceholderColors[category].icon}`}>
-            <path fillRule="evenodd" d="M1.5 6a2.25 2.25 0 012.25-2.25h16.5A2.25 2.25 0 0122.5 6v12a2.25 2.25 0 01-2.25 2.25H3.75A2.25 2.25 0 011.5 18V6zM3 16.06V18c0 .414.336.75.75.75h16.5A.75.75 0 0021 18v-1.94l-2.69-2.689a1.5 1.5 0 00-2.12 0l-.88.879.97.97a.75.75 0 11-1.06 1.06l-5.16-5.159a1.5 1.5 0 00-2.12 0L3 16.061zm10.125-7.81a1.125 1.125 0 112.25 0 1.125 1.125 0 01-2.25 0z" clipRule="evenodd" />
-          </svg>
-          {item.source_url && (
-            <button
-              type="button"
-              onClick={handleRefreshImage}
-              disabled={refreshingImage}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-bg-card/80 hover:bg-bg-card text-text-secondary text-xs font-medium rounded-full shadow-sm transition-colors disabled:opacity-50"
-            >
-              {refreshingImage ? (
-                <>
-                  <svg className="animate-spin w-3.5 h-3.5 text-text-tertiary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Fetching…
-                </>
-              ) : (
-                <>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-                    <path fillRule="evenodd" d="M13.836 2.477a.75.75 0 0 1 .75.75v3.182a.75.75 0 0 1-.75.75h-3.182a.75.75 0 0 1 0-1.5h1.37l-.84-.841a4.5 4.5 0 0 0-7.08.932.75.75 0 0 1-1.3-.75 6 6 0 0 1 9.44-1.242l.842.84V3.227a.75.75 0 0 1 .75-.75Zm-.911 7.5A.75.75 0 0 1 13.199 11a6 6 0 0 1-9.44 1.241l-.84-.84v1.371a.75.75 0 0 1-1.5 0V9.591a.75.75 0 0 1 .75-.75H5.35a.75.75 0 0 1 0 1.5H3.98l.841.841a4.5 4.5 0 0 0 7.08-.932.75.75 0 0 1 1.024-.273Z" clipRule="evenodd" />
-                  </svg>
-                  Fetch Image
-                </>
-              )}
-            </button>
-          )}
-        </div>
-      )}
+      ) : null /* No image area for entries without images — start directly with title */}
 
       {/* Title */}
       <input
