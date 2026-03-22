@@ -1,9 +1,9 @@
-import { useEffect, useState, useMemo, useCallback } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { useSavedItems, useTripsQuery, useTripItemMappings, useTripLinkCounts, useDeleteItem, useUserCustomTags, queryKeys, fetchTrips } from '../hooks/queries'
+import { useSavedItems, useTripsQuery, useTripItemMappings, useTripLinkCounts, useUserCustomTags, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
 import PillSheet from '../components/PillSheet'
 import type { PillGroup } from '../components/PillSheet'
@@ -11,7 +11,6 @@ import { categoryLabel } from '../utils/categoryIcons'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
 import { BrandMark, CategoryPill, CountryCodeBadge, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
-import SwipeToDelete from '../components/SwipeToDelete'
 import ScrollToTop from '../components/ScrollToTop'
 import ImageWithFade from '../components/ImageWithFade'
 import { getPlacePhoto } from '../components/SavedItemImage'
@@ -149,7 +148,6 @@ export default function InboxPage() {
 
   const { data: allTripItems = [] } = useTripItemMappings()
   const tripLinkCounts = useTripLinkCounts()
-  const deleteItemMutation = useDeleteItem()
 
   const loading = itemsLoading
   const error = itemsError ? 'Could not load your saves. Tap to retry.' : null
@@ -351,10 +349,6 @@ export default function InboxPage() {
       }),
     [items, searchQuery, parsedFilters, assignedItemIds],
   )
-
-  const handleDeleteItem = useCallback((itemId: string) => {
-    deleteItemMutation.mutate(itemId)
-  }, [deleteItemMutation])
 
   // ── Recently Added: entries < 48h old, not viewed, not in a trip ────────
   const recentlyAdded = useMemo(() => {
@@ -654,7 +648,7 @@ export default function InboxPage() {
           >
             {recentlyAdded.map((item) => (
               <div key={item.id} style={{ width: 170, flexShrink: 0 }}>
-                <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} onDelete={() => handleDeleteItem(item.id)} eager showShimmer={!item.location_name && (Date.now() - new Date(item.created_at).getTime()) < 30000} />
+                <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} eager showShimmer={!item.location_name && (Date.now() - new Date(item.created_at).getTime()) < 30000} />
               </div>
             ))}
           </div>
@@ -698,13 +692,13 @@ export default function InboxPage() {
                 <div className="grid grid-cols-2" style={{ gap: 8 }}>
                   {group.items.map((item) => {
                     const idx = gridIndex++
-                    return <GridCard key={item.id} item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} onDelete={() => handleDeleteItem(item.id)} eager={idx < 6} />
+                    return <GridCard key={item.id} item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} eager={idx < 6} />
                   })}
                 </div>
               ) : (
                 <div className="flex flex-col">
                   {group.items.map((item) => (
-                    <ListRow key={item.id} item={item} onDelete={() => handleDeleteItem(item.id)} />
+                    <ListRow key={item.id} item={item} />
                   ))}
                 </div>
               )}
@@ -768,13 +762,11 @@ export default function InboxPage() {
 function GridCard({
   item,
   tripCount,
-  onDelete,
   eager,
   showShimmer,
 }: {
   item: SavedItem
   tripCount: number
-  onDelete: () => void
   eager?: boolean
   showShimmer?: boolean
 }) {
@@ -793,9 +785,9 @@ function GridCard({
     (item.image_display !== 'none' && hasImageSource)
 
   if (showImage) {
-    return <ImageCard item={item} tripCount={tripCount} onDelete={onDelete} eager={eager} showShimmer={showShimmer} />
+    return <ImageCard item={item} tripCount={tripCount} eager={eager} showShimmer={showShimmer} />
   }
-  return <TextCard item={item} tripCount={tripCount} onDelete={onDelete} showShimmer={showShimmer} />
+  return <TextCard item={item} tripCount={tripCount} showShimmer={showShimmer} />
 }
 
 // ─── Trip Count Pill (shared between card types) ─────────────────────────────
@@ -863,7 +855,7 @@ function LocationShimmer({ variant }: { variant: 'image' | 'text' }) {
 
 // ─── Image Card (image_display = 'thumbnail') ────────────────────────────────
 
-function ImageCard({ item, tripCount, onDelete, eager, showShimmer }: { item: SavedItem; tripCount: number; onDelete: () => void; eager?: boolean; showShimmer?: boolean }) {
+function ImageCard({ item, tripCount, eager, showShimmer }: { item: SavedItem; tripCount: number; eager?: boolean; showShimmer?: boolean }) {
   const city = item.location_name ? extractCity(item.location_name) : null
   const rawUrl = item.image_url ?? item.places_photo_url ?? null
   const [photoUrl, setPhotoUrl] = useState<string | null>(rawUrl)
@@ -894,32 +886,29 @@ function ImageCard({ item, tripCount, onDelete, eager, showShimmer }: { item: Sa
     // Still waiting for Places fetch? Show placeholder with muted bg
     if (!imgFailed && item.location_place_id && !photoUrl) {
       return (
-        <SwipeToDelete onDelete={onDelete}>
-          <Link to={`/item/${item.id}`} className="block relative overflow-hidden bg-bg-muted" style={{ borderRadius: 10, height: 160 }}>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-5 h-5 border-2 border-text-ghost border-t-accent rounded-full animate-spin" />
-            </div>
-          </Link>
-        </SwipeToDelete>
+        <Link to={`/item/${item.id}`} className="block relative overflow-hidden bg-bg-muted" style={{ borderRadius: 10, height: 160 }}>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-5 h-5 border-2 border-text-ghost border-t-accent rounded-full animate-spin" />
+          </div>
+        </Link>
       )
     }
-    return <TextCard item={item} tripCount={tripCount} onDelete={onDelete} />
+    return <TextCard item={item} tripCount={tripCount} />
   }
 
   return (
-    <SwipeToDelete onDelete={onDelete}>
-      <Link
-        to={`/item/${item.id}`}
-        className="block relative overflow-hidden"
-        style={{ borderRadius: 10, height: 160, cursor: 'pointer' }}
-      >
-        {/* Image */}
-        <div className="absolute inset-0 bg-bg-muted">
-          <ImageWithFade
-            src={photoUrl}
-            context="gallery-card"
-            className="w-full h-full object-cover"
-            eager={eager}
+    <Link
+      to={`/item/${item.id}`}
+      className="block relative overflow-hidden"
+      style={{ borderRadius: 10, height: 160, cursor: 'pointer' }}
+    >
+      {/* Image */}
+      <div className="absolute inset-0 bg-bg-muted">
+        <ImageWithFade
+          src={photoUrl}
+          context="gallery-card"
+          className="w-full h-full object-cover"
+          eager={eager}
             onError={() => setImgFailed(true)}
           />
         </div>
@@ -974,26 +963,24 @@ function ImageCard({ item, tripCount, onDelete, eager, showShimmer }: { item: Sa
             </span>
           </div>
         </div>
-      </Link>
-    </SwipeToDelete>
+    </Link>
   )
 }
 
 // ─── Text Card (image_display = 'none') ──────────────────────────────────────
 
-function TextCard({ item, tripCount, onDelete, showShimmer }: { item: SavedItem; tripCount: number; onDelete: () => void; showShimmer?: boolean }) {
+function TextCard({ item, tripCount, showShimmer }: { item: SavedItem; tripCount: number; showShimmer?: boolean }) {
   const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
 
   return (
-    <SwipeToDelete onDelete={onDelete}>
-      <Link
-        to={`/item/${item.id}`}
-        className="block relative overflow-hidden bg-bg-muted"
-        style={{ borderRadius: 10, height: 160, cursor: 'pointer' }}
-      >
-        {/* Trip count pill */}
-        <TripCountPill count={tripCount} variant="text" />
+    <Link
+      to={`/item/${item.id}`}
+      className="block relative overflow-hidden bg-bg-muted"
+      style={{ borderRadius: 10, height: 160, cursor: 'pointer' }}
+    >
+      {/* Trip count pill */}
+      <TripCountPill count={tripCount} variant="text" />
         {/* Content — pinned to bottom */}
         <div
           className="flex flex-col justify-end"
@@ -1048,8 +1035,7 @@ function TextCard({ item, tripCount, onDelete, showShimmer }: { item: SavedItem;
             </span>
           </div>
         </div>
-      </Link>
-    </SwipeToDelete>
+    </Link>
   )
 }
 
@@ -1057,16 +1043,13 @@ function TextCard({ item, tripCount, onDelete, showShimmer }: { item: SavedItem;
 
 function ListRow({
   item,
-  onDelete,
 }: {
   item: SavedItem
-  onDelete: () => void
 }) {
   const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
 
   return (
-    <SwipeToDelete onDelete={onDelete}>
     <div className="relative group">
       <Link
         to={`/item/${item.id}`}
@@ -1097,6 +1080,5 @@ function ListRow({
         </div>
       </Link>
     </div>
-    </SwipeToDelete>
   )
 }
