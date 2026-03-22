@@ -12,6 +12,7 @@ import type { Trip, TripStatus, TripNote, TripRoute, SharePrivacy } from '../typ
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { fetchDestinationPhoto } from '../lib/unsplash'
+import { getScopedCountryCodes } from '../lib/continentCodes'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { trySetTripCoverFromName, maybeUpdateCoverFromDestination } from '../lib/tripCoverImage'
 import { type CountryCluster } from '../lib/clusters'
@@ -851,26 +852,7 @@ export default function TripOverviewPage() {
   // Detect geographic scope from trip name (e.g. "New York 2026" → only show US suggestions)
   const tripNameScopedCodes = useMemo(() => {
     if (!trip?.title) return null
-    const clusters = inboxClustersRef.current
-    if (!clusters.length) return null
-    const titleLower = trip.title.toLowerCase()
-    const matchedCodes = new Set<string>()
-    for (const cluster of clusters) {
-      // Check if country name appears in trip title
-      if (titleLower.includes(cluster.country.toLowerCase())) {
-        matchedCodes.add(cluster.country_code)
-        continue
-      }
-      // Check if any city name appears in trip title
-      for (const city of cluster.cities) {
-        const cityName = city.name.split(',')[0].trim().toLowerCase()
-        if (cityName.length >= 3 && titleLower.includes(cityName)) {
-          matchedCodes.add(cluster.country_code)
-          break
-        }
-      }
-    }
-    return matchedCodes.size > 0 ? matchedCodes : null
+    return getScopedCountryCodes(trip.title, inboxClustersRef.current)
   }, [trip?.title])
 
   const buildTripPageSuggestions = useCallback(
@@ -1216,7 +1198,67 @@ export default function TripOverviewPage() {
       location_type: loc.location_type,
       context: 'add_destination',
     })
-    void handleAddDestination(loc)
+    // Add destination, then auto-link nearby saved items
+    void (async () => {
+      await handleAddDestination(loc)
+      // Find the newly created destination
+      const { data: newDests } = await supabase
+        .from('trip_destinations')
+        .select('id, location_lat, location_lng, proximity_radius_km')
+        .eq('trip_id', id!)
+        .eq('location_place_id', loc.place_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      const newDest = newDests?.[0]
+      if (!newDest || !user) return
+
+      // Find nearby saved items (within proximity radius)
+      const radiusDeg = (newDest.proximity_radius_km ?? 50) / 111
+      const { data: nearbyItems } = await supabase
+        .from('saved_items')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('is_archived', false)
+        .not('location_lat', 'is', null)
+        .not('location_lng', 'is', null)
+        .gte('location_lat', newDest.location_lat - radiusDeg)
+        .lte('location_lat', newDest.location_lat + radiusDeg)
+        .gte('location_lng', newDest.location_lng - radiusDeg)
+        .lte('location_lng', newDest.location_lng + radiusDeg)
+
+      if (!nearbyItems || nearbyItems.length === 0) return
+
+      // Check which items are already linked to any destination in this trip
+      const { data: existingLinks } = await supabase
+        .from('destination_items')
+        .select('item_id, destination_id')
+        .in('item_id', nearbyItems.map(i => i.id))
+
+      const linkedItemIds = new Set((existingLinks ?? [])
+        .filter(l => destinations.some(d => d.id === l.destination_id))
+        .map(l => l.item_id))
+
+      // Link unlinked nearby items to the new destination
+      const toLink = nearbyItems.filter(i => !linkedItemIds.has(i.id))
+      if (toLink.length === 0) return
+
+      const inserts = toLink.map((item, idx) => ({
+        destination_id: newDest.id,
+        item_id: item.id,
+        day_index: null,
+        sort_order: idx,
+      }))
+
+      await supabase.from('destination_items').insert(inserts)
+      console.log(`[suggestion] Auto-linked ${toLink.length} items to ${loc.name}`)
+
+      // Nudge trip to planning (items are now linked)
+      void supabase.from('trips').update({ status: 'planning' }).eq('id', id!).eq('status', 'aspirational')
+
+      // Refresh destination data
+      queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id!) })
+      queryClient.invalidateQueries({ queryKey: queryKeys.trips(user.id) })
+    })()
   }
 
   const openAddDest = () => {

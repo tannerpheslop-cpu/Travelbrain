@@ -7,6 +7,7 @@ import LocationAutocomplete, { type LocationSelection } from '../components/Loca
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { fetchDestinationPhoto } from '../lib/unsplash'
 import { trySetTripCoverFromName } from '../lib/tripCoverImage'
+import { getScopedCountryCodes } from '../lib/continentCodes'
 import { getInboxClusters, type CountryCluster } from '../lib/clusters'
 import { trackEvent } from '../lib/analytics'
 import { selectFeaturedTrip } from '../utils/featuredTrip'
@@ -139,7 +140,12 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
           .not('location_lng', 'is', null)
           .not('location_country_code', 'is', null),
       ])
-      setClusters(clusterResults)
+      // Filter clusters by trip name scope (continent, country, city)
+      const scopedCodes = getScopedCountryCodes(title, clusterResults)
+      const filteredClusters = scopedCodes
+        ? clusterResults.filter((c) => scopedCodes.has(c.country_code))
+        : clusterResults
+      setClusters(filteredClusters)
       setAllLocatedItems((itemData as SavedItem[] | null) ?? [])
       setClustersLoading(false)
       if (clusterResults.length > 0) {
