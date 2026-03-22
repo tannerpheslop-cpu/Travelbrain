@@ -4,11 +4,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
-import { useTripQuery, useTripDestinations, useInboxClusters, useDeleteTrip, useToggleFavorite, useCompanionsQuery, queryKeys, type DestWithCount } from '../hooks/queries'
+import { useTripQuery, useTripDestinations, useInboxClusters, useDeleteTrip, useToggleFavorite, useCompanionsQuery, useCreateDestination, queryKeys, type DestWithCount } from '../hooks/queries'
 import { useCompanions as useCompanionsLegacy } from '../hooks/useCompanions'
 import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
 import { useRoutes } from '../hooks/useRoutes'
-import type { Trip, TripStatus, TripDestination, TripNote, TripRoute, SharePrivacy } from '../types'
+import type { Trip, TripStatus, TripNote, TripRoute, SharePrivacy } from '../types'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { fetchDestinationPhoto } from '../lib/unsplash'
@@ -742,6 +742,7 @@ export default function TripOverviewPage() {
   const { data: inboxClustersData } = useInboxClusters()
   const deleteTripMutation = useDeleteTrip()
   const toggleFavMutation = useToggleFavorite()
+  const createDestMutation = useCreateDestination()
 
   // Local mutable state derived from query data (for optimistic updates)
   const [trip, setTrip] = useState<Trip | null>(null)
@@ -1147,62 +1148,57 @@ export default function TripOverviewPage() {
     setAddingDest(true)
     setAddDestError(null)
 
-    const [insertResult, photoUrl] = await Promise.all([
-      supabase.from('trip_destinations').insert({
-        trip_id: id,
-        location_name: loc.name,
-        location_lat: loc.lat,
-        location_lng: loc.lng,
-        location_place_id: loc.place_id,
-        location_country: loc.country ?? 'Unknown',
-        location_country_code: loc.country_code ?? 'XX',
-        location_type: loc.location_type,
-        proximity_radius_km: loc.proximity_radius_km,
-        location_name_en: loc.name_en ?? null,
-        location_name_local: loc.name_local ?? null,
-        sort_order: destinations.length,
-      }).select().single(),
-      fetchPlacePhoto(loc.place_id).catch(() => null),
-    ])
+    try {
+      // Fetch photo: Unsplash first, Google Places fallback (same as trip creation)
+      const unsplash = await fetchDestinationPhoto(loc.name).catch(() => null)
+      let imageUrl: string | undefined
+      let imageSource: string | undefined
+      let imageCreditName: string | undefined
+      let imageCreditUrl: string | undefined
 
-    const { data, error } = insertResult
-    setAddingDest(false)
-    setAddDestKey((k) => k + 1)
+      if (unsplash?.url) {
+        imageUrl = unsplash.url
+        imageSource = 'unsplash'
+        imageCreditName = unsplash.photographer
+        imageCreditUrl = unsplash.profileUrl
+      } else {
+        const gPhoto = await fetchPlacePhoto(loc.place_id).catch(() => null)
+        if (gPhoto) {
+          imageUrl = gPhoto
+          imageSource = 'google_places'
+        }
+      }
 
-    if (error || !data) {
-      console.error('Failed to create destination:', error)
-      setAddDestError('Failed to add destination. Please try again.')
-      return
-    }
+      // Use the shared mutation (same as trip creation flow)
+      const dest = await createDestMutation.mutateAsync({
+        tripId: id,
+        location: loc,
+        sortOrder: destinations.length,
+        imageUrl,
+        imageSource,
+        imageCreditName,
+        imageCreditUrl,
+      })
 
-    setShowAddDest(false)
+      setShowAddDest(false)
+      setDestinations((prev) => [...prev, { ...dest, _count: 0 } as DestWithCount])
 
-    const destData: DestWithCount = {
-      ...(data as TripDestination),
-      image_url: photoUrl ?? null,
-      _count: 0,
-    }
-    setDestinations((prev) => [...prev, destData])
-    trackEvent('destination_added', user?.id ?? null, { trip_id: id, location_name: loc.name, location_type: loc.location_type })
-
-    if (photoUrl) {
-      await supabase.from('trip_destinations').update({ image_url: photoUrl }).eq('id', data.id)
-
-      // If trip's cover came from its name (or has none), upgrade to destination image
-      if (trip) {
-        void maybeUpdateCoverFromDestination(id, photoUrl, trip.cover_image_source).then(() => {
-          if (trip.cover_image_source !== 'user_upload') {
-            setTrip((prev) => prev ? { ...prev, cover_image_url: photoUrl, cover_image_source: 'destination' } : prev)
-          }
+      // Upgrade trip cover if needed
+      if (imageUrl && trip && trip.cover_image_source !== 'user_upload') {
+        void maybeUpdateCoverFromDestination(id, imageUrl, trip.cover_image_source).then(() => {
+          setTrip((prev) => prev ? { ...prev, cover_image_url: imageUrl!, cover_image_source: 'destination' } : prev)
         })
       }
+
+      // Nudge trip to planning if aspirational
+      void supabase.from('trips').update({ status: 'planning' }).eq('id', id).eq('status', 'aspirational')
+    } catch (err) {
+      console.error('Failed to create destination:', err)
+      setAddDestError('Failed to add destination. Please try again.')
+    } finally {
+      setAddingDest(false)
+      setAddDestKey((k) => k + 1)
     }
-
-    // Nudge trip to planning if aspirational
-    void supabase.from('trips').update({ status: 'planning' }).eq('id', id).eq('status', 'aspirational')
-
-    queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id!) })
-    queryClient.invalidateQueries({ queryKey: queryKeys.trips(user?.id ?? '') })
   }
 
   const handleAddFromSuggestion = (loc: LocationSelection) => {
