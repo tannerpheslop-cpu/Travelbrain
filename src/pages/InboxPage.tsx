@@ -511,13 +511,14 @@ export default function InboxPage() {
         </button>
 
         {/* Group mode toggle */}
-        <div className="flex rounded-md border border-border-input overflow-hidden shrink-0">
+        <div className="flex rounded-md border border-border-input overflow-hidden shrink-0" style={{ height: 36 }}>
           <button
             type="button"
             onClick={() => setGroupMode('country')}
             className="transition-colors"
             style={{
-              padding: '4px 8px',
+              padding: '0 10px',
+              height: 36,
               fontFamily: 'var(--font-mono)',
               fontSize: 10,
               fontWeight: groupMode === 'country' ? 500 : 400,
@@ -535,7 +536,8 @@ export default function InboxPage() {
             onClick={() => setGroupMode('city')}
             className="transition-colors"
             style={{
-              padding: '4px 8px',
+              padding: '0 10px',
+              height: 36,
               fontFamily: 'var(--font-mono)',
               fontSize: 10,
               fontWeight: groupMode === 'city' ? 500 : 400,

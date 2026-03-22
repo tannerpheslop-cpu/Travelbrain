@@ -1725,14 +1725,28 @@ export default function TripOverviewPage() {
         {/* Action buttons (below metadata) */}
         <div className="flex items-center gap-2 mt-5">
           {destinations.length > 0 && (
-            <PrimaryButton onClick={openAddDest} className="flex items-center gap-1.5 px-4 py-2 rounded-lg">
-              <Plus className="w-4 h-4" />
+            <button
+              type="button"
+              onClick={openAddDest}
+              className="flex items-center gap-1.5 transition-colors hover:border-accent/40"
+              style={{
+                padding: '9px 16px',
+                borderRadius: 8,
+                background: 'white',
+                border: '1px solid var(--color-border-input)',
+                color: 'var(--color-text-secondary)',
+                fontFamily: "'DM Sans', sans-serif",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <Plus className="w-3.5 h-3.5" />
               Add Destination
-            </PrimaryButton>
+            </button>
           )}
-          <SecondaryButton onClick={() => setShowShareModal(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-lg">
+          <SecondaryButton onClick={() => setShowShareModal(true)} className="px-3 py-2 rounded-lg" title="Share trip">
             <Share2 className="w-4 h-4" />
-            Share
           </SecondaryButton>
           <SecondaryButton onClick={() => setShowInviteModal(true)} className="relative px-3 py-2 rounded-lg">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
@@ -2094,8 +2108,20 @@ export default function TripOverviewPage() {
                         </svg>
                       </button>
                     </div>
+                    <LocationAutocomplete
+                      key={addDestKey}
+                      value=""
+                      onSelect={handleAddDestination}
+                      label=""
+                      optional={false}
+                      placeholder="Search for a destination..."
+                      placesTypes={['(regions)']}
+                      clearOnSelect
+                    />
+                    {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
+                    {addDestError && <p className="mt-2 text-xs text-error text-center">{addDestError}</p>}
                     {frozenSuggestions.length > 0 && (
-                      <div className="mb-3">
+                      <div className="mt-3 pt-3 border-t border-border-subtle">
                         <p className="text-xs font-semibold text-text-faint uppercase tracking-wider mb-2">
                           Suggested from your saves
                         </p>
@@ -2104,21 +2130,8 @@ export default function TripOverviewPage() {
                           onSelect={handleAddFromSuggestion}
                           disabled={addingDest}
                         />
-                        <p className="mt-3 text-xs text-text-faint font-medium">Or search manually</p>
                       </div>
                     )}
-                    <LocationAutocomplete
-                      key={addDestKey}
-                      value=""
-                      onSelect={handleAddDestination}
-                      label=""
-                      optional={false}
-                      placeholder="e.g. Beijing, Tokyo, France…"
-                      placesTypes={['(regions)']}
-                      clearOnSelect
-                    />
-                    {addingDest && <p className="mt-2 text-xs text-text-tertiary text-center">Adding destination…</p>}
-                {addDestError && <p className="mt-2 text-xs text-error text-center">{addDestError}</p>}
                   </div>
                 ) : (
                   <DashedCard
