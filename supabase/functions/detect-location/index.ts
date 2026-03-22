@@ -30,40 +30,54 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { item_id, title } = await req.json()
+    console.log("=== detect-location invoked ===")
+    const body = await req.json()
+    console.log("Request body:", JSON.stringify(body))
+    const { item_id, title } = body
 
     if (!item_id || !title || title.trim() === "") {
+      console.log("Missing item_id or title, returning 400")
       return jsonResponse({ error: "item_id and title are required" }, 400)
     }
 
+    console.log("Item ID:", item_id, "Title:", title)
+
     const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY")
     if (!GOOGLE_API_KEY) {
+      console.log("GOOGLE_API_KEY not set!")
       return jsonResponse({ error: "GOOGLE_API_KEY not set" }, 500)
     }
+    console.log("GOOGLE_API_KEY present:", GOOGLE_API_KEY.substring(0, 8) + "...")
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 
     // Check if location already set
-    const { data: currentItem } = await adminClient
+    console.log("Checking if item already has location...")
+    const { data: currentItem, error: lookupError } = await adminClient
       .from("saved_items")
       .select("location_name")
       .eq("id", item_id)
       .single()
 
+    console.log("Item lookup result:", currentItem ? `location_name=${currentItem.location_name}` : "NOT FOUND", lookupError ? `error=${lookupError.message}` : "")
+
     if (!currentItem) {
+      console.log("Item not found, returning 404")
       return jsonResponse({ error: "Item not found" }, 404)
     }
 
     if (currentItem.location_name) {
+      console.log("Location already set:", currentItem.location_name)
       return jsonResponse({ success: true, message: "Location already set" })
     }
 
     // ── Step 1: Blocklist check ──────────────────────────────────────────
     const meaningfulWords = extractMeaningfulWords(title)
+    console.log("Step 1 — Meaningful words:", JSON.stringify(meaningfulWords))
     if (meaningfulWords.length === 0) {
-      console.log(`[detect] Skipping generic text: "${title}"`)
+      console.log("No meaningful words, skipping")
       return jsonResponse({ success: true, message: "No meaningful words" })
     }
 
@@ -75,20 +89,23 @@ Deno.serve(async (req) => {
     // ── Step 3: Geocode ──────────────────────────────────────────────────
     console.log(`[detect] Step 3: geocoding "${geocodeInput}"`)
     let geocodeResult = await geocodeAddress(geocodeInput, GOOGLE_API_KEY)
+    console.log(`[detect] Step 3 result:`, geocodeResult ? JSON.stringify(geocodeResult) : "null")
 
     // Step 3b: If full-text geocode failed, try each meaningful word individually (reverse order)
     if (!geocodeResult && meaningfulWords.length >= 1) {
-      console.log(`[detect] Step 3b: trying individual words (${meaningfulWords.length} words)`)
+      console.log(`[detect] Step 3b: trying individual words:`, JSON.stringify([...meaningfulWords].reverse().slice(0, 4)))
       const wordsToTry = [...meaningfulWords].reverse().slice(0, 4)
       for (const word of wordsToTry) {
-        if (word.length < 3) continue
+        if (word.length < 3) { console.log(`[detect] Step 3b: skipping short word "${word}"`); continue }
         const wordResult = await geocodeAddress(word, GOOGLE_API_KEY)
+        console.log(`[detect] Step 3b: word "${word}" →`, wordResult ? JSON.stringify(wordResult) : "null")
         if (wordResult && (wordResult.city || wordResult.country)) {
           console.log(`[detect] Step 3b: word "${word}" geocoded to ${wordResult.city ?? wordResult.country}`)
           geocodeResult = wordResult
           break
         }
       }
+      console.log(`[detect] After step 3b: geocodeResult =`, geocodeResult ? `city=${geocodeResult.city}, country=${geocodeResult.country}` : "still null")
     }
 
     if (geocodeResult) {
@@ -282,18 +299,20 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
 
 // deno-lint-ignore no-explicit-any
 async function updateItem(adminClient: any, itemId: string, title: string, update: Record<string, unknown>) {
-  const { error: updateError } = await adminClient
+  console.log(`[detect] Updating item ${itemId} with:`, JSON.stringify(update))
+  const { error: updateError, count } = await adminClient
     .from("saved_items")
     .update(update)
     .eq("id", itemId)
     .is("location_name", null)
 
   if (updateError) {
-    console.error("[detect] Update failed:", updateError.message)
+    console.error("[detect] Update FAILED:", updateError.message)
     return jsonResponse({ error: updateError.message }, 500)
   }
 
-  console.log(`[detect] "${title}" → ${update.location_name}, ${update.location_country} (${update.location_country_code})`)
+  console.log(`[detect] Update SUCCESS: "${title}" → ${update.location_name}, ${update.location_country} (${update.location_country_code}), rows affected: ${count ?? 'unknown'}`)
+  console.log("=== detect-location complete ===")
   return jsonResponse({
     success: true,
     location: {
