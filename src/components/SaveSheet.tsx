@@ -184,9 +184,15 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     const timer = setTimeout(async () => {
       try {
         // Check refs at execution time (not closure capture time)
-        if (userSelectedRef.current || dismissedAutoDetectRef.current) return
+        console.log('[detection-effect] Timer fired. dismissed:', dismissedAutoDetectRef.current, 'userSelected:', userSelectedRef.current)
+        if (userSelectedRef.current || dismissedAutoDetectRef.current) {
+          console.log('[detection-effect] BLOCKED by ref check')
+          return
+        }
         const result = await detectLocationFromText(trimmed)
+        console.log('[detection-effect] Detection complete. dismissed:', dismissedAutoDetectRef.current, 'userSelected:', userSelectedRef.current, 'result:', result?.name)
         if (result && !userSelectedRef.current && !dismissedAutoDetectRef.current) {
+          console.log('[detection-effect] Setting location to:', result.name)
           setLocation({
             name: result.name,
             lat: result.lat,
@@ -852,7 +858,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                   {location.name_en || location.name}
                 </span>
                 <span
-                  onClick={() => { setLocation(null); setUserSelectedLocation(false); userSelectedRef.current = false; dismissedAutoDetectRef.current = true }}
+                  onClick={() => { console.log('[dismiss] Setting dismissedAutoDetectRef=true'); setLocation(null); setUserSelectedLocation(false); userSelectedRef.current = false; dismissedAutoDetectRef.current = true }}
                   style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#b5b2ab', cursor: 'pointer', padding: '0 4px' }}
                 >×</span>
               </div>
