@@ -3,18 +3,18 @@ import { useLocation } from 'react-router-dom'
 import { Plus, X } from 'lucide-react'
 import SaveSheet from './SaveSheet'
 
-/** Routes where the FAB should be hidden (trip/destination/route/item detail pages) */
-const HIDDEN_FAB_PATTERNS = ['/trip/', '/item/']
+/** FAB is ONLY visible on the Horizon page (/inbox) */
+const FAB_VISIBLE_PATHS = ['/inbox']
 
 export default function GlobalActions() {
   const location = useLocation()
-  const hideFab = HIDDEN_FAB_PATTERNS.some((p) => location.pathname.startsWith(p))
+  const showFab = FAB_VISIBLE_PATHS.includes(location.pathname)
   const [showSaveSheet, setShowSaveSheet] = useState(false)
 
   return (
     <>
-      {/* FAB — hidden on detail pages (trip, destination, route, item) */}
-      {!hideFab && (
+      {/* FAB — only visible on Horizon page (/inbox) */}
+      {showFab && (
         <div
           className="fixed z-25 right-4 pointer-events-none"
           style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 1rem)' }}

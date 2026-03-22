@@ -27,19 +27,19 @@ describe('GlobalActions FAB visibility', () => {
     expect(screen.getByRole('button', { name: 'Add save' })).toBeInTheDocument()
   })
 
-  it('shows FAB on /trips', () => {
+  it('hides FAB on /trips', () => {
     renderAtRoute('/trips')
-    expect(screen.getByRole('button', { name: 'Add save' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add save' })).not.toBeInTheDocument()
   })
 
-  it('shows FAB on /search', () => {
+  it('hides FAB on /search', () => {
     renderAtRoute('/search')
-    expect(screen.getByRole('button', { name: 'Add save' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add save' })).not.toBeInTheDocument()
   })
 
-  it('shows FAB on /profile', () => {
+  it('hides FAB on /profile', () => {
     renderAtRoute('/profile')
-    expect(screen.getByRole('button', { name: 'Add save' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add save' })).not.toBeInTheDocument()
   })
 
   it('hides FAB on /trip/:id (trip detail)', () => {
