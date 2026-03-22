@@ -223,10 +223,21 @@ export default function InboxPage() {
 
   useEffect(() => {
     const handleCreated = () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+      const uid = user?.id ?? ''
+      console.log('[handleCreated] Refetching saved items now')
+      queryClient.refetchQueries({ queryKey: queryKeys.savedItems(uid) })
+      // Re-fetch after Edge Function has had time to detect location
+      setTimeout(() => {
+        console.log('[handleCreated] 5s delayed refetch')
+        queryClient.refetchQueries({ queryKey: queryKeys.savedItems(uid) })
+      }, 5000)
+      setTimeout(() => {
+        console.log('[handleCreated] 10s delayed refetch')
+        queryClient.refetchQueries({ queryKey: queryKeys.savedItems(uid) })
+      }, 10000)
     }
     const handleUpdated = () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+      queryClient.refetchQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
     }
     window.addEventListener('horizon-item-created', handleCreated)
     window.addEventListener('horizon-item-updated', handleUpdated)
