@@ -74,7 +74,22 @@ Deno.serve(async (req) => {
 
     // ── Step 3: Geocode ──────────────────────────────────────────────────
     console.log(`[detect] Step 3: geocoding "${geocodeInput}"`)
-    const geocodeResult = await geocodeAddress(geocodeInput, GOOGLE_API_KEY)
+    let geocodeResult = await geocodeAddress(geocodeInput, GOOGLE_API_KEY)
+
+    // Step 3b: If full-text geocode failed, try each meaningful word individually (reverse order)
+    if (!geocodeResult && meaningfulWords.length >= 1) {
+      console.log(`[detect] Step 3b: trying individual words (${meaningfulWords.length} words)`)
+      const wordsToTry = [...meaningfulWords].reverse().slice(0, 4)
+      for (const word of wordsToTry) {
+        if (word.length < 3) continue
+        const wordResult = await geocodeAddress(word, GOOGLE_API_KEY)
+        if (wordResult && (wordResult.city || wordResult.country)) {
+          console.log(`[detect] Step 3b: word "${word}" geocoded to ${wordResult.city ?? wordResult.country}`)
+          geocodeResult = wordResult
+          break
+        }
+      }
+    }
 
     if (geocodeResult) {
       console.log(`[detect] Geocode found: city=${geocodeResult.city}, country=${geocodeResult.country}`)
@@ -168,7 +183,17 @@ Deno.serve(async (req) => {
         countryCode = countryComp?.short_name ?? null
       }
     } else {
-      // Business/POI — resolve to city
+      // Business/POI — validate that input matches the business name
+      const businessWords = new Set(
+        (firstResult.name || "").toLowerCase().split(/[\s,]+/).filter((w: string) => w.length > 2),
+      )
+      const inputMatchesBusiness = meaningfulWords.some(w => businessWords.has(w))
+      if (!inputMatchesBusiness) {
+        console.log(`[detect] Step 4: input doesn't match business "${firstResult.name}" → rejected`)
+        return jsonResponse({ success: true, message: "No geographic relevance" })
+      }
+
+      // Resolve to city
       const details = await getPlaceDetails(placeId, GOOGLE_API_KEY)
       if (details?.address_components) {
         const locality = details.address_components.find(

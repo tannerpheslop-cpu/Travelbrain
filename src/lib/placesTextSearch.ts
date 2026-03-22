@@ -447,7 +447,7 @@ export async function detectLocationFromText(text: string): Promise<TextSearchRe
     // Step 3b: If full-text geocode failed, try each meaningful word individually
     // Geographic terms tend to be at the end ("Pizza pizza italy" → "italy" is last)
     // so iterate in reverse. Limit to 4 attempts to avoid excessive API calls.
-    if (!geocodeResult && meaningfulWords.length > 1) {
+    if (!geocodeResult && meaningfulWords.length >= 1) {
       console.log(`[detect] Step 3b: trying individual words (${meaningfulWords.length} words)`)
       const wordsToTry = [...meaningfulWords].reverse().slice(0, 4)
       for (const word of wordsToTry) {
