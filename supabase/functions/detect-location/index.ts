@@ -10,9 +10,15 @@ const corsHeaders = {
 /**
  * detect-location Edge Function
  *
- * Accepts { item_id, title }, detects a city-level location from the title
- * using Google Places Text Search REST API, fetches a relevant Unsplash image,
- * and updates the saved_item with location + image in one atomic update.
+ * 1. Detects city-level location from title via Google Places Text Search
+ * 2. Fetches a relevant Unsplash image using ONLY place names (landmarks or cities)
+ * 3. Updates the saved_item with location + image in one atomic update
+ *
+ * Image search rules:
+ * - NEVER search by entry title or keywords
+ * - ONLY search by: landmark name (from Google Places) or resolved city name
+ * - Landmarks: tourist_attraction, natural_feature → search by original place name
+ * - Everything else: search by resolved city name with Travel topic
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -20,7 +26,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    console.log("Step 1: parsing request body")
     const { item_id, title } = await req.json()
 
     if (!item_id || !title || title.trim() === "") {
@@ -32,15 +37,13 @@ Deno.serve(async (req) => {
 
     const GOOGLE_API_KEY = Deno.env.get("GOOGLE_API_KEY")
     if (!GOOGLE_API_KEY) {
-      console.error("GOOGLE_API_KEY not set")
       return new Response(
-        JSON.stringify({ error: "Server configuration error" }),
+        JSON.stringify({ error: "GOOGLE_API_KEY not set" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       )
     }
 
     const UNSPLASH_ACCESS_KEY = Deno.env.get("UNSPLASH_ACCESS_KEY")
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
@@ -59,9 +62,7 @@ Deno.serve(async (req) => {
       )
     }
 
-    // If location is already set, skip location detection
     const needsLocation = !currentItem.location_name
-    // Don't overwrite user-provided images
     const needsImage = !currentItem.image_url && currentItem.image_source !== "user_upload"
 
     if (!needsLocation && !needsImage) {
@@ -71,16 +72,19 @@ Deno.serve(async (req) => {
       )
     }
 
-    // ── Step 2: Location Detection ───────────────────────────────────────
+    // ── Location Detection ───────────────────────────────────────────────
     let cityName: string | null = null
     let cityPlaceId: string | null = null
     let cityLat: number | null = null
     let cityLng: number | null = null
     let country: string | null = null
     let countryCode: string | null = null
+    // Original place info (before city resolution) for landmark detection
+    let originalPlaceName: string | null = null
+    let originalPlaceTypes: string[] = []
 
     if (needsLocation) {
-      console.log(`Step 2: Text Search for "${title}"`)
+      console.log(`Location: searching for "${title}"`)
       const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(title)}&key=${GOOGLE_API_KEY}`
       const searchResp = await fetch(searchUrl)
       const searchData = await searchResp.json()
@@ -89,6 +93,10 @@ Deno.serve(async (req) => {
         const firstResult = searchData.results[0]
         const placeId = firstResult.place_id
         const placeTypes: string[] = firstResult.types || []
+
+        // Save original result info for landmark detection
+        originalPlaceName = firstResult.name
+        originalPlaceTypes = [...placeTypes]
 
         const geoTypes = ["locality", "postal_town", "administrative_area_level_1", "administrative_area_level_2", "country"]
         const isGeo = placeTypes.some((t: string) => geoTypes.includes(t))
@@ -108,7 +116,6 @@ Deno.serve(async (req) => {
             countryCode = countryComp?.short_name ?? null
           }
         } else {
-          console.log(`Result is business/POI: ${firstResult.name}, resolving to city`)
           const details = await getPlaceDetails(placeId, GOOGLE_API_KEY)
 
           if (details?.address_components) {
@@ -149,46 +156,71 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ── Step 3: Unsplash Image Search ────────────────────────────────────
+    console.log(`Location result: "${title}" → city="${cityName}", country="${country}"`)
+    if (originalPlaceName) {
+      console.log(`  Original place: "${originalPlaceName}" types=[${originalPlaceTypes.join(", ")}]`)
+    }
+
+    // ── Image Search (landmarks + city only) ─────────────────────────────
     let imageOptions: ImageOption[] = []
     let selectedImageUrl: string | null = null
     let selectedCreditName: string | null = null
     let selectedCreditUrl: string | null = null
 
-    if (needsImage && UNSPLASH_ACCESS_KEY) {
-      const resolvedCity = cityName ?? currentItem.location_name
-      console.log(`Step 3: Unsplash search for "${title}" (city: ${resolvedCity}, country: ${country})`)
+    const resolvedCity = cityName ?? currentItem.location_name
 
-      imageOptions = await tieredUnsplashSearch(
-        title,
-        resolvedCity,
-        country,
-        UNSPLASH_ACCESS_KEY,
-      )
+    // No location = no image
+    if (!resolvedCity && !originalPlaceName) {
+      console.log("No location detected — skipping image search")
+    } else if (needsImage && UNSPLASH_ACCESS_KEY) {
+      // Step 1: Check if original result is a well-known landmark
+      const LANDMARK_TYPES = new Set(["tourist_attraction", "natural_feature", "place_of_worship", "park", "museum"])
+      const isLandmark = originalPlaceTypes.some((t) => LANDMARK_TYPES.has(t))
+      const landmarkName = originalPlaceName
+      const shortEnough = landmarkName ? landmarkName.split(/\s+/).length <= 5 : false
 
+      if (isLandmark && landmarkName && shortEnough) {
+        console.log(`Image: landmark search for "${landmarkName}" (no topic filter)`)
+        imageOptions = await searchUnsplash(landmarkName, UNSPLASH_ACCESS_KEY, { perPage: 5 })
+
+        if (imageOptions.length > 0) {
+          console.log(`  Landmark hit: ${imageOptions.length} results`)
+        } else {
+          console.log(`  Landmark miss — falling back to city`)
+        }
+      }
+
+      // Step 2: Fall back to city name search
+      if (imageOptions.length === 0 && resolvedCity) {
+        console.log(`Image: city search for "${resolvedCity}" (with Travel topic)`)
+        imageOptions = await searchUnsplash(resolvedCity, UNSPLASH_ACCESS_KEY, {
+          topics: TRAVEL_TOPIC,
+          perPage: 10,
+        })
+        console.log(`  City results: ${imageOptions.length}`)
+      }
+
+      // Select image, avoiding duplicates in same city
       if (imageOptions.length > 0) {
-        // Avoid duplicate images within the same city
         const usedUrls = await getUsedImagesInCity(
           adminClient,
           currentItem.user_id,
-          resolvedCity ?? cityName,
+          resolvedCity,
           item_id,
         )
 
+        console.log(`  Already used in "${resolvedCity}": ${usedUrls.size} images`)
         const unused = imageOptions.find((opt) => !usedUrls.has(opt.url))
         const selected = unused ?? imageOptions[0]
 
         selectedImageUrl = selected.url
         selectedCreditName = selected.credit_name
         selectedCreditUrl = selected.credit_url
-
-        console.log(`Unsplash: found ${imageOptions.length} options, selected: ${selectedImageUrl.substring(0, 60)}`)
-      } else {
-        console.log("Unsplash: no images found")
+        console.log(`  Selected: ${unused ? "unused" : "reused (all used)"} — ${selectedImageUrl.substring(0, 60)}`)
       }
     }
 
-    // ── Step 4: Atomic update ────────────────────────────────────────────
+    // ── Atomic update ────────────────────────────────────────────────────
     const update: Record<string, unknown> = {}
 
     if (needsLocation && cityName) {
@@ -206,29 +238,26 @@ Deno.serve(async (req) => {
       update.image_source = "unsplash"
       update.image_credit_name = selectedCreditName
       update.image_credit_url = selectedCreditUrl
-      update.image_options = imageOptions
+      update.image_options = imageOptions.slice(0, 5)
       update.image_option_index = imageOptions.findIndex((o) => o.url === selectedImageUrl)
+    } else if (needsImage && !selectedImageUrl && !resolvedCity) {
+      // No location = explicitly no image
+      update.image_display = "none"
     }
 
     if (Object.keys(update).length === 0) {
-      console.log("Nothing to update")
       return new Response(
         JSON.stringify({ success: true, message: "No updates needed" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       )
     }
 
-    console.log(`Step 4: Updating item ${item_id}`)
-
-    // Build the query — only update if conditions still hold
     let query = adminClient.from("saved_items").update(update).eq("id", item_id)
-
     if (needsLocation) {
       query = query.is("location_name", null)
     }
 
     const { error: updateError } = await query
-
     if (updateError) {
       console.error("Update failed:", updateError.message)
       return new Response(
@@ -237,19 +266,18 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log(`Success: "${title}" → ${cityName ?? "(no location)"}, image: ${selectedImageUrl ? "yes" : "no"}`)
+    console.log(`Done: "${title}" → city="${cityName}", image=${selectedImageUrl ? "yes" : "no"}`)
     return new Response(
       JSON.stringify({
         success: true,
-        location: cityName ? { name: cityName, country, countryCode, lat: cityLat, lng: cityLng } : null,
+        location: cityName ? { name: cityName, country, countryCode } : null,
         image: selectedImageUrl ? { url: selectedImageUrl, options: imageOptions.length } : null,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     )
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    const stack = error instanceof Error ? error.stack : undefined
-    console.error("Function failed:", message, stack)
+    console.error("Function failed:", message, error instanceof Error ? error.stack : "")
     return new Response(
       JSON.stringify({ error: message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
@@ -277,7 +305,7 @@ interface ImageOption {
 }
 
 interface UnsplashResult {
-  urls: { regular: string; small: string }
+  urls: { regular: string }
   user: { name: string; links: { html: string } }
 }
 
@@ -300,34 +328,16 @@ async function getPlaceDetails(
   }
 }
 
-/** Generic words to filter out when building Unsplash search queries. */
-const STOP_WORDS = new Set([
-  "the", "in", "at", "best", "great", "my", "a", "an", "for", "and", "or",
-  "to", "of", "with", "is", "it", "this", "that", "on", "from", "by", "its",
-  "very", "good", "nice", "amazing", "awesome", "top", "most", "really",
-  "some", "our", "your", "their", "just", "also", "been", "was", "were",
-  "have", "has", "had", "be", "do", "does", "did", "will", "would", "can",
-  "could", "should", "must", "shall", "may", "might",
-])
-
-function extractKeywords(text: string): string {
-  return text
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((w) => w.length > 1 && !STOP_WORDS.has(w))
-    .slice(0, 5)
-    .join(" ")
-}
-
 const TRAVEL_TOPIC = "bo8jQKTaE0Y"
 
 async function searchUnsplash(
   query: string,
   accessKey: string,
-  options?: { topics?: string },
+  options?: { topics?: string; perPage?: number },
 ): Promise<ImageOption[]> {
   try {
-    let url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&orientation=landscape&per_page=5&content_filter=high`
+    const perPage = options?.perPage ?? 5
+    let url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&orientation=landscape&per_page=${perPage}&content_filter=high`
     if (options?.topics) {
       url += `&topics=${options.topics}`
     }
@@ -337,7 +347,7 @@ async function searchUnsplash(
     })
 
     if (!resp.ok) {
-      console.error(`Unsplash API error: ${resp.status}`)
+      console.error(`Unsplash error: ${resp.status}`)
       return []
     }
 
@@ -355,55 +365,6 @@ async function searchUnsplash(
   }
 }
 
-/**
- * Tiered Unsplash search strategy:
- * 1. Full title in Travel topic
- * 2. Title keywords + city in Travel topic
- * 3. City + "travel" in Travel topic
- * 4. Country + "landscape travel" (no topic filter)
- */
-async function tieredUnsplashSearch(
-  title: string,
-  cityName: string | null,
-  country: string | null,
-  accessKey: string,
-): Promise<ImageOption[]> {
-  // Tier 1: full title in Travel topic
-  console.log(`Unsplash Tier 1: "${title}" + Travel topic`)
-  let results = await searchUnsplash(title, accessKey, { topics: TRAVEL_TOPIC })
-  if (results.length > 0) return results
-
-  // Tier 2: keywords + city
-  if (cityName) {
-    const keywords = extractKeywords(title)
-    const query = `${keywords} ${cityName}`
-    console.log(`Unsplash Tier 2: "${query}" + Travel topic`)
-    results = await searchUnsplash(query, accessKey, { topics: TRAVEL_TOPIC })
-    if (results.length > 0) return results
-  }
-
-  // Tier 3: city + "travel"
-  if (cityName) {
-    const query = `${cityName} travel`
-    console.log(`Unsplash Tier 3: "${query}" + Travel topic`)
-    results = await searchUnsplash(query, accessKey, { topics: TRAVEL_TOPIC })
-    if (results.length > 0) return results
-  }
-
-  // Tier 4: country + "landscape travel" (no topic filter)
-  if (country) {
-    const query = `${country} landscape travel`
-    console.log(`Unsplash Tier 4: "${query}" (no topic)`)
-    results = await searchUnsplash(query, accessKey)
-    if (results.length > 0) return results
-  }
-
-  return []
-}
-
-/**
- * Get image URLs already used by other entries in the same city for this user.
- */
 async function getUsedImagesInCity(
   // deno-lint-ignore no-explicit-any
   client: any,
@@ -412,16 +373,15 @@ async function getUsedImagesInCity(
   excludeItemId: string,
 ): Promise<Set<string>> {
   if (!cityName) return new Set()
-
   const { data } = await client
     .from("saved_items")
     .select("image_url")
     .eq("user_id", userId)
     .eq("location_name", cityName)
+    .eq("image_source", "unsplash")
     .neq("id", excludeItemId)
     .not("image_url", "is", null)
     .limit(20)
-
   if (!data) return new Set()
   return new Set(data.map((r: { image_url: string }) => r.image_url))
 }
