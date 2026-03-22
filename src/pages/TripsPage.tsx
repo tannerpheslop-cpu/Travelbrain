@@ -387,12 +387,14 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
   })()
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <>
       {/* Backdrop — click/tap to close */}
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      {/* Sheet content — stops event propagation so taps inside don't close */}
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+
+      {/* Sheet — anchored to bottom, same pattern as SaveSheet */}
       <div
-        className="relative w-full max-w-lg bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden"
+        className="fixed inset-x-0 bottom-0 z-50 bg-bg-card rounded-t-3xl shadow-xl flex flex-col sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:rounded-2xl"
+        style={{ maxHeight: '85dvh' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-border-input rounded-full mx-auto mt-2 sm:hidden" />
@@ -431,7 +433,7 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
         </div>
 
         {/* Scrollable body */}
-        <div className="px-4 py-3 max-h-[75vh] overflow-y-auto">
+        <div className="px-4 py-3 flex-1 overflow-y-auto">
           {/* ── Step 1: Name ── */}
           {step === 'name' && (
             <form onSubmit={handleNextStep} className="space-y-3">
@@ -778,7 +780,7 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
           )}
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
