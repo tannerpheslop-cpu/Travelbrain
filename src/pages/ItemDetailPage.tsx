@@ -322,71 +322,10 @@ export default function ItemDetailPage() {
         />
       )}
 
-      {/* Image — SavedItemImage handles Places photo fallback automatically */}
+      {/* Image — only shown for OG metadata images and user uploads */}
       {hasAnyImage ? (
-        <div className="relative">
-          <SavedItemImage item={item} size="full" className="rounded-2xl" />
-          {/* Refresh button — only for Unsplash images with multiple options */}
-          {item.image_options && item.image_options.length > 1 && item.image_source !== 'user_upload' && (
-            <>
-              <button
-                type="button"
-                onClick={async () => {
-                  if (!item.image_options || item.image_options.length <= 1) return
-                  const currentIdx = item.image_option_index ?? 0
-                  const nextIdx = (currentIdx + 1) % item.image_options.length
-                  const nextOption = item.image_options[nextIdx]
-                  // Optimistic update
-                  setItem((prev) => prev ? {
-                    ...prev,
-                    image_url: nextOption.url,
-                    image_option_index: nextIdx,
-                    image_credit_name: nextOption.credit_name,
-                    image_credit_url: nextOption.credit_url,
-                  } : prev)
-                  // Persist
-                  await supabase.from('saved_items').update({
-                    image_url: nextOption.url,
-                    image_option_index: nextIdx,
-                    image_credit_name: nextOption.credit_name,
-                    image_credit_url: nextOption.credit_url,
-                  }).eq('id', item.id)
-                  queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(item.user_id) })
-                }}
-                className="transition-colors"
-                style={{
-                  position: 'absolute', bottom: 8, right: 8, zIndex: 10,
-                  width: 32, height: 32, borderRadius: 16,
-                  background: 'rgba(0,0,0,0.4)', border: 'none', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  color: 'white', fontSize: 14,
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.6)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(0,0,0,0.4)')}
-                aria-label="Next image"
-              >
-                ↻
-              </button>
-              {/* Dot indicators */}
-              <div style={{
-                position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
-                display: 'flex', gap: 3, zIndex: 10,
-              }}>
-                {item.image_options.map((_, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      width: 4, height: 4, borderRadius: '50%',
-                      background: i === (item.image_option_index ?? 0) ? 'white' : 'rgba(255,255,255,0.4)',
-                      transition: 'background 0.2s',
-                    }}
-                  />
-                ))}
-              </div>
-            </>
-          )}
-        </div>
-      ) : null /* No image area for entries without images — start directly with title */}
+        <SavedItemImage item={item} size="full" className="rounded-2xl" />
+      ) : null}
 
       {/* Title */}
       <input

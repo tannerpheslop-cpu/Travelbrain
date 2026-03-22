@@ -10,15 +10,11 @@ const corsHeaders = {
 /**
  * detect-location Edge Function
  *
- * 1. Detects city-level location from title via Google Places Text Search
- * 2. Fetches a relevant Unsplash image using ONLY place names (landmarks or cities)
- * 3. Updates the saved_item with location + image in one atomic update
+ * Accepts { item_id, title }, detects a city-level location from the title
+ * using Google Places Text Search REST API, and updates the saved_item.
  *
- * Image search rules:
- * - NEVER search by entry title or keywords
- * - ONLY search by: landmark name (from Google Places) or resolved city name
- * - Landmarks: tourist_attraction, natural_feature → search by original place name
- * - Everything else: search by resolved city name with Travel topic
+ * This function ONLY handles location detection. No image fetching.
+ * Images come from OG metadata (URL saves) or user uploads only.
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -43,15 +39,14 @@ Deno.serve(async (req) => {
       )
     }
 
-    const UNSPLASH_ACCESS_KEY = Deno.env.get("UNSPLASH_ACCESS_KEY")
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     const adminClient = createClient(supabaseUrl, supabaseServiceKey)
 
-    // ── Check current item state ─────────────────────────────────────────
+    // Check if location already set
     const { data: currentItem } = await adminClient
       .from("saved_items")
-      .select("location_name, image_url, image_source, user_id")
+      .select("location_name")
       .eq("id", item_id)
       .single()
 
@@ -62,202 +57,117 @@ Deno.serve(async (req) => {
       )
     }
 
-    const needsLocation = !currentItem.location_name
-    const needsImage = !currentItem.image_url && currentItem.image_source !== "user_upload"
-
-    if (!needsLocation && !needsImage) {
+    if (currentItem.location_name) {
       return new Response(
-        JSON.stringify({ success: true, message: "Nothing to do" }),
+        JSON.stringify({ success: true, message: "Location already set" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       )
     }
 
     // ── Location Detection ───────────────────────────────────────────────
+    console.log(`Detecting location for "${title}"`)
+    const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(title)}&key=${GOOGLE_API_KEY}`
+    const searchResp = await fetch(searchUrl)
+    const searchData = await searchResp.json()
+
+    if (!searchData.results || searchData.results.length === 0) {
+      console.log(`No results for "${title}"`)
+      return new Response(
+        JSON.stringify({ success: true, message: "No location found" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      )
+    }
+
+    const firstResult = searchData.results[0]
+    const placeId = firstResult.place_id
+    const placeTypes: string[] = firstResult.types || []
+
     let cityName: string | null = null
     let cityPlaceId: string | null = null
     let cityLat: number | null = null
     let cityLng: number | null = null
     let country: string | null = null
     let countryCode: string | null = null
-    // Original place info (before city resolution) for landmark detection
-    let originalPlaceName: string | null = null
-    let originalPlaceTypes: string[] = []
 
-    if (needsLocation) {
-      console.log(`Location: searching for "${title}"`)
-      const searchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(title)}&key=${GOOGLE_API_KEY}`
-      const searchResp = await fetch(searchUrl)
-      const searchData = await searchResp.json()
+    const geoTypes = ["locality", "postal_town", "administrative_area_level_1", "administrative_area_level_2", "country"]
+    const isGeo = placeTypes.some((t: string) => geoTypes.includes(t))
 
-      if (searchData.results && searchData.results.length > 0) {
-        const firstResult = searchData.results[0]
-        const placeId = firstResult.place_id
-        const placeTypes: string[] = firstResult.types || []
+    if (isGeo) {
+      cityName = firstResult.name
+      cityPlaceId = placeId
+      cityLat = firstResult.geometry?.location?.lat ?? null
+      cityLng = firstResult.geometry?.location?.lng ?? null
 
-        // Save original result info for landmark detection
-        originalPlaceName = firstResult.name
-        originalPlaceTypes = [...placeTypes]
-
-        const geoTypes = ["locality", "postal_town", "administrative_area_level_1", "administrative_area_level_2", "country"]
-        const isGeo = placeTypes.some((t: string) => geoTypes.includes(t))
-
-        if (isGeo) {
-          cityName = firstResult.name
-          cityPlaceId = placeId
-          cityLat = firstResult.geometry?.location?.lat ?? null
-          cityLng = firstResult.geometry?.location?.lng ?? null
-
-          const details = await getPlaceDetails(placeId, GOOGLE_API_KEY)
-          if (details) {
-            const countryComp = details.address_components?.find(
-              (c: AddressComponent) => c.types.includes("country"),
-            )
-            country = countryComp?.long_name ?? null
-            countryCode = countryComp?.short_name ?? null
-          }
-        } else {
-          const details = await getPlaceDetails(placeId, GOOGLE_API_KEY)
-
-          if (details?.address_components) {
-            const locality = details.address_components.find(
-              (c: AddressComponent) => c.types.includes("locality"),
-            )
-            const admin1 = details.address_components.find(
-              (c: AddressComponent) => c.types.includes("administrative_area_level_1"),
-            )
-            const countryComp = details.address_components.find(
-              (c: AddressComponent) => c.types.includes("country"),
-            )
-
-            const geoName = locality?.long_name ?? admin1?.long_name ?? countryComp?.long_name
-            country = countryComp?.long_name ?? null
-            countryCode = countryComp?.short_name ?? null
-
-            if (geoName) {
-              const citySearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(geoName)}&key=${GOOGLE_API_KEY}`
-              const cityResp = await fetch(citySearchUrl)
-              const cityData = await cityResp.json()
-
-              if (cityData.results && cityData.results.length > 0) {
-                const cityResult = cityData.results[0]
-                cityName = geoName
-                cityPlaceId = cityResult.place_id
-                cityLat = cityResult.geometry?.location?.lat ?? null
-                cityLng = cityResult.geometry?.location?.lng ?? null
-              } else {
-                cityName = geoName
-                cityPlaceId = placeId
-                cityLat = firstResult.geometry?.location?.lat ?? null
-                cityLng = firstResult.geometry?.location?.lng ?? null
-              }
-            }
-          }
-        }
+      const details = await getPlaceDetails(placeId, GOOGLE_API_KEY)
+      if (details) {
+        const countryComp = details.address_components?.find(
+          (c: AddressComponent) => c.types.includes("country"),
+        )
+        country = countryComp?.long_name ?? null
+        countryCode = countryComp?.short_name ?? null
       }
-    }
+    } else {
+      // Business/POI — extract city from address_components
+      const details = await getPlaceDetails(placeId, GOOGLE_API_KEY)
 
-    console.log(`Location result: "${title}" → city="${cityName}", country="${country}"`)
-    if (originalPlaceName) {
-      console.log(`  Original place: "${originalPlaceName}" types=[${originalPlaceTypes.join(", ")}]`)
-    }
-
-    // ── Image Search (landmarks + city only) ─────────────────────────────
-    let imageOptions: ImageOption[] = []
-    let selectedImageUrl: string | null = null
-    let selectedCreditName: string | null = null
-    let selectedCreditUrl: string | null = null
-
-    const resolvedCity = cityName ?? currentItem.location_name
-
-    // No location = no image
-    if (!resolvedCity && !originalPlaceName) {
-      console.log("No location detected — skipping image search")
-    } else if (needsImage && UNSPLASH_ACCESS_KEY) {
-      // Step 1: Check if original result is a well-known landmark
-      const LANDMARK_TYPES = new Set(["tourist_attraction", "natural_feature", "place_of_worship", "park", "museum"])
-      const isLandmark = originalPlaceTypes.some((t) => LANDMARK_TYPES.has(t))
-      const landmarkName = originalPlaceName
-      const shortEnough = landmarkName ? landmarkName.split(/\s+/).length <= 5 : false
-
-      if (isLandmark && landmarkName && shortEnough) {
-        console.log(`Image: landmark search for "${landmarkName}" (no topic filter)`)
-        imageOptions = await searchUnsplash(landmarkName, UNSPLASH_ACCESS_KEY, { perPage: 5 })
-
-        if (imageOptions.length > 0) {
-          console.log(`  Landmark hit: ${imageOptions.length} results`)
-        } else {
-          console.log(`  Landmark miss — falling back to city`)
-        }
-      }
-
-      // Step 2: Fall back to city name search
-      if (imageOptions.length === 0 && resolvedCity) {
-        console.log(`Image: city search for "${resolvedCity}" (with Travel topic)`)
-        imageOptions = await searchUnsplash(resolvedCity, UNSPLASH_ACCESS_KEY, {
-          topics: TRAVEL_TOPIC,
-          perPage: 10,
-        })
-        console.log(`  City results: ${imageOptions.length}`)
-      }
-
-      // Select image, avoiding duplicates in same city
-      if (imageOptions.length > 0) {
-        const usedUrls = await getUsedImagesInCity(
-          adminClient,
-          currentItem.user_id,
-          resolvedCity,
-          item_id,
+      if (details?.address_components) {
+        const locality = details.address_components.find(
+          (c: AddressComponent) => c.types.includes("locality"),
+        )
+        const admin1 = details.address_components.find(
+          (c: AddressComponent) => c.types.includes("administrative_area_level_1"),
+        )
+        const countryComp = details.address_components.find(
+          (c: AddressComponent) => c.types.includes("country"),
         )
 
-        console.log(`  Already used in "${resolvedCity}": ${usedUrls.size} images`)
-        const unused = imageOptions.find((opt) => !usedUrls.has(opt.url))
-        const selected = unused ?? imageOptions[0]
+        const geoName = locality?.long_name ?? admin1?.long_name ?? countryComp?.long_name
+        country = countryComp?.long_name ?? null
+        countryCode = countryComp?.short_name ?? null
 
-        selectedImageUrl = selected.url
-        selectedCreditName = selected.credit_name
-        selectedCreditUrl = selected.credit_url
-        console.log(`  Selected: ${unused ? "unused" : "reused (all used)"} — ${selectedImageUrl.substring(0, 60)}`)
+        if (geoName) {
+          const citySearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(geoName)}&key=${GOOGLE_API_KEY}`
+          const cityResp = await fetch(citySearchUrl)
+          const cityData = await cityResp.json()
+
+          if (cityData.results && cityData.results.length > 0) {
+            const cityResult = cityData.results[0]
+            cityName = geoName
+            cityPlaceId = cityResult.place_id
+            cityLat = cityResult.geometry?.location?.lat ?? null
+            cityLng = cityResult.geometry?.location?.lng ?? null
+          } else {
+            cityName = geoName
+            cityPlaceId = placeId
+            cityLat = firstResult.geometry?.location?.lat ?? null
+            cityLng = firstResult.geometry?.location?.lng ?? null
+          }
+        }
       }
     }
 
-    // ── Atomic update ────────────────────────────────────────────────────
-    const update: Record<string, unknown> = {}
-
-    if (needsLocation && cityName) {
-      update.location_name = cityName
-      update.location_lat = cityLat
-      update.location_lng = cityLng
-      update.location_place_id = cityPlaceId
-      update.location_country = country
-      update.location_country_code = countryCode
-    }
-
-    if (needsImage && selectedImageUrl) {
-      update.image_url = selectedImageUrl
-      update.image_display = "thumbnail"
-      update.image_source = "unsplash"
-      update.image_credit_name = selectedCreditName
-      update.image_credit_url = selectedCreditUrl
-      update.image_options = imageOptions.slice(0, 5)
-      update.image_option_index = imageOptions.findIndex((o) => o.url === selectedImageUrl)
-    } else if (needsImage && !selectedImageUrl && !resolvedCity) {
-      // No location = explicitly no image
-      update.image_display = "none"
-    }
-
-    if (Object.keys(update).length === 0) {
+    if (!cityName) {
+      console.log(`Could not resolve city for "${title}"`)
       return new Response(
-        JSON.stringify({ success: true, message: "No updates needed" }),
+        JSON.stringify({ success: true, message: "Could not resolve to city" }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       )
     }
 
-    let query = adminClient.from("saved_items").update(update).eq("id", item_id)
-    if (needsLocation) {
-      query = query.is("location_name", null)
-    }
+    // ── Update ───────────────────────────────────────────────────────────
+    const { error: updateError } = await adminClient
+      .from("saved_items")
+      .update({
+        location_name: cityName,
+        location_lat: cityLat,
+        location_lng: cityLng,
+        location_place_id: cityPlaceId,
+        location_country: country,
+        location_country_code: countryCode,
+      })
+      .eq("id", item_id)
+      .is("location_name", null)
 
-    const { error: updateError } = await query
     if (updateError) {
       console.error("Update failed:", updateError.message)
       return new Response(
@@ -266,12 +176,11 @@ Deno.serve(async (req) => {
       )
     }
 
-    console.log(`Done: "${title}" → city="${cityName}", image=${selectedImageUrl ? "yes" : "no"}`)
+    console.log(`"${title}" → ${cityName}, ${country} (${countryCode})`)
     return new Response(
       JSON.stringify({
         success: true,
-        location: cityName ? { name: cityName, country, countryCode } : null,
-        image: selectedImageUrl ? { url: selectedImageUrl, options: imageOptions.length } : null,
+        location: { name: cityName, country, countryCode, lat: cityLat, lng: cityLng },
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     )
@@ -285,7 +194,7 @@ Deno.serve(async (req) => {
   }
 })
 
-// ── Types ───────────────────────────────────────────────────────────────────
+// ── Types & Helpers ─────────────────────────────────────────────────────────
 
 interface AddressComponent {
   long_name: string
@@ -297,19 +206,6 @@ interface PlaceDetails {
   address_components?: AddressComponent[]
   name?: string
 }
-
-interface ImageOption {
-  url: string
-  credit_name: string
-  credit_url: string
-}
-
-interface UnsplashResult {
-  urls: { regular: string }
-  user: { name: string; links: { html: string } }
-}
-
-// ── Helpers ─────────────────────────────────────────────────────────────────
 
 async function getPlaceDetails(
   placeId: string,
@@ -326,62 +222,4 @@ async function getPlaceDetails(
   } catch {
     return null
   }
-}
-
-const TRAVEL_TOPIC = "bo8jQKTaE0Y"
-
-async function searchUnsplash(
-  query: string,
-  accessKey: string,
-  options?: { topics?: string; perPage?: number },
-): Promise<ImageOption[]> {
-  try {
-    const perPage = options?.perPage ?? 5
-    let url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&orientation=landscape&per_page=${perPage}&content_filter=high`
-    if (options?.topics) {
-      url += `&topics=${options.topics}`
-    }
-
-    const resp = await fetch(url, {
-      headers: { Authorization: `Client-ID ${accessKey}` },
-    })
-
-    if (!resp.ok) {
-      console.error(`Unsplash error: ${resp.status}`)
-      return []
-    }
-
-    const data = await resp.json()
-    if (!data.results || data.results.length === 0) return []
-
-    return data.results.map((r: UnsplashResult) => ({
-      url: r.urls.regular,
-      credit_name: r.user.name,
-      credit_url: r.user.links.html,
-    }))
-  } catch (err) {
-    console.error("Unsplash search failed:", err)
-    return []
-  }
-}
-
-async function getUsedImagesInCity(
-  // deno-lint-ignore no-explicit-any
-  client: any,
-  userId: string,
-  cityName: string | null,
-  excludeItemId: string,
-): Promise<Set<string>> {
-  if (!cityName) return new Set()
-  const { data } = await client
-    .from("saved_items")
-    .select("image_url")
-    .eq("user_id", userId)
-    .eq("location_name", cityName)
-    .eq("image_source", "unsplash")
-    .neq("id", excludeItemId)
-    .not("image_url", "is", null)
-    .limit(20)
-  if (!data) return new Set()
-  return new Set(data.map((r: { image_url: string }) => r.image_url))
 }

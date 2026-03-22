@@ -4,7 +4,6 @@ import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import { detectLocationFromText } from '../lib/placesTextSearch'
 import { detectUrl } from '../lib/urlDetect'
-import { evaluateImageDisplay } from '../lib/evaluateImageDisplay'
 import { detectCategoriesFromText } from '../lib/detectCategory'
 import { writeItemTags } from '../hooks/queries'
 import { useRapidCapture } from '../hooks/useRapidCapture'
@@ -328,7 +327,9 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     // User-attached image takes priority over OG metadata image
     const imageUrl = attachedUrl || metadata?.image || null
 
-    const imageDisplay = evaluateImageDisplay({ image_url: imageUrl })
+    // Determine image display and source
+    const imageDisplay = imageUrl ? 'thumbnail' : 'none'
+    const imageSource = attachedUrl ? 'user_upload' : (metadata?.image ? 'og_metadata' : null)
 
     // Build the core payload (columns guaranteed to exist)
     const corePayload: Record<string, unknown> = {
@@ -348,6 +349,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       category: (selectedTags.find((t) => ['restaurant', 'activity', 'hotel', 'transit'].includes(t)) as Category) ?? 'general',
       notes: notes.trim() || null,
       image_display: imageDisplay,
+      image_source: imageSource,
     }
 
     // Extended columns (from recent migrations — may not exist yet)
