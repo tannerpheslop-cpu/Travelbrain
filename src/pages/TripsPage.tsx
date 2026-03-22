@@ -247,41 +247,51 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
     setSaving(true)
     setError(null)
 
-    // Fetch photos: try Unsplash first, fall back to Google Places
-    const [tripResult, photoResults] = await Promise.all([
-      createTrip({ title }),
-      Promise.all(destinations.map(async (d) => {
-        // Try Unsplash first
-        const unsplash = await fetchDestinationPhoto(d.name).catch(() => null)
-        if (unsplash?.url) return { url: unsplash.url, source: 'unsplash' as const, creditName: unsplash.photographer, creditUrl: unsplash.profileUrl }
-        // Fall back to Google Places
-        const gPhoto = await fetchPlacePhoto(d.place_id).catch(() => null)
-        if (gPhoto) return { url: gPhoto, source: 'google_places' as const, creditName: undefined, creditUrl: undefined }
-        return null
-      })),
-    ])
+    try {
+      // Fetch photos in parallel with trip creation
+      const [tripResult, photoResults] = await Promise.all([
+        createTrip({ title }),
+        Promise.all(destinations.map(async (d) => {
+          // Try Unsplash first
+          const unsplash = await fetchDestinationPhoto(d.name).catch(() => null)
+          if (unsplash?.url) return { url: unsplash.url, source: 'unsplash' as const, creditName: unsplash.photographer, creditUrl: unsplash.profileUrl }
+          // Fall back to Google Places
+          const gPhoto = await fetchPlacePhoto(d.place_id).catch(() => null)
+          if (gPhoto) return { url: gPhoto, source: 'google_places' as const, creditName: undefined, creditUrl: undefined }
+          return null
+        })),
+      ])
 
-    const { trip, error: tripError } = tripResult
-    if (tripError || !trip) {
-      setError(tripError ?? 'Failed to create trip.')
+      const { trip, error: tripError } = tripResult
+      if (tripError || !trip) {
+        setError(tripError ?? 'Failed to create trip.')
+        return
+      }
+
+      // Add destinations — don't block trip creation if any fail
+      for (let i = 0; i < destinations.length; i++) {
+        try {
+          const photo = photoResults[i]
+          await createDestination(trip.id, destinations[i], i, photo?.url, photo?.source, photo?.creditName, photo?.creditUrl)
+        } catch (destErr) {
+          console.error('Failed to add destination during trip creation:', destinations[i].name, destErr)
+          // Continue — trip was created, user can add destinations manually
+        }
+      }
+
+      // Set cover image from trip name if no destinations
+      if (destinations.length === 0) {
+        void trySetTripCoverFromName(trip.id, title)
+      }
+
+      // ALWAYS close modal and navigate after trip is created
+      onCreated(trip.id)
+    } catch (err) {
+      console.error('Failed to create trip:', err)
+      setError('Failed to create trip. Please try again.')
+    } finally {
       setSaving(false)
-      return
     }
-
-    // Save destinations sequentially to avoid stale-state race conditions
-    // in the useTrips hook's setTrips updater
-    for (let i = 0; i < destinations.length; i++) {
-      const photo = photoResults[i]
-      await createDestination(trip.id, destinations[i], i, photo?.url, photo?.source, photo?.creditName, photo?.creditUrl)
-    }
-
-    // If no destinations were added, try to get a cover image from the trip name
-    if (destinations.length === 0) {
-      // Fire-and-forget — don't block navigation
-      void trySetTripCoverFromName(trip.id, title)
-    }
-
-    onCreated(trip.id)
   }
 
   // ── Suggestion scope ────────────────────────────────────────────────────────
