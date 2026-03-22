@@ -221,12 +221,6 @@ export async function textSearchBiased(
   }
 }
 
-const GEO_TYPES = new Set([
-  'locality', 'sublocality', 'administrative_area_level_1', 'administrative_area_level_2',
-  'country', 'natural_feature', 'colloquial_area', 'neighborhood',
-  'continent', 'archipelago',
-])
-
 const CITY_TYPES = new Set(['locality', 'postal_town', 'colloquial_area'])
 const ADMIN_TYPES = new Set(['administrative_area_level_1', 'administrative_area_level_2'])
 
@@ -304,20 +298,66 @@ export function hasGeographicRelevance(
   return inputWords.some(w => resultWords.has(w))
 }
 
-interface DetectOptions {
-  /** If true, only accept geographic results (reject businesses). Used for 1-2 word inputs. */
-  geoOnly?: boolean
+/** Prepositions that signal a geographic portion follows. */
+const GEO_PREPOSITIONS = new Set(['in', 'near', 'at', 'around', 'from', 'visiting'])
+
+/**
+ * Extract the geographic portion of input text if it contains a
+ * preposition like "in", "near", "at", etc. followed by location text.
+ *
+ * "Eat pizza in Italy" → "Italy"
+ * "Hotels near Dotonbori" → "Dotonbori"
+ * "Seattle" → null (no preposition, use full text)
+ *
+ * Exported for testing.
+ */
+export function extractGeoPortion(text: string): string | null {
+  const words = text.split(/\s+/)
+  for (let i = 0; i < words.length - 1; i++) {
+    if (GEO_PREPOSITIONS.has(words[i].toLowerCase())) {
+      const portion = words.slice(i + 1).join(' ').trim()
+      if (portion.length >= 2) return portion
+    }
+  }
+  return null
+}
+
+/**
+ * Build a TextSearchResult from geocode/biased-search data.
+ */
+function buildResultFromGeoData(data: {
+  city: string | null
+  adminArea?: string | null
+  country: string | null
+  countryCode: string | null
+  lat: number
+  lng: number
+  placeId: string
+  originalPlaceTypes?: string[]
+}): TextSearchResult {
+  const name = data.city ?? data.adminArea ?? data.country ?? 'Unknown'
+  return {
+    name,
+    address: [data.city, data.country].filter(Boolean).join(', '),
+    lat: data.lat,
+    lng: data.lng,
+    placeId: data.placeId,
+    country: data.country ?? 'Unknown',
+    countryCode: data.countryCode,
+    locationType: 'geographic',
+    placeTypes: [],
+    originalPlaceTypes: data.originalPlaceTypes ?? [],
+  }
 }
 
 /**
  * Build a TextSearchResult from a PlaceResult using extractPlaceData.
  */
-async function buildResult(
+async function buildResultFromPlace(
   place: google.maps.places.PlaceResult,
   originalPlaceTypes: string[],
 ): Promise<TextSearchResult> {
   const placeTypes: string[] = place.types ?? []
-
   const locationData = await extractPlaceData(place, { skipBilingual: true })
 
   if (locationData) {
@@ -356,15 +396,12 @@ async function buildResult(
 function extractCityFromComponents(
   components: google.maps.GeocoderAddressComponent[],
 ): { name: string; level: 'city' | 'admin' | 'country' } | null {
-  // Priority 1: locality (city)
   const locality = components.find(c => c.types.some(t => CITY_TYPES.has(t)))
   if (locality) return { name: locality.long_name, level: 'city' }
 
-  // Priority 2: administrative_area (state/province)
   const admin = components.find(c => c.types.some(t => ADMIN_TYPES.has(t)))
   if (admin) return { name: admin.long_name, level: 'admin' }
 
-  // Priority 3: country
   const country = components.find(c => c.types.includes('country'))
   if (country) return { name: country.long_name, level: 'country' }
 
@@ -372,31 +409,98 @@ function extractCityFromComponents(
 }
 
 /**
- * Uses Google Places Text Search to extract structured location data from freeform text.
+ * Detect a location from freeform text using a Geocoding → Text Search pipeline.
  *
- * ALWAYS resolves to city level or higher. Never returns a business name, restaurant,
- * or specific POI as the location. The function finds what the input refers to, then
- * extracts the city/region/country that contains it.
+ * Pipeline:
+ * 1. Blocklist check → return null if no meaningful words
+ * 2. Extract geographic portion (text after "in"/"near"/"at"/etc.) for Geocoding
+ * 3. Geocode extracted text:
+ *    - Returns city → done
+ *    - Returns country only → biased Text Search for city within that country
+ *    - Returns null → fall through to step 4
+ * 4. Unbiased Text Search (catches businesses like "Ichiran Ramen")
+ *    → resolve to city via Place Details → relevance check → return or null
  *
- * The `originalPlaceTypes` field on the result contains the Google Places types from
- * the initial search hit (before city resolution), useful for category detection.
+ * ALWAYS resolves to city level or higher. Never returns a business name.
+ * The `originalPlaceTypes` field contains types from the initial search hit
+ * (useful for category detection).
  */
-export async function detectLocationFromText(text: string, options?: DetectOptions): Promise<TextSearchResult | null> {
+export async function detectLocationFromText(text: string): Promise<TextSearchResult | null> {
   const query = text.trim()
   if (!query || query.length < 2) return null
 
-  // Extract meaningful words — if none remain, input is too generic
+  // Step 1: Blocklist check
   const meaningfulWords = extractMeaningfulWords(query)
   if (meaningfulWords.length === 0) return null
 
   try {
     await loadGoogleMapsScript()
+
+    // Step 2: Extract geographic portion for Geocoding
+    const geoPortion = extractGeoPortion(query)
+    const geocodeInput = geoPortion ?? query
+
+    // Step 3: Geocode
+    console.log(`[detect] Step 3: geocoding "${geocodeInput}"`)
+    const geocodeResult = await geocodeText(geocodeInput)
+
+    if (geocodeResult) {
+      console.log(`[detect] Geocode found: city=${geocodeResult.city}, country=${geocodeResult.country}`)
+
+      if (geocodeResult.city) {
+        // Geocoding returned a city — we're done
+        return buildResultFromGeoData({
+          city: geocodeResult.city,
+          adminArea: geocodeResult.adminArea,
+          country: geocodeResult.country,
+          countryCode: geocodeResult.countryCode,
+          lat: geocodeResult.lat,
+          lng: geocodeResult.lng,
+          placeId: geocodeResult.placeId,
+        })
+      }
+
+      // Geocoding returned country/region but no city
+      // → biased Text Search to find the right city
+      console.log(`[detect] Step 3b: biased text search within ${geocodeResult.country}`)
+      const biasedResult = await textSearchBiased(
+        query, // Use full input for the search
+        geocodeResult.lat,
+        geocodeResult.lng,
+        500000, // 500km radius
+      )
+
+      if (biasedResult?.city) {
+        return buildResultFromGeoData({
+          city: biasedResult.city,
+          country: biasedResult.country,
+          countryCode: biasedResult.countryCode,
+          lat: biasedResult.lat,
+          lng: biasedResult.lng,
+          placeId: biasedResult.placeId,
+          originalPlaceTypes: biasedResult.types,
+        })
+      }
+
+      // Biased search didn't find a city — return the country/region
+      return buildResultFromGeoData({
+        city: null,
+        adminArea: geocodeResult.adminArea,
+        country: geocodeResult.country,
+        countryCode: geocodeResult.countryCode,
+        lat: geocodeResult.lat,
+        lng: geocodeResult.lng,
+        placeId: geocodeResult.placeId,
+      })
+    }
+
+    // Step 4: Geocoding returned null — try unbiased Text Search
+    // (catches business names like "Ichiran Ramen" that aren't geographic terms)
+    console.log(`[detect] Step 4: unbiased text search for "${query}"`)
     if (!window.google?.maps?.places) return null
 
     const div = document.createElement('div')
     const service = new google.maps.places.PlacesService(div)
-
-    // Step 1: Text Search
     const searchResults = await textSearch(service, query)
     if (searchResults.length === 0) return null
 
@@ -405,85 +509,45 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
 
     const topTypes: string[] = top.types ?? []
     const originalPlaceTypes = [...topTypes]
-    const isGeoResult = topTypes.some(t => GEO_TYPES.has(t))
     const isCityOrHigher = topTypes.some(t => CITY_TYPES.has(t)) ||
                            topTypes.some(t => ADMIN_TYPES.has(t)) ||
                            topTypes.includes('country')
 
-    // Original result info (before city resolution) — used for relevance check
-    const originalAddress = top.formatted_address ?? ''
-    const originalName = top.name ?? ''
-
-    // Helper: validate result before returning — reject false positives
-    const validateAndReturn = async (result: TextSearchResult): Promise<TextSearchResult | null> => {
-      const combinedAddress = `${result.address} ${originalAddress}`
-      const combinedName = `${result.name} ${originalName}`
-      if (!hasGeographicRelevance(query, combinedName, combinedAddress, result.name, result.country)) {
-        console.warn(`[placesTextSearch] Rejected false positive: "${query}" → "${result.name}, ${result.country}"`)
+    // If it's already a city, validate and return
+    if (isCityOrHigher) {
+      const result = await buildResultFromPlace(top, originalPlaceTypes)
+      if (!hasGeographicRelevance(query, result.name, result.address, result.name, result.country)) {
+        console.warn(`[detect] Rejected false positive: "${query}" → "${result.name}"`)
         return null
       }
       return result
     }
 
-    // For geoOnly mode, reject if the first result isn't geographic at all
-    if (options?.geoOnly && !isGeoResult) {
-      const geoHit = searchResults.find(r => {
-        const types: string[] = r.types ?? []
-        return types.some(t => GEO_TYPES.has(t)) && r.geometry?.location && r.place_id
-      })
-      if (geoHit) return await validateAndReturn(await buildResult(geoHit, originalPlaceTypes))
-      return null
-    }
-
-    // Step 2: If the result IS already city-level or higher, return it directly
-    if (isCityOrHigher) {
-      return await validateAndReturn(await buildResult(top, originalPlaceTypes))
-    }
-
-    // Step 3: Result is a business, POI, landmark, or natural feature.
-    // Get address_components to find the city.
-    const details = await getPlaceDetails(service, top.place_id!)
+    // It's a business/POI — resolve to city via Place Details
+    const details = await getPlaceDetails(service, top.place_id)
     const components = details?.address_components
 
     if (components && components.length > 0) {
       const cityInfo = extractCityFromComponents(components)
       if (cityInfo) {
-        // Do a second search for the city/region/country name to get clean coords + place_id
+        // Search for the city name to get clean coordinates
         const cityResults = await textSearch(service, cityInfo.name)
         if (cityResults.length > 0 && cityResults[0].geometry?.location && cityResults[0].place_id) {
-          return await validateAndReturn(await buildResult(cityResults[0], originalPlaceTypes))
-        }
-      }
-    }
-
-    // Step 4: Fallback — check other results in the batch for a geographic one
-    const geoHit = searchResults.find(r => {
-      const types: string[] = r.types ?? []
-      return types.some(t => GEO_TYPES.has(t)) && r.geometry?.location && r.place_id
-    })
-    if (geoHit) return await validateAndReturn(await buildResult(geoHit, originalPlaceTypes))
-
-    // Step 5: Last resort — extract city from formatted_address
-    const addressParts = (top.formatted_address ?? '').split(',').map(s => s.trim())
-    for (let i = 0; i < addressParts.length; i++) {
-      const part = addressParts[i]
-      if (part.length >= 2 && part.length <= 40 && !/^\d/.test(part)) {
-        const partResults = await textSearch(service, part)
-        if (partResults.length > 0) {
-          const partTypes: string[] = partResults[0].types ?? []
-          if (partTypes.some(t => GEO_TYPES.has(t)) && partResults[0].geometry?.location && partResults[0].place_id) {
-            return await validateAndReturn(await buildResult(partResults[0], originalPlaceTypes))
+          const result = await buildResultFromPlace(cityResults[0], originalPlaceTypes)
+          // Relevance check: at least one input word must match result
+          if (!hasGeographicRelevance(query, `${result.name} ${top.name ?? ''}`, `${result.address} ${top.formatted_address ?? ''}`, result.name, result.country)) {
+            console.warn(`[detect] Rejected false positive: "${query}" → "${result.name}"`)
+            return null
           }
+          return result
         }
       }
     }
 
-    // Absolute fallback — could not resolve to city level. Return null to avoid
-    // labeling items with business names or overly specific locations.
-    console.warn('[placesTextSearch] Could not resolve to city level:', query)
+    console.warn('[detect] Could not resolve to city level:', query)
     return null
   } catch (err) {
-    console.warn('[placesTextSearch] Error:', err)
+    console.warn('[detect] Error:', err)
     return null
   }
 }

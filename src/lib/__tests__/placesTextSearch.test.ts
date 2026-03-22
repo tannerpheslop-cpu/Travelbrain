@@ -1,5 +1,25 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { wordOverlap } from '../placesTextSearch'
+import { wordOverlap, extractGeoPortion } from '../placesTextSearch'
+
+// ── extractGeoPortion tests ──────────────────────────────────────────────────
+
+describe('extractGeoPortion', () => {
+  it('extracts text after "in"', () => {
+    expect(extractGeoPortion('Eat pizza in Italy')).toBe('Italy')
+  })
+  it('extracts text after "near"', () => {
+    expect(extractGeoPortion('Hotels near Dotonbori')).toBe('Dotonbori')
+  })
+  it('extracts text after "from"', () => {
+    expect(extractGeoPortion('Gifts from Tokyo')).toBe('Tokyo')
+  })
+  it('returns null when no preposition', () => {
+    expect(extractGeoPortion('Seattle')).toBeNull()
+  })
+  it('handles multiple words after preposition', () => {
+    expect(extractGeoPortion('Leaning tower in Pisa Italy')).toBe('Pisa Italy')
+  })
+})
 
 // ── wordOverlap tests ────────────────────────────────────────────────────────
 
@@ -63,6 +83,7 @@ function makePlaceResult(overrides: {
 
 const mockTextSearch = vi.fn()
 const mockGetDetails = vi.fn()
+const mockGeocode = vi.fn()
 
 /** Map from placeId → { country, countryCode } for getDetails mock */
 const placeCountryMap: Record<string, { country: string; countryCode: string }> = {}
@@ -70,6 +91,13 @@ const placeCountryMap: Record<string, { country: string; countryCode: string }> 
 const placeDetailsMap: Record<string, Array<{ long_name: string; short_name: string; types: string[] }>> = {}
 
 function setupGoogleMock() {
+  // Default: geocode returns null (fall through to Text Search)
+  mockGeocode.mockImplementation(
+    (_req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+      cb(null, 'ZERO_RESULTS')
+    }
+  )
+
   mockGetDetails.mockImplementation(
     (req: { placeId: string; fields?: string[] }, cb: (result: google.maps.places.PlaceResult | null, status: string) => void) => {
       const components = placeDetailsMap[req.placeId]
@@ -100,12 +128,17 @@ function setupGoogleMock() {
 
   const mockService = { textSearch: mockTextSearch, getDetails: mockGetDetails }
   function MockPlacesService() { return mockService }
+  function MockGeocoder() { return { geocode: mockGeocode } }
+  function MockLatLng(lat: number, lng: number) { return { lat: () => lat, lng: () => lng } }
   const mockGoogle = {
     maps: {
       places: {
         PlacesService: MockPlacesService,
         PlacesServiceStatus: { OK: 'OK', ZERO_RESULTS: 'ZERO_RESULTS' },
       },
+      Geocoder: MockGeocoder,
+      GeocoderStatus: { OK: 'OK', ZERO_RESULTS: 'ZERO_RESULTS' },
+      LatLng: MockLatLng,
     },
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,6 +156,7 @@ describe('detectLocationFromText', () => {
   beforeEach(async () => {
     mockTextSearch.mockReset()
     mockGetDetails.mockReset()
+    mockGeocode.mockReset()
     for (const key of Object.keys(placeCountryMap)) delete placeCountryMap[key]
     for (const key of Object.keys(placeDetailsMap)) delete placeDetailsMap[key]
     setupGoogleMock()
@@ -155,7 +189,7 @@ describe('detectLocationFromText', () => {
         })], 'OK')
       }
     )
-    expect(await detectLocationFromText('Pizza', { geoOnly: true })).toBeNull()
+    expect(await detectLocationFromText('Pizza')).toBeNull()
   })
 
   it('resolves "Ichiran Ramen Shibuya" to city (Tokyo), not the restaurant', async () => {
@@ -366,5 +400,93 @@ describe('detectLocationFromText', () => {
     const result = await detectLocationFromText('Kunming')
     expect(result).not.toBeNull()
     expect(result!.locationType).toBe('geographic')
+  })
+
+  // ── Geocode-first pipeline tests ─────────────────────────────────────────
+
+  it('uses geocode result when it returns a city', async () => {
+    mockGeocode.mockImplementation(
+      (_req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        cb([{
+          address_components: [
+            { long_name: 'Seattle', short_name: 'Seattle', types: ['locality', 'political'] },
+            { long_name: 'Washington', short_name: 'WA', types: ['administrative_area_level_1', 'political'] },
+            { long_name: 'United States', short_name: 'US', types: ['country', 'political'] },
+          ],
+          geometry: { location: { lat: () => 47.6, lng: () => -122.33 } },
+          place_id: 'geo_seattle',
+          formatted_address: 'Seattle, WA, USA',
+          types: ['locality', 'political'],
+        }], 'OK')
+      }
+    )
+
+    const result = await detectLocationFromText('Seattle')
+    expect(result).not.toBeNull()
+    expect(result!.name).toBe('Seattle')
+    expect(result!.country).toBe('United States')
+    expect(result!.countryCode).toBe('US')
+    // Should NOT have called textSearch since geocode succeeded
+    expect(mockTextSearch).not.toHaveBeenCalled()
+  })
+
+  it('returns null for gibberish when geocode returns nothing', async () => {
+    // geocode returns null (default mock), textSearch returns NY
+    mockTextSearch.mockImplementation(
+      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
+        cb([makePlaceResult({
+          name: 'New York',
+          address: 'New York, NY, USA',
+          lat: 40.71, lng: -74.01,
+          placeId: 'ny1',
+          types: ['locality', 'political'],
+        })], 'OK')
+      }
+    )
+    // "Ffyyyggggccff" has no meaningful words that match "New York" → rejected
+    const result = await detectLocationFromText('Ffyyyggggccff')
+    expect(result).toBeNull()
+  })
+
+  it('extracts geo portion from "Eat pizza in Italy" and geocodes it', async () => {
+    mockGeocode.mockImplementation(
+      (req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        if (req.address === 'Italy') {
+          cb([{
+            address_components: [
+              { long_name: 'Italy', short_name: 'IT', types: ['country', 'political'] },
+            ],
+            geometry: { location: { lat: () => 41.87, lng: () => 12.56 } },
+            place_id: 'geo_italy',
+            formatted_address: 'Italy',
+            types: ['country', 'political'],
+          }], 'OK')
+        } else {
+          cb(null, 'ZERO_RESULTS')
+        }
+      }
+    )
+    // Biased text search within Italy should find a city
+    mockTextSearch.mockImplementation(
+      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
+        cb([makePlaceResult({
+          name: 'Pizza Place Rome',
+          address: 'Rome, Italy',
+          lat: 41.90, lng: 12.50,
+          placeId: 'rome_pizza',
+          types: ['restaurant'],
+        })], 'OK')
+      }
+    )
+    placeDetailsMap['rome_pizza'] = [
+      { long_name: 'Rome', short_name: 'Rome', types: ['locality', 'political'] },
+      { long_name: 'Italy', short_name: 'IT', types: ['country', 'political'] },
+    ]
+
+    const result = await detectLocationFromText('Eat pizza in Italy')
+    expect(result).not.toBeNull()
+    // Should have geocoded "Italy" (the geo portion), getting country-level
+    // Then the country result or biased search result
+    expect(result!.country).toBe('Italy')
   })
 })
