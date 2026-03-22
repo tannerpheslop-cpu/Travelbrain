@@ -74,6 +74,7 @@ function makeItem(overrides: Partial<SavedItem> & { id: string }): SavedItem {
     image_options: null,
     image_option_index: null,
     first_viewed_at: null,
+    left_recent: false,
     created_at: new Date().toISOString(),
     ...overrides,
   }

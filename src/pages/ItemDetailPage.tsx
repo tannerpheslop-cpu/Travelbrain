@@ -101,7 +101,7 @@ export default function ItemDetailPage() {
     if (itemData && !itemData.first_viewed_at && id) {
       supabase
         .from('saved_items')
-        .update({ first_viewed_at: new Date().toISOString() })
+        .update({ first_viewed_at: new Date().toISOString(), left_recent: true })
         .eq('id', id)
         .then(() => {
           // No need to update local state — this only affects "Recently added" on Horizon

@@ -12,6 +12,7 @@ function getRecentlyAdded(
   const now = Date.now()
   return items
     .filter((item) => {
+      if (item.left_recent) return false
       const ageHours = (now - new Date(item.created_at).getTime()) / (1000 * 60 * 60)
       const isRecent = ageHours <= 48
       const notViewed = !item.first_viewed_at
@@ -51,6 +52,7 @@ function makeItem(overrides: Partial<SavedItem> & { id: string }): SavedItem {
     image_options: null,
     image_option_index: null,
     first_viewed_at: null,
+    left_recent: false,
     created_at: new Date().toISOString(),
     ...overrides,
   }
@@ -128,5 +130,36 @@ describe('Recently Added logic', () => {
     expect(recentlyAdded[0].id).toBe('1')
     expect(countryGroupItems).toHaveLength(1)
     expect(countryGroupItems[0].id).toBe('2')
+  })
+
+  it('REGRESSION: excludes items with left_recent = true (never re-enter)', () => {
+    const items = [
+      makeItem({ id: '1', left_recent: true, created_at: new Date().toISOString() }),
+      makeItem({ id: '2', left_recent: false, created_at: new Date().toISOString() }),
+    ]
+    const result = getRecentlyAdded(items, new Map())
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('2')
+  })
+
+  it('REGRESSION: deleted item does not cause graduated item to re-enter', () => {
+    // 6 qualifying items — only 5 shown, item-5 is bumped
+    const items = Array.from({ length: 6 }, (_, i) =>
+      makeItem({
+        id: `item-${i}`,
+        title: `Item ${i}`,
+        created_at: new Date(Date.now() - i * 60000).toISOString(),
+      }),
+    )
+    const first5 = getRecentlyAdded(items, new Map())
+    expect(first5).toHaveLength(5)
+    expect(first5.map(i => i.id)).not.toContain('item-5')
+
+    // Now simulate: item-0 is deleted, but item-5 has left_recent = true (was bumped)
+    const afterDelete = items.filter(i => i.id !== 'item-0')
+    afterDelete.find(i => i.id === 'item-5')!.left_recent = true
+    const afterResult = getRecentlyAdded(afterDelete, new Map())
+    expect(afterResult).toHaveLength(4) // Only 4 remaining qualify
+    expect(afterResult.map(i => i.id)).not.toContain('item-5') // Must NOT re-enter
   })
 })

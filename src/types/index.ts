@@ -45,6 +45,7 @@ export interface SavedItem {
   image_options: Array<{ url: string; credit_name: string; credit_url: string }> | null
   image_option_index: number | null
   first_viewed_at: string | null
+  left_recent: boolean
   created_at: string
 }
 
