@@ -489,4 +489,168 @@ describe('detectLocationFromText', () => {
     // Then the country result or biased search result
     expect(result!.country).toBe('Italy')
   })
+
+  // ── Diagnostic test cases (all 10 inputs) ──────────────────────────────
+
+  it('returns null for "my packing list" (all blocklisted words)', async () => {
+    const result = await detectLocationFromText('my packing list')
+    expect(result).toBeNull()
+    expect(mockGeocode).not.toHaveBeenCalled()
+    expect(mockTextSearch).not.toHaveBeenCalled()
+  })
+
+  it('returns null for "Ask Sarah about Osaka hotels" — geocode handles it', async () => {
+    // "Ask" and "Sarah" aren't blocklisted but Geocoding finds Osaka
+    mockGeocode.mockImplementation(
+      (_req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        // Geocoding returns null for "Ask Sarah about Osaka hotels"
+        cb(null, 'ZERO_RESULTS')
+      }
+    )
+    // Unbiased Text Search returns Osaka
+    placeCountryMap['osaka1'] = { country: 'Japan', countryCode: 'JP' }
+    mockTextSearch.mockImplementation(
+      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
+        cb([makePlaceResult({
+          name: 'Osaka',
+          address: 'Osaka, Japan',
+          lat: 34.69, lng: 135.50,
+          placeId: 'osaka1',
+          types: ['locality', 'political'],
+        })], 'OK')
+      }
+    )
+    const result = await detectLocationFromText('Ask Sarah about Osaka hotels')
+    expect(result).not.toBeNull()
+    expect(result!.name).toContain('Osaka')
+  })
+
+  it('"Hotels near Dotonbori" → geocode "Dotonbori" returns Osaka', async () => {
+    mockGeocode.mockImplementation(
+      (req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        if (req.address === 'Dotonbori') {
+          cb([{
+            address_components: [
+              { long_name: 'Osaka', short_name: 'Osaka', types: ['locality', 'political'] },
+              { long_name: 'Japan', short_name: 'JP', types: ['country', 'political'] },
+            ],
+            geometry: { location: { lat: () => 34.67, lng: () => 135.50 } },
+            place_id: 'geo_dotonbori',
+            formatted_address: 'Dotonbori, Osaka, Japan',
+            types: ['sublocality'],
+          }], 'OK')
+        } else {
+          cb(null, 'ZERO_RESULTS')
+        }
+      }
+    )
+
+    const result = await detectLocationFromText('Hotels near Dotonbori')
+    expect(result).not.toBeNull()
+    expect(result!.name).toBe('Osaka')
+    expect(result!.country).toBe('Japan')
+    expect(result!.countryCode).toBe('JP')
+  })
+
+  it('"Leaning tower of Pisa in Italy" → geocode "Pisa in Italy" returns Pisa', async () => {
+    mockGeocode.mockImplementation(
+      (req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        // extractGeoPortion returns "Pisa in Italy" (after first "of" is not a preposition, "in" is)
+        // Actually extractGeoPortion finds "Italy" after "in"
+        if (req.address === 'Italy') {
+          cb([{
+            address_components: [
+              { long_name: 'Italy', short_name: 'IT', types: ['country', 'political'] },
+            ],
+            geometry: { location: { lat: () => 41.87, lng: () => 12.56 } },
+            place_id: 'geo_italy',
+            formatted_address: 'Italy',
+            types: ['country', 'political'],
+          }], 'OK')
+        } else {
+          cb(null, 'ZERO_RESULTS')
+        }
+      }
+    )
+
+    // Biased text search within Italy finds Pisa
+    placeDetailsMap['pisa_tower'] = [
+      { long_name: 'Pisa', short_name: 'Pisa', types: ['locality', 'political'] },
+      { long_name: 'Italy', short_name: 'IT', types: ['country', 'political'] },
+    ]
+    mockTextSearch.mockImplementation(
+      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
+        cb([makePlaceResult({
+          name: 'Leaning Tower of Pisa',
+          address: 'Piazza del Duomo, Pisa, Italy',
+          lat: 43.72, lng: 10.40,
+          placeId: 'pisa_tower',
+          types: ['tourist_attraction', 'point_of_interest'],
+        })], 'OK')
+      }
+    )
+
+    const result = await detectLocationFromText('Leaning tower of Pisa in Italy')
+    expect(result).not.toBeNull()
+    expect(result!.country).toBe('Italy')
+  })
+
+  it('"Great Wall of China" → geocode finds China', async () => {
+    mockGeocode.mockImplementation(
+      (_req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        cb([{
+          address_components: [
+            { long_name: 'China', short_name: 'CN', types: ['country', 'political'] },
+          ],
+          geometry: { location: { lat: () => 40.43, lng: () => 116.57 } },
+          place_id: 'geo_gw',
+          formatted_address: 'Great Wall of China, China',
+          types: ['tourist_attraction'],
+        }], 'OK')
+      }
+    )
+
+    // Biased text search in China returns Beijing
+    mockTextSearch.mockImplementation(
+      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
+        cb([makePlaceResult({
+          name: 'Great Wall of China',
+          address: 'Badaling, Beijing, China',
+          lat: 40.43, lng: 116.57,
+          placeId: 'gw1',
+          types: ['tourist_attraction'],
+        })], 'OK')
+      }
+    )
+    placeDetailsMap['gw1'] = [
+      { long_name: 'Beijing', short_name: 'Beijing', types: ['locality', 'political'] },
+      { long_name: 'China', short_name: 'CN', types: ['country', 'political'] },
+    ]
+
+    const result = await detectLocationFromText('Great Wall of China')
+    expect(result).not.toBeNull()
+    expect(result!.country).toBe('China')
+  })
+
+  it('"example example" returns null (blocked + no relevance)', async () => {
+    const result = await detectLocationFromText('example example')
+    expect(result).toBeNull()
+  })
+
+  it('"remember to buy sunscreen" returns null (no geographic relevance)', async () => {
+    // "remember" and "sunscreen" aren't blocklisted but geocode returns null
+    // and text search returns nothing
+    mockGeocode.mockImplementation(
+      (_req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        cb(null, 'ZERO_RESULTS')
+      }
+    )
+    mockTextSearch.mockImplementation(
+      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
+        cb([], 'ZERO_RESULTS')
+      }
+    )
+    const result = await detectLocationFromText('remember to buy sunscreen')
+    expect(result).toBeNull()
+  })
 })
