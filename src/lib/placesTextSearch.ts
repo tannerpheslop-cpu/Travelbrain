@@ -135,6 +135,92 @@ export async function geocodeText(text: string): Promise<{
   })
 }
 
+/**
+ * Run Google Places Text Search biased to specific coordinates.
+ * Useful when Geocoding returns a country/region and we need to find
+ * the specific city within that area relevant to the input text.
+ *
+ * Exported for testing.
+ */
+export async function textSearchBiased(
+  text: string,
+  biasLat: number,
+  biasLng: number,
+  radiusMeters: number,
+): Promise<{
+  city: string | null
+  country: string | null
+  countryCode: string | null
+  lat: number
+  lng: number
+  placeId: string
+  name: string
+  types: string[]
+} | null> {
+  await loadGoogleMapsScript()
+
+  const div = document.createElement('div')
+  const service = new google.maps.places.PlacesService(div)
+
+  // Text Search with location bias
+  const results = await new Promise<google.maps.places.PlaceResult[]>((resolve, reject) => {
+    service.textSearch(
+      {
+        query: text,
+        location: new google.maps.LatLng(biasLat, biasLng),
+        radius: radiusMeters,
+      },
+      (res, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK && res && res.length > 0) {
+          resolve(res)
+        } else if (status === google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
+          resolve([])
+        } else {
+          reject(new Error(`Biased text search failed: ${status}`))
+        }
+      },
+    )
+  })
+
+  if (results.length === 0) return null
+
+  const top = results[0]
+  if (!top.geometry?.location || !top.place_id) return null
+
+  // Text Search results don't include address_components — fetch via Place Details
+  const details = await getPlaceDetails(service, top.place_id)
+  const components = details?.address_components ?? []
+
+  let city: string | null = null
+  let country: string | null = null
+  let countryCode: string | null = null
+
+  for (const comp of components) {
+    if (comp.types.includes('locality') && !city) {
+      city = comp.long_name
+    }
+    if (comp.types.includes('administrative_area_level_1') && !city) {
+      // Use admin area as fallback if no locality
+      city = comp.long_name
+    }
+    if (comp.types.includes('country')) {
+      country = comp.long_name
+      countryCode = comp.short_name
+    }
+  }
+
+  return {
+    city,
+    country,
+    countryCode,
+    lat: top.geometry.location.lat(),
+    lng: top.geometry.location.lng(),
+    placeId: top.place_id,
+    name: top.name ?? '',
+    types: top.types ?? [],
+  }
+}
+
 const GEO_TYPES = new Set([
   'locality', 'sublocality', 'administrative_area_level_1', 'administrative_area_level_2',
   'country', 'natural_feature', 'colloquial_area', 'neighborhood',
