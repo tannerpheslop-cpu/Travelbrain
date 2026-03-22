@@ -280,19 +280,21 @@ function checkGeographicRelevance(
   cityName: string,
   country: string,
   address: string,
-  meaningfulWords: string[],
+  _meaningfulWords: string[],
 ): boolean {
-  const inputLower = inputText.toLowerCase()
-  const cityLower = cityName.toLowerCase()
-  const countryLower = country.toLowerCase()
-  const addressLower = address.toLowerCase()
+  // Get words from input with 3+ characters
+  const inputWords = inputText.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+  if (inputWords.length === 0) return false
 
-  if (inputLower.includes(cityLower)) return true
-  if (countryLower && inputLower.includes(countryLower)) return true
-  if (meaningfulWords.some(w => cityLower.includes(w) || addressLower.includes(w))) return true
+  // Build a set of whole words from the result's geographic data
+  const resultWords = new Set(
+    [cityName, country, address]
+      .join(' ')
+      .toLowerCase()
+      .split(/[\s,]+/)
+      .filter(w => w.length > 2),
+  )
 
-  const cityWords = cityLower.split(/[\s,]+/).filter(w => w.length > 2 && !EDGE_BLOCKLIST.has(w))
-  if (cityWords.some(w => inputLower.includes(w))) return true
-
-  return false
+  // At least ONE input word must appear as a WHOLE WORD in the result
+  return inputWords.some(w => resultWords.has(w))
 }

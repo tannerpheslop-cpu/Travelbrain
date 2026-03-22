@@ -122,31 +122,33 @@ function extractMeaningfulWords(text: string): string[] {
 
 /**
  * Check if the detected location has geographic relevance to the input text.
- * Prevents false positives like "example" matching a business in New York.
+ * Uses WHOLE WORD matching only — no substring matches.
+ * Prevents false positives like "Ffyyyggggccff" → New York.
+ *
+ * Exported for testing.
  */
-function hasGeographicRelevance(
+export function hasGeographicRelevance(
   inputText: string,
-  result: { name: string; address: string; country: string; countryCode: string | null },
-  meaningfulWords: string[],
+  resultName: string,
+  resultAddress: string,
+  cityName: string,
+  countryName: string,
 ): boolean {
-  const inputLower = inputText.toLowerCase()
-  const nameLower = result.name.toLowerCase()
-  const countryLower = result.country.toLowerCase()
-  const addressLower = result.address.toLowerCase()
+  // Get words from input with 3+ characters
+  const inputWords = inputText.toLowerCase().split(/\s+/).filter(w => w.length > 2)
+  if (inputWords.length === 0) return false
 
-  // Check if city/country name appears in input
-  if (inputLower.includes(nameLower)) return true
-  if (countryLower && inputLower.includes(countryLower)) return true
-  if (result.countryCode && inputLower.includes(result.countryCode.toLowerCase())) return true
+  // Build a set of whole words from the result's geographic data
+  const resultWords = new Set(
+    [resultName, resultAddress, cityName, countryName]
+      .join(' ')
+      .toLowerCase()
+      .split(/[\s,]+/)
+      .filter(w => w.length > 2),
+  )
 
-  // Check if any meaningful word appears in the result's name or address
-  if (meaningfulWords.some(w => nameLower.includes(w) || addressLower.includes(w))) return true
-
-  // Check if any word from the result name appears in the input
-  const nameWords = nameLower.split(/[\s,]+/).filter(w => w.length > 2 && !BLOCKLIST.has(w))
-  if (nameWords.some(w => inputLower.includes(w))) return true
-
-  return false
+  // At least ONE input word must appear as a WHOLE WORD in the result
+  return inputWords.some(w => resultWords.has(w))
 }
 
 interface DetectOptions {
@@ -261,15 +263,9 @@ export async function detectLocationFromText(text: string, options?: DetectOptio
 
     // Helper: validate result before returning — reject false positives
     const validateAndReturn = async (result: TextSearchResult): Promise<TextSearchResult | null> => {
-      // Check relevance against both the resolved result AND the original search result
       const combinedAddress = `${result.address} ${originalAddress}`
       const combinedName = `${result.name} ${originalName}`
-      if (!hasGeographicRelevance(query, {
-        name: combinedName,
-        address: combinedAddress,
-        country: result.country,
-        countryCode: result.countryCode,
-      }, meaningfulWords)) {
+      if (!hasGeographicRelevance(query, combinedName, combinedAddress, result.name, result.country)) {
         console.warn(`[placesTextSearch] Rejected false positive: "${query}" → "${result.name}, ${result.country}"`)
         return null
       }
