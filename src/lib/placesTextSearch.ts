@@ -68,6 +68,73 @@ function getPlaceDetails(
   })
 }
 
+/**
+ * Geocode a text string using the Google Geocoding API.
+ * Returns city/country-level data, or null if no results.
+ *
+ * Geocoding is better than Text Search for pure geographic queries
+ * ("Seattle", "Italy", "Tiger Leaping Gorge") because it returns null
+ * for gibberish instead of hallucinating a random business.
+ *
+ * Exported for testing.
+ */
+export async function geocodeText(text: string): Promise<{
+  city: string | null
+  adminArea: string | null
+  country: string | null
+  countryCode: string | null
+  lat: number
+  lng: number
+  placeId: string
+  formattedAddress: string
+  types: string[]
+} | null> {
+  await loadGoogleMapsScript()
+  const geocoder = new google.maps.Geocoder()
+
+  return new Promise((resolve) => {
+    geocoder.geocode({ address: text }, (results, status) => {
+      if (status !== google.maps.GeocoderStatus.OK || !results || results.length === 0) {
+        resolve(null)
+        return
+      }
+
+      const top = results[0]
+      const components = top.address_components ?? []
+
+      let city: string | null = null
+      let adminArea: string | null = null
+      let country: string | null = null
+      let countryCode: string | null = null
+
+      for (const comp of components) {
+        if (comp.types.includes('locality') && !city) {
+          city = comp.long_name
+        }
+        if (comp.types.includes('administrative_area_level_1') && !adminArea) {
+          adminArea = comp.long_name
+        }
+        if (comp.types.includes('country')) {
+          country = comp.long_name
+          countryCode = comp.short_name
+        }
+      }
+
+      resolve({
+        city,
+        adminArea,
+        country,
+        countryCode,
+        lat: top.geometry.location.lat(),
+        lng: top.geometry.location.lng(),
+        placeId: top.place_id,
+        formattedAddress: top.formatted_address,
+        types: top.types ?? [],
+      })
+    })
+  })
+}
+
 const GEO_TYPES = new Set([
   'locality', 'sublocality', 'administrative_area_level_1', 'administrative_area_level_2',
   'country', 'natural_feature', 'colloquial_area', 'neighborhood',
