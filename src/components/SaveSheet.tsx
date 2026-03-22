@@ -395,14 +395,18 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       const session = (await supabase.auth.getSession()).data.session
       if (session) {
         const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+        const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
         fetch(`${supabaseUrl}/functions/v1/detect-location`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${session.access_token}`,
+            'apikey': anonKey,
           },
           body: JSON.stringify({ item_id: savedItem.id, title: savedItem.title }),
-        }).catch(() => {}) // Best-effort — ignore errors
+        })
+          .then(r => { if (!r.ok) console.warn('[detect-location] returned:', r.status) })
+          .catch(e => console.warn('[detect-location] failed:', e.message))
       }
     }
 

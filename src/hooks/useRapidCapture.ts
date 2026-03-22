@@ -139,15 +139,19 @@ export function useRapidCapture(
         const session = (await supabase.auth.getSession()).data.session
         if (session) {
           const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string
+          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
           for (const item of created) {
             fetch(`${supabaseUrl}/functions/v1/detect-location`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${session.access_token}`,
+                'apikey': anonKey,
               },
               body: JSON.stringify({ item_id: item.id, title: item.title }),
-            }).catch(() => {})
+            })
+              .then(r => { if (!r.ok) console.warn('[detect-location] returned:', r.status) })
+              .catch(e => console.warn('[detect-location] failed:', e.message))
           }
         }
       }
