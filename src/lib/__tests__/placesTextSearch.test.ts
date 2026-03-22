@@ -624,4 +624,64 @@ describe('detectLocationFromText', () => {
     const result = await detectLocationFromText('remember to buy sunscreen')
     expect(result).toBeNull()
   })
+
+  // ── Step 4 business name matching tests ────────────────────────────────
+
+  it('"Ichiran Ramen" → step 4 Text Search, business name matches → Tokyo', async () => {
+    // Geocode returns null for all words (ichiran, ramen are not geographic)
+    // Falls through to step 4 unbiased Text Search
+    placeDetailsMap['ichiran_step4'] = [
+      { long_name: 'Shibuya', short_name: 'Shibuya', types: ['sublocality', 'political'] },
+      { long_name: 'Tokyo', short_name: 'Tokyo', types: ['locality', 'political'] },
+      { long_name: 'Japan', short_name: 'JP', types: ['country', 'political'] },
+    ]
+    placeCountryMap['tokyo_step4'] = { country: 'Japan', countryCode: 'JP' }
+
+    let callCount = 0
+    mockTextSearch.mockImplementation(
+      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
+        callCount++
+        if (callCount === 1) {
+          cb([makePlaceResult({
+            name: 'Ichiran Ramen',
+            address: 'Shibuya, Tokyo, Japan',
+            lat: 35.66, lng: 139.70,
+            placeId: 'ichiran_step4',
+            types: ['restaurant', 'food'],
+          })], 'OK')
+        } else {
+          cb([makePlaceResult({
+            name: 'Tokyo',
+            address: 'Tokyo, Japan',
+            lat: 35.68, lng: 139.69,
+            placeId: 'tokyo_step4',
+            types: ['locality', 'political'],
+          })], 'OK')
+        }
+      }
+    )
+
+    const result = await detectLocationFromText('Ichiran Ramen')
+    expect(result).not.toBeNull()
+    expect(result!.name).toContain('Tokyo')
+    expect(result!.countryCode).toBe('JP')
+  })
+
+  it('"Ffyyyggggccff" → step 4 Text Search, business name doesnt match → null', async () => {
+    // Text Search returns something random, but business name won't match input
+    mockTextSearch.mockImplementation(
+      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
+        cb([makePlaceResult({
+          name: 'Some Random Place',
+          address: 'New York, NY, USA',
+          lat: 40.71, lng: -74.01,
+          placeId: 'random1',
+          types: ['establishment'],
+        })], 'OK')
+      }
+    )
+
+    const result = await detectLocationFromText('Ffyyyggggccff')
+    expect(result).toBeNull()
+  })
 })

@@ -540,7 +540,19 @@ export async function detectLocationFromText(text: string): Promise<TextSearchRe
       return result
     }
 
-    // It's a business/POI — resolve to city via Place Details
+    // It's a business/POI — validate that the input actually matches
+    // the business name before resolving to its city. This prevents
+    // gibberish from being matched to a random business.
+    const businessWords = new Set(
+      (top.name ?? '').toLowerCase().split(/[\s,]+/).filter(w => w.length > 2),
+    )
+    const inputMatchesBusiness = meaningfulWords.some(w => businessWords.has(w))
+    if (!inputMatchesBusiness) {
+      console.warn(`[detect] Step 4: input doesn't match business name "${top.name}" → rejected`)
+      return null
+    }
+
+    // Resolve to city via Place Details
     const details = await getPlaceDetails(service, top.place_id)
     const components = details?.address_components
 
@@ -550,14 +562,7 @@ export async function detectLocationFromText(text: string): Promise<TextSearchRe
         // Search for the city name to get clean coordinates
         const cityResults = await textSearch(service, cityInfo.name)
         if (cityResults.length > 0 && cityResults[0].geometry?.location && cityResults[0].place_id) {
-          const result = await buildResultFromPlace(cityResults[0], originalPlaceTypes)
-          // Relevance check: only compare geographic terms (city, address, country)
-          // Do NOT include top.name (original business name) — causes false positives
-          if (!hasGeographicRelevance(query, result.name, result.address, result.name, result.country)) {
-            console.warn(`[detect] Rejected false positive: "${query}" → "${result.name}"`)
-            return null
-          }
-          return result
+          return await buildResultFromPlace(cityResults[0], originalPlaceTypes)
         }
       }
     }
