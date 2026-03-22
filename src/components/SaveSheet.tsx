@@ -577,33 +577,6 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#2a2a28',
               }}
             />
-            {/* Attachment button or thumbnail */}
-            {attachedPreview ? (
-              <div className="relative shrink-0" style={{ width: 32, height: 32 }}>
-                <img src={attachedPreview} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }} />
-                <button
-                  type="button"
-                  onClick={removeAttachment}
-                  style={{
-                    position: 'absolute', top: -6, right: -6, width: 16, height: 16,
-                    borderRadius: '50%', background: '#2a2a28', color: 'white', border: 'none',
-                    fontSize: 10, lineHeight: 1, cursor: 'pointer', display: 'flex',
-                    alignItems: 'center', justifyContent: 'center',
-                  }}
-                >×</button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                style={{
-                  width: 32, height: 32, borderRadius: 8, background: '#f0eeea', border: 'none',
-                  cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: 14,
-                  color: '#9e9b94', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              ><svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 16, height: 16 }}><path strokeLinecap="round" strokeLinejoin="round" d="m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13" /></svg></button>
-            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -613,7 +586,52 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
             />
           </div>
 
-          {/* 2. URL preview area — always in DOM, animated height */}
+          {/* 2. Add photo area */}
+          <div style={{ margin: '10px 0' }}>
+            {attachedPreview ? (
+              <div className="relative" style={{ width: '100%', height: 80, borderRadius: 10, overflow: 'hidden' }}>
+                <img
+                  src={attachedPreview}
+                  alt=""
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                />
+                <button
+                  type="button"
+                  onClick={removeAttachment}
+                  style={{
+                    position: 'absolute', top: 6, right: 6, width: 24, height: 24,
+                    borderRadius: '50%', background: 'white', border: 'none',
+                    boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: 'var(--color-text-secondary)', fontSize: 14, fontFamily: "'DM Sans', sans-serif",
+                  }}
+                >×</button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  width: '100%', height: 48, borderRadius: 10,
+                  border: '1.5px dashed var(--color-border-input)',
+                  background: 'transparent', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  transition: 'border-color 0.15s, color 0.15s',
+                  color: 'var(--color-text-faint)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--color-text-tertiary)'; e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border-input)'; e.currentTarget.style.color = 'var(--color-text-faint)' }}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
+                </svg>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 400 }}>Add a photo</span>
+              </button>
+            )}
+          </div>
+
+          {/* 3. URL preview area — always in DOM, animated height */}
           <div
             style={{
               maxHeight: previewVisible ? 140 : 0,
