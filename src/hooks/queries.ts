@@ -407,32 +407,53 @@ export function useCreateDestination() {
       imageCreditName?: string
       imageCreditUrl?: string
     }) => {
-      const { data, error } = await supabase
+      // Core payload — columns guaranteed to exist
+      const corePayload: Record<string, unknown> = {
+        trip_id: input.tripId,
+        location_name: input.location.name,
+        location_lat: input.location.lat,
+        location_lng: input.location.lng,
+        location_place_id: input.location.place_id,
+        location_country: input.location.country ?? 'Unknown',
+        location_country_code: input.location.country_code ?? 'XX',
+        location_type: input.location.location_type,
+        proximity_radius_km: input.location.proximity_radius_km,
+        sort_order: input.sortOrder,
+      }
+
+      // Image fields (only if image was fetched)
+      if (input.imageUrl) {
+        corePayload.image_url = input.imageUrl
+        corePayload.image_source = input.imageSource ?? null
+        corePayload.image_credit_name = input.imageCreditName ?? null
+        corePayload.image_credit_url = input.imageCreditUrl ?? null
+      }
+
+      // Extended fields (may not exist on older schemas)
+      const extendedPayload: Record<string, unknown> = {
+        ...corePayload,
+        ...(input.location.name_en ? { location_name_en: input.location.name_en } : {}),
+        ...(input.location.name_local ? { location_name_local: input.location.name_local } : {}),
+      }
+
+      // Try extended first, fall back to core if columns don't exist
+      let { data, error } = await supabase
         .from('trip_destinations')
-        .insert({
-          trip_id: input.tripId,
-          location_name: input.location.name,
-          location_lat: input.location.lat,
-          location_lng: input.location.lng,
-          location_place_id: input.location.place_id,
-          location_country: input.location.country ?? 'Unknown',
-          location_country_code: input.location.country_code ?? 'XX',
-          location_type: input.location.location_type,
-          proximity_radius_km: input.location.proximity_radius_km,
-          location_name_en: input.location.name_en ?? null,
-          location_name_local: input.location.name_local ?? null,
-          sort_order: input.sortOrder,
-          ...(input.imageUrl
-            ? {
-                image_url: input.imageUrl,
-                image_source: input.imageSource ?? null,
-                image_credit_name: input.imageCreditName ?? null,
-                image_credit_url: input.imageCreditUrl ?? null,
-              }
-            : {}),
-        })
+        .insert(extendedPayload)
         .select()
         .single()
+
+      if (error) {
+        console.warn('Destination insert with extended columns failed, retrying core:', error.message)
+        const retry = await supabase
+          .from('trip_destinations')
+          .insert(corePayload)
+          .select()
+          .single()
+        data = retry.data
+        error = retry.error
+      }
+
       if (error) throw error
       trackEvent('destination_added', user?.id ?? null, {
         trip_id: input.tripId,
