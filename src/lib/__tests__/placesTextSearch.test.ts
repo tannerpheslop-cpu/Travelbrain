@@ -193,37 +193,23 @@ describe('detectLocationFromText', () => {
   })
 
   it('resolves "Ichiran Ramen Shibuya" to city (Tokyo), not the restaurant', async () => {
-    // First call: returns the restaurant
-    // Second call (city search): returns Tokyo
-    placeDetailsMap['ichiran1'] = [
-      { long_name: 'Shibuya', short_name: 'Shibuya', types: ['sublocality', 'political'] },
-      { long_name: 'Tokyo', short_name: 'Tokyo', types: ['locality', 'political'] },
-      { long_name: 'Japan', short_name: 'JP', types: ['country', 'political'] },
-    ]
-    placeCountryMap['tokyo1'] = { country: 'Japan', countryCode: 'JP' }
-
-    let callCount = 0
-    mockTextSearch.mockImplementation(
-      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
-        callCount++
-        if (callCount === 1) {
-          // First search: returns the restaurant
-          cb([makePlaceResult({
-            name: 'Ichiran Ramen',
-            address: 'Shibuya, Tokyo, Japan',
-            lat: 35.66, lng: 139.70,
-            placeId: 'ichiran1',
-            types: ['restaurant', 'food', 'point_of_interest'],
-          })], 'OK')
+    // Step 3b: "shibuya" geocodes to Tokyo
+    mockGeocode.mockImplementation(
+      (req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        if (req.address.toLowerCase() === 'shibuya') {
+          cb([{
+            address_components: [
+              { long_name: 'Shibuya', short_name: 'Shibuya', types: ['sublocality', 'political'] },
+              { long_name: 'Tokyo', short_name: 'Tokyo', types: ['locality', 'political'] },
+              { long_name: 'Japan', short_name: 'JP', types: ['country', 'political'] },
+            ],
+            geometry: { location: { lat: () => 35.66, lng: () => 139.70 } },
+            place_id: 'geo_shibuya',
+            formatted_address: 'Shibuya, Tokyo, Japan',
+            types: ['sublocality', 'political'],
+          }], 'OK')
         } else {
-          // Second search: city-level search for "Tokyo"
-          cb([makePlaceResult({
-            name: 'Tokyo',
-            address: 'Tokyo, Japan',
-            lat: 35.68, lng: 139.69,
-            placeId: 'tokyo1',
-            types: ['locality', 'political'],
-          })], 'OK')
+          cb(null, 'ZERO_RESULTS')
         }
       }
     )
@@ -232,9 +218,8 @@ describe('detectLocationFromText', () => {
     expect(result).not.toBeNull()
     // MUST resolve to city, not the restaurant
     expect(result!.locationType).toBe('geographic')
+    expect(result!.name).toBe('Tokyo')
     expect(result!.countryCode).toBe('JP')
-    // Original place types from the restaurant are preserved for category detection
-    expect(result!.originalPlaceTypes).toContain('restaurant')
   })
 
   it('returns Seattle directly for "Seattle" (already a city)', async () => {
@@ -257,44 +242,30 @@ describe('detectLocationFromText', () => {
     expect(result!.countryCode).toBe('US')
   })
 
-  it('resolves "Tiger Leaping Gorge" to a city/region, not the gorge itself', async () => {
-    placeDetailsMap['tlg1'] = [
-      { long_name: 'Shangri-La', short_name: 'Shangri-La', types: ['locality', 'political'] },
-      { long_name: 'Diqing', short_name: 'Diqing', types: ['administrative_area_level_1', 'political'] },
-      { long_name: 'China', short_name: 'CN', types: ['country', 'political'] },
-    ]
-    placeCountryMap['shangrila1'] = { country: 'China', countryCode: 'CN' }
-
-    let callCount = 0
-    mockTextSearch.mockImplementation(
-      (_req: unknown, cb: (results: google.maps.places.PlaceResult[] | null, status: string) => void) => {
-        callCount++
-        if (callCount === 1) {
-          cb([makePlaceResult({
-            name: 'Tiger Leaping Gorge',
-            address: 'Shangri-La, Diqing, Yunnan, China',
-            lat: 27.18, lng: 100.11,
-            placeId: 'tlg1',
-            types: ['natural_feature', 'tourist_attraction'],
-          })], 'OK')
-        } else {
-          // City search for "Shangri-La"
-          cb([makePlaceResult({
-            name: 'Shangri-La',
-            address: 'Shangri-La, Diqing, Yunnan, China',
-            lat: 27.83, lng: 99.71,
-            placeId: 'shangrila1',
-            types: ['locality', 'political'],
-          })], 'OK')
-        }
+  it('resolves "Tiger Leaping Gorge" to a city/region via geocoding', async () => {
+    // Geocoding finds the gorge and returns Shangri-La as the city
+    mockGeocode.mockImplementation(
+      (_req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        cb([{
+          address_components: [
+            { long_name: 'Shangri-La', short_name: 'Shangri-La', types: ['locality', 'political'] },
+            { long_name: 'Diqing', short_name: 'Diqing', types: ['administrative_area_level_1', 'political'] },
+            { long_name: 'China', short_name: 'CN', types: ['country', 'political'] },
+          ],
+          geometry: { location: { lat: () => 27.18, lng: () => 100.11 } },
+          place_id: 'geo_tlg',
+          formatted_address: 'Tiger Leaping Gorge, Shangri-La, Diqing, Yunnan, China',
+          types: ['natural_feature'],
+        }], 'OK')
       }
     )
 
     const result = await detectLocationFromText('Tiger Leaping Gorge')
     expect(result).not.toBeNull()
     expect(result!.locationType).toBe('geographic')
-    // Should NOT be "Tiger Leaping Gorge" — should be a city/region
-    expect(result!.originalPlaceTypes).toContain('natural_feature')
+    expect(result!.name).toBe('Shangri-La')
+    expect(result!.country).toBe('China')
+    expect(result!.countryCode).toBe('CN')
   })
 
   it('returns China for "China" (country-level)', async () => {

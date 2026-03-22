@@ -442,7 +442,24 @@ export async function detectLocationFromText(text: string): Promise<TextSearchRe
 
     // Step 3: Geocode
     console.log(`[detect] Step 3: geocoding "${geocodeInput}"`)
-    const geocodeResult = await geocodeText(geocodeInput)
+    let geocodeResult = await geocodeText(geocodeInput)
+
+    // Step 3b: If full-text geocode failed, try each meaningful word individually
+    // Geographic terms tend to be at the end ("Pizza pizza italy" → "italy" is last)
+    // so iterate in reverse. Limit to 4 attempts to avoid excessive API calls.
+    if (!geocodeResult && meaningfulWords.length > 1) {
+      console.log(`[detect] Step 3b: trying individual words (${meaningfulWords.length} words)`)
+      const wordsToTry = [...meaningfulWords].reverse().slice(0, 4)
+      for (const word of wordsToTry) {
+        if (word.length < 3) continue // Skip very short words
+        const wordResult = await geocodeText(word)
+        if (wordResult && (wordResult.city || wordResult.country)) {
+          console.log(`[detect] Step 3b: word "${word}" geocoded to ${wordResult.city ?? wordResult.country}`)
+          geocodeResult = wordResult
+          break
+        }
+      }
+    }
 
     if (geocodeResult) {
       console.log(`[detect] Geocode found: city=${geocodeResult.city}, country=${geocodeResult.country}`)
@@ -534,8 +551,9 @@ export async function detectLocationFromText(text: string): Promise<TextSearchRe
         const cityResults = await textSearch(service, cityInfo.name)
         if (cityResults.length > 0 && cityResults[0].geometry?.location && cityResults[0].place_id) {
           const result = await buildResultFromPlace(cityResults[0], originalPlaceTypes)
-          // Relevance check: at least one input word must match result
-          if (!hasGeographicRelevance(query, `${result.name} ${top.name ?? ''}`, `${result.address} ${top.formatted_address ?? ''}`, result.name, result.country)) {
+          // Relevance check: only compare geographic terms (city, address, country)
+          // Do NOT include top.name (original business name) — causes false positives
+          if (!hasGeographicRelevance(query, result.name, result.address, result.name, result.country)) {
             console.warn(`[detect] Rejected false positive: "${query}" → "${result.name}"`)
             return null
           }
