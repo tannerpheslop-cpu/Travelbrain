@@ -139,9 +139,13 @@ function ShareTripModal({ trip, onClose, onUpdated }: { trip: Trip; onClose: () 
   const selectedOption = privacyOptions.find((o) => o.value === privacy)!
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-lg bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div
+        className="fixed inset-x-0 bottom-0 z-50 bg-bg-card rounded-t-3xl shadow-xl overflow-hidden sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:rounded-2xl"
+        style={{ maxHeight: '85dvh' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="w-10 h-1 bg-border-input rounded-full mx-auto mt-3 sm:hidden" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
           <h2 className="text-base font-semibold text-text-primary">Share Trip</h2>
@@ -187,7 +191,7 @@ function ShareTripModal({ trip, onClose, onUpdated }: { trip: Trip; onClose: () 
           {error && <p className="text-sm text-error">{error}</p>}
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -229,9 +233,13 @@ function InviteCompanionModal({
   const hasAny = companions.length > 0 || pendingInvites.length > 0
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-lg bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden max-h-[85vh] flex flex-col">
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div
+        className="fixed inset-x-0 bottom-0 z-50 bg-bg-card rounded-t-3xl shadow-xl overflow-hidden flex flex-col sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:rounded-2xl"
+        style={{ maxHeight: '85dvh' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="w-10 h-1 bg-border-input rounded-full mx-auto mt-3 sm:hidden shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle shrink-0">
           <h2 className="text-base font-semibold text-text-primary">Invite Companions</h2>
@@ -307,7 +315,7 @@ function InviteCompanionModal({
           {!hasAny && <p className="text-sm text-text-faint">No companions yet. Invite someone above!</p>}
         </div>
       </div>
-    </div>
+    </>
   )
 }
 

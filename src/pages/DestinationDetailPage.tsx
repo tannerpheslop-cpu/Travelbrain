@@ -198,12 +198,13 @@ function AddDatesModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-lg bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div
+        className="fixed inset-x-0 bottom-0 z-50 bg-bg-card rounded-t-3xl shadow-xl overflow-hidden sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:rounded-2xl"
+        style={{ maxHeight: '85dvh' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="w-10 h-1 bg-bg-pill-dark rounded-full mx-auto mt-3 sm:hidden" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
           <h2 className="text-base font-semibold text-text-primary">
@@ -239,7 +240,7 @@ function AddDatesModal({
           )}
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
@@ -655,9 +656,13 @@ function AddFromInboxSheet({
     .filter((item) => !q || item.title.toLowerCase().includes(q) || (item.location_name?.toLowerCase().includes(q) ?? false))
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative w-full max-w-lg bg-bg-card rounded-t-3xl shadow-xl flex flex-col max-h-[82vh]">
+    <>
+      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+      <div
+        className="fixed inset-x-0 bottom-0 z-50 bg-bg-card rounded-t-3xl shadow-xl flex flex-col sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:rounded-2xl"
+        style={{ maxHeight: '82dvh' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="w-10 h-1 bg-bg-pill-dark rounded-full mx-auto mt-3 shrink-0" />
         <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle shrink-0">
           <h2 className="text-base font-semibold text-text-primary">Add from your Horizon</h2>
@@ -716,7 +721,7 @@ function AddFromInboxSheet({
           )}
         </div>
       </div>
-    </div>
+    </>
   )
 }
 
