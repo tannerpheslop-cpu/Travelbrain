@@ -389,10 +389,11 @@ function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: 
   return (
     <div
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
+      style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
       <div className="absolute inset-0 bg-black/40" />
-      <div className="relative w-full max-w-lg bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden">
+      <div className="relative w-full max-w-lg bg-bg-card rounded-t-3xl sm:rounded-2xl shadow-xl overflow-hidden" style={{ maxHeight: 'calc(100vh - 5rem - env(safe-area-inset-bottom, 0px))' }}>
         <div className="w-10 h-1 bg-border-input rounded-full mx-auto mt-2 sm:hidden" />
 
         {/* Header — compact */}
