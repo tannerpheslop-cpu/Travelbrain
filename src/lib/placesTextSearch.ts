@@ -314,7 +314,7 @@ export function hasGeographicRelevance(
 }
 
 /** Prepositions that signal a geographic portion follows. */
-const GEO_PREPOSITIONS = new Set(['in', 'near', 'at', 'around', 'from', 'visiting'])
+const GEO_PREPOSITIONS = new Set(['in', 'near', 'at', 'around', 'from', 'visiting', 'of', 'across', 'to', 'through'])
 
 /**
  * Extract the geographic portion of input text if it contains a
@@ -493,10 +493,12 @@ export async function detectLocationFromText(text: string): Promise<TextSearchRe
       }
 
       // Geocoding returned country/region but no city.
-      // For city-states (Hong Kong, Singapore, Monaco), the country IS the city.
-      // If the geo portion matches the country name, return the country directly.
+      // If the geocode input IS the country (or contains just the country name),
+      // return the country directly. Handles city-states and cases like
+      // "east coast of Taiwan" where we just want "Taiwan".
       const geoLower = geocodeInput.toLowerCase()
-      if (geocodeResult.country && geoLower === geocodeResult.country.toLowerCase()) {
+      const countryLower = geocodeResult.country?.toLowerCase() ?? ''
+      if (geocodeResult.country && (geoLower === countryLower || geoLower.includes(countryLower))) {
         console.log(`[detect] City-state match: "${geocodeInput}" = country "${geocodeResult.country}" — using country as city`)
         return buildResultFromGeoData({
           city: geocodeResult.country, // Use country name as city name

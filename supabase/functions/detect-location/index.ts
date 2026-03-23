@@ -129,10 +129,12 @@ Deno.serve(async (req) => {
         return await updateItem(adminClient, item_id, title, update)
       }
 
-      // For city-states (Hong Kong, Singapore, Monaco), the country IS the city.
+      // If the geocode input IS or CONTAINS the country name, return country directly.
+      // Handles city-states and "east coast of Taiwan" → Taiwan.
       const geoLower = geocodeInput.toLowerCase()
-      if (geocodeResult.country && geoLower === geocodeResult.country.toLowerCase()) {
-        console.log(`[detect] City-state match: "${geocodeInput}" = country "${geocodeResult.country}"`)
+      const countryLower = geocodeResult.country?.toLowerCase() ?? ""
+      if (geocodeResult.country && (geoLower === countryLower || geoLower.includes(countryLower))) {
+        console.log(`[detect] Country match: "${geocodeInput}" contains "${geocodeResult.country}" — returning country`)
         const update = {
           location_name: geocodeResult.country,
           location_lat: geocodeResult.lat,
@@ -480,7 +482,7 @@ async function textSearchBiased(
   }
 }
 
-const GEO_PREPOSITIONS = new Set(["in", "near", "at", "around", "from", "visiting"])
+const GEO_PREPOSITIONS = new Set(["in", "near", "at", "around", "from", "visiting", "of", "across", "to", "through"])
 
 function extractGeoPortion(text: string): string | null {
   const words = text.split(/\s+/)
