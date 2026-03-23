@@ -575,19 +575,51 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
 
 ---
 
-## 14. Code Quality Standards
+## 14. Code Quality Standards — TESTING IS MANDATORY
 
-**MANDATORY: Every code change MUST include corresponding tests. This is not optional.**
-- When adding a new feature: write unit tests for any new utility functions/logic AND an e2e test for the user-facing flow.
-- When fixing a bug: write a regression test that verifies the bug is fixed. The test should fail without the fix and pass with it.
-- When modifying existing functionality: update any existing tests that are affected AND verify all existing tests still pass.
-- Before EVERY commit: run `npm run test:all`. If any test fails, fix it before committing. If new code was added without tests, write the tests before committing.
-- NEVER commit code without running tests. NEVER skip writing tests for new functionality.
+**ABSOLUTE RULE: No commit is allowed without corresponding tests.**
 
-**Test coverage expectations:**
-- Every utility function in `/lib/` has unit tests
-- Every user-facing flow (save, create trip, add destination, delete, pin, share, adopt) has e2e tests
-- Every auto-detection feature (location detection, category detection, image display evaluation) has unit tests with the test cases specified in the original implementation prompts
+This is not a suggestion. This is not optional. Every single commit must include:
+
+1. **For bug fixes:** a REGRESSION TEST that fails without the fix and passes with it. The test must verify the EXACT bug scenario reported by the user.
+2. **For new features:** INTEGRATION TESTS that verify the feature works end-to-end, not just that individual functions return correct values.
+3. **Before committing:** run `npm run test:all`. If any test fails, fix it. If new code has no test, write one.
+
+**What makes a GOOD test:**
+- Tests the user's actual scenario, not an abstract function
+- Example: "When a user types 'Scooter across the east coast of Taiwan', the auto-detected location is 'Taiwan' not 'Hualien County'"
+- Example: "When a user manually sets a location and saves, location_locked=true is in the database, and the Edge Function does not overwrite it"
+- Example: "When a user taps Create Trip on mobile viewport, the trip is created and the modal closes"
+
+**What makes a BAD test:**
+- Tests that a function exists
+- Tests that a function returns a value without testing the real scenario
+- Tests that duplicate other tests without covering new ground
+
+**BEFORE EVERY COMMIT, answer these questions:**
+1. What bug did I fix or feature did I add?
+2. What test did I write that would CATCH this bug if it came back?
+3. Does the test actually exercise the code path that was broken?
+
+If you cannot answer all three, you are not done.
+
+**Recurring bugs that MUST have regression tests (see /src/lib/__tests__/locationDetectionPipeline.test.ts, /src/components/__tests__/SaveSheetLocationLock.test.tsx, /src/pages/__tests__/recentlyAdded.test.ts):**
+- Location detection returning wrong city (Hualien instead of Taiwan, Kowloon instead of Hong Kong)
+- Edge Function overwriting user-set locations (location_locked protection)
+- Auto-detection re-triggering after user dismisses pill (dismissedAutoDetectRef)
+- Recently Added items re-entering the queue after deletion (left_recent flag)
+- Save flow being replaced with a menu (FAB opens unified save sheet directly)
+- Images not displaying on Horizon cards (ImageWithFade error/loaded state reset)
+
+**Test commands:**
+- `npm run test` — run unit tests (Vitest)
+- `npm run test:e2e` — run end-to-end tests (Playwright, requires dev server running)
+- `npm run test:all` — run both unit and e2e tests
+
+**When testing locally before committing:**
+- Use the preview server to reproduce the exact user scenario
+- Verify the fix works with REAL API calls, not just mocked functions
+- Check the database state before AND after the operation
 
 ---
 
@@ -600,13 +632,6 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
 - Prefetch images (destination photos) on list pages so they're cached before the user navigates deeper
 - Git commit after each working feature
 - All UI components must reference DESIGN-SYSTEM.md for typography, color, spacing, and component patterns. Use CSS custom properties from the design system. Import DM Sans and JetBrains Mono from Google Fonts.
-- After every code change, run `npm run test:all` to verify all tests pass. If any test fails, fix the issue before committing. Never commit code that breaks existing tests. When adding new features, add corresponding tests.
-  - `npm run test` — run unit tests (Vitest)
-  - `npm run test:e2e` — run end-to-end tests (Playwright, requires dev server running)
-  - `npm run test:all` — run both unit and e2e tests
-- Core user flows are covered by Playwright e2e tests. Run `npm run test:e2e` to execute them. The dev server must be running. Tests use the existing test user account and clean up after themselves.
-- When adding new features or fixing bugs, write corresponding unit tests and/or e2e tests covering the new behavior. New code should not decrease test coverage.
-- Before every commit, run `npm run test:all`. If any test fails, fix the issue before committing. If a new feature was added without corresponding tests, write the tests before committing.
 
 ---
 

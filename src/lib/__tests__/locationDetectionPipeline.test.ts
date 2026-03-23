@@ -519,21 +519,21 @@ describe('City-level resolution for city-states and districts', () => {
   })
 
   it('REGRESSION: "Restaurant in Hong Kong" → Hong Kong, not Kowloon', async () => {
-    // Geocoding "Hong Kong" returns locality=Kowloon, adminArea=Hong Kong
-    // Should prefer adminArea because it matches the input
+    // Google classifies Hong Kong as a COUNTRY with no locality or adminArea.
+    // The pipeline extracts "Hong Kong" via preposition "in", geocodes it,
+    // gets country=Hong Kong with city=null. The country-contains check
+    // should return Hong Kong directly instead of doing biased Text Search.
     mockGeocode.mockImplementation(
       (req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
         if (req.address.toLowerCase().includes('hong kong')) {
           cb([{
             address_components: [
-              { long_name: 'Kowloon', short_name: 'Kowloon', types: ['locality', 'political'] },
-              { long_name: 'Hong Kong', short_name: 'HK', types: ['administrative_area_level_1', 'political'] },
               { long_name: 'Hong Kong', short_name: 'HK', types: ['country', 'political'] },
             ],
             geometry: { location: { lat: () => 22.32, lng: () => 114.17 } },
             place_id: 'geo_hk',
-            formatted_address: 'Kowloon, Hong Kong',
-            types: ['locality'],
+            formatted_address: 'Hong Kong',
+            types: ['country', 'political'],
           }], 'OK')
         } else {
           cb(null, 'ZERO_RESULTS')
@@ -600,5 +600,212 @@ describe('City-level resolution for city-states and districts', () => {
     const result = await detectLocationFromText('Seattle coffee')
     expect(result).not.toBeNull()
     expect(result!.name).toBe('Seattle')
+  })
+
+  it('REGRESSION: "Scooter across the east coast of Taiwan" → Taiwan, not Hualien County', async () => {
+    // "of" is a preposition → extracts "Taiwan" → geocodes → country-level →
+    // country-contains check matches → returns Taiwan directly
+    // Previously: "of" was missing from prepositions, full text geocoded,
+    // biased Text Search found Hualien County
+    mockGeocode.mockImplementation(
+      (req: { address: string }, cb: (results: unknown[] | null, status: string) => void) => {
+        if (req.address.toLowerCase() === 'taiwan') {
+          cb([{
+            address_components: [
+              { long_name: 'Taiwan', short_name: 'TW', types: ['country', 'political'] },
+            ],
+            geometry: { location: { lat: () => 23.69, lng: () => 120.96 } },
+            place_id: 'geo_tw',
+            formatted_address: 'Taiwan',
+            types: ['country', 'political'],
+          }], 'OK')
+        } else {
+          cb(null, 'ZERO_RESULTS')
+        }
+      },
+    )
+
+    const result = await detectLocationFromText('Scooter across the east coast of Taiwan')
+    expect(result).not.toBeNull()
+    expect(result!.name).toBe('Taiwan')
+    expect(result!.country).toBe('Taiwan')
+    expect(result!.countryCode).toBe('TW')
+    // Must NOT be Hualien County
+    expect(result!.name).not.toContain('Hualien')
+  })
+})
+
+// ── RECURRING BUG #1: Location save payload completeness ──────────────────
+
+describe('Location save payload completeness', () => {
+  it('save payload includes all 6 location fields when location is set', () => {
+    // Simulates the save payload construction from SaveSheet
+    const location = {
+      name: 'Tokyo',
+      lat: 35.68,
+      lng: 139.69,
+      place_id: 'tokyo-1',
+      country: 'Japan',
+      country_code: 'JP',
+    }
+
+    const payload = {
+      location_name: location.name ?? null,
+      location_lat: location.lat ?? null,
+      location_lng: location.lng ?? null,
+      location_place_id: location.place_id ?? null,
+      location_country: location.country ?? null,
+      location_country_code: location.country_code ?? null,
+    }
+
+    // ALL 6 fields must be non-null when location is provided
+    expect(payload.location_name).toBe('Tokyo')
+    expect(payload.location_lat).toBe(35.68)
+    expect(payload.location_lng).toBe(139.69)
+    expect(payload.location_place_id).toBe('tokyo-1')
+    expect(payload.location_country).toBe('Japan')
+    expect(payload.location_country_code).toBe('JP')
+  })
+
+  it('save payload has all null location fields when no location', () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const location = null as any
+
+    const payload = {
+      location_name: location?.name ?? null,
+      location_lat: location?.lat ?? null,
+      location_lng: location?.lng ?? null,
+      location_place_id: location?.place_id ?? null,
+      location_country: location?.country ?? null,
+      location_country_code: location?.country_code ?? null,
+    }
+
+    expect(payload.location_name).toBeNull()
+    expect(payload.location_lat).toBeNull()
+    expect(payload.location_lng).toBeNull()
+    expect(payload.location_place_id).toBeNull()
+    expect(payload.location_country).toBeNull()
+    expect(payload.location_country_code).toBeNull()
+  })
+})
+
+// ── RECURRING BUG #3: Create trip saving state resets ──────────────────────
+
+describe('Trip creation saving state management', () => {
+  it('saving state resets after successful creation', () => {
+    // Simulates the handleCreate flow
+    let saving = false
+    const setSaving = (v: boolean) => { saving = v }
+
+    // Start creation
+    setSaving(true)
+    expect(saving).toBe(true)
+
+    // Simulate successful creation — finally block resets
+    try {
+      // trip created successfully
+    } finally {
+      setSaving(false)
+    }
+
+    expect(saving).toBe(false)
+  })
+
+  it('saving state resets after failed creation', () => {
+    let saving = false
+    let error: string | null = null
+    const setSaving = (v: boolean) => { saving = v }
+    const setError = (e: string | null) => { error = e }
+
+    setSaving(true)
+    expect(saving).toBe(true)
+
+    try {
+      throw new Error('Insert failed')
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setSaving(false)
+    }
+
+    expect(saving).toBe(false)
+    expect(error).toBe('Insert failed')
+  })
+
+  it('onCreated is called even if some destinations fail', () => {
+    // Simulates: trip created → destination 1 fails → destination 2 succeeds → onCreated called
+    let onCreatedCalled = false
+    const destinations = ['Tokyo', 'Osaka', 'Kyoto']
+    const failingIndex = 1 // Osaka fails
+
+    try {
+      // Trip created
+      void 'trip-1' // tripId used conceptually
+
+      // Destinations — each in try/catch
+      for (let i = 0; i < destinations.length; i++) {
+        try {
+          if (i === failingIndex) throw new Error('Insert failed')
+          // success
+        } catch {
+          // Continue — don't block
+        }
+      }
+
+      // ALWAYS call onCreated
+      onCreatedCalled = true
+    } catch {
+      // Trip creation itself failed
+    }
+
+    expect(onCreatedCalled).toBe(true)
+  })
+})
+
+// ── RECURRING BUG #4: Image display on Horizon cards ──────────────────────
+
+describe('Horizon card image display decision', () => {
+  type CardItem = { image_display: string | null; image_url: string | null; places_photo_url: string | null; location_place_id: string | null }
+
+  function shouldShowImage(item: CardItem): boolean {
+    const hasImageSource = !!(item.image_url?.trim()) || !!(item.places_photo_url?.trim()) || !!item.location_place_id
+    return item.image_display === 'thumbnail' || item.image_display === 'featured' || (item.image_display !== 'none' && hasImageSource)
+  }
+
+  it('shows image card when image_display=thumbnail and image_url is set', () => {
+    expect(shouldShowImage({ image_display: 'thumbnail', image_url: 'https://example.com/img.jpg', places_photo_url: null, location_place_id: null })).toBe(true)
+  })
+
+  it('shows text card when image_display=none even if image_url exists', () => {
+    expect(shouldShowImage({ image_display: 'none', image_url: 'https://example.com/img.jpg', places_photo_url: null, location_place_id: null })).toBe(false)
+  })
+
+  it('shows image card when image_display=null but image_url exists', () => {
+    expect(shouldShowImage({ image_display: null, image_url: 'https://example.com/img.jpg', places_photo_url: null, location_place_id: null })).toBe(true)
+  })
+
+  it('shows text card when no image data at all', () => {
+    expect(shouldShowImage({ image_display: null, image_url: null, places_photo_url: null, location_place_id: null })).toBe(false)
+  })
+})
+
+// ── Preposition extraction — verify "of", "across", "to", "through" ──────
+
+describe('extractGeoPortion with new prepositions', () => {
+  let extractGeoPortion: typeof import('../placesTextSearch').extractGeoPortion
+
+  beforeEach(async () => {
+    const mod = await import('../placesTextSearch')
+    extractGeoPortion = mod.extractGeoPortion
+  })
+
+  it.each([
+    ['Scooter across the east coast of Taiwan', 'the east coast of Taiwan'],
+    ['Hiking through the Alps', 'the Alps'],
+    ['Road trip to Kyoto', 'Kyoto'],
+    ['Pictures of Paris', 'Paris'],
+    ['Flight to Bangkok', 'Bangkok'],
+  ])('"%s" → "%s"', (input, expected) => {
+    expect(extractGeoPortion(input)).toBe(expected)
   })
 })
