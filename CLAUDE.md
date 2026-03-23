@@ -127,8 +127,14 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | user_id | UUID (FK → users) | Owner |
 | source_type | ENUM | 'url', 'screenshot', 'manual' |
 | source_url | TEXT (nullable) | Original URL if source_type = url |
-| image_url | TEXT (nullable) | OG image URL or Supabase Storage path |
+| image_url | TEXT (nullable) | OG image URL or user-uploaded photo |
 | places_photo_url | TEXT (nullable) | Auto-fetched Google Places Photo URL (fallback when image_url is null) |
+| image_display | TEXT | 'thumbnail' or 'none'. Determined at save time by evaluateImageDisplay. |
+| image_source | TEXT (nullable) | 'og_metadata', 'user_upload', or null. No Unsplash for entries. |
+| image_credit_name | TEXT (nullable) | Photographer credit (unused for entries, used for destinations) |
+| image_credit_url | TEXT (nullable) | Photographer profile URL |
+| image_options | JSONB (default '[]') | Unused for entries (used for destination image cycling) |
+| image_option_index | INTEGER (default 0) | Unused for entries |
 | title | TEXT | Editable. Auto-filled from OG title for URLs. |
 | description | TEXT (nullable) | From OG description |
 | site_name | TEXT (nullable) | e.g. "TikTok", "Instagram" |
@@ -138,10 +144,15 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | location_place_id | TEXT (nullable) | Google Place ID for deduplication |
 | location_country | TEXT (nullable) | Country name extracted from Google Places |
 | location_country_code | TEXT (nullable) | Two-letter country code (e.g. "CN", "TW") for flag emoji |
-| category | ENUM | 'restaurant', 'activity', 'hotel', 'transit', 'general' |
+| location_name_en | TEXT (nullable) | English name for bilingual display |
+| location_name_local | TEXT (nullable) | Local language name |
+| location_locked | BOOLEAN (default false) | True when user manually set/changed location. Prevents Edge Function overwrite. |
+| category | ENUM | 'restaurant', 'activity', 'hotel', 'transit', 'general' (legacy single category) |
 | notes | TEXT (nullable) | |
-| tags | TEXT[] (nullable) | Simple tag array |
+| tags | TEXT[] (nullable) | Simple tag array (legacy — being replaced by item_tags) |
 | is_archived | BOOLEAN | Default false. Hidden from inbox when true. |
+| first_viewed_at | TIMESTAMPTZ (nullable) | Set when user taps into item detail. Used for Recently Added graduation. |
+| left_recent | BOOLEAN (default false) | True when item has left the Recently Added section. Prevents re-entry. |
 | created_at | TIMESTAMPTZ | |
 
 ### trips
@@ -153,11 +164,13 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | status | ENUM | 'aspirational', 'planning', 'scheduled' (UI: Someday / Planning / Upcoming) |
 | start_date | DATE (nullable) | Set when scheduled |
 | end_date | DATE (nullable) | Set when scheduled |
-| cover_image_url | TEXT (nullable) | Auto from first destination image or user-selected |
+| cover_image_url | TEXT (nullable) | Auto from first destination image, trip name detection, or user-selected |
+| cover_image_source | TEXT (nullable) | 'destination', 'trip_name', or 'user_upload'. Tracks where cover came from. |
 | share_token | TEXT (nullable, unique) | URL slug for sharing |
 | share_privacy | ENUM (nullable) | 'city_only', 'city_dates', 'full' |
 | forked_from_trip_id | UUID (nullable, FK → trips) | If adopted from another trip |
-| is_featured | BOOLEAN | Default false. At most one per user (enforced by partial unique index) |
+| is_favorited | BOOLEAN | Default false. Pin/unpin via star on Trip Overview. At most one per user. |
+| notes | JSONB (default '[]') | Array of TripNote objects: { id, text, created_at, completed?, sort_order? } |
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | Auto-updated via trigger. Used for featured trip selection and sort order. |
 
@@ -173,12 +186,38 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | location_country | TEXT | Country name (e.g. "China") |
 | location_country_code | TEXT | Two-letter code (e.g. "CN") |
 | location_type | TEXT | 'city', 'country', or 'region' — from Google Places type data |
-| image_url | TEXT (nullable) | Destination photo (auto-fetched or user-selected) |
+| image_url | TEXT (nullable) | Destination photo (Unsplash or Google Places) |
+| image_source | TEXT (nullable) | 'unsplash' or 'google_places' |
+| image_credit_name | TEXT (nullable) | Photographer credit for Unsplash images |
+| image_credit_url | TEXT (nullable) | Photographer profile URL |
+| location_name_en | TEXT (nullable) | English name for bilingual display |
+| location_name_local | TEXT (nullable) | Local language name |
+| route_id | UUID (nullable, FK → trip_routes) | If destination is part of a route group |
 | start_date | DATE (nullable) | When the user will be in this destination |
 | end_date | DATE (nullable) | When the user leaves this destination |
 | sort_order | INTEGER | Order of destinations within the trip |
 | proximity_radius_km | INTEGER | Default 50 for cities, 500 for countries. Used for nearby item detection. |
 | created_at | TIMESTAMPTZ | |
+
+### trip_routes (groups destinations into named routes within a trip)
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID (PK) | |
+| trip_id | UUID (FK → trips) | |
+| name | TEXT | Route name (e.g. "Week 1: Tokyo → Osaka") |
+| sort_order | INTEGER | Order within the trip |
+| created_at | TIMESTAMPTZ | |
+
+### item_tags (many-to-many: items ↔ tags, replaces legacy category/tags)
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID (PK) | |
+| item_id | UUID (FK → saved_items) | |
+| tag_name | TEXT | Tag label (e.g. "restaurant", "must-try") |
+| tag_type | TEXT | 'category' or 'custom' |
+| user_id | UUID (FK → users) | |
+| created_at | TIMESTAMPTZ | |
+| | UNIQUE(item_id, tag_name) | One tag per name per item |
 
 ### destination_items (join table — links saved items to destinations)
 | Column | Type | Notes |
@@ -275,21 +314,42 @@ All standard CRUD (saved items, trips, destinations, comments, votes) happens di
 - Companions can read trips they're invited to and write comments/votes
 - Anyone with a valid share_token can read a shared trip (filtered by share_privacy level)
 
-### Edge Function: URL Metadata Extraction
-- POST /functions/v1/extract-metadata
+### Edge Functions
+
+**extract-metadata** (POST /functions/v1/extract-metadata)
 - Accepts a URL, fetches the page HTML server-side, extracts og:title, og:image, og:description, og:site_name
 - Also checks for twitter:image as a fallback for og:image
 - Falls back to `<title>` tag and first `<img>` tag if OG tags missing
 - Returns structured JSON
 - TikTok/Instagram may block server-side fetches — handle gracefully with fallback (let user fill in manually)
 
-### Edge Function: Adopt/Fork Trip
-- POST /functions/v1/adopt-trip
+**adopt-trip** (POST /functions/v1/adopt-trip)
 - Deep-copies a shared trip including all destinations, saved items, and destination_items/trip_general_items linkages
 - Creates new saved_item records owned by the adopting user
 - Creates new trip with forked_from_trip_id referencing the original
 - Preserves destination order, day_index, and sort_order
 - Original trip remains unchanged
+
+**invite-companion** (POST /functions/v1/invite-companion)
+- Adds a companion to a trip by email
+- If user exists: creates a companions row directly
+- If user doesn't exist: sends an invite email via Supabase Auth
+- Uses service role key for the companions insert
+
+**detect-location** (POST /functions/v1/detect-location)
+- Server-side location detection for entries saved without a location
+- **Trigger:** Client-side fire-and-forget POST from SaveSheet after save (when location is null). Requires both `Authorization` and `apikey` headers.
+- **Auth:** Deployed with `--no-verify-jwt`. Uses `SUPABASE_SERVICE_ROLE_KEY` for DB operations and a separate server-side `GOOGLE_API_KEY` (no referer restrictions) for Google API calls.
+- **Pipeline:** Blocklist check → preposition extraction → Geocoding REST API (full text) → Step 3b (individual word geocoding, reverse order, max 4 words) → biased Text Search (if country-only) → unbiased Text Search fallback (with business name validation)
+- **Safety:** Checks `location_locked` AND `location_name IS NULL` before updating. Uses `.is("location_name", null)` in the WHERE clause as DB-level protection against race conditions.
+- **NEVER overwrites** a location that has `location_locked = true` or `location_name` already set.
+
+**backfill-images** (POST /functions/v1/backfill-images)
+- One-time utility to backfill Unsplash images for trip destinations
+- Processes items in batches with rate limiting
+
+**persist-place-photo** (POST /functions/v1/persist-place-photo)
+- Persists Google Places photos to Supabase Storage for permanent URLs
 
 ### Proximity Detection Logic
 - When a user saves an item with location data, check if any of the user's trips have a destination within proximity
@@ -330,28 +390,55 @@ These are non-negotiable and must guide every UI decision:
 
 **CRITICAL: The unified save flow (single input bottom sheet triggered by the FAB) is a core product feature. Do NOT remove, replace, or restructure this flow without explicit instruction. Do NOT replace it with a menu of options (Save a link / Photo / Add places). If a page redesign touches the Horizon page, verify the FAB still opens the unified save sheet after the change. The e2e test 'save-text.spec.ts' must pass after any Horizon page changes.**
 
-The save flow uses a single unified input triggered by a floating + button on the Horizon page. It opens as a bottom sheet with all fields visible immediately (category pills, location, notes, save button). Users type text, paste URLs, or attach images — the app auto-detects the content type. URL previews animate smoothly without layout shift. Clipboard paste of images is supported. Save commits the entry, resets the form, and keeps the sheet open for rapid successive saves. To close the sheet, the user swipes down on the drag handle or taps outside.
+The FAB (floating + button) is ONLY visible on the Horizon page (/inbox). It is hidden on all other pages (Trips, Trip Overview, Search, Profile). Visibility is controlled by an allowlist in GlobalActions.tsx.
 
-### How It Works
-1. User taps + button → bottom sheet opens with a single text input and all fields visible
-2. User types or pastes content. If a URL is detected, the app auto-fetches metadata and shows an animated preview card. If plain text, it becomes a manual entry title.
-3. User can attach an image via the ▣ button or by pasting from clipboard. Attached images override OG metadata thumbnails.
-4. User optionally selects a category pill, sets location via Google Places, adds notes
-5. Save button commits the entry, resets the form, and keeps the sheet open for rapid successive saves
-6. If the saved item's location is near a destination in one of the user's trips, show a suggestion to add it
+### Single Entry Mode (Default)
+1. User taps FAB → bottom sheet opens with single text input, category pills, location field, notes, and Save button all visible
+2. User types or pastes content. If a URL is detected, metadata is auto-fetched and a preview card appears. If plain text, it becomes the entry title.
+3. **Location auto-detection:** After a debounce (1.5s for 3+ words, 2s for 1-2 words), the Geocoding-first detection pipeline runs. If a location is detected, it appears as a pill below the input. The pill IS the committed location — no separate accept step. User can tap × to dismiss and manually set a different location via the autocomplete input below.
+4. **Dismiss protection:** When the user taps × on the auto-detected pill, a `dismissedAutoDetectRef` prevents re-detection from running again. The detection effect checks this ref at BOTH the guard level (before setTimeout) and inside the async callback (after detectLocationFromText resolves). This prevents the bug where dismissing the pill triggered re-detection via the useEffect dependency array.
+5. User can attach a photo via the "Add a photo" dashed area or by clipboard paste.
+6. Category pills support multi-select. Auto-detection pre-selects categories from Google Places types and keyword matching.
+7. **Save** commits the entry and closes the sheet after 300ms delay.
+8. If no location was set at save time, a fire-and-forget POST to the detect-location Edge Function triggers server-side detection.
 
-**There is NO screenshot OCR or ML classification.** Users tag manually. This is a deliberate design decision — it's faster, more accurate, and avoids the frustration of wrong AI guesses.
+### Bulk Entry Mode
+- Accessible via "Bulk add" link in the save sheet
+- Type text, press Enter → saves instantly with no detection delay
+- Server-side Edge Function handles location and category detection in background
+- Sheet stays open for rapid successive entries
+
+### Image Rules for Entries
+- Only two sources: OG metadata from URL saves, or user-uploaded photos
+- No Unsplash images on entries (Unsplash is only for trip destinations)
+- `image_display` is set at save time: 'thumbnail' if image exists, 'none' otherwise
+
+### location_locked
+- When a user manually selects from the autocomplete (not auto-detected pill), `location_locked = true` is written to the database
+- When a user changes location on the item detail page, `location_locked = true` is set
+- Auto-detected locations (pill or Edge Function) do NOT set `location_locked`
+- The Edge Function NEVER overwrites a location where `location_locked = true`
 
 ### Location Input
-All location fields use Google Places Autocomplete, configured to accept cities, regions, and countries. User starts typing and selects from dropdown suggestions. Stores structured data: location_name, location_lat, location_lng, location_place_id, location_country, location_country_code. The country and country_code fields are extracted from the Google Places address_components.
+All location fields use Google Places Autocomplete, configured to accept cities, regions, and countries. Stores structured data: location_name, location_lat, location_lng, location_place_id, location_country, location_country_code, location_name_en, location_name_local.
 
 ### Horizon Card Layout
 
-The inbox uses a responsive CSS grid (`repeat(auto-fill, minmax(240px, 1fr))`, gap 12px) grouped by country. Items within each country group display as cards with thumbnail area (or source icon placeholder), title, city pill (accent-tinted), category pill, source badge, and date. See DESIGN-SYSTEM.md for full card and grid spec. Grid and list view toggle available.
+The inbox uses a responsive CSS grid grouped by country (or city, togglable). Items display as image cards (dark gradient overlay, white text) when image_display='thumbnail', or text cards (warm gray background) when no image. Grid and list view toggle available.
 
 ### Horizon Filters
 
-Unassigned toggle, Trip dropdown, City dropdown. Search bar above filters. Grid/list view toggle. NO category filter pills in the filter bar — categories appear as pills on individual cards only.
+PillSheet bottom sheet with multi-select pill groups: Category, Country, Status, custom tags. OR within groups, AND across groups. Active filters show as dismissible pills below the search bar with "Clear all" at the right end. Country/City grouping toggle. Filter icon is icon-only (no text), tints copper when active.
+
+### Recently Added Section
+
+At the top of the Horizon page, a horizontal scroll row shows the 5 most recent entries that haven't been interacted with. Rules:
+- Maximum 5 entries, newest on the left
+- Entry leaves when: user taps into it (`first_viewed_at` set), item added to a trip, 48 hours pass, or bumped by newer entries
+- `left_recent = true` permanently prevents re-entry (even if a slot opens from deletion)
+- Entries in Recently Added are excluded from country groups below (no duplication)
+- Entries with pending location detection show a shimmer animation (stops after 30 seconds)
+- Section hidden when no qualifying entries exist
 
 ---
 
@@ -459,12 +546,12 @@ The Trips page (`/trips`) uses a featured trip hero card at the top with an adap
 ### Featured Trip Selection
 
 A pure client-side function (`selectFeaturedTrip`) picks which trip to feature using this priority cascade:
-1. **User-pinned:** `is_featured = true` (set manually via star button on TripOverviewPage)
+1. **User-pinned:** `is_favorited = true` (set manually via star button on TripOverviewPage)
 2. **Nearest upcoming:** `status = 'scheduled'` with `start_date >= today`, sorted by `start_date` ascending
 3. **Most recently edited Planning trip:** sorted by `updated_at` descending
 4. **Most recently edited Someday trip:** sorted by `updated_at` descending
 
-At most one trip can be `is_featured = true` per user (enforced by partial unique index in DB).
+At most one trip can be `is_favorited = true` per user (enforced by partial unique index in DB).
 
 ### Featured Trip Hero Card
 
@@ -895,3 +982,70 @@ Transaction fee on itinerary sales when the marketplace launches. Percentage TBD
 
 Future Stream 4 — Creator Tools (long-term):
 Premium features for marketplace creators: listing analytics, promoted placement, creator verification, bulk tools. Only relevant once the marketplace has meaningful scale.
+
+---
+
+## 20. Location Detection System
+
+Location detection is documented in detail in `/LOCATION-DETECTION-CONTEXT.md`. Summary:
+
+**Pipeline (both client-side and server-side Edge Function):**
+1. Blocklist check → skip if all words are generic (e.g. "my packing list")
+2. Preposition extraction → text after "in"/"near"/"at"/"of"/"across"/"to"/"through"/"around"/"from"/"visiting" is extracted for geocoding
+3. Geocoding API (full text or extracted portion) → returns city/country
+4. Step 3b: Individual word geocoding (reverse order, max 4 words) if full-text geocoding returns null
+5. Country-contains check: if geocode returns country-only and the input contains the country name, return the country directly (handles city-states like Hong Kong, Singapore, and phrases like "east coast of Taiwan")
+6. Biased Text Search within the country (if geocode returned country but no city and the country name doesn't match the input)
+7. Unbiased Text Search fallback (for business names like "Ichiran Ramen") with business name validation
+
+**Key properties:**
+- Always resolves to city level or higher. Never returns a business name as the location.
+- Gibberish returns null (Geocoding API returns nothing for non-geographic text).
+- `hasGeographicRelevance` uses whole-word matching only (prevents false positives).
+- The client uses the Google Maps JavaScript SDK; the Edge Function uses REST API equivalents with a separate server-side API key.
+
+**Two trigger paths:**
+1. Client-side: debounced detection in SaveSheet, result appears as pill
+2. Server-side: detect-location Edge Function for entries saved without a location
+
+**location_locked** prevents the Edge Function from overwriting user-set locations. See Section 8 for details.
+
+---
+
+## 21. Mobile Bottom Sheet Pattern
+
+**All bottom sheets and modals MUST use the fixed-bottom pattern.**
+
+Correct (works on mobile):
+```
+<>
+  <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
+  <div
+    className="fixed inset-x-0 bottom-0 z-50 bg-bg-card rounded-t-3xl shadow-xl"
+    style={{ maxHeight: '85dvh' }}
+    onClick={(e) => e.stopPropagation()}
+  >
+    {/* content */}
+  </div>
+</>
+```
+
+Incorrect (breaks touch targets on mobile):
+```
+<div className="fixed inset-0 z-50 flex items-end">
+  <div className="absolute inset-0 bg-black/40" />
+  <div className="relative">
+    {/* content */}
+  </div>
+</div>
+```
+
+The `flex items-end` pattern causes touch target misalignment on mobile due to dynamic viewport height changes in mobile browsers. The backdrop and sheet must be **separate fixed elements**, not parent/child in a flex container.
+
+Key rules:
+- Backdrop: `fixed inset-0 z-40` with `onClick={onClose}`
+- Sheet: `fixed inset-x-0 bottom-0 z-50` with `maxHeight: 85dvh` (dynamic viewport height)
+- Sheet content: `onClick={e.stopPropagation()}` to prevent taps inside from closing
+- Desktop centering: `sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2`
+
+All modals in the app have been migrated to this pattern: SaveSheet, CalendarRangePicker, AddToTripSheet, DestinationDetailPage modals, TripOverviewPage modals, TripsPage CreateTripModal.
