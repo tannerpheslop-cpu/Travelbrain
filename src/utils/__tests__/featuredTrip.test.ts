@@ -17,6 +17,7 @@ function makeTrip(overrides: Partial<TripWithDestinations> = {}): TripWithDestin
     forked_from_trip_id: null,
     is_featured: false,
     is_favorited: false,
+    map_collapsed: false,
     notes: [],
     created_at: '2026-01-01T00:00:00Z',
     updated_at: '2026-01-01T00:00:00Z',
