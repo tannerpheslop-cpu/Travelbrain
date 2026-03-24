@@ -322,4 +322,38 @@ describe('PillSheet', () => {
 
     expect(screen.queryByTestId('add-custom-tag-btn')).not.toBeInTheDocument()
   })
+
+  // ── BUG-1 regression: bottom sheet pattern ────────────────────────────────
+
+  it('uses fixed-bottom pattern, not flex items-end wrapper (mobile touch targets)', () => {
+    const { container } = render(
+      <PillSheet
+        groups={[categoryGroup]}
+        selected={[]}
+        onSelectionChange={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    )
+
+    const sheet = screen.getByTestId('pill-sheet')
+    const backdrop = screen.getByTestId('pill-sheet-backdrop')
+
+    // Sheet and backdrop must be separate sibling elements, not nested in a flex wrapper.
+    // The sheet must use fixed positioning pinned to bottom (inset-x-0 bottom-0).
+    expect(sheet.classList.contains('fixed')).toBe(true)
+    expect(sheet.classList.contains('bottom-0')).toBe(true)
+    expect(sheet.classList.contains('inset-x-0')).toBe(true)
+
+    // Backdrop must also be fixed, not absolute inside a flex parent.
+    expect(backdrop.classList.contains('fixed')).toBe(true)
+    expect(backdrop.classList.contains('inset-0')).toBe(true)
+
+    // They must NOT be wrapped in a flex items-end container.
+    // Both should be direct children of the React Fragment (i.e., the body).
+    const parent = sheet.parentElement
+    if (parent) {
+      expect(parent.classList.contains('flex')).toBe(false)
+      expect(parent.classList.contains('items-end')).toBe(false)
+    }
+  })
 })
