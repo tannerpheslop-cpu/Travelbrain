@@ -326,7 +326,7 @@ describe('PillSheet', () => {
   // ── BUG-1 regression: bottom sheet pattern ────────────────────────────────
 
   it('uses fixed-bottom pattern, not flex items-end wrapper (mobile touch targets)', () => {
-    const { container } = render(
+    render(
       <PillSheet
         groups={[categoryGroup]}
         selected={[]}
