@@ -1899,8 +1899,16 @@ export default function TripOverviewPage() {
               id: d.id,
               location_lat: d.location_lat,
               location_lng: d.location_lng,
-              location_name: d.location_name,
+              location_name: d.location_name.split(',')[0],
             }))}
+            onDestinationTap={(destId) => navigate(`/trip/${id}/dest/${destId}`)}
+            collapsed={trip?.map_collapsed ?? false}
+            onCollapseToggle={(collapsed) => {
+              // Optimistic local update
+              if (trip) setTrip({ ...trip, map_collapsed: collapsed })
+              // Persist to database
+              void supabase.from('trips').update({ map_collapsed: collapsed }).eq('id', id)
+            }}
           />
         </div>
       )}

@@ -66,6 +66,7 @@ export interface Trip {
   forked_from_trip_id: string | null
   is_featured: boolean
   is_favorited: boolean
+  map_collapsed: boolean | null
   notes: TripNote[]
   created_at: string
   updated_at: string
