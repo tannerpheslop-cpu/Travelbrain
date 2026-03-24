@@ -444,6 +444,8 @@ At the top of the Horizon page, a horizontal scroll row shows the 5 most recent 
 
 ## 9. Destination-Based Trip Model
 
+> See `/docs/TRIP-CONTEXT.md` for detailed trip creation, management, and image system documentation.
+
 This is the core product model. Trips are built around destinations, not flat lists of items.
 
 ### Destinations Can Be Cities OR Countries
