@@ -13,6 +13,7 @@ import LocationAutocomplete, { type LocationSelection } from '../components/Loca
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { fetchDestinationPhoto } from '../lib/unsplash'
 import { getScopedCountryCodes } from '../lib/continentCodes'
+import TripMap from '../components/map/TripMap'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { trySetTripCoverFromName, maybeUpdateCoverFromDestination } from '../lib/tripCoverImage'
 import { type CountryCluster } from '../lib/clusters'
@@ -1888,6 +1889,20 @@ export default function TripOverviewPage() {
             })
           }}
         />
+      )}
+
+      {/* ── Trip Map ── */}
+      {destinations.length > 0 && (
+        <div className="mb-4">
+          <TripMap
+            destinations={destinations.map(d => ({
+              id: d.id,
+              location_lat: d.location_lat,
+              location_lng: d.location_lng,
+              location_name: d.location_name,
+            }))}
+          />
+        </div>
       )}
 
       {/* ── Tab Navigation ── */}
