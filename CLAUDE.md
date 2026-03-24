@@ -388,6 +388,8 @@ These are non-negotiable and must guide every UI decision:
 
 ## 8. Save Flow Details
 
+> See `/docs/SAVE-FLOW-CONTEXT.md` for detailed save flow documentation.
+
 **CRITICAL: The unified save flow (single input bottom sheet triggered by the FAB) is a core product feature. Do NOT remove, replace, or restructure this flow without explicit instruction. Do NOT replace it with a menu of options (Save a link / Photo / Add places). If a page redesign touches the Horizon page, verify the FAB still opens the unified save sheet after the change. The e2e test 'save-text.spec.ts' must pass after any Horizon page changes.**
 
 The FAB (floating + button) is ONLY visible on the Horizon page (/inbox). It is hidden on all other pages (Trips, Trip Overview, Search, Profile). Visibility is controlled by an allowlist in GlobalActions.tsx.
