@@ -668,6 +668,8 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
 
 ## 14. Code Quality Standards — TESTING IS MANDATORY
 
+> See `/docs/QA-AGENT.md` for QA Agent process and checklists.
+
 **ABSOLUTE RULE: No commit is allowed without corresponding tests.**
 
 This is not a suggestion. This is not optional. Every single commit must include:
