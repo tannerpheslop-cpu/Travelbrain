@@ -728,6 +728,8 @@ If you cannot answer all three, you are not done.
 
 ## 15. Horizon Philosophy
 
+> See `/docs/HORIZON-CONTEXT.md` for detailed Horizon page documentation.
+
 The Horizon is a collection of potential travel experiences waiting to become trips. It is not a photo gallery, Pinterest board, or spreadsheet.
 
 Design principles:
