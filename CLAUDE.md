@@ -666,50 +666,112 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
 
 ---
 
-## 14. Code Quality Standards — TESTING IS MANDATORY
+## 14. Code Quality Standards & Testing Standards
 
 > See `/docs/QA-AGENT.md` for QA Agent process and checklists.
 
-**ABSOLUTE RULE: No commit is allowed without corresponding tests.**
+**ABSOLUTE RULE: NEVER commit without writing tests that follow the Testing Standards below. Every test must verify user-visible behavior and must fail if the feature/fix is reverted.**
 
-This is not a suggestion. This is not optional. Every single commit must include:
+**ALWAYS run the test suite before committing. If the suite takes more than 3 minutes, something is wrong — investigate before adding more tests.**
 
-1. **For bug fixes:** a REGRESSION TEST that fails without the fix and passes with it. The test must verify the EXACT bug scenario reported by the user.
-2. **For new features:** INTEGRATION TESTS that verify the feature works end-to-end, not just that individual functions return correct values.
-3. **Before committing:** run `npm run test:all`. If any test fails, fix it. If new code has no test, write one.
+### What makes a good test
 
-**What makes a GOOD test:**
-- Tests the user's actual scenario, not an abstract function
-- Example: "When a user types 'Scooter across the east coast of Taiwan', the auto-detected location is 'Taiwan' not 'Hualien County'"
-- Example: "When a user manually sets a location and saves, location_locked=true is in the database, and the Edge Function does not overwrite it"
-- Example: "When a user taps Create Trip on mobile viewport, the trip is created and the modal closes"
+1. **Tests verify USER-VISIBLE BEHAVIOR, not implementation.**
+   - Good: "when user saves a URL, entry appears in Horizon with extracted title"
+   - Bad: "extractMetadata is called with the correct arguments"
+   - If you refactor internals and the test breaks even though the feature still works, the test was bad.
 
-**What makes a BAD test:**
-- Tests that a function exists
-- Tests that a function returns a value without testing the real scenario
-- Tests that duplicate other tests without covering new ground
+2. **Tests must fail when the feature breaks.**
+   - If someone introduces a bug and the test still passes, the test is worthless.
+   - This means: mock ONLY at network boundaries (Supabase client, fetch calls to external APIs). NEVER mock internal functions, hooks, utilities, or state management.
+   - When mocking Supabase, mock at the `supabase.from().select()` / `.insert()` / `.update()` level — not higher.
 
-**BEFORE EVERY COMMIT, answer these questions:**
-1. What bug did I fix or feature did I add?
-2. What test did I write that would CATCH this bug if it came back?
-3. Does the test actually exercise the code path that was broken?
+3. **Tests cover edge cases, not just happy paths.**
+   - The happy path works because the developer tested it manually while building.
+   - Automated tests earn their keep by catching: empty inputs, missing data, error responses, boundary conditions, race conditions.
+   - Rule of thumb: every test file should have at least one "what happens when X goes wrong" test.
 
-If you cannot answer all three, you are not done.
+4. **Test names read as a product spec.**
+   - Someone who has never seen the code should understand what the feature does by reading the test names.
+   - Good: `test('location pill shows city name when geocoding returns city-level result')`
+   - Bad: `test('handleSave works correctly')`
+   - Pattern: `test('[when condition], [expected user-visible outcome]')`
 
-**Recurring bugs that MUST have regression tests (see /src/lib/__tests__/locationDetectionPipeline.test.ts, /src/components/__tests__/SaveSheetLocationLock.test.tsx, /src/pages/__tests__/recentlyAdded.test.ts):**
+5. **Every bug fix includes a regression test.**
+   - The test MUST reproduce the exact bug scenario.
+   - The test MUST fail if you revert the fix (verify this before committing).
+   - One test per bug. No more, no less.
+
+6. **Tests are fast and isolated.**
+   - No test depends on another test running first.
+   - No test modifies shared state that affects other tests.
+   - Target: entire suite runs in under 3 minutes.
+
+### What tests should NOT exist
+
+- "Renders without crashing" tests (if it renders, integration tests will catch it)
+- Snapshot tests (they break on every change and nobody reads the diffs)
+- Tests that assert internal state shape or specific CSS classes (exception: regression tests for specific CSS bugs like the PillSheet bottom-sheet pattern)
+- Tests that mock so many dependencies they're testing the mock setup
+- Duplicate tests covering the same behavior from slightly different angles
+- Tests for trivial code (simple mappers, pass-through functions, type conversions)
+
+### Test tiers
+
+**Tier 1 — Integration tests.** These test complete user flows from action to database state change. Supabase is mocked at the network boundary. These are the most valuable tests in the suite. If these pass, the app fundamentally works.
+
+**Tier 2 — Behavioral unit tests.** These test complex functions with branching logic where edge cases matter: location detection pipeline, adaptive trip UI logic, filter/search, image URL resolution, OG metadata parsing, share privacy mode filtering.
+
+**Tier 3 — Regression tests (grows over time).** One test per bug fix. Each test reproduces the bug scenario and verifies the fix. These accumulate as bugs are found and fixed.
+
+### Test file organization
+
+```
+src/
+  components/__tests__/       — Component behavior tests
+  hooks/__tests__/            — Hook logic tests
+  lib/__tests__/              — Library/utility behavior tests
+  pages/__tests__/            — Page logic and integration tests
+  utils/__tests__/            — Utility function tests
+e2e/                          — Playwright end-to-end tests
+```
+
+### Recurring bugs that MUST have regression tests
+
+See: `/src/lib/__tests__/locationDetectionPipeline.test.ts`, `/src/components/__tests__/SaveSheetLocationLock.test.tsx`, `/src/pages/__tests__/recentlyAdded.test.ts`
+
 - Location detection returning wrong city (Hualien instead of Taiwan, Kowloon instead of Hong Kong)
 - Edge Function overwriting user-set locations (location_locked protection)
 - Auto-detection re-triggering after user dismisses pill (dismissedAutoDetectRef)
 - Recently Added items re-entering the queue after deletion (left_recent flag)
 - Save flow being replaced with a menu (FAB opens unified save sheet directly)
 - Images not displaying on Horizon cards (ImageWithFade error/loaded state reset)
+- PillSheet using flex items-end wrapper instead of fixed bottom-0 pattern (mobile touch targets)
+- Suggestion labels showing neighborhood name instead of country name
 
-**Test commands:**
+### Builder workflow for tests
+
+1. NEVER write a test that passes against mocks alone — ask yourself "would this test catch a real bug?"
+2. When writing a regression test, FIRST write the test (it should fail against the current buggy code), THEN fix the bug (test should now pass). If you can't make the test fail first, the test isn't testing the right thing.
+3. Run the full suite before committing. Target: under 3 minutes.
+4. If a test is flaky (sometimes passes, sometimes fails), delete it and rewrite it. Flaky tests erode trust in the entire suite.
+
+### BEFORE EVERY COMMIT, answer these questions
+
+1. What bug did I fix or feature did I add?
+2. What test did I write that would CATCH this bug if it came back?
+3. Does the test actually exercise the code path that was broken?
+
+If you cannot answer all three, you are not done.
+
+### Test commands
+
 - `npm run test` — run unit tests (Vitest)
 - `npm run test:e2e` — run end-to-end tests (Playwright, requires dev server running)
 - `npm run test:all` — run both unit and e2e tests
 
-**When testing locally before committing:**
+### When testing locally before committing
+
 - Use the preview server to reproduce the exact user scenario
 - Verify the fix works with REAL API calls, not just mocked functions
 - Check the database state before AND after the operation

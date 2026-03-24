@@ -768,7 +768,9 @@ export default function TripOverviewPage() {
       setTripLoading(false)
       setNotFound(false)
     } else if (!tripQueryLoading && !tripData) {
-      if (tripError) setNotFound(true)
+      // Trip not found — either an error occurred or the query returned null
+      // (Supabase returns null data without error for non-existent UUIDs)
+      setNotFound(true)
       setTripLoading(false)
     }
   }, [tripData, tripQueryLoading, tripError])
@@ -868,21 +870,23 @@ export default function TripOverviewPage() {
       const suggs: Array<{ key: string; label: string; countryCode: string; itemCount: number; loc: LocationSelection }> = []
       for (const cluster of clusters) {
         if (!existingCodes.has(cluster.country_code)) {
-          const singleCity = cluster.cities.length === 1 ? cluster.cities[0] : null
+          // Always show country-level label for countries not yet in the trip.
+          // Even if all items cluster into one city/neighborhood, the suggestion
+          // represents the country as a whole (e.g. "Thailand · 3" not "Makkasan · 3").
           suggs.push({
             key: `country-${cluster.country_code}`,
-            label: singleCity ? singleCity.name : cluster.country,
+            label: cluster.country,
             countryCode: cluster.country_code,
             itemCount: cluster.item_count,
             loc: {
-              name: singleCity ? singleCity.name : cluster.country,
-              lat: singleCity ? singleCity.lat : cluster.lat,
-              lng: singleCity ? singleCity.lng : cluster.lng,
-              place_id: singleCity ? singleCity.place_id : `country-${cluster.country_code}`,
+              name: cluster.country,
+              lat: cluster.lat,
+              lng: cluster.lng,
+              place_id: `country-${cluster.country_code}`,
               country: cluster.country,
               country_code: cluster.country_code,
-              location_type: singleCity ? 'city' : 'country',
-              proximity_radius_km: singleCity ? 50 : 500,
+              location_type: 'country',
+              proximity_radius_km: 500,
               name_en: null,
               name_local: null,
             },
@@ -1275,21 +1279,23 @@ export default function TripOverviewPage() {
       for (const cluster of clusters) {
         const countryInTrip = existingCodes.has(cluster.country_code)
         if (!countryInTrip) {
-          const singleCity = cluster.cities.length === 1 ? cluster.cities[0] : null
+          // Always show country-level label for countries not yet in the trip.
+          // Even if all items cluster into one city/neighborhood, the suggestion
+          // represents the country as a whole (e.g. "Thailand · 3" not "Makkasan · 3").
           suggestions.push({
             key: `country-${cluster.country_code}`,
-            label: singleCity ? singleCity.name : cluster.country,
+            label: cluster.country,
             countryCode: cluster.country_code,
             itemCount: cluster.item_count,
             loc: {
-              name: singleCity ? singleCity.name : cluster.country,
-              lat: singleCity ? singleCity.lat : cluster.lat,
-              lng: singleCity ? singleCity.lng : cluster.lng,
-              place_id: singleCity ? singleCity.place_id : `country-${cluster.country_code}`,
+              name: cluster.country,
+              lat: cluster.lat,
+              lng: cluster.lng,
+              place_id: `country-${cluster.country_code}`,
               country: cluster.country,
               country_code: cluster.country_code,
-              location_type: singleCity ? 'city' : 'country',
-              proximity_radius_km: singleCity ? 50 : 500,
+              location_type: 'country',
+              proximity_radius_km: 500,
               name_en: null,
               name_local: null,
             },
@@ -1617,14 +1623,14 @@ export default function TripOverviewPage() {
 
   if (!tripLoading && notFound) {
     return (
-      <div className="px-5 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+      <div className="px-5 pb-24" data-testid="trip-not-found" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
         <button onClick={() => navigate('/trips')} className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" /></svg>
           Trips
         </button>
         <div className="mt-16 text-center">
-          <p className="text-text-tertiary font-medium">Trip not found</p>
-          <p className="mt-1 text-sm text-text-faint">It may have been deleted.</p>
+          <p className="text-text-tertiary font-medium text-lg" style={{ fontFamily: "'DM Sans', sans-serif" }}>Trip not found</p>
+          <p className="mt-2 text-sm text-text-faint" style={{ fontFamily: "'DM Sans', sans-serif" }}>This trip may have been deleted or you don't have access.</p>
         </div>
       </div>
     )

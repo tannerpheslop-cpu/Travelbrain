@@ -15,6 +15,8 @@ import ProfilePage from './pages/ProfilePage'
 import SearchPage from './pages/SearchPage'
 import SharedTripPage from './pages/SharedTripPage'
 import GlobalActions from './components/GlobalActions'
+import ErrorBoundary from './components/ErrorBoundary'
+import NotFoundPage from './pages/NotFoundPage'
 import DevLoginPage from './pages/DevLoginPage'
 
 const queryClient = new QueryClient({
@@ -43,6 +45,7 @@ function AppLayout() {
             <Route path="/search" element={<SearchPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/" element={<Navigate to="/inbox" replace />} />
+            <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </main>
         <BottomNav />
@@ -54,18 +57,20 @@ function AppLayout() {
 
 export default function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            {import.meta.env.DEV && <Route path="/dev-login" element={<DevLoginPage />} />}
-            <Route path="/s/:shareToken" element={<SharedTripPage />} />
-            <Route path="/*" element={<AppLayout />} />
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
-      {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AuthProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              {import.meta.env.DEV && <Route path="/dev-login" element={<DevLoginPage />} />}
+              <Route path="/s/:shareToken" element={<SharedTripPage />} />
+              <Route path="/*" element={<AppLayout />} />
+            </Routes>
+          </AuthProvider>
+        </BrowserRouter>
+        {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+      </QueryClientProvider>
+    </ErrorBoundary>
   )
 }

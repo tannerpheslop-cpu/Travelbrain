@@ -1,4 +1,16 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+
+// Mock transitive imports that require Supabase env vars at module load time
+vi.mock('../supabase', () => ({
+  supabase: {},
+  invokeEdgeFunction: vi.fn(),
+}))
+
+vi.mock('../googleMaps', () => ({
+  loadGoogleMapsScript: vi.fn(),
+  fetchBilingualNames: vi.fn(),
+}))
+
 import { hasGeographicRelevance } from '../placesTextSearch'
 
 describe('hasGeographicRelevance', () => {

@@ -91,13 +91,10 @@ export default function PillSheet({
   const nonCustomGroups = allowCustom ? groups.filter((g) => g.type !== 'custom') : groups
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      data-testid="pill-sheet-overlay"
-    >
-      {/* Backdrop */}
+    <>
+      {/* Backdrop — separate fixed element */}
       <div
-        className="absolute inset-0 transition-opacity duration-250 ease-out"
+        className="fixed inset-0 z-40 transition-opacity duration-250 ease-out"
         style={{
           backgroundColor: visible ? 'rgba(0,0,0,0.3)' : 'rgba(0,0,0,0)',
         }}
@@ -105,10 +102,10 @@ export default function PillSheet({
         data-testid="pill-sheet-backdrop"
       />
 
-      {/* Sheet */}
+      {/* Sheet — separate fixed element pinned to bottom */}
       <div
         ref={sheetRef}
-        className="relative w-full max-w-lg transition-transform duration-250 ease-out"
+        className="fixed inset-x-0 bottom-0 z-50 w-full max-w-lg mx-auto transition-transform duration-250 ease-out"
         style={{
           transform: visible ? 'translateY(0)' : 'translateY(100%)',
           maxHeight: '85dvh',
@@ -118,6 +115,7 @@ export default function PillSheet({
           display: 'flex',
           flexDirection: 'column',
         }}
+        onClick={(e) => e.stopPropagation()}
         data-testid="pill-sheet"
       >
         {/* Drag handle */}
@@ -448,7 +446,7 @@ export default function PillSheet({
           </div>
         )}
       </div>
-    </div>
+    </>
   )
 }
 

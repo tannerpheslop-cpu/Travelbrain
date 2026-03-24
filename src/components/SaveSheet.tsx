@@ -485,6 +485,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       <div
         className="fixed inset-x-0 bottom-0 z-50 bg-bg-card rounded-t-3xl flex flex-col"
         style={{ maxHeight: '90dvh' }}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle + close button */}
         <div className="relative flex justify-center pt-3 shrink-0">
