@@ -11,7 +11,7 @@
 
 ### 1.1 Page Header
 - Brand mark: "youji 游记" — JetBrains Mono 500, 11px, letter-spacing 3px, uppercase, --color-text-faint
-- Title: "Horizon" — DM Sans 28px 700, letter-spacing -0.5px
+- Title: "Horizon" — DM Sans 32px 700, letter-spacing -0.5px
 - Metadata: "{count} saves · {count} countries" — JetBrains Mono 11px, --color-text-tertiary
 - Divider: 1px solid --color-border
 
@@ -201,6 +201,7 @@ When an entry leaves, left_recent is set to true. An item with left_recent=true 
 ### 7.2 Trip State Persistence
 - If user was on /trip/123, navigates to Horizon, then taps Trips tab: should return to /trip/123, not /trips
 - Store last visited trips route
+- **(NOT YET IMPLEMENTED — on the backlog. Currently tapping Trips tab always navigates to /trips.)**
 
 ---
 
