@@ -1,10 +1,11 @@
+import mapboxgl from 'mapbox-gl'
 import { MAP_COLORS, MAP_SIZES } from './mapConfig'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface MapMarkerOptions {
-  map: google.maps.Map
-  position: google.maps.LatLngLiteral
+  map: mapboxgl.Map
+  lngLat: [number, number]
   chapter: number
   cityName: string
   dark?: boolean
@@ -14,19 +15,20 @@ export interface MapMarkerOptions {
 export interface DestinationMarker {
   remove: () => void
   setDark: (dark: boolean) => void
+  getElement: () => HTMLElement
 }
 
 // ── Marker HTML builder ──────────────────────────────────────────────────────
 
 export function buildMarkerHTML(chapter: number, cityName: string, dark: boolean): string {
   const dotSize = MAP_SIZES.markerRadius * 2 // 12px
-  const ringSize = dotSize + 8 // 20px — outer ring for tap affordance
+  const ringSize = dotSize + 8 // 20px
   const plateBackground = dark ? MAP_COLORS.labelPlateDark : MAP_COLORS.labelPlateLight
   const textColor = dark ? '#e8e6e1' : '#555350'
   const chapterStr = String(chapter).padStart(2, '0')
 
   return `
-    <div style="position:relative;display:flex;align-items:center;pointer-events:none;">
+    <div style="position:relative;display:flex;align-items:center;">
       <!-- Outer ring -->
       <div style="
         width:${ringSize}px;height:${ringSize}px;
@@ -34,8 +36,8 @@ export function buildMarkerHTML(chapter: number, cityName: string, dark: boolean
         border:1px solid ${MAP_COLORS.accent};
         opacity:0.2;
         position:absolute;
-        left:50%;top:50%;
-        transform:translate(-50%,-50%);
+        left:${(MAP_SIZES.markerTouchTarget - ringSize) / 2}px;
+        top:${(MAP_SIZES.markerTouchTarget - ringSize) / 2}px;
         pointer-events:none;
       "></div>
       <!-- Copper dot -->
@@ -46,6 +48,7 @@ export function buildMarkerHTML(chapter: number, cityName: string, dark: boolean
         flex-shrink:0;
         position:relative;
         z-index:1;
+        margin-left:${(MAP_SIZES.markerTouchTarget - dotSize) / 2}px;
       "></div>
       <!-- Label plate -->
       <div data-label-plate style="
@@ -79,125 +82,62 @@ export function buildMarkerHTML(chapter: number, cityName: string, dark: boolean
   `
 }
 
-// ── Factory function ─────────────────────────────────────────────────────────
+// ── Factory ──────────────────────────────────────────────────────────────────
 
 /**
- * Creates a custom map marker overlay for a trip destination.
+ * Creates a custom Mapbox marker with copper dot + label plate.
  *
- * Uses google.maps.OverlayView (not AdvancedMarkerElement) because the
- * existing Google Maps script doesn't load the `marker` library and doesn't
- * require a Cloud mapId.
- *
- * Built as a factory (not a class extending OverlayView) so that the
- * google.maps global doesn't need to exist at module import time — only
- * when createDestinationMarker() is called at runtime.
+ * Uses mapboxgl.Marker with a custom HTML element. The anchor is set so
+ * the copper dot sits at the exact coordinate (not the label center).
  */
 export function createDestinationMarker(opts: MapMarkerOptions): DestinationMarker {
-  const { map, position, chapter, cityName, onClick } = opts
+  const { map, lngLat, chapter, cityName, onClick } = opts
   let dark = opts.dark ?? false
 
-  // Create the OverlayView subclass at runtime (google.maps must be loaded)
-  const Overlay = class extends google.maps.OverlayView {
-    private container: HTMLDivElement | null = null
+  // Create container element
+  const el = document.createElement('div')
+  el.dataset.testid = `map-marker-${chapter}`
+  el.dataset.chapter = String(chapter)
+  el.dataset.cityname = cityName
+  Object.assign(el.style, {
+    cursor: 'pointer',
+    width: `${MAP_SIZES.markerTouchTarget}px`,
+    height: `${MAP_SIZES.markerTouchTarget}px`,
+    display: 'flex',
+    alignItems: 'center',
+    transition: 'transform 150ms ease-out',
+  })
+  el.innerHTML = buildMarkerHTML(chapter, cityName, dark)
 
-    onAdd() {
-      this.container = document.createElement('div')
-      this.container.dataset.testid = `map-marker-${chapter}`
-      this.container.dataset.chapter = String(chapter)
-      this.container.dataset.cityname = cityName
-      Object.assign(this.container.style, {
-        position: 'absolute',
-        cursor: 'pointer',
-        width: `${MAP_SIZES.markerTouchTarget}px`,
-        height: `${MAP_SIZES.markerTouchTarget}px`,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transition: 'transform 150ms ease-out',
-      })
-
-      this.container.innerHTML = buildMarkerHTML(chapter, cityName, dark)
-
-      if (onClick) {
-        this.container.addEventListener('click', (e) => {
-          e.stopPropagation()
-          // Pulse feedback: scale up briefly, then navigate
-          if (this.container) {
-            this.container.style.transform = 'scale(1.25)'
-            setTimeout(() => {
-              if (this.container) this.container.style.transform = 'scale(1)'
-              onClick()
-            }, 150)
-          } else {
-            onClick()
-          }
-        })
-      }
-
-      const panes = this.getPanes()
-      panes?.overlayMouseTarget.appendChild(this.container)
-    }
-
-    draw() {
-      if (!this.container) return
-      const projection = this.getProjection()
-      if (!projection) return
-
-      const pos = projection.fromLatLngToDivPixel(
-        new google.maps.LatLng(position.lat, position.lng),
-      )
-      if (!pos) return
-
-      const half = MAP_SIZES.markerTouchTarget / 2
-      this.container.style.left = `${pos.x - half}px`
-      this.container.style.top = `${pos.y - half}px`
-
-      // Flip label if marker is in the rightmost 25% of the viewport
-      this.updateLabelPosition(pos.x)
-    }
-
-    onRemove() {
-      if (this.container?.parentNode) {
-        this.container.parentNode.removeChild(this.container)
-      }
-      this.container = null
-    }
-
-    updateDark(newDark: boolean) {
-      dark = newDark
-      if (this.container) {
-        this.container.innerHTML = buildMarkerHTML(chapter, cityName, dark)
-      }
-    }
-
-    private updateLabelPosition(pixelX: number) {
-      if (!this.container) return
-      const mapObj = this.getMap()
-      if (!mapObj || !('getDiv' in (mapObj as object))) return
-
-      const mapWidth = (mapObj as google.maps.Map).getDiv().offsetWidth
-      const labelPlate = this.container.querySelector('[data-label-plate]') as HTMLElement | null
-      const innerWrapper = this.container.firstElementChild as HTMLElement | null
-
-      if (!labelPlate || !innerWrapper) return
-
-      if (pixelX > mapWidth * 0.75) {
-        innerWrapper.style.flexDirection = 'row-reverse'
-        labelPlate.style.marginLeft = '0'
-        labelPlate.style.marginRight = '6px'
-      } else {
-        innerWrapper.style.flexDirection = 'row'
-        labelPlate.style.marginLeft = '6px'
-        labelPlate.style.marginRight = '0'
-      }
-    }
+  if (onClick) {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation()
+      // Pulse feedback then navigate
+      el.style.transform = 'scale(1.25)'
+      setTimeout(() => {
+        el.style.transform = 'scale(1)'
+        onClick()
+      }, 150)
+    })
   }
 
-  const overlay = new Overlay()
-  overlay.setMap(map)
+  // Create Mapbox marker with anchor offset so dot is at the coordinate.
+  // The dot is centered horizontally in the 44px container at x=22,
+  // and vertically centered at y=22.
+  const marker = new mapboxgl.Marker({
+    element: el,
+    anchor: 'center',
+    offset: [0, 0],
+  })
+    .setLngLat(lngLat)
+    .addTo(map)
 
   return {
-    remove: () => overlay.setMap(null),
-    setDark: (newDark: boolean) => overlay.updateDark(newDark),
+    remove: () => marker.remove(),
+    setDark: (newDark: boolean) => {
+      dark = newDark
+      el.innerHTML = buildMarkerHTML(chapter, cityName, dark)
+    },
+    getElement: () => el,
   }
 }

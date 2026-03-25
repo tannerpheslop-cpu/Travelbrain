@@ -1901,14 +1901,20 @@ export default function TripOverviewPage() {
               location_lng: d.location_lng,
               location_name: d.location_name.split(',')[0],
             }))}
+            header={trip ? {
+              title: trip.title,
+              statusLabel: trip.status === 'aspirational' ? 'Someday' : trip.status === 'planning' ? 'Planning' : 'Upcoming',
+              metadataLine: metadataItems.join(' · '),
+            } : undefined}
             onDestinationTap={(destId) => navigate(`/trip/${id}/dest/${destId}`)}
             collapsed={trip?.map_collapsed ?? false}
             onCollapseToggle={(collapsed) => {
-              // Optimistic local update
               if (trip) setTrip({ ...trip, map_collapsed: collapsed })
-              // Persist to database
               void supabase.from('trips').update({ map_collapsed: collapsed }).eq('id', id)
             }}
+            onAddDestination={openAddDest}
+            onShare={() => setShowShareModal(true)}
+            onOpenMenu={() => setShowActionMenu(o => !o)}
           />
         </div>
       )}
