@@ -5,6 +5,7 @@ import { MapPin, Search, ArrowLeft } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import { onItemAddedToDestination } from '../lib/triggerPrecisionUpgrade'
 import { queryKeys } from '../hooks/queries'
 import SavedItemImage from '../components/SavedItemImage'
 import ImageWithFade from '../components/ImageWithFade'
@@ -1115,7 +1116,10 @@ export default function DestinationDetailPage() {
 
   const handleAddFromInbox = async (item: SavedItem) => {
     const ok = await handleLinkItem(item)
-    if (ok) trackEvent('item_added_to_destination', user!.id, { destination_id: destination!.id, item_id: item.id })
+    if (ok) {
+      trackEvent('item_added_to_destination', user!.id, { destination_id: destination!.id, item_id: item.id })
+      onItemAddedToDestination(item.id).catch(console.error)
+    }
   }
 
   const handlePlaceAdded = async (item: SavedItem) => {
@@ -1133,6 +1137,7 @@ export default function DestinationDetailPage() {
       setVotes((prev) => ({ ...prev, [item.id]: { count: 0, userVoted: false } }))
       setCommentCounts((prev) => ({ ...prev, [item.id]: 0 }))
       trackEvent('item_added_to_destination', user!.id, { destination_id: destination.id, item_id: item.id, source: 'place_search' })
+      onItemAddedToDestination(item.id).catch(console.error)
       // Nudge trip to planning status
       void supabase.from('trips').update({ status: 'planning' }).eq('id', tripId!).eq('status', 'aspirational')
       // Invalidate caches

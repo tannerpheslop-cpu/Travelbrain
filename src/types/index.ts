@@ -47,6 +47,7 @@ export interface SavedItem {
   first_viewed_at: string | null
   left_recent: boolean
   location_locked: boolean
+  location_precision: 'precise' | 'city' | 'country' | null
   created_at: string
 }
 

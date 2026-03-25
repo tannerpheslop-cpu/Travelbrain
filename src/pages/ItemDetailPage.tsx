@@ -152,6 +152,7 @@ export default function ItemDetailPage() {
     // Lock location if user manually changed it — prevents Edge Function from overwriting
     if (locationManuallyChanged.current) {
       updates.location_locked = true
+      updates.location_precision = location?.location_type === 'country' ? 'country' : 'precise'
       locationManuallyChanged.current = false
     }
     debouncedSave(updates)

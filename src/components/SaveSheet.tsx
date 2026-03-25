@@ -359,6 +359,12 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       location_country_code: location?.country_code ?? null,
       // Lock location if user manually selected it (not auto-detected)
       location_locked: location && userSelectedLocation ? true : false,
+      // Precision: 'precise' if user picked from autocomplete (city/region), 'country' if country-level, 'city' if auto-detected via geocoding
+      location_precision: location
+        ? (userSelectedLocation
+          ? (location.location_type === 'country' ? 'country' : 'precise')
+          : 'city')
+        : null,
       category: (selectedTags.find((t) => ['restaurant', 'activity', 'hotel', 'transit'].includes(t)) as Category) ?? 'general',
       notes: notes.trim() || null,
       image_display: imageDisplay,
