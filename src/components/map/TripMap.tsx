@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react'
-import { ChevronUp, Plus, Share2, MoreHorizontal } from 'lucide-react'
+import { ChevronUp, ChevronLeft, Plus, Share2, MoreHorizontal, Users } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import { LIGHT_STYLE, DARK_STYLE, applyStyleOverrides } from './mapStyles'
 import {
@@ -33,9 +33,16 @@ interface TripMapProps {
   onDestinationTap?: (destId: string) => void
   collapsed?: boolean
   onCollapseToggle?: (collapsed: boolean) => void
+  onBack?: () => void
+  onTitleEdit?: () => void
+  onStatusTap?: () => void
   onAddDestination?: () => void
   onShare?: () => void
+  onCompanions?: () => void
   onOpenMenu?: () => void
+  companionCount?: number
+  /** Whether to show the "tap a destination" hint below the map */
+  showHint?: boolean
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -61,9 +68,15 @@ export default function TripMap({
   onDestinationTap,
   collapsed = false,
   onCollapseToggle,
+  onBack,
+  onTitleEdit,
+  onStatusTap,
   onAddDestination,
   onShare,
+  onCompanions,
   onOpenMenu,
+  companionCount,
+  showHint = false,
 }: TripMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -76,7 +89,6 @@ export default function TripMap({
   const onTapRef = useRef(onDestinationTap)
   onTapRef.current = onDestinationTap
 
-  // Set Mapbox access token
   const token = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
   if (token) mapboxgl.accessToken = token
 
@@ -102,7 +114,6 @@ export default function TripMap({
       setMapReady(true)
     })
 
-    // Fit viewport after load
     map.on('load', () => {
       if (destinations.length === 1) {
         map.flyTo({
@@ -115,34 +126,30 @@ export default function TripMap({
         for (const d of destinations) {
           bounds.extend([d.location_lng, d.location_lat])
         }
-        map.fitBounds(bounds, { padding: FIT_BOUNDS_PADDING.top, duration: 0 })
+        map.fitBounds(bounds, { padding: FIT_BOUNDS_PADDING, duration: 0 })
       }
     })
 
     mapRef.current = map
 
     return () => {
-      // Clean up markers and route BEFORE destroying the map
       for (const m of markersRef.current) m.remove()
       markersRef.current = []
       routeRef.current?.remove()
       routeRef.current = null
-
       map.remove()
       mapRef.current = null
       styleLoadedRef.current = false
       setMapReady(false)
     }
-  // Re-create map on theme change or collapse toggle
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefersDark, collapsed, token, destinations.length === 0])
 
-  // ── Add markers when map is ready ──
+  // ── Markers ──
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady || destinations.length === 0 || collapsed) return
 
-    // Clear existing
     for (const m of markersRef.current) m.remove()
     markersRef.current = []
 
@@ -164,7 +171,7 @@ export default function TripMap({
     }
   }, [mapReady, destinations, prefersDark, collapsed])
 
-  // ── Add route when map is ready ──
+  // ── Route ──
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady || destinations.length < 2 || collapsed) return
@@ -193,137 +200,176 @@ export default function TripMap({
     )
   }
 
-  // ── Expanded state with overlaid header ──
+  // ── Expanded state — full bleed ──
   return (
-    <div
-      data-testid="trip-map"
-      style={{
-        width: '100%',
-        height: MAP_SIZES.mapHeight,
-        borderRadius: 16,
-        overflow: 'hidden',
-        position: 'relative',
-        background: prefersDark ? '#2c2b27' : '#faf9f8',
-      }}
-    >
-      {/* Mapbox container */}
-      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-
-      {/* ── Overlay: Header info (top left) ── */}
-      {header && (
-        <div
-          data-testid="map-header-overlay"
-          style={{
-            position: 'absolute',
-            top: 10,
-            left: 12,
-            zIndex: 10,
-            pointerEvents: 'none',
-            maxWidth: '60%',
-          }}
-        >
-          <h2
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              fontSize: 18,
-              fontWeight: 600,
-              color: '#f5f3ef',
-              lineHeight: 1.2,
-              textShadow: '0 1px 4px rgba(0,0,0,0.5)',
-              margin: 0,
-            }}
-          >
-            {header.title}
-          </h2>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-            <span
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 9,
-                fontWeight: 700,
-                color: MAP_COLORS.accent,
-                background: 'rgba(196, 90, 45, 0.2)',
-                padding: '2px 6px',
-                borderRadius: 4,
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-              }}
-            >
-              {header.statusLabel}
-            </span>
-            <span
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 9,
-                color: 'rgba(245, 243, 239, 0.7)',
-                textShadow: '0 1px 3px rgba(0,0,0,0.4)',
-              }}
-            >
-              {header.metadataLine}
-            </span>
-          </div>
-        </div>
-      )}
-
-      {/* ── Overlay: Action buttons (top right) ── */}
+    <>
       <div
+        data-testid="trip-map"
         style={{
-          position: 'absolute',
-          top: 10,
-          right: 12,
-          zIndex: 10,
-          display: 'flex',
-          gap: 6,
+          height: MAP_SIZES.mapHeight,
+          position: 'relative',
+          background: prefersDark ? '#2c2b27' : '#faf9f8',
+          // Full bleed — break out of parent padding
+          marginLeft: '-20px',
+          marginRight: '-20px',
+          width: 'calc(100% + 40px)',
         }}
       >
-        {onAddDestination && (
-          <OverlayIconButton onClick={onAddDestination} label="Add destination" testId="map-btn-add-dest">
-            <Plus size={15} />
-          </OverlayIconButton>
-        )}
-        {onShare && (
-          <OverlayIconButton onClick={onShare} label="Share" testId="map-btn-share">
-            <Share2 size={14} />
-          </OverlayIconButton>
-        )}
-        {onOpenMenu && (
-          <OverlayIconButton onClick={onOpenMenu} label="More" testId="map-btn-menu">
-            <MoreHorizontal size={15} />
-          </OverlayIconButton>
-        )}
-        {onCollapseToggle && (
-          <OverlayIconButton onClick={() => onCollapseToggle(true)} label="Collapse map" testId="map-collapse-toggle">
-            <ChevronUp size={15} />
-          </OverlayIconButton>
+        {/* Mapbox container */}
+        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+
+        {/* ── Top bar: back + actions ── */}
+        <div
+          style={{
+            position: 'absolute',
+            top: 14,
+            left: 14,
+            right: 14,
+            zIndex: 10,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'flex-start',
+          }}
+        >
+          {/* Left: back button */}
+          <div>
+            {onBack && (
+              <OverlayIconButton onClick={onBack} label="Back to trips" testId="map-btn-back">
+                <ChevronLeft size={16} />
+              </OverlayIconButton>
+            )}
+          </div>
+
+          {/* Right: action buttons */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {onAddDestination && (
+              <OverlayIconButton onClick={onAddDestination} label="Add destination" testId="map-btn-add-dest">
+                <Plus size={15} />
+              </OverlayIconButton>
+            )}
+            {onShare && (
+              <OverlayIconButton onClick={onShare} label="Share" testId="map-btn-share">
+                <Share2 size={14} />
+              </OverlayIconButton>
+            )}
+            {onCompanions && (
+              <OverlayIconButton onClick={onCompanions} label="Companions" testId="map-btn-companions" badge={companionCount}>
+                <Users size={14} />
+              </OverlayIconButton>
+            )}
+            {onOpenMenu && (
+              <OverlayIconButton onClick={onOpenMenu} label="More" testId="map-btn-menu">
+                <MoreHorizontal size={15} />
+              </OverlayIconButton>
+            )}
+            {onCollapseToggle && (
+              <OverlayIconButton onClick={() => onCollapseToggle(true)} label="Collapse map" testId="map-collapse-toggle">
+                <ChevronUp size={15} />
+              </OverlayIconButton>
+            )}
+          </div>
+        </div>
+
+        {/* ── Header info: title + status + metadata (below back button) ── */}
+        {header && (
+          <div
+            data-testid="map-header-overlay"
+            style={{
+              position: 'absolute',
+              top: 52,
+              left: 14,
+              zIndex: 10,
+              maxWidth: '70%',
+            }}
+          >
+            {/* Title — tappable for editing */}
+            <button
+              type="button"
+              onClick={onTitleEdit}
+              data-testid="map-title"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: onTitleEdit ? 'pointer' : 'default',
+                padding: 0,
+                textAlign: 'left',
+                display: 'block',
+              }}
+            >
+              <h2
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  fontSize: 20,
+                  fontWeight: 600,
+                  color: '#f5f3ef',
+                  lineHeight: 1.2,
+                  textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+                  margin: 0,
+                }}
+              >
+                {header.title}
+              </h2>
+            </button>
+
+            {/* Status + metadata row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
+              {/* Status pill — tappable for dropdown */}
+              <button
+                type="button"
+                onClick={onStatusTap}
+                data-testid="map-status-pill"
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  color: MAP_COLORS.accent,
+                  background: 'rgba(196, 90, 45, 0.2)',
+                  padding: '2px 7px',
+                  borderRadius: 4,
+                  textTransform: 'uppercase',
+                  letterSpacing: 0.5,
+                  border: 'none',
+                  cursor: onStatusTap ? 'pointer' : 'default',
+                }}
+              >
+                {header.statusLabel}
+              </button>
+              <span
+                style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: 9,
+                  color: 'rgba(245, 243, 239, 0.7)',
+                  textShadow: '0 1px 3px rgba(0,0,0,0.4)',
+                }}
+              >
+                {header.metadataLine}
+              </span>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* ── Overlay: Hint text (bottom center) ── */}
-      {destinations.length > 1 && (
+      {/* ── Hint text below the map ── */}
+      {showHint && destinations.length > 1 && (
         <div
+          data-testid="map-hint"
           style={{
-            position: 'absolute',
-            bottom: 28,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 10,
-            pointerEvents: 'none',
+            textAlign: 'center',
+            padding: '8px 0',
           }}
         >
           <span
             style={{
               fontFamily: "'DM Sans', sans-serif",
-              fontSize: 10,
-              color: 'rgba(245, 243, 239, 0.5)',
-              textShadow: '0 1px 3px rgba(0,0,0,0.3)',
-              whiteSpace: 'nowrap',
+              fontSize: 12,
+              color: 'var(--color-text-tertiary)',
             }}
           >
             tap a destination to explore
           </span>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -333,11 +379,13 @@ function OverlayIconButton({
   onClick,
   label,
   testId,
+  badge,
   children,
 }: {
   onClick: () => void
   label: string
   testId?: string
+  badge?: number
   children: React.ReactNode
 }) {
   return (
@@ -359,9 +407,21 @@ function OverlayIconButton({
         color: '#f5f3ef',
         boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
         backdropFilter: 'blur(4px)',
+        position: 'relative',
       }}
     >
       {children}
+      {badge != null && badge > 0 && (
+        <span style={{
+          position: 'absolute', top: -3, right: -3,
+          width: 14, height: 14, borderRadius: '50%',
+          background: MAP_COLORS.accent, color: '#fff',
+          fontSize: 9, fontWeight: 700,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {badge}
+        </span>
+      )}
     </button>
   )
 }

@@ -64,7 +64,7 @@ describe('MapRoute (Mapbox)', () => {
     const paint = (glowLayer!.config as Record<string, unknown>).paint as Record<string, unknown>
     expect(paint['line-color']).toBe('#c45a2d')
     expect(paint['line-opacity']).toBe(0.08)
-    expect(paint['line-width']).toBe(6)
+    expect(paint['line-width']).toBe(4)
   })
 
   it('dash layer uses dashed line pattern', () => {
@@ -76,7 +76,7 @@ describe('MapRoute (Mapbox)', () => {
     const dashLayer = addedLayers.find(l => l.id === 'youji-route-dash')
     expect(dashLayer).toBeDefined()
     const paint = (dashLayer!.config as Record<string, unknown>).paint as Record<string, unknown>
-    expect(paint['line-dasharray']).toEqual([3, 2])
-    expect(paint['line-opacity']).toBe(0.55)
+    expect(paint['line-dasharray']).toEqual([4, 3])
+    expect(paint['line-opacity']).toBe(0.45)
   })
 })

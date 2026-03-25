@@ -17,15 +17,14 @@ import TripMap from '../components/map/TripMap'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { trySetTripCoverFromName, maybeUpdateCoverFromDestination } from '../lib/tripCoverImage'
 import { type CountryCluster } from '../lib/clusters'
-import { BrandMark, CountryCodeBadge, StatusBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton, ConfirmDeleteModal } from '../components/ui'
+import { CountryCodeBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton, ConfirmDeleteModal } from '../components/ui'
 import DestinationCard from '../components/DestinationCard'
 import CalendarRangePicker from '../components/CalendarRangePicker'
 import RouteCard from '../components/RouteCard'
 import DottedConnector from '../components/DottedConnector'
 import SwipeToDelete from '../components/SwipeToDelete'
 import { shortName } from '../components/BilingualName'
-import { Plus, Share2, ChevronDown, Check } from 'lucide-react'
-import CompanionAvatarStack from '../components/CompanionAvatarStack'
+import { Plus, ChevronDown, Check } from 'lucide-react'
 import ScrollToTop from '../components/ScrollToTop'
 import {
   DndContext,
@@ -829,7 +828,7 @@ export default function TripOverviewPage() {
   const [showActionMenu, setShowActionMenu] = useState(false)
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const statusDropdownRef = useRef<HTMLDivElement>(null)
-  const [titleSavedVisible, setTitleSavedVisible] = useState(false)
+  const [, setTitleSavedVisible] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [datePickerDestId, setDatePickerDestId] = useState<string | null>(null)
@@ -1679,199 +1678,139 @@ export default function TripOverviewPage() {
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="px-5 pb-24 max-w-[860px] mx-auto" style={{ paddingTop: 'calc(2.25rem + env(safe-area-inset-top))' }}>
-      {/* ── Header ── */}
-      <div className="mb-6">
-        {/* Back + Brand */}
-        <div className="flex items-center justify-between mb-4">
-          <button onClick={() => navigate('/trips')} className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" /></svg>
-            Trips
-          </button>
-          <BrandMark />
-        </div>
+    <div className="px-5 pb-24 max-w-[860px] mx-auto" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
 
-        {/* Trip title row + avatar stack */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            {editingTitle ? (
-              <div className="flex items-center gap-2">
-                <input
-                  ref={titleInputRef}
-                  value={titleDraft}
-                  onChange={(e) => setTitleDraft(e.target.value)}
-                  onBlur={handleSaveTitle}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleSaveTitle()
-                    if (e.key === 'Escape') setEditingTitle(false)
-                  }}
-                  className="text-[32px] font-bold text-text-primary leading-[1.2] tracking-[-0.5px] bg-transparent border-b-2 border-accent focus:outline-none w-full pb-0.5"
-                />
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={handleStartEditTitle} className="group flex items-center gap-2 text-left">
-                  <h1 className="text-[32px] font-bold text-text-primary leading-[1.2] tracking-[-0.5px]">{trip?.title}</h1>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"
-                    className="w-4 h-4 text-text-ghost group-hover:text-text-tertiary transition-colors shrink-0 mt-2">
-                    <path d="M2.695 14.763l-1.262 3.154a.5.5 0 00.65.65l3.155-1.262a4 4 0 001.343-.885L17.5 5.5a2.121 2.121 0 00-3-3L3.58 13.42a4 4 0 00-.885 1.343z" />
-                  </svg>
-                </button>
-                {/* "Saved" confirmation */}
-                <span
-                  className={`text-xs font-medium text-accent transition-opacity duration-300 ${titleSavedVisible ? 'opacity-100' : 'opacity-0'}`}
-                  style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                >
-                  <Check className="w-3 h-3 inline mr-0.5" />Saved
-                </span>
-              </div>
-            )}
-          </div>
-          {/* Companion avatar stack */}
-          <div className="mt-2 shrink-0">
-            <CompanionAvatarStack
-              companions={companions}
-              onClick={() => setShowInviteModal(true)}
+      {/* ── Trip Map (full bleed, replaces old header) ── */}
+      {destinations.length > 0 && (
+        <TripMap
+          destinations={destinations.map(d => ({
+            id: d.id,
+            location_lat: d.location_lat,
+            location_lng: d.location_lng,
+            location_name: d.location_name.split(',')[0],
+          }))}
+          header={trip ? {
+            title: trip.title,
+            statusLabel: trip.status === 'aspirational' ? 'Someday' : trip.status === 'planning' ? 'Planning' : 'Upcoming',
+            metadataLine: metadataItems.join(' · '),
+          } : undefined}
+          onDestinationTap={(destId) => navigate(`/trip/${id}/dest/${destId}`)}
+          collapsed={trip?.map_collapsed ?? false}
+          onCollapseToggle={(collapsed) => {
+            if (trip) setTrip({ ...trip, map_collapsed: collapsed })
+            void supabase.from('trips').update({ map_collapsed: collapsed }).eq('id', id)
+          }}
+          onBack={() => navigate('/trips')}
+          onTitleEdit={handleStartEditTitle}
+          onStatusTap={() => setShowStatusDropdown(v => !v)}
+          onAddDestination={openAddDest}
+          onShare={() => setShowShareModal(true)}
+          onCompanions={() => setShowInviteModal(true)}
+          companionCount={companions.length}
+          onOpenMenu={() => setShowActionMenu(o => !o)}
+          showHint={!localStorage.getItem('youji_map_hint_dismissed')}
+        />
+      )}
+
+      {/* ── Title editing overlay (shown when editing) ── */}
+      {editingTitle && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-5 bg-black/30" onClick={() => setEditingTitle(false)}>
+          <div className="bg-bg-card rounded-xl p-4 w-full max-w-sm shadow-lg" onClick={e => e.stopPropagation()}>
+            <input
+              ref={titleInputRef}
+              value={titleDraft}
+              onChange={(e) => setTitleDraft(e.target.value)}
+              onBlur={handleSaveTitle}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSaveTitle()
+                if (e.key === 'Escape') setEditingTitle(false)
+              }}
+              className="text-xl font-bold text-text-primary bg-transparent border-b-2 border-accent focus:outline-none w-full pb-1"
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
             />
           </div>
         </div>
+      )}
 
-        {/* Metadata line + tappable status badge */}
-        <div className="flex items-center gap-2 mt-1.5">
-          {trip && (
-            <div className="relative" ref={statusDropdownRef}>
+      {/* ── Status dropdown (positioned below map) ── */}
+      {showStatusDropdown && trip && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowStatusDropdown(false)} />
+          <div
+            ref={statusDropdownRef}
+            className="bg-bg-card border border-border-subtle rounded-xl shadow-lg overflow-hidden z-50 min-w-[140px] mb-2"
+            style={{ position: 'relative', zIndex: 50 }}
+          >
+            {statusOptions.map((opt) => (
               <button
+                key={opt.value}
                 type="button"
-                onClick={() => setShowStatusDropdown((v) => !v)}
-                className="cursor-pointer hover:ring-2 hover:ring-accent/30 rounded transition-all"
+                onClick={() => handleChangeStatus(opt.value)}
+                className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors flex items-center justify-between gap-2 ${
+                  opt.value === trip.status
+                    ? 'text-accent bg-accent-light font-medium'
+                    : 'text-text-secondary hover:bg-bg-muted'
+                }`}
               >
-                <StatusBadge status={trip.status} />
+                {opt.label}
+                {opt.value === trip.status && <Check className="w-3.5 h-3.5" />}
               </button>
-              {showStatusDropdown && (
-                <div className="absolute top-full left-0 mt-1.5 bg-bg-card border border-border-subtle rounded-xl shadow-lg overflow-hidden z-50 min-w-[140px]">
-                  {statusOptions.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => handleChangeStatus(opt.value)}
-                      className={`w-full text-left px-3.5 py-2.5 text-sm transition-colors flex items-center justify-between gap-2 ${
-                        opt.value === trip.status
-                          ? 'text-accent bg-accent-light font-medium'
-                          : 'text-text-secondary hover:bg-bg-muted'
-                      }`}
-                    >
-                      {opt.label}
-                      {opt.value === trip.status && <Check className="w-3.5 h-3.5" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          {metadataItems.length > 0 && <MetadataLine items={metadataItems} />}
-        </div>
-
-        {/* Action buttons (below metadata) */}
-        <div className="flex items-center gap-2 mt-5">
-          {destinations.length > 0 && (
-            <button
-              type="button"
-              onClick={openAddDest}
-              className="flex items-center gap-1.5 transition-colors hover:border-accent/40"
-              style={{
-                padding: '9px 16px',
-                borderRadius: 8,
-                background: 'white',
-                border: '1px solid var(--color-border-input)',
-                color: 'var(--color-text-secondary)',
-                fontFamily: "'DM Sans', sans-serif",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Add Destination
-            </button>
-          )}
-          <SecondaryButton onClick={() => setShowShareModal(true)} className="px-3 py-2 rounded-lg" title="Share trip">
-            <Share2 className="w-4 h-4" />
-          </SecondaryButton>
-          <SecondaryButton onClick={() => setShowInviteModal(true)} className="relative px-3 py-2 rounded-lg">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
-            </svg>
-            {companions.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-accent rounded-full text-[10px] text-white font-bold flex items-center justify-center">
-                {companions.length}
-              </span>
-            )}
-          </SecondaryButton>
-
-          {/* ··· action menu */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowActionMenu(o => !o)}
-              style={{
-                background: '#ffffff', border: '1px solid #e0ddd7', borderRadius: 8,
-                padding: '9px 14px', cursor: 'pointer', fontSize: 16, fontWeight: 500,
-                color: '#6b6860', letterSpacing: 2, fontFamily: "'DM Sans', sans-serif", lineHeight: 1,
-              }}
-            >···</button>
-            {showActionMenu && (
-              <>
-                <div className="fixed inset-0 z-40" onClick={() => setShowActionMenu(false)} />
-                <div style={{
-                  position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
-                  background: '#ffffff', border: '1px solid #e8e6e1', borderRadius: 10,
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.1)', padding: '6px 0', minWidth: 180,
-                }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowActionMenu(false)
-                      if (!trip) return
-                      const newVal = !trip.is_favorited
-                      setTrip({ ...trip, is_favorited: newVal })
-                      toggleFavMutation.mutate({ tripId: trip.id, favorite: newVal })
-                    }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
-                      fontSize: 14, color: '#2a2a28', cursor: 'pointer', border: 'none',
-                      background: 'transparent', fontFamily: "'DM Sans', sans-serif",
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f5f3f0')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >{trip?.is_favorited ? 'Unpin' : 'Pin to top'}</button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowActionMenu(false); handleRefreshImages() }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
-                      fontSize: 14, color: '#2a2a28', cursor: 'pointer', border: 'none',
-                      background: 'transparent', fontFamily: "'DM Sans', sans-serif",
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#f5f3f0')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >Refresh images</button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowActionMenu(false); setShowDeleteConfirm(true) }}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
-                      fontSize: 14, color: '#c0392b', cursor: 'pointer', border: 'none',
-                      background: 'transparent', fontFamily: "'DM Sans', sans-serif",
-                    }}
-                    onMouseEnter={e => (e.currentTarget.style.background = '#fdf0ef')}
-                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-                  >Delete trip</button>
-                </div>
-              </>
-            )}
+            ))}
           </div>
-        </div>
-      </div>
+        </>
+      )}
+
+      {/* ── Action menu dropdown ── */}
+      {showActionMenu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowActionMenu(false)} />
+          <div style={{
+            position: 'relative', zIndex: 50, marginBottom: 8,
+            background: '#ffffff', border: '1px solid #e8e6e1', borderRadius: 10,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)', padding: '6px 0',
+          }}>
+            <button
+              type="button"
+              onClick={() => {
+                setShowActionMenu(false)
+                if (!trip) return
+                const newVal = !trip.is_favorited
+                setTrip({ ...trip, is_favorited: newVal })
+                toggleFavMutation.mutate({ tripId: trip.id, favorite: newVal })
+              }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
+                fontSize: 14, color: '#2a2a28', cursor: 'pointer', border: 'none',
+                background: 'transparent', fontFamily: "'DM Sans', sans-serif",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f5f3f0')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >{trip?.is_favorited ? 'Unpin' : 'Pin to top'}</button>
+            <button
+              type="button"
+              onClick={() => { setShowActionMenu(false); handleRefreshImages() }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
+                fontSize: 14, color: '#2a2a28', cursor: 'pointer', border: 'none',
+                background: 'transparent', fontFamily: "'DM Sans', sans-serif",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f5f3f0')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >Refresh images</button>
+            <button
+              type="button"
+              onClick={() => { setShowActionMenu(false); setShowDeleteConfirm(true) }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
+                fontSize: 14, color: '#c0392b', cursor: 'pointer', border: 'none',
+                background: 'transparent', fontFamily: "'DM Sans', sans-serif",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#fdf0ef')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >Delete trip</button>
+          </div>
+        </>
+      )}
 
       {/* ── Delete Confirmation Modal ── */}
       {showDeleteConfirm && trip && (
@@ -1889,34 +1828,6 @@ export default function TripOverviewPage() {
             })
           }}
         />
-      )}
-
-      {/* ── Trip Map ── */}
-      {destinations.length > 0 && (
-        <div className="mb-4">
-          <TripMap
-            destinations={destinations.map(d => ({
-              id: d.id,
-              location_lat: d.location_lat,
-              location_lng: d.location_lng,
-              location_name: d.location_name.split(',')[0],
-            }))}
-            header={trip ? {
-              title: trip.title,
-              statusLabel: trip.status === 'aspirational' ? 'Someday' : trip.status === 'planning' ? 'Planning' : 'Upcoming',
-              metadataLine: metadataItems.join(' · '),
-            } : undefined}
-            onDestinationTap={(destId) => navigate(`/trip/${id}/dest/${destId}`)}
-            collapsed={trip?.map_collapsed ?? false}
-            onCollapseToggle={(collapsed) => {
-              if (trip) setTrip({ ...trip, map_collapsed: collapsed })
-              void supabase.from('trips').update({ map_collapsed: collapsed }).eq('id', id)
-            }}
-            onAddDestination={openAddDest}
-            onShare={() => setShowShareModal(true)}
-            onOpenMenu={() => setShowActionMenu(o => !o)}
-          />
-        </div>
       )}
 
       {/* ── Tab Navigation ── */}
