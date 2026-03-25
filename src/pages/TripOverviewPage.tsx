@@ -17,7 +17,7 @@ import TripMap from '../components/map/TripMap'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { trySetTripCoverFromName, maybeUpdateCoverFromDestination } from '../lib/tripCoverImage'
 import { type CountryCluster } from '../lib/clusters'
-import { CountryCodeBadge, MetadataLine, DashedCard, PrimaryButton, SecondaryButton, ConfirmDeleteModal } from '../components/ui'
+import { CountryCodeBadge, DashedCard, PrimaryButton, SecondaryButton, ConfirmDeleteModal } from '../components/ui'
 import DestinationCard from '../components/DestinationCard'
 import CalendarRangePicker from '../components/CalendarRangePicker'
 import RouteCard from '../components/RouteCard'
@@ -810,8 +810,7 @@ export default function TripOverviewPage() {
   const [addDestKey, setAddDestKey] = useState(0)
   const [addDestError, setAddDestError] = useState<string | null>(null)
 
-  // Expanded accordion destination
-  const [expandedDestId, setExpandedDestId] = useState<string | null>(null)
+  // (accordion state removed — destinations navigate to map view now)
 
   // Clusters
   const inboxClustersRef = useRef<CountryCluster[]>([])
@@ -1674,9 +1673,7 @@ export default function TripOverviewPage() {
 
   // ── Accordion toggle ─────────────────────────────────────────────────────
 
-  const handleAccordionToggle = (destId: string) => {
-    setExpandedDestId(prev => prev === destId ? null : destId)
-  }
+  // handleAccordionToggle removed — destinations navigate to map view
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -1915,8 +1912,6 @@ export default function TripOverviewPage() {
                       const destIndex = overviewEntries.slice(0, i).filter(e => e.type === 'destination').length
                       const chapterNum = entry.type === 'destination' ? String(destIndex + 1).padStart(2, '0') : null
 
-                      const isExpanded = entry.type === 'destination' && expandedDestId === entry.destination.id
-
                       return (
                         <div key={entryId}>
                           {showUnscheduledDivider && (
@@ -1955,115 +1950,52 @@ export default function TripOverviewPage() {
                                   />
                                 </SwipeToDelete>
                               ) : (
-                                /* Accordion destination card */
+                                /* Simple destination row — taps to navigate */
                                 <SwipeToDelete
                                   onDelete={() => handleDeleteDestination(entry.destination.id)}
                                   enabled
                                 >
-                                  <div
-                                    className={`flex overflow-hidden rounded-xl border transition-all duration-150 ${
-                                      isExpanded
-                                        ? 'border-accent/25 shadow-md'
-                                        : 'border-border hover:border-accent/25 hover:shadow-sm'
-                                    }`}
+                                  <button
+                                    type="button"
+                                    onClick={() => navigate(`/trip/${id}/dest/${entry.destination.id}`)}
+                                    className="w-full flex items-center overflow-hidden rounded-xl border border-border hover:border-accent/25 hover:shadow-sm transition-all duration-150"
                                   >
-                                    {/* Chapter number panel */}
-                                    <div
-                                      className={`w-[72px] shrink-0 flex items-center justify-center transition-colors duration-150 ${
-                                        isExpanded ? 'bg-accent' : 'bg-bg-muted'
-                                      }`}
-                                    >
-                                      <span
-                                        className={`font-mono text-[28px] font-extrabold leading-none transition-colors duration-150 ${
-                                          isExpanded ? 'text-white' : 'text-border-dashed'
-                                        }`}
-                                      >
+                                    {/* Chapter number */}
+                                    <div className="w-[64px] shrink-0 flex items-center justify-center bg-bg-muted self-stretch">
+                                      <span className="font-mono text-[24px] font-extrabold leading-none text-border-dashed">
                                         {chapterNum}
                                       </span>
                                     </div>
 
-                                    {/* Content panel */}
-                                    <div className="flex-1 min-w-0 bg-bg-card">
-                                      {/* Collapsed header (always visible) */}
-                                      <button
-                                        type="button"
-                                        onClick={() => handleAccordionToggle(entry.destination.id)}
-                                        className="w-full flex items-center gap-3 px-4 py-3.5 text-left"
-                                      >
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-[18px] font-semibold text-text-primary leading-snug truncate">
-                                            {shortName(entry.destination.location_name)}
-                                          </p>
-                                          <div className="flex items-center gap-0 mt-1">
-                                            <MetadataLine items={[
-                                              ...(entry.destination.start_date && entry.destination.end_date
-                                                ? [shortDateRange(entry.destination.start_date, entry.destination.end_date)]
-                                                : []),
-                                              `${entry.destination._count} place${entry.destination._count !== 1 ? 's' : ''}`,
-                                            ]} />
-                                          </div>
-                                        </div>
-                                        <ChevronDown
-                                          className={`w-5 h-5 text-text-ghost shrink-0 transition-transform duration-150 ${
-                                            isExpanded ? 'rotate-180' : ''
-                                          }`}
-                                        />
-                                      </button>
-
-                                      {/* Expanded content */}
-                                      {isExpanded && (
-                                        <div className="px-4 pb-4 border-t border-border-subtle">
-                                          {/* Item count summary */}
-                                          {entry.destination._count === 0 ? (
-                                            <DashedCard
-                                              onClick={() => navigate(`/trip/${id}/dest/${entry.destination.id}`)}
-                                              className="flex items-center justify-center gap-2 py-3 mt-3 text-sm font-semibold text-text-tertiary"
-                                            >
-                                              <Plus className="w-4 h-4" />
-                                              Add places from your Horizon
-                                            </DashedCard>
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0 bg-bg-card px-4 py-3.5 flex items-center gap-3">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-[16px] font-semibold text-text-primary leading-snug truncate">
+                                          {shortName(entry.destination.location_name)}
+                                        </p>
+                                        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                          {entry.destination.start_date && entry.destination.end_date ? (
+                                            <span className="font-mono text-[10px] text-text-tertiary">
+                                              {shortDateRange(entry.destination.start_date, entry.destination.end_date)}
+                                            </span>
                                           ) : (
-                                            <p className="font-mono text-[11px] text-text-tertiary pt-3 pb-2">
-                                              {entry.destination._count} place{entry.destination._count !== 1 ? 's' : ''} saved
-                                            </p>
+                                            <button
+                                              type="button"
+                                              onClick={(e) => { e.stopPropagation(); setDatePickerDestId(entry.destination.id) }}
+                                              className="font-mono text-[10px] text-accent font-medium"
+                                            >
+                                              + add dates
+                                            </button>
                                           )}
-
-                                          {/* Date button */}
-                                          <div className="flex gap-2 mt-2">
-                                            {entry.destination.start_date && entry.destination.end_date ? (
-                                              <button
-                                                type="button"
-                                                onClick={() => setDatePickerDestId(entry.destination.id)}
-                                                className="text-xs text-accent font-medium hover:text-accent transition-colors"
-                                              >
-                                                {shortDateRange(entry.destination.start_date, entry.destination.end_date)} (edit)
-                                              </button>
-                                            ) : (
-                                              <button
-                                                type="button"
-                                                onClick={() => setDatePickerDestId(entry.destination.id)}
-                                                className="text-xs text-accent font-medium hover:text-accent transition-colors"
-                                              >
-                                                + Add Dates
-                                              </button>
-                                            )}
-                                          </div>
-
-                                          {/* View full destination link */}
-                                          <button
-                                            type="button"
-                                            onClick={() => navigate(`/trip/${id}/dest/${entry.destination.id}`)}
-                                            className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-border-input text-sm font-medium text-text-secondary hover:bg-bg-muted transition-colors"
-                                          >
-                                            View destination
-                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                                              <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                                            </svg>
-                                          </button>
+                                          <span className="font-mono text-[10px] text-text-ghost">·</span>
+                                          <span className="font-mono text-[10px] text-text-tertiary">
+                                            {entry.destination._count} save{entry.destination._count !== 1 ? 's' : ''}
+                                          </span>
                                         </div>
-                                      )}
+                                      </div>
+                                      <ChevronDown className="w-4 h-4 text-text-ghost shrink-0 -rotate-90" />
                                     </div>
-                                  </div>
+                                  </button>
                                 </SwipeToDelete>
                               )
                             ) : (
