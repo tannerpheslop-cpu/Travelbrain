@@ -123,16 +123,28 @@ export async function geocodeText(text: string): Promise<{
       // Prefer the geographic level that best matches the input text.
       // Handles city-states (Hong Kong, Singapore, Monaco) where locality
       // returns a district (Kowloon) but adminArea matches the input (Hong Kong).
+      // Also handles cases like "Din Tai Fung" (no city in input) where locality
+      // is a neighborhood (Kowloon) — prefer adminArea as the city-level name.
       const inputLower = text.toLowerCase()
       let city: string | null = null
       if (adminArea && inputLower.includes(adminArea.toLowerCase())) {
         city = adminArea // "Hong Kong" input → adminArea "Hong Kong" matches → use it
       } else if (locality && inputLower.includes(locality.toLowerCase())) {
         city = locality // "Shibuya" input → locality "Shibuya" matches → use it
+      } else if (locality && adminArea && locality !== adminArea) {
+        // Both exist but neither matches input. For city-states (Hong Kong, Singapore)
+        // and major metros (Tokyo, Bangkok), adminArea is the city name and locality
+        // is a district. For regular areas, locality IS the city (e.g. Shangri-La)
+        // and adminArea is a province (Diqing). Use adminArea only when the country
+        // name closely matches adminArea (city-state pattern).
+        const countryLower = (country ?? '').toLowerCase()
+        const adminLower = adminArea.toLowerCase()
+        const isCityState = countryLower.includes(adminLower) || adminLower.includes(countryLower)
+        city = isCityState ? adminArea : locality
       } else if (locality) {
-        city = locality // Default: use locality
+        city = locality
       } else if (adminArea) {
-        city = adminArea // Fallback: use admin area
+        city = adminArea
       }
 
       resolve({

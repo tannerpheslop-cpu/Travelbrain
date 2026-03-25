@@ -102,7 +102,7 @@ describe('Quick picker flow — destination page integration', () => {
     expect(screen.getByText('Needs location')).toBeInTheDocument()
 
     // Tap the item row
-    fireEvent.click(screen.getByTestId('sheet-item-needs-loc-1'))
+    fireEvent.click(screen.getByTestId('sheet-item-body-needs-loc-1'))
 
     // Quick picker should open
     expect(screen.getByTestId('quick-location-picker')).toBeInTheDocument()
@@ -121,7 +121,7 @@ describe('Quick picker flow — destination page integration', () => {
     )
 
     // Open picker
-    fireEvent.click(screen.getByTestId('sheet-item-needs-loc-1'))
+    fireEvent.click(screen.getByTestId('sheet-item-body-needs-loc-1'))
     expect(screen.getByTestId('quick-location-picker')).toBeInTheDocument()
 
     // Close it

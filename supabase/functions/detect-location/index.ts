@@ -409,12 +409,22 @@ async function geocodeAddress(text: string, apiKey: string): Promise<{
     // Prefer the level that best matches the input text.
     // Handles city-states where locality is a district (Kowloon) but
     // adminArea matches the input (Hong Kong).
+    // Also: when input is a business name (no city), prefer the broader
+    // adminArea over a neighborhood-level locality.
     const inputLower = text.toLowerCase()
     let city: string | null = null
     if (adminArea && inputLower.includes(adminArea.toLowerCase())) {
       city = adminArea
     } else if (locality && inputLower.includes(locality.toLowerCase())) {
       city = locality
+    } else if (locality && adminArea && locality !== adminArea) {
+      // Both exist but neither matches input. For city-states (Hong Kong, Singapore)
+      // where country ≈ adminArea, the locality is a district — prefer adminArea.
+      // For regular areas, locality IS the city — keep it.
+      const countryLower = (country ?? "").toLowerCase()
+      const adminLower = adminArea.toLowerCase()
+      const isCityState = countryLower.includes(adminLower) || adminLower.includes(countryLower)
+      city = isCityState ? adminArea : locality
     } else if (locality) {
       city = locality
     } else if (adminArea) {

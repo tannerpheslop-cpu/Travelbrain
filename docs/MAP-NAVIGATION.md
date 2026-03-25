@@ -2,7 +2,9 @@
 
 > **What this is:** Implementation specification for Youji's map-based trip navigation system. The map serves as the primary navigation spine for exploring trips — from a continental route overview down to street-level activity pins within a city.
 >
-> **Supersedes:** `youji-topo-map-claude-code-brief.md`. That document specified a custom SVG topographic map. This spec replaces it with a Google Maps-powered approach that supports both trip-level and destination-level views in a single, zoomable system.
+> **Supersedes:** `youji-topo-map-claude-code-brief.md`. That document specified a custom SVG topographic map. This spec replaces it with a map-powered approach that supports both trip-level and destination-level views in a single, zoomable system.
+>
+> **Implementation note (2026-03-25):** The map rendering engine is **Mapbox GL JS** (not Google Maps). Google Places API is still used for autocomplete and text search. The trip-level map uses a combined header layout where title, status, and action buttons are overlaid directly on the map. See Section 2 for rationale.
 
 ---
 
@@ -18,7 +20,9 @@ One map. Two zoom levels. The map is always present when viewing a trip, and it 
 
 ---
 
-## 2. Why Google Maps (Not Custom SVG)
+## 2. Why Mapbox GL JS (Not Google Maps or Custom SVG)
+
+> **Updated:** Originally specified Google Maps JS API. Switched to Mapbox GL JS during implementation for better style control and cleaner branding. Google Places API is kept for autocomplete and text search.
 
 The original topo map brief specified custom SVG rendering with coastline extraction, DEM contour generation, and server-side edge functions. That approach produced a beautiful cartographic aesthetic but only worked at the trip level — it could not zoom to street level to show individual items within a city.
 
@@ -268,17 +272,17 @@ New field: `location_precision: 'precise' | 'city' | 'country' | null`
 
 "Needs location" pill counts non-precise items.
 
-### 8.2 Phased Improvement
+### 8.2 Phased Improvement (Status as of 2026-03-25)
 
-1. MVP: only precise items as pins
-2. Quick location picker for manual precision
-3. Automatic precision via Places Text Search
+1. ~~MVP: only precise items as pins~~ **DONE** — Pins render for `location_precision === 'precise'` only
+2. ~~Quick location picker for manual precision~~ **DONE** — `QuickLocationPicker` component opens when user taps a "needs location" item in the destination sheet. Pre-populates with Places Text Search results based on item title + city bias.
+3. ~~Automatic precision via Places Text Search~~ **DONE** — `autoPrecisionUpgrade.ts` fires as fire-and-forget when an item is added to a destination. Uses strict relevance matching (60% word overlap) to avoid false positives. Idempotent — skips if already precise or locked.
 
 ---
 
 ## 9. Share View
 
-Static hero map (Google Maps Static API). Respects privacy modes. OG image: dark mode, 1200×630, cached.
+Static hero map (Mapbox Static Images API). Respects privacy modes. OG image: dark mode, 1200×630, cached.
 
 ---
 
@@ -303,7 +307,7 @@ src/components/map/
 
 ## 11. Implementation Phases
 
-Phase 1: Google Maps + trip-level map (styling, markers, route, collapsible)
+Phase 1: Mapbox GL JS + trip-level map (styling, markers, route, collapsible, combined header)
 Phase 2: Destination view + draggable sheet
 Phase 3: Zoom transition animation
 Phase 4: Location precision + quick picker
@@ -316,7 +320,7 @@ Phase 6: Polish + animation details
 
 | Decision | Rationale |
 |----------|-----------|
-| Google Maps over custom SVG | Need street-level zoom for item pins |
+| Mapbox GL JS over Google Maps | Better style control, cleaner branding, native dash lines |
 | Tap-to-navigate on trip overview | Most trips have 3-8 destinations, direct nav faster |
 | Full-screen map + sheet for destination | Users need free pan/zoom at city level |
 | Three sheet snap points | Balances map visibility with list access |
