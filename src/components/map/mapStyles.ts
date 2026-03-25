@@ -117,9 +117,6 @@ export function applyStyleOverrides(map: MapboxMap, dark: boolean): void {
     setLayout(l, 'visibility', 'none')
   }
 
-  // ── Country labels — show, muted color ──
-  setPaint('country-label', 'text-color', c.labelMajor)
-  // Reduce halo for cleaner look
-  setPaint('country-label', 'text-halo-color', dark ? '#2c2b27' : '#faf9f8')
-  setPaint('country-label', 'text-halo-width', 1.5)
+  // ── Country labels — hide (our markers replace these) ──
+  setLayout('country-label', 'visibility', 'none')
 }

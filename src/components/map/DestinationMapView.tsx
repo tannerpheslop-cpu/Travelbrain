@@ -60,7 +60,7 @@ export default function DestinationMapView({
 }: DestinationMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
-  const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map())
+  // Pins use native Mapbox layers (not HTML markers) for 60fps panning
   const [mapReady, setMapReady] = useState(false)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [filterNeedsLocation, setFilterNeedsLocation] = useState(false)
@@ -91,11 +91,16 @@ export default function DestinationMapView({
     if (!containerRef.current || !token) return
 
     const style = prefersDark ? DARK_STYLE : LIGHT_STYLE
+    // Determine initial zoom based on destination type
+    const isCountryLevel = destination.location_type === 'country'
+    const minZoom = isCountryLevel ? 5 : 11
+    const defaultZoom = isCountryLevel ? 5 : 12
+
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style,
       center: [destination.location_lng, destination.location_lat],
-      zoom: 13,
+      zoom: defaultZoom,
       attributionControl: false,
       logoPosition: 'bottom-left',
     })
@@ -107,17 +112,26 @@ export default function DestinationMapView({
       setMapReady(true)
     })
 
-    // Fit bounds to precise items if they exist
+    // Fit bounds: include all precise pins, with a minimum meaningful zoom
+    const DEST_PADDING = { top: 80, bottom: 200, left: 40, right: 40 }
+
     map.on('load', () => {
-      if (preciseItems.length >= 2) {
+      const pinsWithCoords = preciseItems.filter(i => i.location_lat != null && i.location_lng != null)
+      if (pinsWithCoords.length >= 2) {
         const bounds = new mapboxgl.LngLatBounds()
-        for (const item of preciseItems) {
-          if (item.location_lat != null && item.location_lng != null) {
-            bounds.extend([item.location_lng, item.location_lat])
-          }
+        for (const item of pinsWithCoords) {
+          bounds.extend([item.location_lng!, item.location_lat!])
         }
-        map.fitBounds(bounds, { padding: { top: 80, bottom: 300, left: 40, right: 40 }, maxZoom: 15 })
+        map.fitBounds(bounds, { padding: DEST_PADDING, maxZoom: 15 })
+      } else if (pinsWithCoords.length === 1) {
+        // Single pin: center on it but keep city context visible
+        map.flyTo({
+          center: [pinsWithCoords[0].location_lng!, pinsWithCoords[0].location_lat!],
+          zoom: Math.max(14, minZoom),
+          duration: 0,
+        })
       }
+      // else: 0 pins → stay at default zoom (city/country overview)
     })
 
     // Tap map background → clear selection
@@ -128,8 +142,6 @@ export default function DestinationMapView({
     mapRef.current = map
 
     return () => {
-      markersRef.current.forEach(m => m.remove())
-      markersRef.current.clear()
       map.remove()
       mapRef.current = null
       setMapReady(false)
@@ -137,110 +149,139 @@ export default function DestinationMapView({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefersDark, token])
 
-  // ── Render item pins ──
+  // ── Render item pins as native Mapbox layers (Fix B: zero-lag panning) ──
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady) return
 
-    // Clear existing markers
-    markersRef.current.forEach(m => m.remove())
-    markersRef.current.clear()
+    const PIN_SOURCE = 'youji-pins'
+    const PIN_CIRCLE = 'youji-pin-circles'
+    const PIN_LABELS = 'youji-pin-labels'
 
-    // Collect screen positions for basic label collision detection
-    const pinPositions: Array<{ id: string; lng: number; lat: number }> = []
+    // Build GeoJSON from precise items
+    const features = preciseItems
+      .filter(i => i.location_lat != null && i.location_lng != null)
+      .map(i => ({
+        type: 'Feature' as const,
+        properties: {
+          id: i.id,
+          title: i.title.length > 20 ? i.title.slice(0, 19) + '…' : i.title,
+          isAccommodation: isAccommodation(i),
+        },
+        geometry: {
+          type: 'Point' as const,
+          coordinates: [i.location_lng!, i.location_lat!],
+        },
+      }))
 
-    for (const item of preciseItems) {
-      if (item.location_lat == null || item.location_lng == null) continue
-      pinPositions.push({ id: item.id, lng: item.location_lng, lat: item.location_lat })
-    }
+    const geojson = { type: 'FeatureCollection' as const, features }
 
-    for (const item of preciseItems) {
-      if (item.location_lat == null || item.location_lng == null) continue
+    // Remove existing layers/source if present
+    try {
+      if (map.getLayer(PIN_LABELS)) map.removeLayer(PIN_LABELS)
+      if (map.getLayer(PIN_CIRCLE)) map.removeLayer(PIN_CIRCLE)
+      if (map.getSource(PIN_SOURCE)) map.removeSource(PIN_SOURCE)
+    } catch { /* ignore */ }
 
-      const accommodation = isAccommodation(item)
-      const pinColor = accommodation ? MAP_COLORS.accommodation : MAP_COLORS.accent
+    if (features.length === 0) return
 
-      // Check if any other pin is too close (within ~0.002 degrees ≈ 200m)
-      const hasNearby = pinPositions.some(p =>
-        p.id !== item.id &&
-        Math.abs(p.lat - item.location_lat!) < 0.002 &&
-        Math.abs(p.lng - item.location_lng!) < 0.002,
-      )
+    map.addSource(PIN_SOURCE, { type: 'geojson', data: geojson })
 
-      // Truncate label to 20 chars
-      const label = item.title.length > 20 ? item.title.slice(0, 19) + '…' : item.title
-      const isDark = prefersDark
-      const plateColor = isDark ? 'rgba(36,35,32,0.95)' : 'rgba(255,255,255,0.92)'
-      const textColor = isDark ? '#e8e6e1' : '#555350'
+    // Circle layer — copper for activities, gray for accommodations
+    map.addLayer({
+      id: PIN_CIRCLE,
+      type: 'circle',
+      source: PIN_SOURCE,
+      paint: {
+        'circle-radius': ['case', ['boolean', ['feature-state', 'selected'], false], 8, 6],
+        'circle-color': ['case',
+          ['get', 'isAccommodation'], MAP_COLORS.accommodation,
+          MAP_COLORS.accent,
+        ],
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2.5, 1.5],
+      },
+    })
 
-      // Build marker element with dot + label
-      const el = document.createElement('div')
-      el.setAttribute('data-item-id', item.id)
-      el.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;'
+    // Symbol layer — name labels
+    map.addLayer({
+      id: PIN_LABELS,
+      type: 'symbol',
+      source: PIN_SOURCE,
+      layout: {
+        'text-field': ['get', 'title'],
+        'text-font': ['DIN Pro Medium', 'Arial Unicode MS Regular'],
+        'text-size': 10,
+        'text-anchor': 'left',
+        'text-offset': [1, 0],
+        'text-allow-overlap': false,
+        'text-ignore-placement': false,
+      },
+      paint: {
+        'text-color': prefersDark ? '#e8e6e1' : '#555350',
+        'text-halo-color': prefersDark ? 'rgba(36,35,32,0.95)' : 'rgba(255,255,255,0.92)',
+        'text-halo-width': 1.5,
+      },
+    })
 
-      // Dot
-      const dot = document.createElement('div')
-      dot.style.cssText = `
-        width:12px;height:12px;border-radius:50%;flex-shrink:0;
-        background:${pinColor};border:1.5px solid white;
-        box-shadow:0 1px 3px rgba(0,0,0,0.2);
-        transition:width 150ms ease,height 150ms ease,border-width 150ms ease;
-      `
-      dot.setAttribute('data-pin-dot', 'true')
-      el.appendChild(dot)
-
-      // Label plate (hidden if pins cluster)
-      if (!hasNearby) {
-        const plate = document.createElement('div')
-        plate.setAttribute('data-pin-label', 'true')
-        plate.style.cssText = `
-          background:${plateColor};border-radius:3px;padding:1px 5px;
-          font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;
-          color:${textColor};white-space:nowrap;pointer-events:none;
-          box-shadow:0 1px 2px rgba(0,0,0,0.1);
-        `
-        plate.textContent = label
-        el.appendChild(plate)
-      }
-
-      const marker = new mapboxgl.Marker({ element: el, anchor: 'left' })
-        .setLngLat([item.location_lng, item.location_lat])
-        .addTo(map)
-
-      el.addEventListener('click', (e) => {
-        e.stopPropagation()
-        handlePinTap(item.id)
-      })
-
-      markersRef.current.set(item.id, marker)
-    }
-
-    return () => {
-      markersRef.current.forEach(m => m.remove())
-      markersRef.current.clear()
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapReady, preciseItems])
-
-  // ── Update pin selected state ──
-  useEffect(() => {
-    markersRef.current.forEach((marker, itemId) => {
-      const el = marker.getElement()
-      if (itemId === selectedItemId) {
-        el.style.width = '16px'
-        el.style.height = '16px'
-        el.style.borderWidth = '2.5px'
-        el.style.zIndex = '10'
-      } else {
-        el.style.width = '12px'
-        el.style.height = '12px'
-        el.style.borderWidth = '1.5px'
-        el.style.zIndex = '1'
+    // Click handler for pins
+    map.on('click', PIN_CIRCLE, (e) => {
+      if (e.features && e.features.length > 0) {
+        const id = e.features[0].properties?.id
+        if (id) {
+          e.originalEvent.stopPropagation()
+          handlePinTap(id)
+        }
       }
     })
-  }, [selectedItemId])
+
+    // Cursor feedback
+    map.on('mouseenter', PIN_CIRCLE, () => { map.getCanvas().style.cursor = 'pointer' })
+    map.on('mouseleave', PIN_CIRCLE, () => { map.getCanvas().style.cursor = '' })
+
+    return () => {
+      try {
+        if (map.getLayer(PIN_LABELS)) map.removeLayer(PIN_LABELS)
+        if (map.getLayer(PIN_CIRCLE)) map.removeLayer(PIN_CIRCLE)
+        if (map.getSource(PIN_SOURCE)) map.removeSource(PIN_SOURCE)
+      } catch { /* map may be removed */ }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapReady, preciseItems, prefersDark])
+
+  // ── Update pin selected state via feature-state ──
+  const prevSelectedRef = useRef<string | null>(null)
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady) return
+
+    const PIN_SOURCE = 'youji-pins'
+
+    // Clear previous selection
+    if (prevSelectedRef.current) {
+      try {
+        map.setFeatureState({ source: PIN_SOURCE, id: prevSelectedRef.current }, { selected: false })
+      } catch { /* ignore */ }
+    }
+
+    // Set new selection
+    if (selectedItemId) {
+      try {
+        map.setFeatureState({ source: PIN_SOURCE, id: selectedItemId }, { selected: true })
+      } catch { /* ignore */ }
+    }
+
+    prevSelectedRef.current = selectedItemId
+  }, [selectedItemId, mapReady])
 
   // ── Bidirectional interaction ──
+  const panToItem = useCallback((itemId: string) => {
+    const item = items.find(i => i.id === itemId)
+    if (item?.location_lat != null && item?.location_lng != null && mapRef.current) {
+      mapRef.current.panTo([item.location_lng, item.location_lat], { duration: 300 })
+    }
+  }, [items])
+
   const handlePinTap = useCallback((itemId: string) => {
     setSelectedItemId(itemId)
 
@@ -248,12 +289,8 @@ export default function DestinationMapView({
     const row = document.querySelector(`[data-testid="sheet-item-${itemId}"]`)
     if (row) row.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
 
-    // Pan map to center the pin
-    const marker = markersRef.current.get(itemId)
-    if (marker && mapRef.current) {
-      mapRef.current.panTo(marker.getLngLat(), { duration: 300 })
-    }
-  }, [])
+    panToItem(itemId)
+  }, [panToItem])
 
   const handleSheetItemTap = useCallback((itemId: string) => {
     const item = items.find(i => i.id === itemId)
@@ -267,11 +304,8 @@ export default function DestinationMapView({
 
     // Precise items: select + pan to pin (do NOT navigate away)
     setSelectedItemId(itemId)
-    const marker = markersRef.current.get(itemId)
-    if (marker && mapRef.current) {
-      mapRef.current.panTo(marker.getLngLat(), { duration: 300 })
-    }
-  }, [items])
+    panToItem(itemId)
+  }, [items, panToItem])
 
   // Separate handler for navigating to item detail (chevron tap)
   const handleNavigateToItem = useCallback((itemId: string) => {
