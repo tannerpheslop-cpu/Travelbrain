@@ -804,6 +804,7 @@ export default function TripOverviewPage() {
   const titleInputRef = useRef<HTMLInputElement>(null)
 
   // Add destination
+  const addDestFormRef = useRef<HTMLDivElement>(null)
   const [showAddDest, setShowAddDest] = useState(false)
   const [addingDest, setAddingDest] = useState(false)
   const [addDestKey, setAddDestKey] = useState(0)
@@ -1334,6 +1335,8 @@ export default function TripOverviewPage() {
 
     setFrozenSuggestions(suggestions)
     setShowAddDest(true)
+    // Scroll the form into view after render
+    setTimeout(() => addDestFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100)
   }
 
   openAddDestRef.current = openAddDest
@@ -2086,7 +2089,7 @@ export default function TripOverviewPage() {
             {destinations.length > 0 && (
               <div className="mt-5">
                 {showAddDest ? (
-                  <div className="bg-bg-card rounded-xl border border-border p-4 shadow-sm">
+                  <div ref={addDestFormRef} className="bg-bg-card rounded-xl border border-border p-4 shadow-sm">
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-sm font-semibold text-text-secondary">Add destination</p>
                       <button type="button" onClick={() => { setShowAddDest(false); setAddDestKey(k => k + 1) }}

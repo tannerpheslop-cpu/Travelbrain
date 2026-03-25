@@ -6,6 +6,7 @@ import { MAP_COLORS } from './mapConfig'
 import DraggableSheet from './DraggableSheet'
 import SheetItemRow from './SheetItemRow'
 import QuickLocationPicker from './QuickLocationPicker'
+import AddItemsSheet from './AddItemsSheet'
 import { supabase } from '../../lib/supabase'
 import type { SavedItem, TripDestination } from '../../types'
 
@@ -65,6 +66,7 @@ export default function DestinationMapView({
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null)
   const [filterNeedsLocation, setFilterNeedsLocation] = useState(false)
   const [pickerItem, setPickerItem] = useState<SavedItem | null>(null)
+  const [showAddItems, setShowAddItems] = useState(false)
   const prefersDark = usePrefersDark()
 
   const token = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
@@ -351,21 +353,42 @@ export default function DestinationMapView({
 
   const sheetHeader = (
     <div style={{ padding: '8px 16px 12px' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-        <span style={{
-          fontFamily: "'DM Sans', sans-serif", fontSize: 17, fontWeight: 600,
-          color: 'var(--color-text-primary)',
-        }}>
-          {destination.location_name.split(',')[0]}
-        </span>
-        {bilingualName && (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
           <span style={{
-            fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-            color: 'var(--color-text-tertiary)',
+            fontFamily: "'DM Sans', sans-serif", fontSize: 17, fontWeight: 600,
+            color: 'var(--color-text-primary)',
           }}>
-            {bilingualName}
+            {destination.location_name.split(',')[0]}
           </span>
-        )}
+          {bilingualName && (
+            <span style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+              color: 'var(--color-text-tertiary)',
+            }}>
+              {bilingualName}
+            </span>
+          )}
+        </div>
+        {/* Add items button */}
+        <button
+          type="button"
+          data-testid="sheet-add-items-btn"
+          onClick={() => setShowAddItems(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '5px 10px', borderRadius: 6,
+              border: '1px solid var(--color-border-input)',
+              background: 'var(--color-bg-card)',
+              cursor: 'pointer',
+              fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600,
+              color: 'var(--color-accent)',
+              flexShrink: 0,
+            }}
+          >
+            <span style={{ fontSize: 14, lineHeight: 1 }}>+</span>
+            Add
+          </button>
       </div>
       {dateRange && (
         <div style={{
@@ -532,6 +555,20 @@ export default function DestinationMapView({
           cityName={destination.location_name.split(',')[0]}
           onSelect={handlePickerSelect}
           onClose={() => setPickerItem(null)}
+        />
+      )}
+
+      {/* ── Add items from Horizon sheet ── */}
+      {showAddItems && (
+        <AddItemsSheet
+          destinationId={destination.id}
+          destinationName={destination.location_name.split(',')[0]}
+          linkedItemIds={new Set(items.map(i => i.id))}
+          onClose={() => setShowAddItems(false)}
+          onItemAdded={() => {
+            setShowAddItems(false)
+            onLocationUpdated?.()
+          }}
         />
       )}
     </div>
