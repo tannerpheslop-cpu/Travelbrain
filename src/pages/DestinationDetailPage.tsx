@@ -36,6 +36,7 @@ import MarkdownNotes from '../components/MarkdownNotes'
 import SwipeToDelete from '../components/SwipeToDelete'
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { useDestinationImage } from '../hooks/useDestinationImage'
+import DestinationMapView from '../components/map/DestinationMapView'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -737,6 +738,7 @@ export default function DestinationDetailPage() {
 
   // Core state
   const [destination, setDestination] = useState<TripDestination | null>(null)
+  const [tripTitle, setTripTitle] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [canEdit, setCanEdit] = useState(false)
@@ -797,14 +799,16 @@ export default function DestinationDetailPage() {
     const load = async () => {
       const [destRes, tripRes, itemsRes] = await Promise.all([
         supabase.from('trip_destinations').select('*').eq('id', destId).eq('trip_id', tripId).single(),
-        supabase.from('trips').select('owner_id').eq('id', tripId).single(),
+        supabase.from('trips').select('owner_id, title').eq('id', tripId).single(),
         supabase.from('destination_items').select('*, saved_item:saved_items(*)').eq('destination_id', destId).order('sort_order'),
       ])
       if (destRes.error || !destRes.data) { setNotFound(true); setLoading(false); return }
       const dest = destRes.data as TripDestination
       setDestination(dest)
       setDestNotes(dest.notes ?? null)
-      setCanEdit(tripRes.data ? (tripRes.data as { owner_id: string }).owner_id === user.id : false)
+      const tripData = tripRes.data as { owner_id: string; title: string } | null
+      setCanEdit(tripData ? tripData.owner_id === user.id : false)
+      setTripTitle(tripData?.title ?? '')
       setLinkedItems((itemsRes.data ?? []) as LinkedItem[])
       setLoading(false)
     }
@@ -1337,8 +1341,33 @@ export default function DestinationDetailPage() {
     )
   }
 
+  // All saved items from linked items
+  const allSavedItems = linkedItems.map(li => li.saved_item)
+
   return (
-    <div className="pb-32">
+    <>
+      {/* Map view overlay — full screen with sheet */}
+      {destination && (
+        <DestinationMapView
+          destination={destination}
+          items={allSavedItems}
+          tripTitle={tripTitle}
+          chapterNumber={(destination.sort_order ?? 0) + 1}
+          onBack={() => navigate(`/trip/${tripId}`)}
+          onItemSelect={(itemId) => navigate(`/item/${itemId}?backTo=${encodeURIComponent(itemBackTo)}`)}
+          onLocationUpdated={() => {
+            // Refetch linked items to pick up the updated location_precision
+            if (user && destId) {
+              supabase.from('destination_items').select('*, saved_item:saved_items(*)').eq('destination_id', destId).order('sort_order')
+                .then(({ data }) => { if (data) setLinkedItems(data as LinkedItem[]) })
+            }
+          }}
+          bilingualName={cityLocal}
+        />
+      )}
+
+    <div className="pb-32" style={{ display: 'none' }}>
+      {/* Old destination detail page — hidden, map view replaces it */}
       {/* 1. Back button */}
       <div className="px-4 pt-4 pb-2">
         <button onClick={() => navigate(`/trip/${tripId}`)} className="flex items-center gap-1.5 text-accent text-sm font-medium">
@@ -1727,5 +1756,6 @@ export default function DestinationDetailPage() {
         />
       )}
     </div>
+    </>
   )
 }
