@@ -54,6 +54,7 @@ function makeItem(overrides: Partial<SavedItem> & { id: string }): SavedItem {
     first_viewed_at: null,
     left_recent: false,
     location_locked: false,
+    location_precision: null,
     created_at: new Date().toISOString(),
     ...overrides,
   }

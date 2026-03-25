@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import { onItemAddedToDestination } from '../lib/triggerPrecisionUpgrade'
 import { queryKeys } from '../hooks/queries'
 import ImageWithFade from './ImageWithFade'
 import type { Trip, TripDestination } from '../types'
@@ -189,6 +190,9 @@ export default function AddToTripSheet({ itemId, onClose, onAdded }: AddToTripSh
         item_id: itemId,
         trip_id: selectedTrip?.id,
       })
+
+      // Fire-and-forget: try to upgrade item's location precision
+      onItemAddedToDestination(itemId).catch(console.error)
 
       // Status progression: aspirational → planning
       if (selectedTrip) {

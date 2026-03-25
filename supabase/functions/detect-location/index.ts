@@ -125,6 +125,7 @@ Deno.serve(async (req) => {
           location_place_id: geocodeResult.placeId,
           location_country: geocodeResult.country,
           location_country_code: geocodeResult.countryCode,
+          location_precision: 'city',
         }
         return await updateItem(adminClient, item_id, title, update)
       }
@@ -142,6 +143,7 @@ Deno.serve(async (req) => {
           location_place_id: geocodeResult.placeId,
           location_country: geocodeResult.country,
           location_country_code: geocodeResult.countryCode,
+          location_precision: 'country',
         }
         return await updateItem(adminClient, item_id, title, update)
       }
@@ -164,6 +166,7 @@ Deno.serve(async (req) => {
           location_place_id: biased.placeId,
           location_country: biased.country,
           location_country_code: biased.countryCode,
+          location_precision: 'city',
         }
         return await updateItem(adminClient, item_id, title, update)
       }
@@ -177,6 +180,7 @@ Deno.serve(async (req) => {
         location_place_id: geocodeResult.placeId,
         location_country: geocodeResult.country,
         location_country_code: geocodeResult.countryCode,
+        location_precision: 'country',
       }
       return await updateItem(adminClient, item_id, title, update)
     }
@@ -290,6 +294,7 @@ Deno.serve(async (req) => {
       location_place_id: cityPlaceId,
       location_country: country,
       location_country_code: countryCode,
+      location_precision: 'city',
     }
     return await updateItem(adminClient, item_id, title, update)
   } catch (error) {
