@@ -21,7 +21,7 @@ export async function onItemAddedToDestination(itemId: string): Promise<void> {
       .single()
 
     if (error || !item) {
-      console.warn('[auto-precision] Could not fetch item:', itemId, error?.message)
+      console.error('[auto-precision] Could not fetch item:', itemId, error?.message)
       return
     }
 
@@ -47,7 +47,7 @@ export async function onItemAddedToDestination(itemId: string): Promise<void> {
       return
     }
 
-    console.log(`[auto-precision] Upgraded "${item.title}" → ${result.precision_name} (${result.place_id})`)
+    // Upgrade successful
   } catch (err) {
     console.error('[auto-precision] Unexpected error:', err)
   }

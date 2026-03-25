@@ -20,6 +20,8 @@ export interface DestinationMapViewProps {
   onItemSelect?: (itemId: string) => void
   /** Called after the quick picker updates an item's location — parent should refetch data */
   onLocationUpdated?: () => void
+  /** Called when user taps an "add items" empty state action */
+  onAddItems?: () => void
   bilingualName?: string | null
 }
 
@@ -53,6 +55,7 @@ export default function DestinationMapView({
   onBack,
   onItemSelect,
   onLocationUpdated,
+  onAddItems,
   bilingualName,
 }: DestinationMapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -143,22 +146,64 @@ export default function DestinationMapView({
     markersRef.current.forEach(m => m.remove())
     markersRef.current.clear()
 
+    // Collect screen positions for basic label collision detection
+    const pinPositions: Array<{ id: string; lng: number; lat: number }> = []
+
+    for (const item of preciseItems) {
+      if (item.location_lat == null || item.location_lng == null) continue
+      pinPositions.push({ id: item.id, lng: item.location_lng, lat: item.location_lat })
+    }
+
     for (const item of preciseItems) {
       if (item.location_lat == null || item.location_lng == null) continue
 
       const accommodation = isAccommodation(item)
+      const pinColor = accommodation ? MAP_COLORS.accommodation : MAP_COLORS.accent
+
+      // Check if any other pin is too close (within ~0.002 degrees ≈ 200m)
+      const hasNearby = pinPositions.some(p =>
+        p.id !== item.id &&
+        Math.abs(p.lat - item.location_lat!) < 0.002 &&
+        Math.abs(p.lng - item.location_lng!) < 0.002,
+      )
+
+      // Truncate label to 20 chars
+      const label = item.title.length > 20 ? item.title.slice(0, 19) + '…' : item.title
+      const isDark = prefersDark
+      const plateColor = isDark ? 'rgba(36,35,32,0.95)' : 'rgba(255,255,255,0.92)'
+      const textColor = isDark ? '#e8e6e1' : '#555350'
+
+      // Build marker element with dot + label
       const el = document.createElement('div')
       el.setAttribute('data-item-id', item.id)
-      el.style.cssText = `
-        width: 12px; height: 12px; border-radius: 50%;
-        background: ${accommodation ? MAP_COLORS.accommodation : MAP_COLORS.accent};
-        border: 1.5px solid white;
-        cursor: pointer;
-        transition: width 150ms ease, height 150ms ease, border-width 150ms ease;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-      `
+      el.style.cssText = 'display:flex;align-items:center;gap:4px;cursor:pointer;'
 
-      const marker = new mapboxgl.Marker({ element: el, anchor: 'center' })
+      // Dot
+      const dot = document.createElement('div')
+      dot.style.cssText = `
+        width:12px;height:12px;border-radius:50%;flex-shrink:0;
+        background:${pinColor};border:1.5px solid white;
+        box-shadow:0 1px 3px rgba(0,0,0,0.2);
+        transition:width 150ms ease,height 150ms ease,border-width 150ms ease;
+      `
+      dot.setAttribute('data-pin-dot', 'true')
+      el.appendChild(dot)
+
+      // Label plate (hidden if pins cluster)
+      if (!hasNearby) {
+        const plate = document.createElement('div')
+        plate.setAttribute('data-pin-label', 'true')
+        plate.style.cssText = `
+          background:${plateColor};border-radius:3px;padding:1px 5px;
+          font-family:'DM Sans',sans-serif;font-size:10px;font-weight:500;
+          color:${textColor};white-space:nowrap;pointer-events:none;
+          box-shadow:0 1px 2px rgba(0,0,0,0.1);
+        `
+        plate.textContent = label
+        el.appendChild(plate)
+      }
+
+      const marker = new mapboxgl.Marker({ element: el, anchor: 'left' })
         .setLngLat([item.location_lng, item.location_lat])
         .addTo(map)
 
@@ -220,14 +265,18 @@ export default function DestinationMapView({
       return
     }
 
-    // Precise items: select + pan to pin
+    // Precise items: select + pan to pin (do NOT navigate away)
     setSelectedItemId(itemId)
-    onItemSelect?.(itemId)
     const marker = markersRef.current.get(itemId)
     if (marker && mapRef.current) {
       mapRef.current.panTo(marker.getLngLat(), { duration: 300 })
     }
-  }, [items, onItemSelect])
+  }, [items])
+
+  // Separate handler for navigating to item detail (chevron tap)
+  const handleNavigateToItem = useCallback((itemId: string) => {
+    onItemSelect?.(itemId)
+  }, [onItemSelect])
 
   // ── Handle quick picker selection ──
   const handlePickerSelect = useCallback(async (data: {
@@ -389,18 +438,53 @@ export default function DestinationMapView({
             item={item}
             selected={item.id === selectedItemId}
             onSelect={handleSheetItemTap}
+            onNavigate={handleNavigateToItem}
           />
         ))}
         {displayItems.length === 0 && (
-          <div style={{
-            padding: '32px 16px', textAlign: 'center',
-            color: 'var(--color-text-tertiary)',
-            fontFamily: "'DM Sans', sans-serif", fontSize: 14,
-          }}>
-            {filterNeedsLocation
-              ? 'All items have precise locations'
-              : 'No items in this destination yet'}
-          </div>
+          filterNeedsLocation ? (
+            <div
+              data-testid="empty-state-all-precise"
+              style={{
+                padding: '32px 16px', textAlign: 'center',
+                color: 'var(--color-text-tertiary)',
+                fontFamily: "'DM Sans', sans-serif", fontSize: 14,
+              }}
+            >
+              All items have precise locations
+            </div>
+          ) : (
+            <button
+              type="button"
+              data-testid="empty-state-add-items"
+              onClick={onAddItems}
+              style={{
+                display: 'block', width: '100%', padding: '32px 16px',
+                textAlign: 'center', background: 'none', border: 'none',
+                cursor: onAddItems ? 'pointer' : 'default',
+              }}
+            >
+              <div style={{
+                width: 48, height: 48, borderRadius: 12,
+                background: 'var(--color-accent-light)', margin: '0 auto 12px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <span style={{ fontSize: 20, color: 'var(--color-accent)' }}>+</span>
+              </div>
+              <p style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
+                color: 'var(--color-text-primary)', margin: '0 0 4px',
+              }}>
+                Add your first save
+              </p>
+              <p style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                color: 'var(--color-text-tertiary)', margin: 0,
+              }}>
+                Add places from your Horizon or search for new ones
+              </p>
+            </button>
+          )
         )}
       </DraggableSheet>
 

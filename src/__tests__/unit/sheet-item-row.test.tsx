@@ -62,11 +62,18 @@ describe('SheetItemRow', () => {
     expect(button.style.opacity).toBe('0.6')
   })
 
-  it('tapping a precise item row calls onSelect with the item ID', () => {
+  it('tapping a precise item row body calls onSelect with the item ID', () => {
     const onSelect = vi.fn()
     render(<SheetItemRow item={makeItem()} onSelect={onSelect} />)
-    fireEvent.click(screen.getByTestId('sheet-item-item-1'))
+    fireEvent.click(screen.getByTestId('sheet-item-body-item-1'))
     expect(onSelect).toHaveBeenCalledWith('item-1')
+  })
+
+  it('tapping the navigate chevron calls onNavigate with the item ID', () => {
+    const onNavigate = vi.fn()
+    render(<SheetItemRow item={makeItem()} onNavigate={onNavigate} />)
+    fireEvent.click(screen.getByTestId('sheet-item-nav-item-1'))
+    expect(onNavigate).toHaveBeenCalledWith('item-1')
   })
 
   it('accommodation items show gray dot, activity items show copper dot', () => {
