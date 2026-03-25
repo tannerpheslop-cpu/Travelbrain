@@ -3,6 +3,12 @@ import { render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
+// Mock mapbox-gl
+vi.mock('mapbox-gl', () => ({
+  default: { Map: vi.fn(), Marker: vi.fn(), AttributionControl: vi.fn(), LngLatBounds: vi.fn(), accessToken: '' },
+  Map: vi.fn(), Marker: vi.fn(), AttributionControl: vi.fn(), LngLatBounds: vi.fn(),
+}))
+
 // Mock Supabase to return null for any trip query (non-existent UUID)
 vi.mock('../../lib/supabase', () => ({
   supabase: {

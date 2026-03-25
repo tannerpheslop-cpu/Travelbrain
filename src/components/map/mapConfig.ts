@@ -24,21 +24,4 @@ export const MAP_SIZES = {
 export const SINGLE_DESTINATION_ZOOM = 12
 
 /** Padding (in pixels) when fitting bounds to multiple destinations. */
-export const FIT_BOUNDS_PADDING = { top: 40, right: 40, bottom: 40, left: 40 }
-
-/**
- * Google Maps options shared across trip-level and destination-level views.
- * Hides default UI chrome per the spec — only attribution remains (required by TOS).
- */
-export const BASE_MAP_OPTIONS: google.maps.MapOptions = {
-  disableDefaultUI: true,
-  // Re-enable only gesture handling (pan/zoom via touch)
-  gestureHandling: 'greedy',
-  // Keep attribution visible (Google TOS requirement)
-  // disableDefaultUI hides it, so we re-enable the minimal control
-  mapTypeControl: false,
-  streetViewControl: false,
-  fullscreenControl: false,
-  zoomControl: false,
-  clickableIcons: false,
-}
+export const FIT_BOUNDS_PADDING = { top: 50, right: 50, bottom: 50, left: 50 }

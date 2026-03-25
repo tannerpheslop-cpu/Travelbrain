@@ -1,110 +1,125 @@
 /**
- * Google Maps style JSON for Youji's branded map appearance.
+ * Mapbox GL JS style configuration for Youji's branded map appearance.
  * See /docs/MAP-NAVIGATION.md Section 7 for the full color spec.
  *
- * Goals: muted near-monochrome palette, copper as only accent,
- * reduced labels, hidden POI icons, premium editorial feel.
+ * Uses Mapbox base styles (light-v11 / dark-v11) with runtime layer overrides
+ * to achieve the muted warm palette.
  */
+import type { Map as MapboxMap } from 'mapbox-gl'
 
-export const lightMapStyle: google.maps.MapTypeStyle[] = [
+// ── Base style URLs ──────────────────────────────────────────────────────────
+
+export const LIGHT_STYLE = 'mapbox://styles/mapbox/light-v11'
+export const DARK_STYLE = 'mapbox://styles/mapbox/dark-v11'
+
+// ── Color palettes ───────────────────────────────────────────────────────────
+
+export const lightColors = {
+  water: '#f0eeea',
+  land: '#faf9f8',
+  roadMajor: '#e8e6e1',
+  roadMinor: '#f2f0ec',
+  building: '#f2f0ec',
+  park: '#f0eeea',
+  labelMajor: '#888780',
+}
+
+export const darkColors = {
+  water: '#242320',
+  land: '#333230', // bumped from #2c2b27 for better visibility
+  roadMajor: '#3a3935',
+  roadMinor: '#2c2b27',
+  building: '#333230',
+  park: '#2c2b27',
+  labelMajor: '#888780',
+}
+
+// ── Layer overrides ──────────────────────────────────────────────────────────
+
+/**
+ * Applies Youji's warm palette overrides to a loaded Mapbox map.
+ * Call this inside the map's 'style.load' event handler.
+ */
+export function applyStyleOverrides(map: MapboxMap, dark: boolean): void {
+  const c = dark ? darkColors : lightColors
+
+  // Helper: set paint property if the layer exists
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const setPaint = (layer: string, prop: any, value: unknown) => {
+    if (map.getLayer(layer)) {
+      map.setPaintProperty(layer, prop, value)
+    }
+  }
+
+  // Helper: set layout property if the layer exists
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const setLayout = (layer: string, prop: any, value: unknown) => {
+    if (map.getLayer(layer)) {
+      map.setLayoutProperty(layer, prop, value)
+    }
+  }
+
   // ── Water ──
-  { elementType: 'geometry', featureType: 'water', stylers: [{ color: '#f0eeea' }] },
-  { elementType: 'labels', featureType: 'water', stylers: [{ visibility: 'off' }] },
+  setPaint('water', 'fill-color', c.water)
 
-  // ── Land / landscape ──
-  { elementType: 'geometry', featureType: 'landscape', stylers: [{ color: '#faf9f8' }] },
+  // ── Land / background ──
+  setPaint('land', 'background-color', c.land)
+  setPaint('landcover', 'fill-color', c.land)
+  setPaint('landuse', 'fill-color', c.land)
 
-  // ── Roads ──
-  { elementType: 'geometry', featureType: 'road.highway', stylers: [{ color: '#e8e6e1' }] },
-  { elementType: 'geometry', featureType: 'road.arterial', stylers: [{ color: '#e8e6e1' }] },
-  { elementType: 'geometry', featureType: 'road.local', stylers: [{ color: '#f0eeea' }] },
-  { elementType: 'labels', featureType: 'road', stylers: [{ visibility: 'off' }] },
+  // ── Parks (no green tint) ──
+  setPaint('landuse', 'fill-color', c.park)
+  // National parks, nature reserves
+  const parkLayers = ['national-park', 'landuse']
+  for (const l of parkLayers) {
+    setPaint(l, 'fill-color', c.park)
+  }
 
   // ── Buildings ──
-  { elementType: 'geometry', featureType: 'landscape.man_made', stylers: [{ color: '#f2f0ec' }] },
-
-  // ── Parks ──
-  { elementType: 'geometry', featureType: 'poi.park', stylers: [{ color: '#f0eeea' }] },
-
-  // ── Transit ──
-  { elementType: 'geometry', featureType: 'transit', stylers: [{ color: '#d5d2cb' }] },
-  { elementType: 'labels', featureType: 'transit', stylers: [{ visibility: 'off' }] },
-
-  // ── Labels ──
-  // Major labels (countries, cities, neighborhoods) — muted gray
-  {
-    elementType: 'labels.text.fill',
-    featureType: 'administrative',
-    stylers: [{ color: '#888780' }],
-  },
-  {
-    elementType: 'labels.text.stroke',
-    featureType: 'administrative',
-    stylers: [{ color: '#faf9f8' }, { weight: 3 }],
-  },
-
-  // ── Hide minor labels and POI icons ──
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ visibility: 'on' }] },
-  {
-    elementType: 'labels',
-    featureType: 'administrative.land_parcel',
-    stylers: [{ visibility: 'off' }],
-  },
-  {
-    elementType: 'labels',
-    featureType: 'administrative.neighborhood',
-    stylers: [{ visibility: 'simplified' }],
-  },
-]
-
-export const darkMapStyle: google.maps.MapTypeStyle[] = [
-  // ── Water ──
-  { elementType: 'geometry', featureType: 'water', stylers: [{ color: '#242320' }] },
-  { elementType: 'labels', featureType: 'water', stylers: [{ visibility: 'off' }] },
-
-  // ── Land / landscape ──
-  { elementType: 'geometry', featureType: 'landscape', stylers: [{ color: '#2c2b27' }] },
+  setPaint('building', 'fill-color', c.building)
 
   // ── Roads ──
-  { elementType: 'geometry', featureType: 'road.highway', stylers: [{ color: '#3a3935' }] },
-  { elementType: 'geometry', featureType: 'road.arterial', stylers: [{ color: '#3a3935' }] },
-  { elementType: 'geometry', featureType: 'road.local', stylers: [{ color: '#2c2b27' }] },
-  { elementType: 'labels', featureType: 'road', stylers: [{ visibility: 'off' }] },
+  // Mapbox light-v11 road layer naming varies by zoom level.
+  // Target common road layers:
+  const majorRoads = [
+    'road-motorway-trunk', 'road-primary', 'road-secondary-tertiary',
+    'road-motorway-trunk-case', 'road-primary-case',
+  ]
+  const minorRoads = [
+    'road-street', 'road-minor', 'road-minor-case',
+    'road-construction', 'road-path',
+  ]
+  for (const l of majorRoads) {
+    setPaint(l, 'line-color', c.roadMajor)
+  }
+  for (const l of minorRoads) {
+    setPaint(l, 'line-color', c.roadMinor)
+  }
 
-  // ── Buildings ──
-  { elementType: 'geometry', featureType: 'landscape.man_made', stylers: [{ color: '#333230' }] },
+  // ── Hide labels we don't want ──
+  // State/province labels
+  setLayout('state-label', 'visibility', 'none')
 
-  // ── Parks ──
-  { elementType: 'geometry', featureType: 'poi.park', stylers: [{ color: '#2c2b27' }] },
+  // City/place labels (our markers replace these)
+  const cityLabelLayers = [
+    'settlement-major-label', 'settlement-minor-label',
+    'settlement-subdivision-label',
+  ]
+  for (const l of cityLabelLayers) {
+    setLayout(l, 'visibility', 'none')
+  }
 
-  // ── Transit ──
-  { elementType: 'geometry', featureType: 'transit', stylers: [{ color: '#444240' }] },
-  { elementType: 'labels', featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  // POI labels and icons
+  const poiLayers = [
+    'poi-label', 'transit-label', 'airport-label',
+  ]
+  for (const l of poiLayers) {
+    setLayout(l, 'visibility', 'none')
+  }
 
-  // ── Labels ──
-  {
-    elementType: 'labels.text.fill',
-    featureType: 'administrative',
-    stylers: [{ color: '#888780' }],
-  },
-  {
-    elementType: 'labels.text.stroke',
-    featureType: 'administrative',
-    stylers: [{ color: '#2c2b27' }, { weight: 3 }],
-  },
-
-  // ── Hide minor labels and POI icons ──
-  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
-  { featureType: 'poi.park', elementType: 'geometry', stylers: [{ visibility: 'on' }] },
-  {
-    elementType: 'labels',
-    featureType: 'administrative.land_parcel',
-    stylers: [{ visibility: 'off' }],
-  },
-  {
-    elementType: 'labels',
-    featureType: 'administrative.neighborhood',
-    stylers: [{ visibility: 'simplified' }],
-  },
-]
+  // ── Country labels — show, muted color ──
+  setPaint('country-label', 'text-color', c.labelMajor)
+  // Reduce halo for cleaner look
+  setPaint('country-label', 'text-halo-color', dark ? '#2c2b27' : '#faf9f8')
+  setPaint('country-label', 'text-halo-width', 1.5)
+}

@@ -1,12 +1,12 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
-import { ChevronUp } from 'lucide-react'
-import { loadGoogleMapsScript } from '../../lib/googleMaps'
-import { lightMapStyle, darkMapStyle } from './mapStyles'
+import { useRef, useEffect, useState } from 'react'
+import { ChevronUp, Plus, Share2, MoreHorizontal } from 'lucide-react'
+import mapboxgl from 'mapbox-gl'
+import { LIGHT_STYLE, DARK_STYLE, applyStyleOverrides } from './mapStyles'
 import {
   MAP_SIZES,
+  MAP_COLORS,
   SINGLE_DESTINATION_ZOOM,
   FIT_BOUNDS_PADDING,
-  BASE_MAP_OPTIONS,
 } from './mapConfig'
 import { createDestinationMarker, type DestinationMarker } from './MapMarker'
 import { createMapRoute, type MapRouteHandle } from './MapRoute'
@@ -21,14 +21,21 @@ export interface TripMapDestination {
   location_name: string
 }
 
+export interface TripHeaderInfo {
+  title: string
+  statusLabel: string
+  metadataLine: string
+}
+
 interface TripMapProps {
   destinations: TripMapDestination[]
-  /** Called when a destination marker is tapped. Receives the destination ID. */
+  header?: TripHeaderInfo
   onDestinationTap?: (destId: string) => void
-  /** Whether the map is collapsed. Controlled by parent for persistence. */
   collapsed?: boolean
-  /** Called when the user toggles collapse/expand. */
   onCollapseToggle?: (collapsed: boolean) => void
+  onAddDestination?: () => void
+  onShare?: () => void
+  onOpenMenu?: () => void
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -37,14 +44,12 @@ function usePrefersDark(): boolean {
   const [dark, setDark] = useState(
     () => typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
-
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)')
     const handler = (e: MediaQueryListEvent) => setDark(e.matches)
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
-
   return dark
 }
 
@@ -52,81 +57,99 @@ function usePrefersDark(): boolean {
 
 export default function TripMap({
   destinations,
+  header,
   onDestinationTap,
   collapsed = false,
   onCollapseToggle,
+  onAddDestination,
+  onShare,
+  onOpenMenu,
 }: TripMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef = useRef<google.maps.Map | null>(null)
+  const mapRef = useRef<mapboxgl.Map | null>(null)
   const markersRef = useRef<DestinationMarker[]>([])
   const routeRef = useRef<MapRouteHandle | null>(null)
-  const [ready, setReady] = useState(false)
+  const styleLoadedRef = useRef(false)
+  const [mapReady, setMapReady] = useState(false)
   const prefersDark = usePrefersDark()
 
-  // Stable ref for the tap callback
   const onTapRef = useRef(onDestinationTap)
   onTapRef.current = onDestinationTap
 
-  // Load Google Maps script
+  // Set Mapbox access token
+  const token = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
+  if (token) mapboxgl.accessToken = token
+
+  // ── Initialize Mapbox map ──
   useEffect(() => {
-    let cancelled = false
-    loadGoogleMapsScript().then(() => {
-      if (!cancelled) setReady(true)
+    if (!containerRef.current || destinations.length === 0 || collapsed || !token) return
+
+    const style = prefersDark ? DARK_STYLE : LIGHT_STYLE
+    const map = new mapboxgl.Map({
+      container: containerRef.current,
+      style,
+      center: [destinations[0].location_lng, destinations[0].location_lat],
+      zoom: 4,
+      attributionControl: false,
+      logoPosition: 'bottom-left',
     })
-    return () => { cancelled = true }
-  }, [])
 
-  // Fit map viewport to destination coordinates
-  const fitViewport = useCallback(
-    (map: google.maps.Map, dests: TripMapDestination[]) => {
-      if (dests.length === 0) return
-      if (dests.length === 1) {
-        map.setCenter({ lat: dests[0].location_lat, lng: dests[0].location_lng })
-        map.setZoom(SINGLE_DESTINATION_ZOOM)
+    map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right')
+
+    map.on('style.load', () => {
+      applyStyleOverrides(map, prefersDark)
+      styleLoadedRef.current = true
+      setMapReady(true)
+    })
+
+    // Fit viewport after load
+    map.on('load', () => {
+      if (destinations.length === 1) {
+        map.flyTo({
+          center: [destinations[0].location_lng, destinations[0].location_lat],
+          zoom: SINGLE_DESTINATION_ZOOM,
+          duration: 0,
+        })
       } else {
-        const bounds = new google.maps.LatLngBounds()
-        for (const d of dests) {
-          bounds.extend({ lat: d.location_lat, lng: d.location_lng })
+        const bounds = new mapboxgl.LngLatBounds()
+        for (const d of destinations) {
+          bounds.extend([d.location_lng, d.location_lat])
         }
-        map.fitBounds(bounds, FIT_BOUNDS_PADDING)
+        map.fitBounds(bounds, { padding: FIT_BOUNDS_PADDING.top, duration: 0 })
       }
-    },
-    [],
-  )
+    })
 
-  // Initialize or update the map (only when expanded)
-  useEffect(() => {
-    if (!ready || !containerRef.current || destinations.length === 0 || collapsed) return
-    if (!window.google?.maps) return
+    mapRef.current = map
 
-    const styles = prefersDark ? darkMapStyle : lightMapStyle
+    return () => {
+      // Clean up markers and route BEFORE destroying the map
+      for (const m of markersRef.current) m.remove()
+      markersRef.current = []
+      routeRef.current?.remove()
+      routeRef.current = null
 
-    if (!mapRef.current) {
-      mapRef.current = new google.maps.Map(containerRef.current, {
-        ...BASE_MAP_OPTIONS,
-        styles,
-        center: { lat: 0, lng: 0 },
-        zoom: 2,
-      })
-      fitViewport(mapRef.current, destinations)
-    } else {
-      mapRef.current.setOptions({ styles })
-      fitViewport(mapRef.current, destinations)
+      map.remove()
+      mapRef.current = null
+      styleLoadedRef.current = false
+      setMapReady(false)
     }
-  }, [ready, prefersDark, destinations, fitViewport, collapsed])
+  // Re-create map on theme change or collapse toggle
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefersDark, collapsed, token, destinations.length === 0])
 
-  // Manage destination markers (only when expanded)
+  // ── Add markers when map is ready ──
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !ready || destinations.length === 0 || collapsed) return
+    if (!map || !mapReady || destinations.length === 0 || collapsed) return
 
+    // Clear existing
     for (const m of markersRef.current) m.remove()
     markersRef.current = []
 
     const newMarkers = destinations.map((d, i) =>
       createDestinationMarker({
         map,
-        position: { lat: d.location_lat, lng: d.location_lng },
+        lngLat: [d.location_lng, d.location_lat],
         chapter: i + 1,
         cityName: d.location_name,
         dark: prefersDark,
@@ -139,12 +162,13 @@ export default function TripMap({
       for (const m of newMarkers) m.remove()
       markersRef.current = []
     }
-  }, [ready, destinations, prefersDark, collapsed])
+  }, [mapReady, destinations, prefersDark, collapsed])
 
-  // Manage route polyline (only when expanded)
+  // ── Add route when map is ready ──
   useEffect(() => {
     const map = mapRef.current
-    if (!map || !ready || destinations.length < 2 || collapsed) return
+    if (!map || !mapReady || destinations.length < 2 || collapsed) return
+    if (!styleLoadedRef.current) return
 
     routeRef.current?.remove()
     const points = destinations.map(d => ({ lat: d.location_lat, lng: d.location_lng }))
@@ -154,21 +178,9 @@ export default function TripMap({
       routeRef.current?.remove()
       routeRef.current = null
     }
-  }, [ready, destinations, collapsed])
+  }, [mapReady, destinations, collapsed])
 
-  // Clean up markers and route when collapsing
-  useEffect(() => {
-    if (collapsed) {
-      for (const m of markersRef.current) m.remove()
-      markersRef.current = []
-      routeRef.current?.remove()
-      routeRef.current = null
-      // Don't destroy the map instance — just hide it. It will re-init on expand.
-      mapRef.current = null
-    }
-  }, [collapsed])
-
-  // Don't render anything if no destinations
+  // ── No destinations → no map ──
   if (destinations.length === 0) return null
 
   // ── Collapsed state ──
@@ -181,7 +193,7 @@ export default function TripMap({
     )
   }
 
-  // ── Expanded state ──
+  // ── Expanded state with overlaid header ──
   return (
     <div
       data-testid="trip-map"
@@ -190,42 +202,166 @@ export default function TripMap({
         height: MAP_SIZES.mapHeight,
         borderRadius: 16,
         overflow: 'hidden',
-        background: prefersDark ? '#2c2b27' : '#faf9f8',
         position: 'relative',
+        background: prefersDark ? '#2c2b27' : '#faf9f8',
       }}
     >
-      <div
-        ref={containerRef}
-        style={{ width: '100%', height: '100%' }}
-      />
-      {/* Collapse toggle button */}
-      {onCollapseToggle && (
-        <button
-          type="button"
-          data-testid="map-collapse-toggle"
-          onClick={() => onCollapseToggle(true)}
+      {/* Mapbox container */}
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+
+      {/* ── Overlay: Header info (top left) ── */}
+      {header && (
+        <div
+          data-testid="map-header-overlay"
           style={{
             position: 'absolute',
-            top: 8,
-            right: 8,
-            width: 28,
-            height: 28,
-            borderRadius: 6,
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: prefersDark ? 'rgba(36, 35, 32, 0.85)' : 'rgba(255, 255, 255, 0.85)',
-            color: prefersDark ? '#e8e6e1' : '#555350',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+            top: 10,
+            left: 12,
             zIndex: 10,
+            pointerEvents: 'none',
+            maxWidth: '60%',
           }}
-          aria-label="Collapse map"
         >
-          <ChevronUp size={16} />
-        </button>
+          <h2
+            style={{
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 18,
+              fontWeight: 600,
+              color: '#f5f3ef',
+              lineHeight: 1.2,
+              textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+              margin: 0,
+            }}
+          >
+            {header.title}
+          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+            <span
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 9,
+                fontWeight: 700,
+                color: MAP_COLORS.accent,
+                background: 'rgba(196, 90, 45, 0.2)',
+                padding: '2px 6px',
+                borderRadius: 4,
+                textTransform: 'uppercase',
+                letterSpacing: 0.5,
+              }}
+            >
+              {header.statusLabel}
+            </span>
+            <span
+              style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 9,
+                color: 'rgba(245, 243, 239, 0.7)',
+                textShadow: '0 1px 3px rgba(0,0,0,0.4)',
+              }}
+            >
+              {header.metadataLine}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ── Overlay: Action buttons (top right) ── */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 10,
+          right: 12,
+          zIndex: 10,
+          display: 'flex',
+          gap: 6,
+        }}
+      >
+        {onAddDestination && (
+          <OverlayIconButton onClick={onAddDestination} label="Add destination" testId="map-btn-add-dest">
+            <Plus size={15} />
+          </OverlayIconButton>
+        )}
+        {onShare && (
+          <OverlayIconButton onClick={onShare} label="Share" testId="map-btn-share">
+            <Share2 size={14} />
+          </OverlayIconButton>
+        )}
+        {onOpenMenu && (
+          <OverlayIconButton onClick={onOpenMenu} label="More" testId="map-btn-menu">
+            <MoreHorizontal size={15} />
+          </OverlayIconButton>
+        )}
+        {onCollapseToggle && (
+          <OverlayIconButton onClick={() => onCollapseToggle(true)} label="Collapse map" testId="map-collapse-toggle">
+            <ChevronUp size={15} />
+          </OverlayIconButton>
+        )}
+      </div>
+
+      {/* ── Overlay: Hint text (bottom center) ── */}
+      {destinations.length > 1 && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 28,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 10,
+            pointerEvents: 'none',
+          }}
+        >
+          <span
+            style={{
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 10,
+              color: 'rgba(245, 243, 239, 0.5)',
+              textShadow: '0 1px 3px rgba(0,0,0,0.3)',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            tap a destination to explore
+          </span>
+        </div>
       )}
     </div>
+  )
+}
+
+// ── Overlay button sub-component ─────────────────────────────────────────────
+
+function OverlayIconButton({
+  onClick,
+  label,
+  testId,
+  children,
+}: {
+  onClick: () => void
+  label: string
+  testId?: string
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      data-testid={testId}
+      style={{
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        border: 'none',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(255,255,255,0.12)',
+        color: '#f5f3ef',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.15)',
+        backdropFilter: 'blur(4px)',
+      }}
+    >
+      {children}
+    </button>
   )
 }

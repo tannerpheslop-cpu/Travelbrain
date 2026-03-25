@@ -1,79 +1,44 @@
-import { describe, it, expect, vi, beforeAll } from 'vitest'
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
 
-// Set up Google Maps mocks BEFORE any imports that use them
+const { createdMarkerElements, mockMapbox } = vi.hoisted(() => {
+  const createdMarkerElements: HTMLElement[] = []
+
+  function MockMap() {
+    return {
+      on: vi.fn((event: string, cb: () => void) => {
+        if (event === 'style.load' || event === 'load') setTimeout(cb, 0)
+      }),
+      remove: vi.fn(), addControl: vi.fn(), addSource: vi.fn(), addLayer: vi.fn(),
+      getLayer: vi.fn(), removeLayer: vi.fn(), getSource: vi.fn(), removeSource: vi.fn(),
+      flyTo: vi.fn(), fitBounds: vi.fn(), getStyle: vi.fn(() => ({ layers: [] })),
+      setPaintProperty: vi.fn(), setLayoutProperty: vi.fn(),
+    }
+  }
+  function MockMarker(opts?: { element?: HTMLElement }) {
+    if (opts?.element) createdMarkerElements.push(opts.element)
+    return { setLngLat: vi.fn().mockReturnValue({ addTo: vi.fn().mockReturnValue({ remove: vi.fn() }) }), addTo: vi.fn().mockReturnThis(), remove: vi.fn() }
+  }
+  const mockMapbox = { default: { Map: MockMap, Marker: MockMarker, AttributionControl: vi.fn(), LngLatBounds: vi.fn(() => ({ extend: vi.fn().mockReturnThis() })), accessToken: '' }, Map: MockMap, Marker: MockMarker, AttributionControl: vi.fn(), LngLatBounds: vi.fn(() => ({ extend: vi.fn().mockReturnThis() })) }
+  return { createdMarkerElements, mockMapbox }
+})
+
 beforeAll(() => {
-  // matchMedia stub
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
     value: vi.fn().mockImplementation((query: string) => ({
-      matches: false,
-      media: query,
-      onchange: null,
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      dispatchEvent: vi.fn(),
+      matches: false, media: query, onchange: null,
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
     })),
   })
-
-  // Google Maps mocks — OverlayView triggers onAdd when setMap is called
-  const overlayTarget = document.createElement('div')
-  document.body.appendChild(overlayTarget)
-
-  class MockOverlayView {
-    private _map: unknown = null
-    setMap(map: unknown) {
-      if (map && !this._map) {
-        this._map = map
-        // Trigger lifecycle
-        if (typeof (this as any).onAdd === 'function') (this as any).onAdd()
-        if (typeof (this as any).draw === 'function') (this as any).draw()
-      } else if (!map && this._map) {
-        if (typeof (this as any).onRemove === 'function') (this as any).onRemove()
-        this._map = null
-      }
-    }
-    getMap() { return this._map }
-    getPanes() { return { overlayMouseTarget: overlayTarget } }
-    getProjection() {
-      return { fromLatLngToDivPixel: () => ({ x: 100, y: 100 }) }
-    }
-  }
-
-  ;(globalThis as Record<string, unknown>).google = {
-    maps: {
-      OverlayView: MockOverlayView,
-      Polyline: class { setMap() {} setPath() {} },
-      SymbolPath: { FORWARD_CLOSED_ARROW: 2 },
-      LatLng: class {
-        lat: number; lng: number
-        constructor(lat: number, lng: number) { this.lat = lat; this.lng = lng }
-      },
-      LatLngBounds: class {
-        extend() { return this }
-      },
-      Map: class {
-        setCenter() {}
-        setZoom() {}
-        setOptions() {}
-        fitBounds() {}
-        getDiv() { return { offsetWidth: 400 } }
-      },
-    },
-  }
 })
 
-vi.mock('../../lib/googleMaps', () => ({
-  loadGoogleMapsScript: vi.fn().mockResolvedValue(undefined),
-}))
-
+vi.mock('mapbox-gl', () => mockMapbox)
+vi.mock('../../lib/googleMaps', () => ({ loadGoogleMapsScript: vi.fn().mockResolvedValue(undefined) }))
 vi.mock('../../lib/supabase', () => ({
-  supabase: {},
-  supabaseUrl: 'https://test.supabase.co',
-  supabaseAnonKey: 'test-key',
-  invokeEdgeFunction: vi.fn(),
+  supabase: {}, supabaseUrl: 'https://test.supabase.co',
+  supabaseAnonKey: 'test-key', invokeEdgeFunction: vi.fn(),
 }))
 
 import TripMap, { type TripMapDestination } from '../../components/map/TripMap'
@@ -84,43 +49,29 @@ const destinations: TripMapDestination[] = [
   { id: 'd3', location_lat: 34.69, location_lng: 135.50, location_name: 'Osaka' },
 ]
 
-describe('TripMap markers integration', () => {
-  it('renders 3 markers for a trip with 3 destinations', async () => {
-    render(<TripMap destinations={destinations} />)
+describe('TripMap markers (Mapbox)', () => {
+  beforeEach(() => { createdMarkerElements.length = 0 })
 
+  it('creates 3 markers for 3 destinations', async () => {
+    render(<TripMap destinations={destinations} />)
+    await vi.waitFor(() => expect(createdMarkerElements.length).toBe(3), { timeout: 3000 })
+  })
+
+  it('markers show correct chapter numbers', async () => {
+    render(<TripMap destinations={destinations} />)
     await vi.waitFor(() => {
-      const markers = document.querySelectorAll('[data-testid^="map-marker-"]')
-      expect(markers.length).toBe(3)
+      expect(createdMarkerElements[0]?.innerHTML).toContain('01')
+      expect(createdMarkerElements[1]?.innerHTML).toContain('02')
+      expect(createdMarkerElements[2]?.innerHTML).toContain('03')
     }, { timeout: 3000 })
   })
 
-  it('markers show correct chapter numbers in destination order', async () => {
+  it('markers have correct city names', async () => {
     render(<TripMap destinations={destinations} />)
-
     await vi.waitFor(() => {
-      const m1 = document.querySelector('[data-testid="map-marker-1"]')
-      const m2 = document.querySelector('[data-testid="map-marker-2"]')
-      const m3 = document.querySelector('[data-testid="map-marker-3"]')
-      expect(m1).toBeTruthy()
-      expect(m2).toBeTruthy()
-      expect(m3).toBeTruthy()
-      expect(m1!.innerHTML).toContain('01')
-      expect(m2!.innerHTML).toContain('02')
-      expect(m3!.innerHTML).toContain('03')
-    }, { timeout: 3000 })
-  })
-
-  it('markers show correct city names', async () => {
-    render(<TripMap destinations={destinations} />)
-
-    await vi.waitFor(() => {
-      const m1 = document.querySelector('[data-testid="map-marker-1"]') as HTMLElement
-      const m2 = document.querySelector('[data-testid="map-marker-2"]') as HTMLElement
-      const m3 = document.querySelector('[data-testid="map-marker-3"]') as HTMLElement
-      expect(m1).toBeTruthy()
-      expect(m1.dataset.cityname).toBe('Tokyo')
-      expect(m2.dataset.cityname).toBe('Kyoto')
-      expect(m3.dataset.cityname).toBe('Osaka')
+      expect(createdMarkerElements[0]?.dataset.cityname).toBe('Tokyo')
+      expect(createdMarkerElements[1]?.dataset.cityname).toBe('Kyoto')
+      expect(createdMarkerElements[2]?.dataset.cityname).toBe('Osaka')
     }, { timeout: 3000 })
   })
 })
