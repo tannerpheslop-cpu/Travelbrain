@@ -39,7 +39,7 @@ describe('TripMap rendering (Mapbox)', () => {
 
   it('renders the map container with correct height', () => {
     render(<TripMap destinations={[tokyoDest]} />)
-    expect(screen.getByTestId('trip-map').style.height).toBe('280px')
+    expect(screen.getByTestId('trip-map').style.height).toBe('320px')
   })
 
   it('renders header overlay when header prop is provided', () => {

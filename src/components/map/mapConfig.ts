@@ -14,9 +14,9 @@ export const MAP_COLORS = {
 export const MAP_SIZES = {
   markerRadius: 6,
   markerTouchTarget: 44,
-  routeWeight: 2.5,
-  routeGlowWeight: 6,
-  mapHeight: 280,
+  routeWeight: 2,
+  routeGlowWeight: 4,
+  mapHeight: 320,
   collapsedHeight: 44,
 }
 
@@ -24,4 +24,4 @@ export const MAP_SIZES = {
 export const SINGLE_DESTINATION_ZOOM = 12
 
 /** Padding (in pixels) when fitting bounds to multiple destinations. */
-export const FIT_BOUNDS_PADDING = { top: 50, right: 50, bottom: 50, left: 50 }
+export const FIT_BOUNDS_PADDING = { top: 80, bottom: 60, left: 40, right: 40 }

@@ -66,6 +66,19 @@ input, textarea, select {
   font-size: 16px !important;
 }
 
+/* ── Mapbox overrides ── */
+/* Hide large Mapbox logo, keep compact (i) attribution */
+.mapboxgl-ctrl-logo {
+  display: none !important;
+}
+.mapboxgl-ctrl-attrib {
+  background: transparent !important;
+  font-size: 10px;
+}
+.mapboxgl-ctrl-attrib a {
+  color: rgba(136, 135, 128, 0.6) !important;
+}
+
 /* Shimmer animation for pending location detection */
 @keyframes shimmer {
   0% { background-position: 200% 0; }

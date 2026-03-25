@@ -72,8 +72,8 @@ export function createMapRoute(map: MapboxMap, points: RoutePoint[]): MapRouteHa
     paint: {
       'line-color': MAP_COLORS.accent,
       'line-width': MAP_SIZES.routeWeight,
-      'line-opacity': 0.55,
-      'line-dasharray': [3, 2],
+      'line-opacity': 0.45,
+      'line-dasharray': [4, 3],
     },
     layout: {
       'line-cap': 'round',
