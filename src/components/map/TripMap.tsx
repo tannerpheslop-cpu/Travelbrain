@@ -276,10 +276,10 @@ export default function TripMap({
             data-testid="map-header-overlay"
             style={{
               position: 'absolute',
-              top: 52,
+              top: 46,
               left: 14,
               zIndex: 10,
-              maxWidth: '70%',
+              maxWidth: '65%',
             }}
           >
             {/* Title — tappable for editing */}
