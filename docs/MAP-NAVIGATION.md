@@ -26,54 +26,55 @@ One map. Two zoom levels. The map is always present when viewing a trip, and it 
 
 The original topo map brief specified custom SVG rendering with coastline extraction, DEM contour generation, and server-side edge functions. That approach produced a beautiful cartographic aesthetic but only worked at the trip level — it could not zoom to street level to show individual items within a city.
 
-The unified navigation concept requires a map that operates across all zoom levels, from continental to street. Google Maps provides this natively.
+The unified navigation concept requires a map that operates across all zoom levels, from continental to street. Mapbox GL JS provides this with pixel-level style control.
 
 **What we gain:**
 - One map system instead of two (no separate trip map and city map)
 - Every zoom level from continental to street, handled natively
-- Directions, distance calculations, and proximity visualization for free
+- Pixel-level style control via Mapbox style specification (inline JSON or Studio)
+- Native dashed line support, symbol layers, and feature-state for selections
+- Minimal branding (small Mapbox wordmark vs Google's required logo bar)
 - Dramatically faster to build — well-documented JS API, no edge functions for coastline extraction
 - Street-level context that answers "how far is my hotel from this restaurant" visually
-- Google Places integration already in our stack
+- Google Places API still available for autocomplete and text search
 
 **What we trade:**
 - The distinctive topo aesthetic (contour lines, hand-drawn cartographic feel)
-- Full visual control over every element
-- Offline SVG rendering for share cards (replaced by Google Static Maps API)
+- Google's built-in directions/routing (not needed for current scope)
+- Offline SVG rendering for share cards (replaced by Mapbox Static Images API)
 
-**Mitigation:** Google Maps Cloud-based styling allows significant customization — muted color palette, hidden UI elements, reduced label density, custom markers. The map will look branded and intentional, not like a generic Google embed. The design goal shifts from "vintage atlas" to "clean, muted cartographic surface with Youji's copper accent as the only color."
+**Mitigation:** Mapbox GL JS supports full style customization — muted color palette, hidden UI elements, reduced label density, custom markers via native layers. The map looks branded and intentional. The design goal: "clean, muted cartographic surface with Youji's copper accent as the only color."
 
 ---
 
 ## 3. Trip Overview Page
 
-### 3.1 Layout
+### 3.1 Layout (Combined Header — Implemented)
 
-The trip overview page structure:
+The trip overview uses a **combined header layout** where the trip header is overlaid directly on the map:
 
 ```
 ┌─────────────────────────────┐
-│  Trip header (title, status, │
-│  dates, companions, ···)     │
+│ MAP (full-bleed, 320px)      │
+│                              │
+│ ← Back    [+] [share] [···] │
+│                              │
+│ Trip Title                   │
+│ SOMEDAY · 2 countries · 4 d.│
+│                              │
+│   [01] Tokyo  ── [02] Kyoto │
+│                              │
 ├─────────────────────────────┤
-│                              │
-│  MAP (navigational header)   │
-│  ~280px height, collapsible  │
-│  Shows all destinations +    │
-│  route line                  │
-│                              │
+│ tap a destination to explore │
 ├─────────────────────────────┤
-│  Tabs: Destinations │        │
-│        Itinerary │ Logistics │
+│ Destinations │ Itinerary │ …│
 ├─────────────────────────────┤
-│                              │
-│  Destination list            │
-│  (scrollable page content)   │
-│                              │
+│ Destination list (simple     │
+│ tappable rows, no accordion) │
 └─────────────────────────────┘
 ```
 
-The map sits between the trip header and the tab bar. It is a navigational element, not a passive hero image. This must be clear from the visual treatment — interactive markers, visible touch affordances, and immediate feedback on tap.
+The map is the page header. Title, status pill, metadata, and action buttons are HTML overlays positioned on top of the map. No separate header section above the map. The hint text "tap a destination to explore" sits below the map, above the tabs.
 
 ### 3.2 Map Behavior (Trip Level)
 
@@ -83,15 +84,16 @@ The map sits between the trip header and the tab bar. It is a navigational eleme
 - City name label on a semi-transparent plate
 - Save count as secondary text (e.g., "6 saves")
 
-**Route line:** Dashed polyline connecting destinations in sequence.
+**Route line:** Dashed polyline connecting destinations in sequence (Mapbox GeoJSON line layers).
 - Color: `--color-accent` (#c45a2d)
-- Stroke: 2.5px dashed
-- Opacity: 55%
+- Stroke: 2px dashed (`line-dasharray: [4, 3]`)
+- Opacity: 45%
+- Glow layer behind: 4px, 8% opacity
 - Small directional arrows at segment midpoints
 
 **Viewport:** Auto-fitted to include all destinations with padding. If destinations span multiple countries, the map zooms out accordingly. Single-destination trips zoom to a reasonable city-area level.
 
-**Map chrome:** Minimal. Hide default Google Maps UI (zoom buttons, Street View, map type selector). Show only attribution (required by Google TOS). The map should feel like part of Youji, not a Google widget.
+**Map chrome:** Minimal. Mapbox logo hidden via CSS. Compact attribution (ⓘ) icon in bottom-right (required by Mapbox TOS). All default controls (zoom, compass, geolocate) hidden. The map feels like part of Youji, not a widget.
 
 ### 3.3 Tap Interaction
 
@@ -115,13 +117,15 @@ Collapse/expand state persists per-trip in the database (`map_collapsed` boolean
 - 1+ destinations, user has never toggled: default expanded
 - After user explicitly toggles: persist that state
 
-### 3.5 Trip-Level Map Overlay Elements
+### 3.5 Trip-Level Map Overlay Elements (Implemented)
 
-On top of the map (as positioned HTML overlays, not map markers):
-- **Top left:** Trip name badge (e.g., "ASIA 2026" in copper mono text on semi-transparent plate)
-- **Top right:** Summary stats ("4 destinations · 19 saves")
+On top of the map as positioned HTML elements:
+- **Top left row 1:** ← Back button (icon, glass-blur background)
+- **Top right row 1:** Action icons: + (add destination), share, companions (with badge), ···, ▲ (collapse)
+- **Below back button:** Trip title (20px, white with text-shadow, tappable for editing)
+- **Below title:** Status pill (copper, tappable for dropdown) + metadata ("2 countries · 4 destinations · dates")
 
-These overlays should not interfere with marker tap targets.
+All overlays use `backdrop-filter: blur(4px)` and semi-transparent backgrounds for readability.
 
 ---
 
@@ -131,18 +135,19 @@ These overlays should not interfere with marker tap targets.
 
 When the user taps into a destination, the layout changes to a full-screen map with a draggable bottom sheet.
 
-### 4.2 Map Behavior (Destination Level)
+### 4.2 Map Behavior (Destination Level — Implemented)
 
-The map shows the city at street/neighborhood level. Individual items with lat/lng coordinates render as pins.
+The map shows the city at street/neighborhood level. Items with `location_precision === 'precise'` render as pins. Items with city/country precision appear in the sheet but NOT on the map.
 
-**Item pins:**
-- Activities/sights: copper (#c45a2d) circle with white stroke
-- Accommodations: gray (#5f5e5a) circle with white stroke
+**Item pins (Mapbox native layers — zero-lag panning):**
+- Rendered as GeoJSON source + `circle` layer (not HTML markers)
+- Activities/sights: copper (#c45a2d) circle, 6px radius, white stroke 1.5px
+- Accommodations: gray (#5f5e5a) circle, white stroke 1.5px
+- Selected state: 8px radius, 2.5px stroke (via `setFeatureState`)
+- Name labels: `symbol` layer with `text-allow-overlap: false` for automatic collision detection
 - Transport: future tier, not yet implemented
-- Pins with enough space show a name label on a white plate
-- Clustered pins in tight proximity show without labels; labels appear on tap/zoom
 
-**Map is fully interactive.** Users can pan, zoom, explore the city.
+**Map is fully interactive.** Users can pan, zoom, explore the city. Minimum zoom: 12 for cities, 5 for countries.
 
 ### 4.3 The Draggable Bottom Sheet
 
@@ -211,11 +216,13 @@ Three layers: Map (spatial context) → Sheet (list/navigation) → Editing surf
 
 ---
 
-## 7. Google Maps Styling
+## 7. Mapbox Style Configuration
 
 ### 7.1 Style Goals
 
-Muted, near-monochrome. Copper only accent. Reduced labels. Premium editorial feel.
+Muted, near-monochrome. Copper only accent. All labels hidden (our markers replace them). Premium editorial feel.
+
+**Approach:** Uses Mapbox base styles (`light-v11` / `dark-v11`) with runtime layer overrides via `map.setPaintProperty()` and `map.setLayoutProperty()` after style load. Defined in `src/components/map/mapStyles.ts`.
 
 ### 7.2 Light Mode
 
@@ -249,13 +256,13 @@ Muted, near-monochrome. Copper only accent. Reduced labels. Premium editorial fe
 
 ### 7.4 Custom Markers
 
-**Destination markers (trip level):** Copper dot (12px), chapter number (Mono 800), city name (Sans 500), label plate (white 94% / dark 95%), 44px touch target.
+**Destination markers (trip level):** HTML `mapboxgl.Marker` with custom elements. Copper dot (12px), chapter number (Mono 800), city name (Sans 500), label plate (white 94% / dark 95%), 44px touch target. Pulse animation on tap (150ms CSS scale).
 
-**Item pins (destination level):** Activity = copper 12px, accommodation = gray 12px, selected = 16px + 2.5px stroke.
+**Item pins (destination level):** Mapbox native `circle` + `symbol` layers (not HTML markers). Activity = copper 6px radius, accommodation = gray 6px. Selected = 8px + 2.5px stroke via `feature-state`. Labels use `text-allow-overlap: false` for automatic collision detection.
 
 ### 7.5 Route Line
 
-Stroke: #c45a2d, weight 2.5, opacity 0.55, dashed, geodesic. Glow: same color, weight 6, opacity 0.08. Arrows at midpoints.
+Mapbox GeoJSON line layers: main line #c45a2d, weight 2, opacity 0.45, `line-dasharray: [4, 3]`. Glow layer: same color, weight 4, opacity 0.08. Directional arrows at segment midpoints via Mapbox Symbols API.
 
 ---
 
@@ -286,33 +293,37 @@ Static hero map (Mapbox Static Images API). Respects privacy modes. OG image: da
 
 ---
 
-## 10. Component Architecture
+## 10. Component Architecture (Implemented)
 
 ```
 src/components/map/
-  TripMap.tsx              — Trip-level map + markers + route
-  DestinationMap.tsx       — City-level map + item pins
-  MapMarker.tsx            — Custom marker component
-  MapRoute.tsx             — Route polyline
-  MapOverlay.tsx           — Positioned overlays (badges, breadcrumbs, pills)
-  DraggableSheet.tsx       — Bottom sheet with snap points
-  SheetItemRow.tsx         — Item row in sheet
-  useMapTransition.ts      — Zoom transition hook
-  useSheetDrag.ts          — Sheet drag/snap hook
-  mapStyles.ts             — Style JSON (light + dark)
-  mapConfig.ts             — Shared constants
+  TripMap.tsx              — Trip-level map + markers + route + combined header overlay
+  DestinationMapView.tsx   — Full-screen city map + native pin layers + sheet integration
+  MapMarker.tsx            — Custom HTML marker for trip-level destinations
+  MapRoute.tsx             — GeoJSON route polyline (dash + glow layers)
+  CollapsedMapBar.tsx      — Thin bar with dots for collapsed map state
+  DraggableSheet.tsx       — Bottom sheet with 3 snap points (peek/half/full)
+  SheetItemRow.tsx         — Item row with select + navigate chevron
+  QuickLocationPicker.tsx  — Bottom sheet for manual location resolution
+  AddItemsSheet.tsx        — Browse + add Horizon items to a destination
+  mapStyles.ts             — Mapbox style overrides (light + dark)
+  mapConfig.ts             — Shared constants (colors, sizes, zoom levels)
+
+src/lib/
+  autoPrecisionUpgrade.ts  — Auto-upgrade location_precision via Places Text Search
+  triggerPrecisionUpgrade.ts — Fire-and-forget trigger for auto-precision on item add
 ```
 
 ---
 
 ## 11. Implementation Phases
 
-Phase 1: Mapbox GL JS + trip-level map (styling, markers, route, collapsible, combined header)
-Phase 2: Destination view + draggable sheet
-Phase 3: Zoom transition animation
-Phase 4: Location precision + quick picker
-Phase 5: Share view + OG image
-Phase 6: Polish + animation details
+- [x] Phase 1: Mapbox GL JS + trip-level map (styling, markers, route, collapsible, combined header)
+- [x] Phase 2: Destination view + draggable sheet + native pin layers
+- [ ] Phase 3: Zoom transition animation (trip → destination smooth zoom)
+- [x] Phase 4: Location precision + quick picker + auto-precision upgrade
+- [ ] Phase 5: Share view + OG image (Mapbox Static Images API)
+- [x] Phase 6: Polish (full-bleed, label collision, bounds, empty states)
 
 ---
 
@@ -327,4 +338,18 @@ Phase 6: Polish + animation details
 | Only precise items as pins | City-level geocoding clusters at city center = useless |
 | Gray accommodations, copper activities | Visual tier distinction |
 | Sheet for browsing, modal for editing | Sheet too constrained for forms |
-| ~700ms transition | Responsive yet spatial |
+| Native Mapbox layers for pins | HTML markers lag during pan; native circle+symbol layers run at 60fps |
+| Combined header (title on map) | Saves vertical space, map IS the header |
+| Auto-precision on destination add | Reduces manual "needs location" items without user intervention |
+| City-state detection in geocoding | Prevents "Kowloon" instead of "Hong Kong" for business geocoding |
+| ~700ms transition | Responsive yet spatial (not yet implemented) |
+
+---
+
+## 13. Future Considerations
+
+- **Route visualization for activities:** Hiking trails, train rides, and multi-point journeys could render as polylines on the destination map. Requires a new `entry_type` field on saved_items.
+- **Smooth zoom transition (Phase 3):** Trip → destination view should animate the map zoom rather than a hard page navigation. Requires map state persistence across route changes.
+- **Offline map tiles:** Mapbox supports offline tile packs for mobile. Relevant when the iOS app is built.
+- **3D terrain:** Mapbox supports terrain/hillshade layers. Could enhance hike/mountain destinations.
+- **Photo persistence pipeline:** Google Places photo URLs expire. Need to upload to Supabase Storage for permanent URLs.
