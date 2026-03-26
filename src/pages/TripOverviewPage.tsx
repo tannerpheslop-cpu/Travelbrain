@@ -13,7 +13,7 @@ import LocationAutocomplete, { type LocationSelection } from '../components/Loca
 import { fetchPlacePhoto } from '../lib/googleMaps'
 import { fetchDestinationPhoto } from '../lib/unsplash'
 import { getScopedCountryCodes } from '../lib/continentCodes'
-import TripMap from '../components/map/TripMap'
+import UnifiedTripMap from '../components/map/UnifiedTripMap'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { trySetTripCoverFromName, maybeUpdateCoverFromDestination } from '../lib/tripCoverImage'
 import { type CountryCluster } from '../lib/clusters'
@@ -738,7 +738,7 @@ function LogisticsTab() {
 // ── Trip Overview Page ─────────────────────────────────────────────────────────
 
 export default function TripOverviewPage() {
-  const { id } = useParams()
+  const { id, destId: urlDestId } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
 
@@ -1680,21 +1680,14 @@ export default function TripOverviewPage() {
   return (
     <div className="px-5 pb-24 max-w-[860px] mx-auto" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
 
-      {/* ── Trip Map (full bleed, replaces old header) ── */}
+      {/* ── Unified Trip Map (trip + destination levels) ── */}
       {destinations.length > 0 && (
-        <TripMap
-          destinations={destinations.map(d => ({
-            id: d.id,
-            location_lat: d.location_lat,
-            location_lng: d.location_lng,
-            location_name: d.location_name.split(',')[0],
-          }))}
-          header={trip ? {
-            title: trip.title,
-            statusLabel: trip.status === 'aspirational' ? 'Someday' : trip.status === 'planning' ? 'Planning' : 'Upcoming',
-            metadataLine: metadataItems.join(' · '),
-          } : undefined}
-          onDestinationTap={(destId) => navigate(`/trip/${id}/dest/${destId}`)}
+        <UnifiedTripMap
+          tripId={id!}
+          tripTitle={trip?.title ?? ''}
+          statusLabel={trip?.status === 'aspirational' ? 'Someday' : trip?.status === 'planning' ? 'Planning' : 'Upcoming'}
+          metadataLine={metadataItems.join(' · ')}
+          destinations={destinations}
           collapsed={trip?.map_collapsed ?? false}
           onCollapseToggle={(collapsed) => {
             if (trip) setTrip({ ...trip, map_collapsed: collapsed })
@@ -1708,7 +1701,14 @@ export default function TripOverviewPage() {
           onCompanions={() => setShowInviteModal(true)}
           companionCount={companions.length}
           onOpenMenu={() => setShowActionMenu(o => !o)}
-          showHint={!localStorage.getItem('youji_map_hint_dismissed')}
+          onItemSelect={(itemId) => navigate(`/item/${itemId}?backTo=${encodeURIComponent(`/trip/${id}`)}`)}
+          initialDestId={urlDestId ?? null}
+          onLevelChange={(_level, destId) => {
+            const newPath = destId ? `/trip/${id}/dest/${destId}` : `/trip/${id}`
+            if (window.location.pathname !== newPath) {
+              window.history.pushState(null, '', newPath)
+            }
+          }}
         />
       )}
 
