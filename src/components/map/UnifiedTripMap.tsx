@@ -6,7 +6,7 @@ import { MAP_COLORS, SINGLE_DESTINATION_ZOOM, FIT_BOUNDS_PADDING } from './mapCo
 import { createDestinationMarker, type DestinationMarker } from './MapMarker'
 import { createMapRoute, type MapRouteHandle } from './MapRoute'
 import CollapsedMapBar from './CollapsedMapBar'
-import DraggableSheet from './DraggableSheet'
+import TripSheet from './TripSheet'
 import SheetItemRow from './SheetItemRow'
 import QuickLocationPicker from './QuickLocationPicker'
 import AddItemsSheet from './AddItemsSheet'
@@ -95,6 +95,7 @@ export default function UnifiedTripMap({
   onLevelChange,
 }: UnifiedTripMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const mapWrapperRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const markersRef = useRef<DestinationMarker[]>([])
   const routeRef = useRef<MapRouteHandle | null>(null)
@@ -800,6 +801,7 @@ export default function UnifiedTripMap({
   return (
     <>
       <div
+        ref={mapWrapperRef}
         data-testid="unified-trip-map"
         style={{
           height: '100vh',
@@ -894,10 +896,11 @@ export default function UnifiedTripMap({
           )}
         </div>
 
-        {/* ── DraggableSheet — present at BOTH levels ── */}
-        <DraggableSheet
+        {/* ── TripSheet (Vaul) — present at BOTH levels ── */}
+        <TripSheet
           snapPoints={[0.15, 0.5, 0.85]}
           initialSnap="half"
+          container={mapWrapperRef}
           header={
             <div data-testid="sheet-header-fade" style={{ opacity: sheetContentOpacity, transition: 'opacity 150ms ease' }}>
               {level === 'trip' ? tripSheetHeader : destSheetHeader}
@@ -924,7 +927,7 @@ export default function UnifiedTripMap({
               ))
             )}
           </div>
-        </DraggableSheet>
+        </TripSheet>
       </div>
 
       {/* ── Quick picker + Add items sheet (destination level) ── */}

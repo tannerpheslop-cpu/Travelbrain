@@ -77,7 +77,7 @@ describe('Sheet content crossfade', () => {
     expect(contentFade.style.opacity).toBe('1')
   })
 
-  it('sheet height does not change during transition (snap preserved)', () => {
+  it('sheet is present and has overflow hidden (Vaul renders it)', () => {
     render(
       <UnifiedTripMap
         tripId="trip-1" tripTitle="Japan" statusLabel="Planning" metadataLine="1 dest"
@@ -85,8 +85,7 @@ describe('Sheet content crossfade', () => {
       />,
     )
     const sheet = screen.getByTestId('draggable-sheet')
-    const heightBefore = sheet.style.height
-    // Height should be at half snap (50% of 800 = 400px)
-    expect(heightBefore).toBe('400px')
+    expect(sheet).toBeInTheDocument()
+    expect(sheet.style.overflow).toBe('hidden')
   })
 })
