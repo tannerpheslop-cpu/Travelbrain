@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
-import { useTripQuery, useTripDestinations, useInboxClusters, useDeleteTrip, useToggleFavorite, useCompanionsQuery, queryKeys, type DestWithCount } from '../hooks/queries'
+import { useTripQuery, useTripDestinations, useInboxClusters, useDeleteTrip, useToggleFavorite, useCreateDestination, useCompanionsQuery, queryKeys, type DestWithCount } from '../hooks/queries'
 import { useCompanions as useCompanionsLegacy } from '../hooks/useCompanions'
 import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
 import { useRoutes } from '../hooks/useRoutes'
@@ -13,6 +13,7 @@ import { type LocationSelection } from '../components/LocationAutocomplete'
 import { fetchDestinationPhoto } from '../lib/unsplash'
 import { getScopedCountryCodes } from '../lib/continentCodes'
 import UnifiedTripMap from '../components/map/UnifiedTripMap'
+import AddDestinationSheet from '../components/map/AddDestinationSheet'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { trySetTripCoverFromName } from '../lib/tripCoverImage'
 import { type CountryCluster } from '../lib/clusters'
@@ -322,6 +323,22 @@ export default function TripOverviewPage() {
   // Add destination
   const addDestFormRef = useRef<HTMLDivElement>(null)
   const [showAddDest, setShowAddDest] = useState(false)
+  const createDestMutation = useCreateDestination()
+
+  const handleAddDestSelect = useCallback(async (loc: LocationSelection) => {
+    if (!id) return
+    try {
+      await createDestMutation.mutateAsync({
+        tripId: id,
+        location: loc,
+        sortOrder: destinations.length,
+      })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id) })
+    } catch (err) {
+      console.error('Failed to create destination:', err)
+    }
+    setShowAddDest(false)
+  }, [id, destinations.length, createDestMutation, queryClient])
 
   // (accordion state removed — destinations navigate to map view now)
 
@@ -945,6 +962,15 @@ export default function TripOverviewPage() {
           onClose={() => setDatePickerDestId(null)}
         />
       )}
+      {/* ── Add Destination Sheet ── */}
+      {showAddDest && (
+        <AddDestinationSheet
+          onSelect={handleAddDestSelect}
+          onClose={() => setShowAddDest(false)}
+          suggestions={frozenSuggestions}
+        />
+      )}
+
       {/* Scroll to top */}
       <ScrollToTop bottom={80} />
       {/* Action toast */}

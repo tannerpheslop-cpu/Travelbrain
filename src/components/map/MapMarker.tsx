@@ -20,15 +20,28 @@ export interface DestinationMarker {
 
 // ── Marker HTML builder ──────────────────────────────────────────────────────
 
-export function buildMarkerHTML(chapter: number, cityName: string, dark: boolean): string {
+/** Max display characters for city name on marker labels */
+const MAX_LABEL_CHARS = 18
+
+function truncateLabel(name: string): string {
+  if (name.length <= MAX_LABEL_CHARS) return name
+  return name.slice(0, MAX_LABEL_CHARS).trimEnd() + '…'
+}
+
+export function buildMarkerHTML(chapter: number, cityName: string, dark: boolean, labelSide: 'right' | 'left' = 'right'): string {
   const dotSize = MAP_SIZES.markerRadius * 2 // 12px
   const ringSize = dotSize + 8 // 20px
   const plateBackground = dark ? MAP_COLORS.labelPlateDark : MAP_COLORS.labelPlateLight
   const textColor = dark ? '#e8e6e1' : '#555350'
   const chapterStr = String(chapter).padStart(2, '0')
+  const displayName = truncateLabel(cityName)
+
+  // Flex direction: row for right-side label, row-reverse for left-side
+  const flexDir = labelSide === 'left' ? 'row-reverse' : 'row'
+  const labelMargin = labelSide === 'left' ? 'margin-right:6px;margin-left:0;' : 'margin-left:6px;'
 
   return `
-    <div style="position:relative;display:flex;align-items:center;">
+    <div style="position:relative;display:flex;align-items:center;flex-direction:${flexDir};">
       <!-- Outer ring -->
       <div style="
         width:${ringSize}px;height:${ringSize}px;
@@ -48,11 +61,12 @@ export function buildMarkerHTML(chapter: number, cityName: string, dark: boolean
         flex-shrink:0;
         position:relative;
         z-index:1;
-        margin-left:${(MAP_SIZES.markerTouchTarget - dotSize) / 2}px;
+        margin-left:${labelSide === 'left' ? '0' : (MAP_SIZES.markerTouchTarget - dotSize) / 2}px;
+        margin-right:${labelSide === 'left' ? String((MAP_SIZES.markerTouchTarget - dotSize) / 2) + 'px' : '0'};
       "></div>
       <!-- Label plate -->
       <div data-label-plate style="
-        margin-left:6px;
+        ${labelMargin}
         background:${plateBackground};
         border-radius:4px;
         padding:2px 6px;
@@ -76,7 +90,7 @@ export function buildMarkerHTML(chapter: number, cityName: string, dark: boolean
           font-size:11px;
           color:${textColor};
           line-height:1.2;
-        ">${cityName}</span>
+        ">${displayName}</span>
       </div>
     </div>
   `
@@ -107,7 +121,12 @@ export function createDestinationMarker(opts: MapMarkerOptions): DestinationMark
     alignItems: 'center',
     transition: 'transform 150ms ease-out',
   })
-  el.innerHTML = buildMarkerHTML(chapter, cityName, dark)
+  // Determine label side based on marker position in the viewport
+  const projected = map.project(lngLat)
+  const containerWidth = map.getContainer().clientWidth
+  const labelSide = projected.x > containerWidth * 0.75 ? 'left' : 'right'
+
+  el.innerHTML = buildMarkerHTML(chapter, cityName, dark, labelSide)
 
   if (onClick) {
     el.addEventListener('click', (e) => {
@@ -136,7 +155,7 @@ export function createDestinationMarker(opts: MapMarkerOptions): DestinationMark
     remove: () => marker.remove(),
     setDark: (newDark: boolean) => {
       dark = newDark
-      el.innerHTML = buildMarkerHTML(chapter, cityName, dark)
+      el.innerHTML = buildMarkerHTML(chapter, cityName, dark, labelSide)
     },
     getElement: () => el,
   }

@@ -445,7 +445,7 @@ export default function UnifiedTripMap({
         'source-layer': 'country_boundaries',
         paint: {
           'fill-color': MAP_COLORS.accent,
-          'fill-opacity': prefersDark ? 0.15 : 0.12,
+          'fill-opacity': prefersDark ? 0.30 : 0.25,
         },
         filter: ['in', ['get', 'iso_3166_1_alpha_2'], ['literal', countryCodes]],
       }, 'country-label')
@@ -463,7 +463,7 @@ export default function UnifiedTripMap({
           'source-layer': 'country_boundaries',
           paint: {
             'fill-color': MAP_COLORS.accent,
-            'fill-opacity': prefersDark ? 0.15 : 0.12,
+            'fill-opacity': prefersDark ? 0.30 : 0.25,
           },
           filter: ['in', ['get', 'iso_3166_1_alpha_2'], ['literal', countryCodes]],
         })
