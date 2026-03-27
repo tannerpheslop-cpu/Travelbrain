@@ -116,14 +116,14 @@ export function createDestinationMarker(opts: MapMarkerOptions): DestinationMark
     })
   }
 
-  // Anchor the marker so the dot center sits at the coordinate.
-  // For right-label: dot is at left edge → anchor 'left', offset right by half dot width
-  // For left-label: dot is at right edge → anchor 'right', offset left by half dot width
+  // Anchor the marker so the dot center sits at the exact coordinate.
+  // anchor:'left' → left edge at coord → dot center is +6px right → offset [-6, 0] to align
+  // anchor:'right' → right edge at coord → dot center is -6px left → offset [+6, 0] to align
   const dotHalf = MAP_SIZES.markerRadius // 6px
   const marker = new mapboxgl.Marker({
     element: el,
     anchor: labelSide === 'left' ? 'right' : 'left',
-    offset: labelSide === 'left' ? [-dotHalf, 0] : [dotHalf, 0],
+    offset: labelSide === 'left' ? [dotHalf, 0] : [-dotHalf, 0],
   })
     .setLngLat(lngLat)
     .addTo(map)
