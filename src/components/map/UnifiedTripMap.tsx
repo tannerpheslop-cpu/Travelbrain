@@ -6,10 +6,12 @@ import { MAP_COLORS, SINGLE_DESTINATION_ZOOM, FIT_BOUNDS_PADDING } from './mapCo
 import { createDestinationMarker, type DestinationMarker } from './MapMarker'
 import { createMapRoute, type MapRouteHandle } from './MapRoute'
 import CollapsedMapBar from './CollapsedMapBar'
+import { addCountryHighlights } from './countryHighlight'
 import DraggableSheet from './DraggableSheet'
 import SheetItemRow from './SheetItemRow'
 import QuickLocationPicker from './QuickLocationPicker'
 import AddItemsSheet from './AddItemsSheet'
+import { useToast } from '../Toast'
 import { supabase } from '../../lib/supabase'
 // onItemAddedToDestination fires inside AddItemsSheet
 import { shortLocalName } from '../BilingualName'
@@ -94,6 +96,7 @@ export default function UnifiedTripMap({
   initialDestId,
   onLevelChange,
 }: UnifiedTripMapProps) {
+  const { toast } = useToast()
   const containerRef = useRef<HTMLDivElement>(null)
   const mapWrapperRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -416,67 +419,30 @@ export default function UnifiedTripMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefersDark, collapsed, token, destinations.length === 0])
 
-  // ── Country highlight layer — persists across levels ──
+  // ── Country highlight layer (GeoJSON) — persists across levels ──
+  const highlightCleanupRef = useRef<(() => void) | null>(null)
   useEffect(() => {
     const map = mapRef.current
     if (!map || !mapReady || !styleLoadedRef.current) return
 
-    const HIGHLIGHT_SOURCE = 'youji-country-boundaries'
-    const HIGHLIGHT_LAYER = 'youji-country-highlight'
     const countryCodes = [...new Set(destinations.map(d => d.location_country_code).filter(Boolean))]
 
     // Clean previous
-    try {
-      if (map.getLayer(HIGHLIGHT_LAYER)) map.removeLayer(HIGHLIGHT_LAYER)
-      if (map.getSource(HIGHLIGHT_SOURCE)) map.removeSource(HIGHLIGHT_SOURCE)
-    } catch { /* ignore */ }
+    highlightCleanupRef.current?.()
+    highlightCleanupRef.current = null
 
     if (countryCodes.length === 0) return
 
-    try {
-      map.addSource(HIGHLIGHT_SOURCE, {
-        type: 'vector',
-        url: 'mapbox://mapbox.country-boundaries-v1',
-      })
-      map.addLayer({
-        id: HIGHLIGHT_LAYER,
-        type: 'fill',
-        source: HIGHLIGHT_SOURCE,
-        'source-layer': 'country_boundaries',
-        paint: {
-          'fill-color': MAP_COLORS.accent,
-          'fill-opacity': prefersDark ? 0.30 : 0.25,
-        },
-        filter: ['in', ['get', 'iso_3166_1_alpha_2'], ['literal', countryCodes]],
-      }, 'country-label')
-    } catch {
-      // country-label layer may not exist — add without before parameter
-      try {
-        map.addSource(HIGHLIGHT_SOURCE, {
-          type: 'vector',
-          url: 'mapbox://mapbox.country-boundaries-v1',
-        })
-        map.addLayer({
-          id: HIGHLIGHT_LAYER,
-          type: 'fill',
-          source: HIGHLIGHT_SOURCE,
-          'source-layer': 'country_boundaries',
-          paint: {
-            'fill-color': MAP_COLORS.accent,
-            'fill-opacity': prefersDark ? 0.30 : 0.25,
-          },
-          filter: ['in', ['get', 'iso_3166_1_alpha_2'], ['literal', countryCodes]],
-        })
-      } catch (e) {
-        console.error('Failed to add country highlight layer:', e)
-      }
-    }
+    let cancelled = false
+    addCountryHighlights(map, countryCodes, prefersDark).then(cleanup => {
+      if (cancelled) { cleanup(); return }
+      highlightCleanupRef.current = cleanup
+    })
 
     return () => {
-      try {
-        if (map.getLayer(HIGHLIGHT_LAYER)) map.removeLayer(HIGHLIGHT_LAYER)
-        if (map.getSource(HIGHLIGHT_SOURCE)) map.removeSource(HIGHLIGHT_SOURCE)
-      } catch { /* ignore */ }
+      cancelled = true
+      highlightCleanupRef.current?.()
+      highlightCleanupRef.current = null
     }
   }, [mapReady, destinations, prefersDark])
 
@@ -658,13 +624,15 @@ export default function UnifiedTripMap({
       location_country_code: data.location_country_code, location_precision: 'precise', location_locked: true,
     }).eq('id', data.itemId)
     setPickerItem(null)
+    toast('Location set')
     if (activeDestId) fetchDestItems(activeDestId)
-  }, [activeDestId, fetchDestItems])
+  }, [activeDestId, fetchDestItems, toast])
 
   const handleAddItemDone = useCallback(() => {
     setShowAddItems(false)
+    toast('Added to destination')
     if (activeDestId) fetchDestItems(activeDestId)
-  }, [activeDestId, fetchDestItems])
+  }, [activeDestId, fetchDestItems, toast])
 
   // ── No destinations → null ──
   if (destinations.length === 0) return null

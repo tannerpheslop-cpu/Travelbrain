@@ -14,6 +14,7 @@ import { fetchDestinationPhoto } from '../lib/unsplash'
 import { getScopedCountryCodes } from '../lib/continentCodes'
 import UnifiedTripMap from '../components/map/UnifiedTripMap'
 import AddDestinationSheet from '../components/map/AddDestinationSheet'
+import { useToast } from '../components/Toast'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { trySetTripCoverFromName } from '../lib/tripCoverImage'
 import { type CountryCluster } from '../lib/clusters'
@@ -266,6 +267,7 @@ export default function TripOverviewPage() {
   const navigate = useNavigate()
 
   const queryClient = useQueryClient()
+  const { toast } = useToast()
 
   // Core state — from React Query
   const { data: tripData, isLoading: tripQueryLoading, error: tripError } = useTripQuery(id)
@@ -327,6 +329,7 @@ export default function TripOverviewPage() {
 
   const handleAddDestSelect = useCallback(async (loc: LocationSelection) => {
     if (!id) return
+    console.log('[handleAddDestSelect] Creating destination:', loc.name)
     try {
       await createDestMutation.mutateAsync({
         tripId: id,
@@ -334,11 +337,12 @@ export default function TripOverviewPage() {
         sortOrder: destinations.length,
       })
       queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id) })
+      toast('Destination added')
     } catch (err) {
       console.error('Failed to create destination:', err)
     }
     setShowAddDest(false)
-  }, [id, destinations.length, createDestMutation, queryClient])
+  }, [id, destinations.length, createDestMutation, queryClient, toast])
 
   // (accordion state removed — destinations navigate to map view now)
 

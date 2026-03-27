@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useSavedItems, useTripsQuery, useTripItemMappings, useTripLinkCounts, useUserCustomTags, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
+import { useToast } from '../components/Toast'
 import PillSheet from '../components/PillSheet'
 import type { PillGroup } from '../components/PillSheet'
 import { categoryLabel } from '../utils/categoryIcons'
@@ -139,6 +140,7 @@ type ViewMode = 'grid' | 'list'
 
 export default function InboxPage() {
   const { user } = useAuth()
+  const { toast } = useToast()
   const navLocation = useLocation()
   const queryClient = useQueryClient()
 
@@ -787,6 +789,7 @@ export default function InboxPage() {
       <SaveSheet
         onClose={() => setShowSaveSheet(false)}
         onSaved={() => {
+          toast('Saved to Horizon')
           const uid = user?.id ?? ''
           console.log('[onSaved] Refetching saved items, user:', uid)
           queryClient.refetchQueries({ queryKey: queryKeys.savedItems(uid) })
