@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
-import { ChevronLeft, ChevronUp, Plus, Share2, MoreHorizontal, Users } from 'lucide-react'
+import { ChevronLeft, Plus, Share2, MoreHorizontal, Users } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import { LIGHT_STYLE, DARK_STYLE, applyStyleOverrides } from './mapStyles'
 import { MAP_COLORS, SINGLE_DESTINATION_ZOOM, FIT_BOUNDS_PADDING } from './mapConfig'
@@ -204,13 +204,17 @@ export default function UnifiedTripMap({
       if (map.getLayer('youji-route-glow')) map.setPaintProperty('youji-route-glow', 'line-opacity', 0)
     } catch { /* ignore */ }
 
-    // 4. Start flyTo
+    // 4. Start flyTo — zoom to city neighborhood level or country level
     const isCountryLevel = dest.location_type === 'country'
-    const targetZoom = isCountryLevel ? 5 : 13
+    const targetZoom = isCountryLevel ? 6 : 12
     map.flyTo({ center: [dest.location_lng, dest.location_lat], zoom: targetZoom, duration: 550 })
 
     // 5. On flyTo complete: switch level, add pins, fade in dest overlays + sheet content
-    map.once('moveend', () => {
+    let settled = false
+    const settle = () => {
+      if (settled) return
+      settled = true
+
       setLevel('destination')
       setActiveDestId(destId)
       setSelectedItemId(null)
@@ -223,7 +227,11 @@ export default function UnifiedTripMap({
       }, 50)
 
       transitioningRef.current = false
-    })
+    }
+
+    map.once('moveend', settle)
+    // Fallback: if moveend doesn't fire (map already near target), force settle
+    setTimeout(settle, 700)
   }, [destinations, fetchDestItems, onLevelChange])
 
   const exitToTrip = useCallback(() => {
@@ -236,7 +244,7 @@ export default function UnifiedTripMap({
       onLevelChange?.('trip', null)
       setTripOverlayOpacity(1)
       setDestOverlayOpacity(0)
-      setSheetContentOpacity(0)
+      setSheetContentOpacity(1)
       return
     }
 
@@ -256,28 +264,41 @@ export default function UnifiedTripMap({
       if (map.getLayer('youji-pin-labels')) map.setPaintProperty('youji-pin-labels', 'text-opacity', 0)
     } catch { /* ignore */ }
 
-    // 3. Zoom out to fit all destinations
-    if (destinations.length >= 2) {
+    // 3. Zoom out to fit all destinations (always use fitBounds to guarantee all visible)
+    const cityOnly = destinations.filter(d => d.location_type !== 'country')
+    const boundsTargets = cityOnly.length > 0 ? cityOnly : destinations
+    if (boundsTargets.length >= 2) {
       const bounds = new mapboxgl.LngLatBounds()
-      for (const d of destinations) bounds.extend([d.location_lng, d.location_lat])
+      for (const d of boundsTargets) bounds.extend([d.location_lng, d.location_lat])
       map.fitBounds(bounds, { padding: FIT_BOUNDS_PADDING, duration: 500 })
-    } else if (destinations.length === 1) {
-      map.flyTo({ center: [destinations[0].location_lng, destinations[0].location_lat], zoom: SINGLE_DESTINATION_ZOOM, duration: 500 })
+    } else if (boundsTargets.length === 1) {
+      map.flyTo({ center: [boundsTargets[0].location_lng, boundsTargets[0].location_lat], zoom: SINGLE_DESTINATION_ZOOM, duration: 500 })
     }
 
-    // 4. On zoom complete: switch level, fade in trip overlays
-    map.once('moveend', () => {
+    // 4. On zoom complete: switch level, fade in trip overlays + sheet content
+    let settled = false
+    const settle = () => {
+      if (settled) return
+      settled = true
+
       setLevel('trip')
       setActiveDestId(null)
       setDestItems([])
       setSelectedItemId(null)
       setFilterNeedsLocation(false)
 
-      // Fade in trip overlays
-      setTimeout(() => setTripOverlayOpacity(1), 50)
+      // Fade in trip overlays AND sheet content
+      setTimeout(() => {
+        setTripOverlayOpacity(1)
+        setSheetContentOpacity(1)
+      }, 50)
 
       transitioningRef.current = false
-    })
+    }
+
+    map.once('moveend', settle)
+    // Fallback: if moveend doesn't fire, force settle
+    setTimeout(settle, 650)
   }, [destinations, onLevelChange])
 
   // Set up tap ref for markers
@@ -420,7 +441,7 @@ export default function UnifiedTripMap({
         'source-layer': 'country_boundaries',
         paint: {
           'fill-color': MAP_COLORS.accent,
-          'fill-opacity': prefersDark ? 0.08 : 0.06,
+          'fill-opacity': prefersDark ? 0.15 : 0.12,
         },
         filter: ['in', ['get', 'iso_3166_1_alpha_2'], ['literal', countryCodes]],
       }, 'country-label')
@@ -438,7 +459,7 @@ export default function UnifiedTripMap({
           'source-layer': 'country_boundaries',
           paint: {
             'fill-color': MAP_COLORS.accent,
-            'fill-opacity': prefersDark ? 0.08 : 0.06,
+            'fill-opacity': prefersDark ? 0.15 : 0.12,
           },
           filter: ['in', ['get', 'iso_3166_1_alpha_2'], ['literal', countryCodes]],
         })
@@ -580,7 +601,7 @@ export default function UnifiedTripMap({
     if (pinsWithCoords.length >= 2) {
       const bounds = new mapboxgl.LngLatBounds()
       for (const item of pinsWithCoords) bounds.extend([item.location_lng!, item.location_lat!])
-      map.fitBounds(bounds, { padding: { top: 80, bottom: 200, left: 40, right: 40 }, maxZoom: 15, duration: 0 })
+      map.fitBounds(bounds, { padding: { top: 80, bottom: 250, left: 40, right: 40 }, maxZoom: 14, duration: 0 })
     } else if (pinsWithCoords.length === 1) {
       map.flyTo({ center: [pinsWithCoords[0].location_lng!, pinsWithCoords[0].location_lat!], zoom: Math.max(14, minZoom), duration: 0 })
     } else {
@@ -791,29 +812,33 @@ export default function UnifiedTripMap({
         {/* ── Fixed overlay containers — same position at both levels ── */}
 
         {/* Row 1: Back button (top-left, fixed position) */}
-        <div data-testid="overlay-back" style={{ position: 'absolute', top: 14, left: 14, zIndex: 40 }}>
+        <div data-testid="overlay-back" style={{ position: 'absolute', top: 14, left: 14, zIndex: 40, pointerEvents: 'none' }}>
           {/* Trip-level back */}
           <div style={{ opacity: tripOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'trip' ? 'auto' : 'none', position: level === 'trip' ? 'relative' : 'absolute', top: 0, left: 0 }}>
-            {onBack && <OverlayBtn onClick={onBack} label="Back to trips" testId="map-btn-back"><ChevronLeft size={16} /></OverlayBtn>}
+            {onBack && (
+              <button type="button" data-testid="map-btn-back" onClick={onBack}
+                style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#f5f3ef', fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', textShadow: '0 1px 2px rgba(0,0,0,0.3)', minWidth: 44, minHeight: 44, WebkitTapHighlightColor: 'transparent', pointerEvents: 'auto' as const }}>
+                <ChevronLeft size={14} /> Trips
+              </button>
+            )}
           </div>
           {/* Destination-level back */}
           <div style={{ opacity: destOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'destination' ? 'auto' : 'none', position: level === 'destination' ? 'relative' : 'absolute', top: 0, left: 0 }}>
             <button type="button" data-testid="dest-map-back" onClick={isSingleCityTrip ? onBack ?? exitToTrip : exitToTrip}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#f5f3ef', fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#f5f3ef', fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', textShadow: '0 1px 2px rgba(0,0,0,0.3)', minWidth: 44, minHeight: 44, WebkitTapHighlightColor: 'transparent', pointerEvents: 'auto' as const }}>
               <ChevronLeft size={14} /> {isSingleCityTrip ? 'Trips' : tripTitle}
             </button>
           </div>
         </div>
 
         {/* Row 1: Action icons (top-right, fixed position) */}
-        <div data-testid="overlay-actions" style={{ position: 'absolute', top: 14, right: 14, zIndex: 40, display: 'flex', gap: 6 }}>
+        <div data-testid="overlay-actions" style={{ position: 'absolute', top: 14, right: 14, zIndex: 40, display: 'flex', gap: 6, pointerEvents: 'none' }}>
           {/* Trip-level icons */}
           <div style={{ opacity: tripOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'trip' ? 'auto' : 'none', display: level === 'trip' ? 'flex' : 'none', gap: 6 }}>
             {onAddDestination && <OverlayBtn onClick={onAddDestination} label="Add destination" testId="map-btn-add-dest"><Plus size={15} /></OverlayBtn>}
             {onShare && <OverlayBtn onClick={onShare} label="Share" testId="map-btn-share"><Share2 size={14} /></OverlayBtn>}
             {onCompanions && <OverlayBtn onClick={onCompanions} label="Companions" testId="map-btn-companions" badge={companionCount}><Users size={14} /></OverlayBtn>}
             {onOpenMenu && <OverlayBtn onClick={onOpenMenu} label="More" testId="map-btn-menu"><MoreHorizontal size={15} /></OverlayBtn>}
-            {onCollapseToggle && <OverlayBtn onClick={() => onCollapseToggle(true)} label="Collapse" testId="map-collapse-toggle"><ChevronUp size={15} /></OverlayBtn>}
           </div>
           {/* Destination-level icons */}
           <div style={{ opacity: destOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'destination' ? 'auto' : 'none', display: level === 'destination' ? 'flex' : 'none', gap: 6 }}>
@@ -823,12 +848,13 @@ export default function UnifiedTripMap({
                 {needsLocationCount} need location
               </button>
             )}
+            <OverlayBtn onClick={() => setShowAddItems(true)} label="Add items" testId="dest-btn-add-items"><Plus size={15} /></OverlayBtn>
             {onOpenMenu && <OverlayBtn onClick={onOpenMenu} label="More" testId="dest-btn-menu"><MoreHorizontal size={15} /></OverlayBtn>}
           </div>
         </div>
 
         {/* Row 2-3: Title + metadata (top-left below back button, fixed position) */}
-        <div data-testid="overlay-title-area" style={{ position: 'absolute', top: 52, left: 14, zIndex: 40, maxWidth: '65%' }}>
+        <div data-testid="overlay-title-area" style={{ position: 'absolute', top: 52, left: 14, zIndex: 40, maxWidth: '65%', pointerEvents: 'none' }}>
           {/* Trip-level title + metadata */}
           <div data-testid="map-header-overlay" style={{ opacity: tripOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'trip' ? 'auto' : 'none', position: level === 'trip' ? 'relative' : 'absolute', top: 0, left: 0 }}>
             <button type="button" onClick={onTitleEdit} data-testid="map-title" style={{ background: 'none', border: 'none', cursor: onTitleEdit ? 'pointer' : 'default', padding: 0, textAlign: 'left', display: 'block' }}>
@@ -925,7 +951,7 @@ function OverlayBtn({ onClick, label, testId, badge, children }: {
 }) {
   return (
     <button type="button" onClick={onClick} aria-label={label} data-testid={testId}
-      style={{ width: 32, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.12)', color: '#f5f3ef', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', backdropFilter: 'blur(4px)', position: 'relative' }}>
+      style={{ width: 32, height: 32, minWidth: 44, minHeight: 44, borderRadius: 8, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.12)', color: '#f5f3ef', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', backdropFilter: 'blur(4px)', position: 'relative', pointerEvents: 'auto' as const, WebkitTapHighlightColor: 'transparent' }}>
       {children}
       {badge != null && badge > 0 && (
         <span style={{ position: 'absolute', top: -3, right: -3, width: 14, height: 14, borderRadius: '50%', background: MAP_COLORS.accent, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{badge}</span>

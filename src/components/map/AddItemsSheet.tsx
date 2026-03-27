@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { X, Search } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../lib/auth'
@@ -80,10 +80,58 @@ export default function AddItemsSheet({
     }
   }, [destinationId, onItemAdded])
 
+  // ── Animation state ──
+  const [phase, setPhase] = useState<'entering' | 'open' | 'exiting'>('entering')
+  const [dragY, setDragY] = useState(0)
+  const dragStartRef = useRef(0)
+  const sheetElRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    // Small delay ensures browser paints initial translateY(100%) before transitioning
+    const t = setTimeout(() => setPhase('open'), 30)
+    return () => clearTimeout(t)
+  }, [])
+
+  const handleClose = useCallback(() => {
+    setPhase('exiting')
+    setTimeout(onClose, 250)
+  }, [onClose])
+
+  // ── Drag-to-dismiss on the handle ──
+  const handleDragStart = useCallback((e: React.TouchEvent) => {
+    dragStartRef.current = e.touches[0].clientY
+    setDragY(0)
+  }, [])
+
+  const handleDragMove = useCallback((e: React.TouchEvent) => {
+    const delta = e.touches[0].clientY - dragStartRef.current
+    if (delta > 0) setDragY(delta) // only allow downward drag
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    const sheetH = sheetElRef.current?.offsetHeight ?? 600
+    if (dragY > sheetH * 0.3) {
+      handleClose()
+    } else {
+      setDragY(0)
+    }
+  }, [dragY, handleClose])
+
+  const translateY = phase === 'entering' ? '100%' : phase === 'exiting' ? '100%' : `${dragY}px`
+
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
       <div
+        className="fixed inset-0 z-40"
+        style={{
+          background: 'rgba(0,0,0,0.4)',
+          opacity: phase === 'entering' || phase === 'exiting' ? 0 : 1,
+          transition: 'opacity 250ms ease',
+        }}
+        onClick={handleClose}
+      />
+      <div
+        ref={sheetElRef}
         className="fixed inset-x-0 bottom-0 z-50"
         data-testid="add-items-sheet"
         style={{
@@ -93,11 +141,19 @@ export default function AddItemsSheet({
           borderTopRightRadius: 24,
           display: 'flex',
           flexDirection: 'column',
+          transform: `translateY(${translateY})`,
+          transition: dragY > 0 ? 'none' : 'transform 300ms cubic-bezier(0.25, 1, 0.5, 1)',
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Handle */}
-        <div className="flex justify-center pt-3 pb-1">
+        {/* Handle — draggable for dismiss */}
+        <div
+          className="flex justify-center pt-3 pb-1"
+          style={{ touchAction: 'none', cursor: 'grab' }}
+          onTouchStart={handleDragStart}
+          onTouchMove={handleDragMove}
+          onTouchEnd={handleDragEnd}
+        >
           <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border-input)' }} />
         </div>
 
@@ -117,7 +173,7 @@ export default function AddItemsSheet({
               from your Horizon
             </p>
           </div>
-          <button type="button" onClick={onClose} style={{
+          <button type="button" onClick={handleClose} style={{
             background: 'none', border: 'none', cursor: 'pointer',
             color: 'var(--color-text-tertiary)', padding: 4,
           }}>
