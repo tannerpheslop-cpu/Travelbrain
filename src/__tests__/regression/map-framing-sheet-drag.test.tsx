@@ -46,10 +46,10 @@ describe('Bug C regression: sheet drag handle works in all directions', () => {
     expect(handle.style.touchAction).toBe('none')
   })
 
-  it('sheet outer container has touchAction none to prevent browser interference', () => {
+  it('sheet outer container has overflow hidden to prevent browser scroll', () => {
     renderSheet()
     const sheet = screen.getByTestId('draggable-sheet')
-    expect(sheet.style.touchAction).toBe('none')
+    expect(sheet.style.overflow).toBe('hidden')
   })
 
   it('sheet starts at half snap height (50% of viewport)', () => {

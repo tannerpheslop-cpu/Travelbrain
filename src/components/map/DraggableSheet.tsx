@@ -77,6 +77,12 @@ export default function DraggableSheet({
   const onSnapChangeRef = useRef(onSnapChange)
   onSnapChangeRef.current = onSnapChange
 
+  // Refs for persistent event listener closures (useEffect with empty deps)
+  const snapPointsRef = useRef(snapPoints)
+  snapPointsRef.current = snapPoints
+  const finishDragRef = useRef<() => void>(() => {})
+
+
   // Update height when window resizes
   useEffect(() => {
     const handler = () => {
@@ -105,8 +111,26 @@ export default function DraggableSheet({
     }
   }, [])
 
-  // Attach non-passive touchmove listeners on drag handle AND header to ensure
-  // preventDefault works. React synthetic events may be passive.
+  // ── Native listener on content: force-kill any drag state ──
+  // Native listeners fire BEFORE React's delegated handlers, so this
+  // sets dragging=false before the sheet's React onTouchStart can read it.
+  // This survives React re-renders because it's attached via useEffect with empty deps.
+  useEffect(() => {
+    const el = contentRef.current
+    if (!el) return
+    const killDrag = () => {
+      dragging.current = false
+      isDraggingSheet.current = false
+    }
+    el.addEventListener('touchstart', killDrag, { passive: true })
+    el.addEventListener('mousedown', killDrag)
+    return () => {
+      el.removeEventListener('touchstart', killDrag)
+      el.removeEventListener('mousedown', killDrag)
+    }
+  }, [])
+
+  // ── Native preventDefault on handle/header touchmove ──
   const handleRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -122,10 +146,6 @@ export default function DraggableSheet({
       if (header) header.removeEventListener('touchmove', nativeTouchMove)
     }
   }, [])
-
-  // Content boundary prevention removed — content touches are fully isolated
-  // via stopPropagation on the content div. The body scroll lock + overscrollBehavior
-  // + touchAction: pan-y handle iOS Safari scroll chaining.
 
   // ── Snap to a specific point with animation ──
   const snapTo = useCallback(
@@ -187,28 +207,29 @@ export default function DraggableSheet({
     const { label } = nearestSnap(height, snapPoints)
     snapTo(label)
   }, [currentSnap, height, snapPoints, snapTo, getVelocity])
+  finishDragRef.current = finishDrag
 
-  // ── Touch event handlers ──
-  // RULE: Only handle/header touches drag the sheet. Content touches NEVER drag.
+  // ── React touch/mouse handlers on the outer sheet div ──
+  // These check the target against handle/header before activating drag.
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
-      if (animating) return
+      if (animating) {
+        dragging.current = false
+        isDraggingSheet.current = false
+        return
+      }
       const target = e.target as HTMLElement
-
-      // Only drag from handle or header. Content area touches are ignored entirely.
       if (!target.closest('[data-drag-handle]') && !target.closest('[data-sheet-header]')) {
         dragging.current = false
         isDraggingSheet.current = false
         return
       }
-
       const touch = e.touches[0]
       dragging.current = true
       isDraggingSheet.current = true
       dragStartY.current = touch.clientY
       dragStartH.current = height
       dragTimestamps.current = [{ y: touch.clientY, t: Date.now() }]
-      e.preventDefault()
     },
     [animating, height],
   )
@@ -217,12 +238,9 @@ export default function DraggableSheet({
     (e: React.TouchEvent) => {
       if (!dragging.current || !isDraggingSheet.current) return
       const touch = e.touches[0]
-      const deltaY = dragStartY.current - touch.clientY // positive = finger moved up
+      const deltaY = dragStartY.current - touch.clientY
       dragTimestamps.current.push({ y: touch.clientY, t: Date.now() })
       if (dragTimestamps.current.length > 10) dragTimestamps.current.shift()
-
-      // Dragging the sheet
-      e.preventDefault()
       const newH = dragStartH.current + deltaY
       const minH = snapFractionToHeight(snapPoints[0]) * 0.8
       const maxH = snapFractionToHeight(snapPoints[2]) * 1.05
@@ -236,41 +254,46 @@ export default function DraggableSheet({
     finishDrag()
   }, [finishDrag])
 
-  // ── Mouse fallback (for desktop testing) ──
+  // ── Persistent document-level mouse move/up handlers ──
+  // Instead of attaching/detaching per drag, keep one persistent pair that
+  // checks dragging.current. This prevents stale listener accumulation.
+  useEffect(() => {
+    const onMove = (me: MouseEvent) => {
+      if (!dragging.current || !isDraggingSheet.current) return
+      const deltaY = dragStartY.current - me.clientY
+      dragTimestamps.current.push({ y: me.clientY, t: Date.now() })
+      if (dragTimestamps.current.length > 10) dragTimestamps.current.shift()
+      const newH = dragStartH.current + deltaY
+      const minH = snapFractionToHeight(snapPointsRef.current[0]) * 0.8
+      const maxH = snapFractionToHeight(snapPointsRef.current[2]) * 1.05
+      setHeight(Math.max(minH, Math.min(maxH, newH)))
+    }
+    const onUp = () => {
+      if (!dragging.current) return
+      finishDragRef.current()
+      dragging.current = false
+      isDraggingSheet.current = false
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+    return () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+  }, [])
+
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (animating) return
       const target = e.target as HTMLElement
       if (!target.closest('[data-drag-handle]') && !target.closest('[data-sheet-header]')) return
-
       dragging.current = true
       isDraggingSheet.current = true
       dragStartY.current = e.clientY
       dragStartH.current = height
       dragTimestamps.current = [{ y: e.clientY, t: Date.now() }]
-
-      const onMove = (me: MouseEvent) => {
-        if (!dragging.current) return
-        const deltaY = dragStartY.current - me.clientY
-        dragTimestamps.current.push({ y: me.clientY, t: Date.now() })
-        if (dragTimestamps.current.length > 10) dragTimestamps.current.shift()
-        const newH = dragStartH.current + deltaY
-        const minH = snapFractionToHeight(snapPoints[0]) * 0.8
-        const maxH = snapFractionToHeight(snapPoints[2]) * 1.05
-        setHeight(Math.max(minH, Math.min(maxH, newH)))
-      }
-
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onUp)
-        if (!dragging.current) return
-        finishDrag()
-      }
-
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
     },
-    [animating, height, snapPoints, finishDrag],
+    [animating, height],
   )
 
   return (
@@ -294,7 +317,7 @@ export default function DraggableSheet({
         display: 'flex',
         flexDirection: 'column',
         zIndex: 20,
-        touchAction: 'none',
+        overflow: 'hidden',
         ...(animating
           ? { transition: `height ${SPRING_MS}ms ${SPRING_EASING}` }
           : {}),
@@ -329,12 +352,11 @@ export default function DraggableSheet({
         {header}
       </div>
 
-      {/* Scrollable content — touch here NEVER moves the sheet */}
+      {/* Scrollable content — native listener ensures dragging.current is false
+          for any touch starting in this area, preventing the sheet from moving. */}
       <div
         ref={contentRef}
         data-testid="sheet-content"
-        onTouchStart={e => e.stopPropagation()}
-        onTouchMove={e => e.stopPropagation()}
         style={{
           flex: 1,
           overflowY: 'auto',
