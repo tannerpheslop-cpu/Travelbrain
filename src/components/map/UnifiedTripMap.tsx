@@ -6,7 +6,6 @@ import { MAP_COLORS, SINGLE_DESTINATION_ZOOM, FIT_BOUNDS_PADDING } from './mapCo
 import { createDestinationMarker, type DestinationMarker } from './MapMarker'
 import { createMapRoute, type MapRouteHandle } from './MapRoute'
 import CollapsedMapBar from './CollapsedMapBar'
-import { addCountryHighlights } from './countryHighlight'
 import DraggableSheet from './DraggableSheet'
 import SheetItemRow from './SheetItemRow'
 import QuickLocationPicker from './QuickLocationPicker'
@@ -419,32 +418,8 @@ export default function UnifiedTripMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefersDark, collapsed, token, destinations.length === 0])
 
-  // ── Country highlight layer (GeoJSON) — persists across levels ──
-  const highlightCleanupRef = useRef<(() => void) | null>(null)
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || !mapReady || !styleLoadedRef.current) return
-
-    const countryCodes = [...new Set(destinations.map(d => d.location_country_code).filter(Boolean))]
-
-    // Clean previous
-    highlightCleanupRef.current?.()
-    highlightCleanupRef.current = null
-
-    if (countryCodes.length === 0) return
-
-    let cancelled = false
-    addCountryHighlights(map, countryCodes, prefersDark).then(cleanup => {
-      if (cancelled) { cleanup(); return }
-      highlightCleanupRef.current = cleanup
-    })
-
-    return () => {
-      cancelled = true
-      highlightCleanupRef.current?.()
-      highlightCleanupRef.current = null
-    }
-  }, [mapReady, destinations, prefersDark])
+  // Country highlighting removed — Mapbox vector source never rendered on device,
+  // GeoJSON approach added visual noise. Clean map with just markers + route.
 
   // ── Trip-level: markers + route + viewport ──
   useEffect(() => {
