@@ -806,6 +806,7 @@ export default function UnifiedTripMap({
           position: 'fixed',
           inset: 0,
           zIndex: 30,
+          overflow: 'hidden',
           background: prefersDark ? '#2c2b27' : '#faf9f8',
         }}
       >
