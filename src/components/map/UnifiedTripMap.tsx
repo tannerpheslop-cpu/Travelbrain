@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
 import { ChevronLeft, ChevronUp, Plus, Share2, MoreHorizontal, Users } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import { LIGHT_STYLE, DARK_STYLE, applyStyleOverrides } from './mapStyles'
-import { MAP_COLORS, MAP_SIZES, SINGLE_DESTINATION_ZOOM, FIT_BOUNDS_PADDING } from './mapConfig'
+import { MAP_COLORS, SINGLE_DESTINATION_ZOOM, FIT_BOUNDS_PADDING } from './mapConfig'
 import { createDestinationMarker, type DestinationMarker } from './MapMarker'
 import { createMapRoute, type MapRouteHandle } from './MapRoute'
 import CollapsedMapBar from './CollapsedMapBar'
@@ -37,6 +37,8 @@ export interface UnifiedTripMapProps {
   onOpenMenu?: () => void
   companionCount?: number
   onItemSelect?: (itemId: string) => void
+  /** Open calendar picker for a destination */
+  onDatesTap?: (destId: string) => void
   /** Initial destination ID to open (from URL) */
   initialDestId?: string | null
   /** Called when the view level changes (for URL sync) */
@@ -85,6 +87,7 @@ export default function UnifiedTripMap({
   onOpenMenu,
   companionCount,
   onItemSelect,
+  onDatesTap,
   initialDestId,
   onLevelChange,
 }: UnifiedTripMapProps) {
@@ -129,7 +132,7 @@ export default function UnifiedTripMap({
   const transitioningRef = useRef(false)
   const [tripOverlayOpacity, setTripOverlayOpacity] = useState(level === 'trip' ? 1 : 0)
   const [destOverlayOpacity, setDestOverlayOpacity] = useState(level === 'destination' ? 1 : 0)
-  const [sheetContentOpacity, setSheetContentOpacity] = useState(level === 'destination' ? 1 : 0)
+  const [sheetContentOpacity, setSheetContentOpacity] = useState(1)
 
   const token = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
   if (token) mapboxgl.accessToken = token
@@ -388,6 +391,70 @@ export default function UnifiedTripMap({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefersDark, collapsed, token, destinations.length === 0])
 
+  // ── Country highlight layer — persists across levels ──
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !mapReady || !styleLoadedRef.current) return
+
+    const HIGHLIGHT_SOURCE = 'youji-country-boundaries'
+    const HIGHLIGHT_LAYER = 'youji-country-highlight'
+    const countryCodes = [...new Set(destinations.map(d => d.location_country_code).filter(Boolean))]
+
+    // Clean previous
+    try {
+      if (map.getLayer(HIGHLIGHT_LAYER)) map.removeLayer(HIGHLIGHT_LAYER)
+      if (map.getSource(HIGHLIGHT_SOURCE)) map.removeSource(HIGHLIGHT_SOURCE)
+    } catch { /* ignore */ }
+
+    if (countryCodes.length === 0) return
+
+    try {
+      map.addSource(HIGHLIGHT_SOURCE, {
+        type: 'vector',
+        url: 'mapbox://mapbox.country-boundaries-v1',
+      })
+      map.addLayer({
+        id: HIGHLIGHT_LAYER,
+        type: 'fill',
+        source: HIGHLIGHT_SOURCE,
+        'source-layer': 'country_boundaries',
+        paint: {
+          'fill-color': MAP_COLORS.accent,
+          'fill-opacity': prefersDark ? 0.08 : 0.06,
+        },
+        filter: ['in', ['get', 'iso_3166_1_alpha_2'], ['literal', countryCodes]],
+      }, 'country-label')
+    } catch {
+      // country-label layer may not exist — add without before parameter
+      try {
+        map.addSource(HIGHLIGHT_SOURCE, {
+          type: 'vector',
+          url: 'mapbox://mapbox.country-boundaries-v1',
+        })
+        map.addLayer({
+          id: HIGHLIGHT_LAYER,
+          type: 'fill',
+          source: HIGHLIGHT_SOURCE,
+          'source-layer': 'country_boundaries',
+          paint: {
+            'fill-color': MAP_COLORS.accent,
+            'fill-opacity': prefersDark ? 0.08 : 0.06,
+          },
+          filter: ['in', ['get', 'iso_3166_1_alpha_2'], ['literal', countryCodes]],
+        })
+      } catch (e) {
+        console.error('Failed to add country highlight layer:', e)
+      }
+    }
+
+    return () => {
+      try {
+        if (map.getLayer(HIGHLIGHT_LAYER)) map.removeLayer(HIGHLIGHT_LAYER)
+        if (map.getSource(HIGHLIGHT_SOURCE)) map.removeSource(HIGHLIGHT_SOURCE)
+      } catch { /* ignore */ }
+    }
+  }, [mapReady, destinations, prefersDark])
+
   // ── Trip-level: markers + route + viewport ──
   useEffect(() => {
     const map = mapRef.current
@@ -611,117 +678,224 @@ export default function UnifiedTripMap({
     </div>
   ) : null
 
+  // ── Trip-level sheet header ──
+  const tripSheetHeader = (
+    <div style={{ padding: '8px 16px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 17, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+          {tripTitle}
+        </span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+          {destinations.length} destination{destinations.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 0, marginTop: 10, borderBottom: '1px solid var(--color-border-light)' }}>
+        <TripSheetTab label="Destinations" active />
+        <TripSheetTab label="Itinerary" />
+        <TripSheetTab label="Logistics" />
+      </div>
+    </div>
+  )
+
+  // ── Trip-level sheet content: destination rows ──
+  const tripSheetContent = (
+    <div data-testid="trip-sheet-destinations">
+      {cityDests.length === 0 ? (
+        <button type="button" onClick={onAddDestination} data-testid="empty-state-add-dest"
+          style={{ display: 'block', width: '100%', padding: '32px 16px', textAlign: 'center', background: 'none', border: 'none', cursor: 'pointer' }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--color-accent-light)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 20, color: 'var(--color-accent)' }}>+</span>
+          </div>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>Where are you headed?</p>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-tertiary)', margin: 0 }}>Add a city, country, or region to get started</p>
+        </button>
+      ) : (
+        destinations.map((d, i) => {
+          const chapterNum = String(destinations.filter((dd, ii) => ii <= i && isCityLevel(dd)).length).padStart(2, '0')
+          const cityName = d.location_name.split(',')[0]
+          return (
+            <button
+              key={d.id}
+              type="button"
+              data-testid={`dest-row-${d.id}`}
+              onClick={() => isCityLevel(d) ? enterDestination(d.id) : undefined}
+              style={{
+                display: 'flex', alignItems: 'center', width: '100%', padding: '12px 16px',
+                borderBottom: '1px solid var(--color-border-light)', background: 'none', border: 'none',
+                borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: 'var(--color-border-light)',
+                cursor: isCityLevel(d) ? 'pointer' : 'default', textAlign: 'left',
+              }}
+            >
+              {/* Chapter number */}
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--color-accent-light)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 12 }}>
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 800, color: MAP_COLORS.accent }}>
+                  {isCityLevel(d) ? chapterNum : '—'}
+                </span>
+              </div>
+              {/* Name + dates/count */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.3,
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {cityName}
+                  {d.location_country && <span style={{ fontWeight: 400, color: 'var(--color-text-tertiary)', fontSize: 13 }}> · {d.location_country}</span>}
+                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                  {d.start_date && d.end_date ? (
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+                      {formatShortDate(d.start_date)} – {formatShortDate(d.end_date)}
+                    </span>
+                  ) : (
+                    <button type="button" onClick={(e) => { e.stopPropagation(); onDatesTap?.(d.id) }}
+                      data-testid={`add-dates-${d.id}`}
+                      style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
+                        color: MAP_COLORS.accent, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+                      + add dates
+                    </button>
+                  )}
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-ghost)' }}>·</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+                    {d._count} save{d._count !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+              {/* Chevron */}
+              {isCityLevel(d) && (
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: 'var(--color-text-ghost)' }}>
+                  <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+          )
+        })
+      )}
+    </div>
+  )
+
   return (
     <>
       <div
         data-testid="unified-trip-map"
         style={{
-          height: level === 'destination' ? '100vh' : MAP_SIZES.mapHeight,
-          position: level === 'destination' ? 'fixed' : 'relative',
-          inset: level === 'destination' ? 0 : undefined,
-          zIndex: level === 'destination' ? 30 : undefined,
+          height: '100vh',
+          position: 'fixed',
+          inset: 0,
+          zIndex: 30,
           background: prefersDark ? '#2c2b27' : '#faf9f8',
-          ...(level === 'trip' ? { marginLeft: '-20px', marginRight: '-20px', width: 'calc(100% + 40px)' } : {}),
         }}
       >
         {/* Mapbox container */}
         <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
 
-        {/* ── Trip-level overlays ── */}
-        {(level === 'trip' || tripOverlayOpacity > 0) && (
-          <div style={{ opacity: tripOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'trip' ? 'auto' : 'none' }}>
-            <div style={{ position: 'absolute', top: 14, left: 14, right: 14, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>{onBack && <OverlayBtn onClick={onBack} label="Back" testId="map-btn-back"><ChevronLeft size={16} /></OverlayBtn>}</div>
-              <div style={{ display: 'flex', gap: 6 }}>
-                {onAddDestination && <OverlayBtn onClick={onAddDestination} label="Add destination" testId="map-btn-add-dest"><Plus size={15} /></OverlayBtn>}
-                {onShare && <OverlayBtn onClick={onShare} label="Share" testId="map-btn-share"><Share2 size={14} /></OverlayBtn>}
-                {onCompanions && <OverlayBtn onClick={onCompanions} label="Companions" testId="map-btn-companions" badge={companionCount}><Users size={14} /></OverlayBtn>}
-                {onOpenMenu && <OverlayBtn onClick={onOpenMenu} label="More" testId="map-btn-menu"><MoreHorizontal size={15} /></OverlayBtn>}
-                {onCollapseToggle && <OverlayBtn onClick={() => onCollapseToggle(true)} label="Collapse" testId="map-collapse-toggle"><ChevronUp size={15} /></OverlayBtn>}
-              </div>
-            </div>
-            <div data-testid="map-header-overlay" style={{ position: 'absolute', top: 46, left: 14, zIndex: 10, maxWidth: '65%' }}>
-              <button type="button" onClick={onTitleEdit} data-testid="map-title" style={{ background: 'none', border: 'none', cursor: onTitleEdit ? 'pointer' : 'default', padding: 0, textAlign: 'left', display: 'block' }}>
-                <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 20, fontWeight: 600, color: '#f5f3ef', lineHeight: 1.2, textShadow: '0 1px 4px rgba(0,0,0,0.5)', margin: 0 }}>{tripTitle}</h2>
-              </button>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
-                <button type="button" onClick={onStatusTap} data-testid="map-status-pill" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, color: MAP_COLORS.accent, background: 'rgba(196,90,45,0.2)', padding: '2px 7px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: 0.5, border: 'none', cursor: onStatusTap ? 'pointer' : 'default' }}>
-                  {statusLabel}
-                </button>
-                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'rgba(245,243,239,0.7)', textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>{metadataLine}</span>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* ── Fixed overlay containers — same position at both levels ── */}
 
-        {/* ── Destination-level overlays ── */}
-        {(level === 'destination' || destOverlayOpacity > 0) && activeDest && (
-          <div style={{ opacity: destOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'destination' ? 'auto' : 'none' }}>
+        {/* Row 1: Back button (top-left, fixed position) */}
+        <div data-testid="overlay-back" style={{ position: 'absolute', top: 14, left: 14, zIndex: 40 }}>
+          {/* Trip-level back */}
+          <div style={{ opacity: tripOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'trip' ? 'auto' : 'none', position: level === 'trip' ? 'relative' : 'absolute', top: 0, left: 0 }}>
+            {onBack && <OverlayBtn onClick={onBack} label="Back to trips" testId="map-btn-back"><ChevronLeft size={16} /></OverlayBtn>}
+          </div>
+          {/* Destination-level back */}
+          <div style={{ opacity: destOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'destination' ? 'auto' : 'none', position: level === 'destination' ? 'relative' : 'absolute', top: 0, left: 0 }}>
             <button type="button" data-testid="dest-map-back" onClick={isSingleCityTrip ? onBack ?? exitToTrip : exitToTrip}
-              style={{ position: 'absolute', top: 14, left: 14, zIndex: 40, display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#f5f3ef', fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#f5f3ef', fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
               <ChevronLeft size={14} /> {isSingleCityTrip ? 'Trips' : tripTitle}
             </button>
-            <div data-testid="dest-map-identifier" style={{ position: 'absolute', top: 48, left: 14, zIndex: 40, display: 'flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)', borderRadius: 8, padding: '4px 10px', boxShadow: '0 1px 3px rgba(0,0,0,0.15)' }}>
-              {!isSingleCityTrip && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 800, color: MAP_COLORS.accent }}>{String(destChapter).padStart(2, '0')}</span>}
-              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, color: '#f5f3ef', textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
-                {isSingleCityTrip ? `${tripTitle} · ${activeDest.location_name.split(',')[0]}` : activeDest.location_name.split(',')[0]}
-              </span>
-            </div>
-            {/* Add destination button at destination level */}
-            {onAddDestination && (
-              <button type="button" data-testid="dest-add-dest-btn" onClick={onAddDestination} aria-label="Add destination"
-                style={{ position: 'absolute', top: 48, right: 14, zIndex: 40, width: 32, height: 32, borderRadius: 8, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.12)', color: '#f5f3ef', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', backdropFilter: 'blur(4px)' }}>
-                <Plus size={14} />
-              </button>
-            )}
+          </div>
+        </div>
+
+        {/* Row 1: Action icons (top-right, fixed position) */}
+        <div data-testid="overlay-actions" style={{ position: 'absolute', top: 14, right: 14, zIndex: 40, display: 'flex', gap: 6 }}>
+          {/* Trip-level icons */}
+          <div style={{ opacity: tripOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'trip' ? 'auto' : 'none', display: level === 'trip' ? 'flex' : 'none', gap: 6 }}>
+            {onAddDestination && <OverlayBtn onClick={onAddDestination} label="Add destination" testId="map-btn-add-dest"><Plus size={15} /></OverlayBtn>}
+            {onShare && <OverlayBtn onClick={onShare} label="Share" testId="map-btn-share"><Share2 size={14} /></OverlayBtn>}
+            {onCompanions && <OverlayBtn onClick={onCompanions} label="Companions" testId="map-btn-companions" badge={companionCount}><Users size={14} /></OverlayBtn>}
+            {onOpenMenu && <OverlayBtn onClick={onOpenMenu} label="More" testId="map-btn-menu"><MoreHorizontal size={15} /></OverlayBtn>}
+            {onCollapseToggle && <OverlayBtn onClick={() => onCollapseToggle(true)} label="Collapse" testId="map-collapse-toggle"><ChevronUp size={15} /></OverlayBtn>}
+          </div>
+          {/* Destination-level icons */}
+          <div style={{ opacity: destOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'destination' ? 'auto' : 'none', display: level === 'destination' ? 'flex' : 'none', gap: 6 }}>
             {needsLocationCount > 0 && (
               <button type="button" data-testid="needs-location-pill" onClick={() => setFilterNeedsLocation(f => !f)}
-                style={{ position: 'absolute', top: 14, right: 14, zIndex: 40, display: 'flex', alignItems: 'center', gap: 4, background: filterNeedsLocation ? MAP_COLORS.accent : 'rgba(196,90,45,0.2)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 20, padding: '5px 12px', cursor: 'pointer', color: filterNeedsLocation ? '#fff' : MAP_COLORS.accent, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'background 150ms ease, color 150ms ease' }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 4, background: filterNeedsLocation ? MAP_COLORS.accent : 'rgba(196,90,45,0.2)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 20, padding: '5px 12px', cursor: 'pointer', color: filterNeedsLocation ? '#fff' : MAP_COLORS.accent, fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', transition: 'background 150ms ease, color 150ms ease' }}>
                 {needsLocationCount} need location
               </button>
             )}
+            {onOpenMenu && <OverlayBtn onClick={onOpenMenu} label="More" testId="dest-btn-menu"><MoreHorizontal size={15} /></OverlayBtn>}
           </div>
-        )}
-
-        {/* ── Destination-level sheet ── */}
-        {level === 'destination' && (
-          <DraggableSheet
-            snapPoints={[0.15, 0.5, 0.85]}
-            initialSnap="half"
-            header={
-              <div data-testid="sheet-header-fade" style={{ opacity: sheetContentOpacity, transition: 'opacity 150ms ease' }}>
-                {destSheetHeader}
-              </div>
-            }
-          >
-            <div data-testid="sheet-content-fade" style={{ opacity: sheetContentOpacity, transition: 'opacity 150ms ease' }}>
-              {destItemsLoading ? (
-                <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13 }}>Loading...</div>
-              ) : displayItems.length === 0 ? (
-                <button type="button" data-testid="empty-state-add-items" onClick={() => setShowAddItems(true)}
-                  style={{ display: 'block', width: '100%', padding: '32px 16px', textAlign: 'center', background: 'none', border: 'none', cursor: 'pointer' }}>
-                  <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--color-accent-light)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ fontSize: 20, color: 'var(--color-accent)' }}>+</span>
-                  </div>
-                  <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>Add your first save</p>
-                  <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-tertiary)', margin: 0 }}>Add places from your Horizon or search for new ones</p>
-                </button>
-              ) : (
-                displayItems.map(item => (
-                  <SheetItemRow key={item.id} item={item} selected={item.id === selectedItemId} onSelect={handleSheetItemTap} onNavigate={handleNavigateToItem} />
-                ))
-              )}
-            </div>
-          </DraggableSheet>
-        )}
-      </div>
-
-      {/* ── Trip-level hint ── */}
-      {level === 'trip' && destinations.length > 1 && (
-        <div style={{ textAlign: 'center', padding: '8px 0' }}>
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-tertiary)' }}>tap a destination to explore</span>
         </div>
-      )}
+
+        {/* Row 2-3: Title + metadata (top-left below back button, fixed position) */}
+        <div data-testid="overlay-title-area" style={{ position: 'absolute', top: 52, left: 14, zIndex: 40, maxWidth: '65%' }}>
+          {/* Trip-level title + metadata */}
+          <div data-testid="map-header-overlay" style={{ opacity: tripOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'trip' ? 'auto' : 'none', position: level === 'trip' ? 'relative' : 'absolute', top: 0, left: 0 }}>
+            <button type="button" onClick={onTitleEdit} data-testid="map-title" style={{ background: 'none', border: 'none', cursor: onTitleEdit ? 'pointer' : 'default', padding: 0, textAlign: 'left', display: 'block' }}>
+              <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 20, fontWeight: 600, color: '#f5f3ef', lineHeight: 1.2, textShadow: '0 1px 4px rgba(0,0,0,0.5)', margin: 0 }}>{tripTitle}</h2>
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
+              <button type="button" onClick={onStatusTap} data-testid="map-status-pill" style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700, color: MAP_COLORS.accent, background: 'rgba(196,90,45,0.2)', padding: '2px 7px', borderRadius: 4, textTransform: 'uppercase', letterSpacing: 0.5, border: 'none', cursor: onStatusTap ? 'pointer' : 'default' }}>
+                {statusLabel}
+              </button>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'rgba(245,243,239,0.7)', textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>{metadataLine}</span>
+            </div>
+          </div>
+          {/* Destination-level title + metadata */}
+          {activeDest && (
+            <div data-testid="dest-map-identifier" style={{ opacity: destOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'destination' ? 'auto' : 'none', position: level === 'destination' ? 'relative' : 'absolute', top: 0, left: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {!isSingleCityTrip && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 800, color: MAP_COLORS.accent }}>{String(destChapter).padStart(2, '0')}</span>}
+                <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 20, fontWeight: 600, color: '#f5f3ef', lineHeight: 1.2, textShadow: '0 1px 4px rgba(0,0,0,0.5)', margin: 0 }}>
+                  {isSingleCityTrip ? `${tripTitle} · ${activeDest.location_name.split(',')[0]}` : activeDest.location_name.split(',')[0]}
+                </h2>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>
+                {activeDest.start_date && activeDest.end_date && (
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'rgba(245,243,239,0.7)', textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>
+                    {formatShortDate(activeDest.start_date)} – {formatShortDate(activeDest.end_date)}
+                  </span>
+                )}
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'rgba(245,243,239,0.7)', textShadow: '0 1px 3px rgba(0,0,0,0.4)' }}>
+                  {destItems.length} saves · {preciseItems.length} on map
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── DraggableSheet — present at BOTH levels ── */}
+        <DraggableSheet
+          snapPoints={[0.15, 0.5, 0.85]}
+          initialSnap="half"
+          header={
+            <div data-testid="sheet-header-fade" style={{ opacity: sheetContentOpacity, transition: 'opacity 150ms ease' }}>
+              {level === 'trip' ? tripSheetHeader : destSheetHeader}
+            </div>
+          }
+        >
+          <div data-testid="sheet-content-fade" style={{ opacity: sheetContentOpacity, transition: 'opacity 150ms ease' }}>
+            {level === 'trip' ? (
+              tripSheetContent
+            ) : destItemsLoading ? (
+              <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13 }}>Loading...</div>
+            ) : displayItems.length === 0 ? (
+              <button type="button" data-testid="empty-state-add-items" onClick={() => setShowAddItems(true)}
+                style={{ display: 'block', width: '100%', padding: '32px 16px', textAlign: 'center', background: 'none', border: 'none', cursor: 'pointer' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--color-accent-light)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <span style={{ fontSize: 20, color: 'var(--color-accent)' }}>+</span>
+                </div>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>Add your first save</p>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-tertiary)', margin: 0 }}>Add places from your Horizon or search for new ones</p>
+              </button>
+            ) : (
+              displayItems.map(item => (
+                <SheetItemRow key={item.id} item={item} selected={item.id === selectedItemId} onSelect={handleSheetItemTap} onNavigate={handleNavigateToItem} />
+              ))
+            )}
+          </div>
+        </DraggableSheet>
+      </div>
 
       {/* ── Quick picker + Add items sheet (destination level) ── */}
       {pickerItem && activeDest && (
@@ -757,6 +931,23 @@ function OverlayBtn({ onClick, label, testId, badge, children }: {
         <span style={{ position: 'absolute', top: -3, right: -3, width: 14, height: 14, borderRadius: '50%', background: MAP_COLORS.accent, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{badge}</span>
       )}
     </button>
+  )
+}
+
+function TripSheetTab({ label, active = false }: { label: string; active?: boolean }) {
+  return (
+    <div style={{
+      padding: '8px 12px',
+      fontFamily: "'DM Sans', sans-serif",
+      fontSize: 13,
+      fontWeight: active ? 600 : 400,
+      color: active ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
+      borderBottom: active ? '2px solid var(--color-accent)' : '2px solid transparent',
+      cursor: active ? 'default' : 'not-allowed',
+      opacity: active ? 1 : 0.5,
+    }}>
+      {label}
+    </div>
   )
 }
 

@@ -221,6 +221,34 @@ describe('tryUpgradePrecision — idempotency', () => {
   })
 })
 
+// ── SDK loading guard tests ──────────────────────────────────────────────
+
+describe('tryUpgradePrecision — SDK loading guard', () => {
+  it('returns upgraded:false when Google Maps SDK is not available after load', async () => {
+    // Remove google.maps.places from global
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(globalThis as any).google = undefined
+    // Also mock window.google
+    Object.defineProperty(window, 'google', { value: undefined, writable: true, configurable: true })
+
+    const result = await tryUpgradePrecision(makeItem())
+    expect(result.upgraded).toBe(false)
+  })
+
+  it('returns upgraded:false when loadGoogleMapsScript rejects', async () => {
+    // Override the mock to simulate a load failure
+    const { loadGoogleMapsScript: mockLoad } = await import('../../lib/googleMaps')
+    ;(mockLoad as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Script load failed'))
+    // Remove google from globals so the availability check would fail
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(globalThis as any).google = undefined
+    Object.defineProperty(window, 'google', { value: undefined, writable: true, configurable: true })
+
+    const result = await tryUpgradePrecision(makeItem())
+    expect(result.upgraded).toBe(false)
+  })
+})
+
 // ── Helper function tests ────────────────────────────────────────────────────
 
 describe('significantWords', () => {
