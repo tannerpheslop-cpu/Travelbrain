@@ -86,7 +86,17 @@ export async function tryUpgradePrecision(item: PrecisionItem): Promise<UpgradeR
   if (!item.location_name && item.location_lat == null) return NO_UPGRADE
 
   try {
-    await loadGoogleMapsScript()
+    // Ensure Google Maps SDK is loaded with a timeout
+    await Promise.race([
+      loadGoogleMapsScript(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Google Maps SDK load timeout')), 5000)),
+    ])
+
+    // Verify the Places API is actually available
+    if (!window.google?.maps?.places?.PlacesService) {
+      console.error('[auto-precision] Google Maps Places SDK not available after load')
+      return NO_UPGRADE
+    }
 
     const div = document.createElement('div')
     const service = new google.maps.places.PlacesService(div)

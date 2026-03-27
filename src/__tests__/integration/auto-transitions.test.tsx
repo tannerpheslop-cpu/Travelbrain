@@ -59,7 +59,13 @@ describe('Auto-transitions + single-destination logic', () => {
     render(<UnifiedTripMap {...base} destinations={[china]} />)
     // Trip-level overlay should show (not destination level)
     expect(screen.getByTestId('map-title')).toBeInTheDocument()
-    expect(screen.queryByTestId('dest-map-back')).not.toBeInTheDocument()
+    // Dest back button is in DOM but hidden (opacity 0, pointer-events none)
+    const destBack = screen.queryByTestId('dest-map-back')
+    if (destBack) {
+      const parentStyle = destBack.parentElement?.style
+      expect(parentStyle?.opacity).toBe('0')
+      expect(parentStyle?.pointerEvents).toBe('none')
+    }
   })
 
   it('"China" + "Beijing" = 1 city = destination level for Beijing', () => {

@@ -71,7 +71,8 @@ describe('UnifiedTripMap', () => {
     render(<UnifiedTripMap {...defaultProps} destinations={[tokyo, kyoto]} />)
     // Trip-level overlays should be visible
     expect(screen.getByTestId('map-title')).toBeInTheDocument()
-    expect(screen.getByText('Asia 2026')).toBeInTheDocument()
+    // Title appears in both map overlay and sheet header — check map overlay specifically
+    expect(screen.getByTestId('map-title').textContent).toBe('Asia 2026')
   })
 
   it('tapping back breadcrumb at destination level returns to trip level', () => {
