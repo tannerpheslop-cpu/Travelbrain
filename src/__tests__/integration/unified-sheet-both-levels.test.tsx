@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import { createMapboxMock } from '../helpers/mockMapbox'
+import { createVaulMock } from '../helpers/mockVaul'
 
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -25,6 +26,8 @@ vi.mock('../../lib/supabase', () => ({
   supabaseAnonKey: 'test-key',
   invokeEdgeFunction: vi.fn(),
 }))
+vi.mock('vaul', () => createVaulMock())
+vi.mock('@radix-ui/react-visually-hidden', () => ({ Root: (props: any) => props.children }))
 
 import UnifiedTripMap from '../../components/map/UnifiedTripMap'
 

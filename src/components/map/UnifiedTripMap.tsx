@@ -900,7 +900,6 @@ export default function UnifiedTripMap({
         <TripSheet
           snapPoints={[0.15, 0.5, 0.85]}
           initialSnap="half"
-          container={mapWrapperRef}
           header={
             <div data-testid="sheet-header-fade" style={{ opacity: sheetContentOpacity, transition: 'opacity 150ms ease' }}>
               {level === 'trip' ? tripSheetHeader : destSheetHeader}
