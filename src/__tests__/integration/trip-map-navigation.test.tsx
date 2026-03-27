@@ -13,13 +13,17 @@ const { createdMarkerElements, mockMapbox } = vi.hoisted(() => {
       getLayer: vi.fn(), removeLayer: vi.fn(), getSource: vi.fn(), removeSource: vi.fn(),
       flyTo: vi.fn(), fitBounds: vi.fn(), getStyle: vi.fn(() => ({ layers: [] })),
       setPaintProperty: vi.fn(), setLayoutProperty: vi.fn(),
+      project: vi.fn(() => ({ x: 200, y: 200 })),
+      getContainer: vi.fn(() => ({ clientWidth: 800, clientHeight: 600 })),
+      stop: vi.fn(),
     }
   }
   function MockMarker(opts?: { element?: HTMLElement }) {
     if (opts?.element) createdMarkerElements.push(opts.element)
     return { setLngLat: vi.fn().mockReturnValue({ addTo: vi.fn().mockReturnValue({ remove: vi.fn() }) }), addTo: vi.fn().mockReturnThis(), remove: vi.fn() }
   }
-  const mockMapbox = { default: { Map: MockMap, Marker: MockMarker, AttributionControl: vi.fn(), LngLatBounds: vi.fn(() => ({ extend: vi.fn().mockReturnThis() })), accessToken: '' }, Map: MockMap, Marker: MockMarker, AttributionControl: vi.fn(), LngLatBounds: vi.fn(() => ({ extend: vi.fn().mockReturnThis() })) }
+  function MockLngLatBounds() { return { extend: vi.fn().mockReturnThis() } }
+  const mockMapbox = { default: { Map: MockMap, Marker: MockMarker, AttributionControl: vi.fn(), LngLatBounds: MockLngLatBounds, accessToken: '' }, Map: MockMap, Marker: MockMarker, AttributionControl: vi.fn(), LngLatBounds: MockLngLatBounds }
   return { createdMarkerElements, mockMapbox }
 })
 

@@ -29,6 +29,9 @@ export function createMapboxMock(markerElements?: HTMLElement[], autoFireEvents 
       getStyle: vi.fn(() => ({ layers: [] })),
       setPaintProperty: vi.fn(),
       setLayoutProperty: vi.fn(),
+      project: vi.fn(() => ({ x: 200, y: 200 })),
+      getContainer: vi.fn(() => ({ clientWidth: 800, clientHeight: 600 })),
+      stop: vi.fn(),
     }
   }
 
