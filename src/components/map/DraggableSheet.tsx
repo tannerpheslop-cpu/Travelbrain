@@ -109,8 +109,6 @@ export default function DraggableSheet({
   // preventDefault works. React synthetic events may be passive.
   const handleRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
-  const lastTouchYRef = useRef(0)
-
   useEffect(() => {
     const nativeTouchMove = (e: TouchEvent) => {
       if (isDraggingSheet.current) e.preventDefault()
@@ -125,38 +123,9 @@ export default function DraggableSheet({
     }
   }, [])
 
-  // ── Prevent scroll chaining at content boundaries (iOS Safari) ──
-  // When content hits top/bottom scroll boundary, prevent the touch from
-  // propagating to the body (which iOS would interpret as page scroll).
-  useEffect(() => {
-    const content = contentRef.current
-    if (!content) return
-
-    const onTouchStart = (e: TouchEvent) => {
-      lastTouchYRef.current = e.touches[0].clientY
-    }
-    const onTouchMove = (e: TouchEvent) => {
-      if (isDraggingSheet.current) return // Sheet is being dragged, not scrolled
-      const { scrollTop, scrollHeight, clientHeight } = content
-      const touchY = e.touches[0].clientY
-      const isScrollingUp = touchY > lastTouchYRef.current   // finger moves down = scroll up
-      const isScrollingDown = touchY < lastTouchYRef.current  // finger moves up = scroll down
-      const isAtTop = scrollTop <= 0
-      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1
-
-      if (isAtTop && isScrollingUp) e.preventDefault()
-      if (isAtBottom && isScrollingDown) e.preventDefault()
-
-      lastTouchYRef.current = touchY
-    }
-
-    content.addEventListener('touchstart', onTouchStart, { passive: true })
-    content.addEventListener('touchmove', onTouchMove, { passive: false })
-    return () => {
-      content.removeEventListener('touchstart', onTouchStart)
-      content.removeEventListener('touchmove', onTouchMove)
-    }
-  }, [])
+  // Content boundary prevention removed — content touches are fully isolated
+  // via stopPropagation on the content div. The body scroll lock + overscrollBehavior
+  // + touchAction: pan-y handle iOS Safari scroll chaining.
 
   // ── Snap to a specific point with animation ──
   const snapTo = useCallback(
@@ -220,65 +189,46 @@ export default function DraggableSheet({
   }, [currentSnap, height, snapPoints, snapTo, getVelocity])
 
   // ── Touch event handlers ──
+  // RULE: Only handle/header touches drag the sheet. Content touches NEVER drag.
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
       if (animating) return
-      const touch = e.touches[0]
-      dragging.current = true
-      dragStartY.current = touch.clientY
-      dragStartH.current = height
-      dragTimestamps.current = [{ y: touch.clientY, t: Date.now() }]
-
-      // Determine if we should drag the sheet or let content scroll:
-      // If the touch started on the drag handle or header area, always drag the sheet.
       const target = e.target as HTMLElement
-      if (target.closest('[data-drag-handle]') || target.closest('[data-sheet-header]')) {
-        isDraggingSheet.current = true
-        // Prevent browser from interpreting this as a scroll/gesture
-        e.preventDefault()
+
+      // Only drag from handle or header. Content area touches are ignored entirely.
+      if (!target.closest('[data-drag-handle]') && !target.closest('[data-sheet-header]')) {
+        dragging.current = false
+        isDraggingSheet.current = false
         return
       }
 
-      // If content is scrolled to top, we might drag the sheet on down-swipe.
-      // We'll decide in touchmove based on direction + scroll position.
-      isDraggingSheet.current = false
+      const touch = e.touches[0]
+      dragging.current = true
+      isDraggingSheet.current = true
+      dragStartY.current = touch.clientY
+      dragStartH.current = height
+      dragTimestamps.current = [{ y: touch.clientY, t: Date.now() }]
+      e.preventDefault()
     },
     [animating, height],
   )
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
-      if (!dragging.current) return
+      if (!dragging.current || !isDraggingSheet.current) return
       const touch = e.touches[0]
       const deltaY = dragStartY.current - touch.clientY // positive = finger moved up
       dragTimestamps.current.push({ y: touch.clientY, t: Date.now() })
-      // Keep only last 10 points
       if (dragTimestamps.current.length > 10) dragTimestamps.current.shift()
 
-      // If we haven't committed to dragging the sheet yet, check scroll state
-      if (!isDraggingSheet.current) {
-        const content = contentRef.current
-        if (!content) return
-
-        // Finger moving down (deltaY < 0) and content scrolled to top → drag sheet
-        if (deltaY < 0 && content.scrollTop <= 0) {
-          isDraggingSheet.current = true
-          dragStartY.current = touch.clientY
-          dragStartH.current = height
-        } else {
-          // Let the content scroll naturally
-          return
-        }
-      }
-
-      // We're dragging the sheet
+      // Dragging the sheet
       e.preventDefault()
       const newH = dragStartH.current + deltaY
       const minH = snapFractionToHeight(snapPoints[0]) * 0.8
       const maxH = snapFractionToHeight(snapPoints[2]) * 1.05
       setHeight(Math.max(minH, Math.min(maxH, newH)))
     },
-    [height, snapPoints],
+    [snapPoints],
   )
 
   const handleTouchEnd = useCallback(() => {
@@ -379,10 +329,12 @@ export default function DraggableSheet({
         {header}
       </div>
 
-      {/* Scrollable content */}
+      {/* Scrollable content — touch here NEVER moves the sheet */}
       <div
         ref={contentRef}
         data-testid="sheet-content"
+        onTouchStart={e => e.stopPropagation()}
+        onTouchMove={e => e.stopPropagation()}
         style={{
           flex: 1,
           overflowY: 'auto',
