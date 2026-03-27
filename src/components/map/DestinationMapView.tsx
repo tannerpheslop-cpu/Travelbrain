@@ -3,7 +3,7 @@ import { ChevronLeft } from 'lucide-react'
 import mapboxgl from 'mapbox-gl'
 import { LIGHT_STYLE, DARK_STYLE, applyStyleOverrides } from './mapStyles'
 import { MAP_COLORS } from './mapConfig'
-import DraggableSheet from './DraggableSheet'
+import TripSheet from './TripSheet'
 import SheetItemRow from './SheetItemRow'
 import QuickLocationPicker from './QuickLocationPicker'
 import AddItemsSheet from './AddItemsSheet'
@@ -484,7 +484,7 @@ export default function DestinationMapView({
       )}
 
       {/* ── Draggable sheet with item list ── */}
-      <DraggableSheet
+      <TripSheet
         snapPoints={[0.15, 0.5, 0.85]}
         initialSnap="half"
         header={sheetHeader}
@@ -543,7 +543,7 @@ export default function DestinationMapView({
             </button>
           )
         )}
-      </DraggableSheet>
+      </TripSheet>
 
       {/* ── Quick location picker ── */}
       {pickerItem && (
