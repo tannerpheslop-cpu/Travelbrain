@@ -6,7 +6,7 @@ import { MAP_COLORS, SINGLE_DESTINATION_ZOOM, FIT_BOUNDS_PADDING } from './mapCo
 import { createDestinationMarker, type DestinationMarker } from './MapMarker'
 import { createMapRoute, type MapRouteHandle } from './MapRoute'
 import CollapsedMapBar from './CollapsedMapBar'
-import TripSheet from './TripSheet'
+import DraggableSheet from './DraggableSheet'
 import SheetItemRow from './SheetItemRow'
 import QuickLocationPicker from './QuickLocationPicker'
 import AddItemsSheet from './AddItemsSheet'
@@ -896,8 +896,8 @@ export default function UnifiedTripMap({
           )}
         </div>
 
-        {/* ── TripSheet (Vaul) — present at BOTH levels ── */}
-        <TripSheet
+        {/* ── DraggableSheet — present at BOTH levels ── */}
+        <DraggableSheet
           snapPoints={[0.15, 0.5, 0.85]}
           initialSnap="half"
           header={
@@ -926,7 +926,7 @@ export default function UnifiedTripMap({
               ))
             )}
           </div>
-        </TripSheet>
+        </DraggableSheet>
       </div>
 
       {/* ── Quick picker + Add items sheet (destination level) ── */}
