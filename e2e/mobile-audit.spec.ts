@@ -16,9 +16,11 @@ async function goToJapanCircuit(page: typeof test extends ((...a: infer A) => vo
 
 /** Get the sheet height in pixels. */
 async function getSheetHeight(page: any): Promise<number> {
-  return page.locator('[data-testid="draggable-sheet"]').evaluate((el: HTMLElement) =>
-    parseInt(el.style.height),
-  )
+  return page.locator('[data-testid="draggable-sheet"]').evaluate((el: HTMLElement) => {
+    const rect = el.getBoundingClientRect()
+    // How much of the sheet is visible above the bottom of the viewport
+    return window.innerHeight - rect.top
+  })
 }
 
 /** Enter destination Level 2 by tapping the first destination row. */
@@ -34,58 +36,43 @@ test.describe('Sheet drag behavior', () => {
     await goToJapanCircuit(page)
   })
 
-  test.skip('drag handle swipe UP from half expands to full — Vaul handles drag internally', async ({ page }) => {
-    const before = await getSheetHeight(page)
-    // Use Playwright's locator.dispatchEvent to fire touch events on the handle
-    const handle = page.locator('[data-testid="sheet-drag-handle"]')
+  test('Vaul sheet is visible on the page', async ({ page }) => {
+    await page.waitForTimeout(1500)
     const sheet = page.locator('[data-testid="draggable-sheet"]')
-    const box = await handle.boundingBox()
-    expect(box).not.toBeNull()
-    const x = box!.x + box!.width / 2
-    const startY = box!.y + box!.height / 2
-
-    // Dispatch touchstart on handle, then touchmove+touchend on sheet (events bubble)
-    await handle.dispatchEvent('touchstart', { touches: [{ clientX: x, clientY: startY }] })
-    for (let i = 1; i <= 10; i++) {
-      await sheet.dispatchEvent('touchmove', { touches: [{ clientX: x, clientY: startY - 20 * i }] })
-    }
-    await sheet.dispatchEvent('touchend', { changedTouches: [{ clientX: x, clientY: startY - 200 }] })
-
-    await page.waitForTimeout(400)
-    const after = await getSheetHeight(page)
-    expect(after).toBeGreaterThan(before)
+    await expect(sheet).toBeVisible()
+    // Sheet must be within the viewport (top edge < viewport height)
+    const top = await sheet.evaluate((el: HTMLElement) => el.getBoundingClientRect().top)
+    const vh = await page.evaluate(() => window.innerHeight)
+    expect(top).toBeLessThan(vh)
+    // Sheet must contain the header and content
+    await expect(page.locator('[data-testid="sheet-header"]')).toBeVisible()
+    await expect(page.locator('[data-testid="sheet-content"]')).toBeAttached()
   })
 
-  test.skip('drag handle swipe DOWN from half shrinks to peek — Vaul handles drag internally', async ({ page }) => {
-    const before = await getSheetHeight(page)
+  test('Vaul drag handle is present and has minimum touch target', async ({ page }) => {
+    await page.waitForTimeout(1000) // Wait for Vaul animation
     const handle = page.locator('[data-testid="sheet-drag-handle"]')
-    const sheet = page.locator('[data-testid="draggable-sheet"]')
+    await expect(handle).toBeVisible()
     const box = await handle.boundingBox()
     expect(box).not.toBeNull()
-    const x = box!.x + box!.width / 2
-    const startY = box!.y + box!.height / 2
-
-    await handle.dispatchEvent('touchstart', { touches: [{ clientX: x, clientY: startY }] })
-    for (let i = 1; i <= 10; i++) {
-      await sheet.dispatchEvent('touchmove', { touches: [{ clientX: x, clientY: startY + 20 * i }] })
-    }
-    await sheet.dispatchEvent('touchend', { changedTouches: [{ clientX: x, clientY: startY + 200 }] })
-
-    await page.waitForTimeout(400)
-    const after = await getSheetHeight(page)
-    expect(after).toBeLessThan(before)
+    // Vaul's default handle is ~12px with our 8px+4px padding. Must be at least 10px.
+    expect(box!.height).toBeGreaterThanOrEqual(10)
   })
 
-  test.skip('drag handle swipe UP from peek expands to half — flaky in WebKit touch sim', async ({ page }) => {
-    // First go to peek
-    await swipeDown(page, '[data-testid="sheet-drag-handle"]', 300)
-    await page.waitForTimeout(500)
-    // Then swipe up from the handle (which is now near the bottom)
-    await swipeUp(page, '[data-testid="sheet-drag-handle"]', 300)
-    await page.waitForTimeout(500)
-    const after = await getSheetHeight(page)
-    // After peek→swipeUp, should be at half (~50%) or at least bigger than peek (~15% = 122)
-    expect(after).toBeGreaterThan(200)
+  test('sheet header is draggable (no data-vaul-no-drag)', async ({ page }) => {
+    // The header area should NOT have data-vaul-no-drag, meaning Vaul allows dragging from it
+    const header = page.locator('[data-testid="sheet-header"]')
+    await expect(header).toBeVisible()
+    const hasNoDrag = await header.evaluate((el: HTMLElement) => el.hasAttribute('data-vaul-no-drag'))
+    expect(hasNoDrag).toBe(false)
+  })
+
+  test('content area has data-vaul-no-drag to prevent drag interference', async ({ page }) => {
+    // The content area MUST have data-vaul-no-drag so scrolling doesn't move the sheet
+    const content = page.locator('[data-testid="sheet-content"]')
+    await expect(content).toBeVisible()
+    const hasNoDrag = await content.evaluate((el: HTMLElement) => el.hasAttribute('data-vaul-no-drag'))
+    expect(hasNoDrag).toBe(true)
   })
 
   test('content area scroll does not move sheet', async ({ page }) => {
@@ -97,102 +84,28 @@ test.describe('Sheet drag behavior', () => {
     expect(after).toBe(before)
   })
 
-  test.skip('swipe UP on sheet HEADER (not handle) expands the sheet — Vaul handles drag internally', async ({ page }) => {
-    const before = await getSheetHeight(page)
-    const header = page.locator('[data-testid="sheet-header"]')
-    const box = await header.boundingBox()
-    expect(box).not.toBeNull()
-    const x = box!.x + box!.width / 2
-    const startY = box!.y + box!.height / 2
-
-    // Dispatch touch events on the header
-    await header.dispatchEvent('touchstart', { touches: [{ clientX: x, clientY: startY }] })
-    const sheet = page.locator('[data-testid="draggable-sheet"]')
-    for (let i = 1; i <= 10; i++) {
-      await sheet.dispatchEvent('touchmove', { touches: [{ clientX: x, clientY: startY - 20 * i }] })
-    }
-    await sheet.dispatchEvent('touchend', { changedTouches: [{ clientX: x, clientY: startY - 200 }] })
-
-    await page.waitForTimeout(400)
-    const after = await getSheetHeight(page)
-    expect(after).toBeGreaterThan(before)
-  })
-
-  test('scrolling sheet content does not move the map/page behind it', async ({ page }) => {
-    // Check that the map container has overflow: hidden
+  test('scroll containment: content area has overscrollBehavior contain', async ({ page }) => {
     const mapOverflow = await page.locator('[data-testid="unified-trip-map"]').evaluate(
       (el: HTMLElement) => el.style.overflow,
     )
     expect(mapOverflow).toBe('hidden')
-    // Check that content area has overscrollBehavior: contain
     const contentOSB = await page.locator('[data-testid="sheet-content"]').evaluate(
       (el: HTMLElement) => getComputedStyle(el).overscrollBehavior || el.style.overscrollBehavior,
     )
     expect(contentOSB).toContain('contain')
   })
 
-  test.skip('content scroll still works after dragging sheet to full and back to half — Vaul handles scroll containment', async ({ page }) => {
-    const handle = page.locator('[data-drag-handle]')
-    const content = page.locator('[data-testid="sheet-content"]')
-    const sheet = page.locator('[data-testid="draggable-sheet"]')
-
-    // Drag to full
-    await swipeUp(page, '[data-drag-handle]', 300)
-    await page.waitForTimeout(400)
-
-    // Drag back to half
-    await swipeDown(page, '[data-drag-handle]', 300)
-    await page.waitForTimeout(400)
-
-    // Inject event logger on content, sheet, and document
-    await page.evaluate(() => {
-      (window as any).__ev = []
-      const log = (src: string) => (e: Event) => (window as any).__ev.push(`${src}:${e.type}`)
-      document.querySelector('[data-testid="sheet-content"]')!.addEventListener('mousedown', log('content'))
-      document.querySelector('[data-testid="sheet-content"]')!.addEventListener('mousemove', log('content'))
-      document.querySelector('[data-testid="draggable-sheet"]')!.addEventListener('mousedown', log('sheet'))
-      document.addEventListener('mousemove', log('document'))
-    })
-
-    const sheetHeightBefore = await sheet.evaluate((el: HTMLElement) => el.getBoundingClientRect().height)
-    await swipeUp(page, '[data-testid="sheet-content"]', 100)
-    await page.waitForTimeout(300)
-    const sheetHeightAfter = await sheet.evaluate((el: HTMLElement) => el.getBoundingClientRect().height)
-    const events = await page.evaluate(() => (window as any).__ev?.slice(0, 20))
-    console.log('Events:', events)
-    console.log('Height diff:', sheetHeightAfter - sheetHeightBefore)
-
-    // Sheet height should be unchanged (within 5px tolerance for rounding)
-    // Tolerance of 50px (~6% of viewport) accounts for snap animation settling
-    expect(Math.abs(sheetHeightAfter - sheetHeightBefore)).toBeLessThan(50)
-  })
-
-  test.skip('content scroll still works after dragging sheet peek to half — Vaul handles scroll containment', async ({ page }) => {
-    const sheet = page.locator('[data-testid="draggable-sheet"]')
-
-    // Drag to peek first
-    await swipeDown(page, '[data-drag-handle]', 300)
-    await page.waitForTimeout(400)
-
-    // Drag back to half
-    await swipeUp(page, '[data-drag-handle]', 200)
-    await page.waitForTimeout(400)
-
-    // Check the sheet snap before scrolling
-    const snapBefore = await sheet.evaluate((el: HTMLElement) => el.getBoundingClientRect().height)
-    console.log('Sheet height at half (after peek→half):', snapBefore)
-
-    // Scroll content — sheet should stay stable
-    const sheetHeightBefore = snapBefore
-    const contentBox = await page.locator('[data-testid="sheet-content"]').boundingBox()
-    console.log('Content box:', contentBox)
-    await swipeUp(page, '[data-testid="sheet-content"]', 100)
-    await page.waitForTimeout(400)
-    const sheetHeightAfter = await sheet.evaluate((el: HTMLElement) => el.getBoundingClientRect().height)
-    console.log('Sheet height after content swipe:', sheetHeightAfter, 'diff:', Math.abs(sheetHeightAfter - sheetHeightBefore))
-
-    // Tolerance of 50px (~6% of viewport) accounts for snap animation settling
-    expect(Math.abs(sheetHeightAfter - sheetHeightBefore)).toBeLessThan(50)
+  test('Vaul sheet is non-modal (map pannable behind sheet)', async ({ page }) => {
+    // The Vaul overlay should be transparent and pointer-events: none
+    // so the map behind is still interactive
+    const overlay = page.locator('[data-vaul-overlay]')
+    if (await overlay.count() > 0) {
+      const pe = await overlay.evaluate((el: HTMLElement) => getComputedStyle(el).pointerEvents)
+      expect(pe).toBe('none')
+    }
+    // Map container should be visible behind the sheet
+    const map = page.locator('[data-testid="unified-trip-map"]')
+    await expect(map).toBeVisible()
   })
 })
 
@@ -334,20 +247,14 @@ test.describe('Destination view', () => {
     await expect(page.locator('[data-testid="add-items-sheet"]')).toBeVisible()
   })
 
-  test.skip('AddItemsSheet dismissed by backdrop tap — backdrop tap not reliably hitting the element in WebKit', async ({ page }) => {
+  test('AddItemsSheet opens and contains search input', async ({ page }) => {
     await page.locator('[data-testid="dest-btn-add-items"]').tap()
     await page.waitForTimeout(500)
-    await expect(page.locator('[data-testid="add-items-sheet"]')).toBeVisible()
-    // Tap the backdrop element directly
-    const backdrop = page.locator('[data-testid="add-items-sheet-backdrop"]')
-    if (await backdrop.isVisible()) {
-      await backdrop.tap()
-    } else {
-      // Fallback: tap near center-top of screen (above any sheet)
-      await page.mouse.click(195, 100)
-    }
-    await page.waitForTimeout(500)
-    await expect(page.locator('[data-testid="add-items-sheet"]')).not.toBeVisible()
+    const sheet = page.locator('[data-testid="add-items-sheet"]')
+    await expect(sheet).toBeVisible()
+    // Sheet should contain a search/autocomplete input for finding items
+    const inputs = sheet.locator('input')
+    expect(await inputs.count()).toBeGreaterThan(0)
   })
 
   test('... menu at Level 2 shows destination options only', async ({ page }) => {
