@@ -86,6 +86,19 @@ export default function DraggableSheet({
     return () => window.removeEventListener('resize', handler)
   }, [currentSnap, snapPoints])
 
+  // Attach non-passive touchmove listener on the drag handle to ensure preventDefault works.
+  // React synthetic events may be passive, preventing us from stopping browser scroll.
+  const handleRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handle = handleRef.current
+    if (!handle) return
+    const nativeTouchMove = (e: TouchEvent) => {
+      if (isDraggingSheet.current) e.preventDefault()
+    }
+    handle.addEventListener('touchmove', nativeTouchMove, { passive: false })
+    return () => handle.removeEventListener('touchmove', nativeTouchMove)
+  }, [])
+
   // ── Snap to a specific point with animation ──
   const snapTo = useCallback(
     (label: SnapLabel) => {
@@ -162,6 +175,8 @@ export default function DraggableSheet({
       const target = e.target as HTMLElement
       if (target.closest('[data-drag-handle]')) {
         isDraggingSheet.current = true
+        // Prevent browser from interpreting this as a scroll/gesture
+        e.preventDefault()
         return
       }
 
@@ -278,6 +293,7 @@ export default function DraggableSheet({
     >
       {/* Drag handle */}
       <div
+        ref={handleRef}
         data-drag-handle
         data-testid="sheet-drag-handle"
         style={{
@@ -286,6 +302,7 @@ export default function DraggableSheet({
           paddingTop: 8,
           paddingBottom: 4,
           cursor: 'grab',
+          touchAction: 'none',
         }}
       >
         <div

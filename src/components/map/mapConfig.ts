@@ -24,4 +24,5 @@ export const MAP_SIZES = {
 export const SINGLE_DESTINATION_ZOOM = 12
 
 /** Padding (in pixels) when fitting bounds to multiple destinations. */
-export const FIT_BOUNDS_PADDING = { top: 80, bottom: 60, left: 40, right: 40 }
+/** Bottom padding accounts for the DraggableSheet at half-snap (~50% viewport). */
+export const FIT_BOUNDS_PADDING = { top: 100, bottom: 300, left: 50, right: 50 }
