@@ -86,17 +86,22 @@ export default function DraggableSheet({
     return () => window.removeEventListener('resize', handler)
   }, [currentSnap, snapPoints])
 
-  // Attach non-passive touchmove listener on the drag handle to ensure preventDefault works.
-  // React synthetic events may be passive, preventing us from stopping browser scroll.
+  // Attach non-passive touchmove listeners on drag handle AND header to ensure
+  // preventDefault works. React synthetic events may be passive.
   const handleRef = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    const handle = handleRef.current
-    if (!handle) return
     const nativeTouchMove = (e: TouchEvent) => {
       if (isDraggingSheet.current) e.preventDefault()
     }
-    handle.addEventListener('touchmove', nativeTouchMove, { passive: false })
-    return () => handle.removeEventListener('touchmove', nativeTouchMove)
+    const handle = handleRef.current
+    const header = headerRef.current
+    if (handle) handle.addEventListener('touchmove', nativeTouchMove, { passive: false })
+    if (header) header.addEventListener('touchmove', nativeTouchMove, { passive: false })
+    return () => {
+      if (handle) handle.removeEventListener('touchmove', nativeTouchMove)
+      if (header) header.removeEventListener('touchmove', nativeTouchMove)
+    }
   }, [])
 
   // ── Snap to a specific point with animation ──
@@ -171,9 +176,9 @@ export default function DraggableSheet({
       dragTimestamps.current = [{ y: touch.clientY, t: Date.now() }]
 
       // Determine if we should drag the sheet or let content scroll:
-      // If the touch started on the drag handle area, always drag the sheet.
+      // If the touch started on the drag handle or header area, always drag the sheet.
       const target = e.target as HTMLElement
-      if (target.closest('[data-drag-handle]')) {
+      if (target.closest('[data-drag-handle]') || target.closest('[data-sheet-header]')) {
         isDraggingSheet.current = true
         // Prevent browser from interpreting this as a scroll/gesture
         e.preventDefault()
@@ -232,7 +237,7 @@ export default function DraggableSheet({
     (e: React.MouseEvent) => {
       if (animating) return
       const target = e.target as HTMLElement
-      if (!target.closest('[data-drag-handle]')) return
+      if (!target.closest('[data-drag-handle]') && !target.closest('[data-sheet-header]')) return
 
       dragging.current = true
       isDraggingSheet.current = true
@@ -315,8 +320,8 @@ export default function DraggableSheet({
         />
       </div>
 
-      {/* Fixed header */}
-      <div data-testid="sheet-header" style={{ flexShrink: 0 }}>
+      {/* Fixed header — also a drag zone */}
+      <div ref={headerRef} data-sheet-header data-testid="sheet-header" style={{ flexShrink: 0, touchAction: 'none' }}>
         {header}
       </div>
 
@@ -329,6 +334,7 @@ export default function DraggableSheet({
           overflowY: 'auto',
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch',
+          touchAction: 'pan-y',
         }}
       >
         {children}

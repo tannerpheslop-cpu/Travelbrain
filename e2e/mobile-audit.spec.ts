@@ -97,6 +97,40 @@ test.describe('Sheet drag behavior', () => {
     const after = await getSheetHeight(page)
     expect(after).toBe(before)
   })
+
+  test('swipe UP on sheet HEADER (not handle) expands the sheet', async ({ page }) => {
+    const before = await getSheetHeight(page)
+    const header = page.locator('[data-testid="sheet-header"]')
+    const box = await header.boundingBox()
+    expect(box).not.toBeNull()
+    const x = box!.x + box!.width / 2
+    const startY = box!.y + box!.height / 2
+
+    // Dispatch touch events on the header
+    await header.dispatchEvent('touchstart', { touches: [{ clientX: x, clientY: startY }] })
+    const sheet = page.locator('[data-testid="draggable-sheet"]')
+    for (let i = 1; i <= 10; i++) {
+      await sheet.dispatchEvent('touchmove', { touches: [{ clientX: x, clientY: startY - 20 * i }] })
+    }
+    await sheet.dispatchEvent('touchend', { changedTouches: [{ clientX: x, clientY: startY - 200 }] })
+
+    await page.waitForTimeout(400)
+    const after = await getSheetHeight(page)
+    expect(after).toBeGreaterThan(before)
+  })
+
+  test('scrolling sheet content does not move the map/page behind it', async ({ page }) => {
+    // Check that the map container has overflow: hidden
+    const mapOverflow = await page.locator('[data-testid="unified-trip-map"]').evaluate(
+      (el: HTMLElement) => el.style.overflow,
+    )
+    expect(mapOverflow).toBe('hidden')
+    // Check that content area has overscrollBehavior: contain
+    const contentOSB = await page.locator('[data-testid="sheet-content"]').evaluate(
+      (el: HTMLElement) => getComputedStyle(el).overscrollBehavior || el.style.overscrollBehavior,
+    )
+    expect(contentOSB).toContain('contain')
+  })
 })
 
 // ── Part 2: Overlay button taps ──────────────────────────────────────────────
