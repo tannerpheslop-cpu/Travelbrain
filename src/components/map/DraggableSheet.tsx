@@ -86,10 +86,31 @@ export default function DraggableSheet({
     return () => window.removeEventListener('resize', handler)
   }, [currentSnap, snapPoints])
 
+  // ── iOS Safari body scroll lock ──
+  // position: fixed on body is the only reliable way to prevent iOS from
+  // chaining scroll events from inner containers to the page body.
+  useEffect(() => {
+    const scrollY = window.scrollY
+    document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+
+    return () => {
+      document.body.style.overflow = ''
+      document.body.style.position = ''
+      document.body.style.top = ''
+      document.body.style.width = ''
+      window.scrollTo(0, scrollY)
+    }
+  }, [])
+
   // Attach non-passive touchmove listeners on drag handle AND header to ensure
   // preventDefault works. React synthetic events may be passive.
   const handleRef = useRef<HTMLDivElement>(null)
   const headerRef = useRef<HTMLDivElement>(null)
+  const lastTouchYRef = useRef(0)
+
   useEffect(() => {
     const nativeTouchMove = (e: TouchEvent) => {
       if (isDraggingSheet.current) e.preventDefault()
@@ -101,6 +122,39 @@ export default function DraggableSheet({
     return () => {
       if (handle) handle.removeEventListener('touchmove', nativeTouchMove)
       if (header) header.removeEventListener('touchmove', nativeTouchMove)
+    }
+  }, [])
+
+  // ── Prevent scroll chaining at content boundaries (iOS Safari) ──
+  // When content hits top/bottom scroll boundary, prevent the touch from
+  // propagating to the body (which iOS would interpret as page scroll).
+  useEffect(() => {
+    const content = contentRef.current
+    if (!content) return
+
+    const onTouchStart = (e: TouchEvent) => {
+      lastTouchYRef.current = e.touches[0].clientY
+    }
+    const onTouchMove = (e: TouchEvent) => {
+      if (isDraggingSheet.current) return // Sheet is being dragged, not scrolled
+      const { scrollTop, scrollHeight, clientHeight } = content
+      const touchY = e.touches[0].clientY
+      const isScrollingUp = touchY > lastTouchYRef.current   // finger moves down = scroll up
+      const isScrollingDown = touchY < lastTouchYRef.current  // finger moves up = scroll down
+      const isAtTop = scrollTop <= 0
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 1
+
+      if (isAtTop && isScrollingUp) e.preventDefault()
+      if (isAtBottom && isScrollingDown) e.preventDefault()
+
+      lastTouchYRef.current = touchY
+    }
+
+    content.addEventListener('touchstart', onTouchStart, { passive: true })
+    content.addEventListener('touchmove', onTouchMove, { passive: false })
+    return () => {
+      content.removeEventListener('touchstart', onTouchStart)
+      content.removeEventListener('touchmove', onTouchMove)
     }
   }, [])
 
