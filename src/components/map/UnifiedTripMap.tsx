@@ -35,6 +35,8 @@ export interface UnifiedTripMapProps {
   onShare?: () => void
   onCompanions?: () => void
   onOpenMenu?: () => void
+  /** Destination-level menu (delete destination, etc.) */
+  onDestMenu?: (destId: string) => void
   companionCount?: number
   onItemSelect?: (itemId: string) => void
   /** Open calendar picker for a destination */
@@ -85,6 +87,7 @@ export default function UnifiedTripMap({
   onShare,
   onCompanions,
   onOpenMenu,
+  onDestMenu,
   companionCount,
   onItemSelect,
   onDatesTap,
@@ -817,7 +820,7 @@ export default function UnifiedTripMap({
           <div style={{ opacity: tripOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'trip' ? 'auto' : 'none', position: level === 'trip' ? 'relative' : 'absolute', top: 0, left: 0 }}>
             {onBack && (
               <button type="button" data-testid="map-btn-back" onClick={onBack}
-                style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#f5f3ef', fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', textShadow: '0 1px 2px rgba(0,0,0,0.3)', minWidth: 44, minHeight: 44, WebkitTapHighlightColor: 'transparent', pointerEvents: 'auto' as const }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#f5f3ef', fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', textShadow: '0 1px 2px rgba(0,0,0,0.3)', minWidth: 44, minHeight: 44, WebkitTapHighlightColor: 'transparent' }}>
                 <ChevronLeft size={14} /> Trips
               </button>
             )}
@@ -825,7 +828,7 @@ export default function UnifiedTripMap({
           {/* Destination-level back */}
           <div style={{ opacity: destOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'destination' ? 'auto' : 'none', position: level === 'destination' ? 'relative' : 'absolute', top: 0, left: 0 }}>
             <button type="button" data-testid="dest-map-back" onClick={isSingleCityTrip ? onBack ?? exitToTrip : exitToTrip}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#f5f3ef', fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', textShadow: '0 1px 2px rgba(0,0,0,0.3)', minWidth: 44, minHeight: 44, WebkitTapHighlightColor: 'transparent', pointerEvents: 'auto' as const }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#f5f3ef', fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', textShadow: '0 1px 2px rgba(0,0,0,0.3)', minWidth: 44, minHeight: 44, WebkitTapHighlightColor: 'transparent' }}>
               <ChevronLeft size={14} /> {isSingleCityTrip ? 'Trips' : tripTitle}
             </button>
           </div>
@@ -849,7 +852,7 @@ export default function UnifiedTripMap({
               </button>
             )}
             <OverlayBtn onClick={() => setShowAddItems(true)} label="Add items" testId="dest-btn-add-items"><Plus size={15} /></OverlayBtn>
-            {onOpenMenu && <OverlayBtn onClick={onOpenMenu} label="More" testId="dest-btn-menu"><MoreHorizontal size={15} /></OverlayBtn>}
+            {activeDestId && onDestMenu && <OverlayBtn onClick={() => onDestMenu(activeDestId)} label="More" testId="dest-btn-menu"><MoreHorizontal size={15} /></OverlayBtn>}
           </div>
         </div>
 
@@ -951,7 +954,7 @@ function OverlayBtn({ onClick, label, testId, badge, children }: {
 }) {
   return (
     <button type="button" onClick={onClick} aria-label={label} data-testid={testId}
-      style={{ width: 32, height: 32, minWidth: 44, minHeight: 44, borderRadius: 8, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.12)', color: '#f5f3ef', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', backdropFilter: 'blur(4px)', position: 'relative', pointerEvents: 'auto' as const, WebkitTapHighlightColor: 'transparent' }}>
+      style={{ width: 32, height: 32, minWidth: 44, minHeight: 44, borderRadius: 8, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.12)', color: '#f5f3ef', boxShadow: '0 1px 3px rgba(0,0,0,0.15)', backdropFilter: 'blur(4px)', position: 'relative', WebkitTapHighlightColor: 'transparent' }}>
       {children}
       {badge != null && badge > 0 && (
         <span style={{ position: 'absolute', top: -3, right: -3, width: 14, height: 14, borderRadius: '50%', background: MAP_COLORS.accent, color: '#fff', fontSize: 9, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{badge}</span>
