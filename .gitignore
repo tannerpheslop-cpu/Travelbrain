@@ -31,3 +31,4 @@ supabase/.temp/
 
 # Windows artifacts
 nul
+test-results/

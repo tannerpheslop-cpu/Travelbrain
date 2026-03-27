@@ -335,6 +335,7 @@ export default function TripOverviewPage() {
   const [showShareModal, setShowShareModal] = useState(false)
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [showActionMenu, setShowActionMenu] = useState(false)
+  const [destMenuId, setDestMenuId] = useState<string | null>(null)
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const statusDropdownRef = useRef<HTMLDivElement>(null)
   const [, setTitleSavedVisible] = useState(false)
@@ -756,6 +757,7 @@ export default function TripOverviewPage() {
           onCompanions={() => setShowInviteModal(true)}
           companionCount={companions.length}
           onOpenMenu={() => setShowActionMenu(o => !o)}
+          onDestMenu={(destId) => setDestMenuId(destId)}
           onItemSelect={(itemId) => navigate(`/item/${itemId}?backTo=${encodeURIComponent(`/trip/${id}`)}`)}
           onDatesTap={(destId) => setDatePickerDestId(destId)}
           initialDestId={urlDestId ?? null}
@@ -864,6 +866,36 @@ export default function TripOverviewPage() {
               onMouseEnter={e => (e.currentTarget.style.background = '#fdf0ef')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >Delete trip</button>
+          </div>
+        </>
+      )}
+
+      {/* ── Destination menu (Level 2) ── */}
+      {destMenuId && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setDestMenuId(null)} />
+          <div style={{
+            position: 'fixed', top: 60, right: 14, zIndex: 50,
+            background: '#ffffff', border: '1px solid #e8e6e1', borderRadius: 10,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.1)', padding: '6px 0', minWidth: 180,
+          }}>
+            <button
+              type="button"
+              onClick={async () => {
+                setDestMenuId(null)
+                // Delete destination items first, then destination
+                await supabase.from('destination_items').delete().eq('destination_id', destMenuId)
+                await supabase.from('trip_destinations').delete().eq('id', destMenuId)
+                queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id!) })
+              }}
+              style={{
+                display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
+                fontSize: 14, color: '#c0392b', cursor: 'pointer', border: 'none',
+                background: 'transparent', fontFamily: "'DM Sans', sans-serif",
+              }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#fdf0ef')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >Delete destination</button>
           </div>
         </>
       )}
