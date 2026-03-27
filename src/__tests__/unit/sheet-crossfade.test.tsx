@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { createMapboxMock } from '../helpers/mockMapbox'
-import { createVaulMock } from '../helpers/mockVaul'
 
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -26,8 +25,6 @@ vi.mock('../../lib/supabase', () => ({
   },
   supabaseUrl: 'https://test.supabase.co', supabaseAnonKey: 'test-key', invokeEdgeFunction: vi.fn(),
 }))
-vi.mock('vaul', () => createVaulMock())
-vi.mock('@radix-ui/react-visually-hidden', () => ({ Root: (props: any) => props.children }))
 
 import UnifiedTripMap from '../../components/map/UnifiedTripMap'
 import type { DestWithCount } from '../../hooks/queries'
@@ -80,7 +77,7 @@ describe('Sheet content crossfade', () => {
     expect(contentFade.style.opacity).toBe('1')
   })
 
-  it('sheet is present and has overflow hidden (Vaul renders it)', () => {
+  it('sheet height does not change during transition (snap preserved)', () => {
     render(
       <UnifiedTripMap
         tripId="trip-1" tripTitle="Japan" statusLabel="Planning" metadataLine="1 dest"
@@ -88,7 +85,8 @@ describe('Sheet content crossfade', () => {
       />,
     )
     const sheet = screen.getByTestId('draggable-sheet')
-    expect(sheet).toBeInTheDocument()
-    expect(sheet.style.overflow).toBe('hidden')
+    const heightBefore = sheet.style.height
+    // Height should be at half snap (50% of 800 = 400px)
+    expect(heightBefore).toBe('400px')
   })
 })

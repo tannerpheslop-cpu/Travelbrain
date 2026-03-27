@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { createMapboxMock } from '../helpers/mockMapbox'
-import { createVaulMock } from '../helpers/mockVaul'
 
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
@@ -20,8 +19,6 @@ vi.mock('../../lib/supabase', () => ({
   supabase: { from: () => ({ select: () => ({ eq: () => ({ order: () => Promise.resolve({ data: [] }) }) }) }) },
   supabaseUrl: 'https://test.supabase.co', supabaseAnonKey: 'test-key', invokeEdgeFunction: vi.fn(),
 }))
-vi.mock('vaul', () => createVaulMock())
-vi.mock('@radix-ui/react-visually-hidden', () => ({ Root: (props: any) => props.children }))
 
 import UnifiedTripMap from '../../components/map/UnifiedTripMap'
 
