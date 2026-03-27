@@ -1,11 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { X } from 'lucide-react'
 import LocationAutocomplete, { type LocationSelection } from '../LocationAutocomplete'
 
 interface AddDestinationSheetProps {
   onSelect: (location: LocationSelection) => void
   onClose: () => void
-  /** Cluster-based suggestions to show above the search input */
   suggestions?: Array<{
     key: string
     label: string
@@ -21,6 +20,8 @@ export default function AddDestinationSheet({
   suggestions,
 }: AddDestinationSheetProps) {
   const [visible, setVisible] = useState(false)
+  const onSelectRef = useRef(onSelect)
+  onSelectRef.current = onSelect
 
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
@@ -34,10 +35,11 @@ export default function AddDestinationSheet({
   const handleSelect = useCallback(
     (loc: LocationSelection | null) => {
       if (!loc) return
-      onSelect(loc)
+      console.log('[AddDestinationSheet] onSelect fired:', loc.name)
+      onSelectRef.current(loc)
       handleClose()
     },
-    [onSelect, handleClose],
+    [handleClose],
   )
 
   return (
@@ -103,7 +105,7 @@ export default function AddDestinationSheet({
 
         {/* Suggestions */}
         {suggestions && suggestions.length > 0 && (
-          <div style={{ padding: '0 16px 20px' }}>
+          <div style={{ padding: '0 16px 20px', overflowY: 'auto' }}>
             <p style={{
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 9,
@@ -121,7 +123,8 @@ export default function AddDestinationSheet({
                 type="button"
                 data-testid={`dest-suggestion-${s.countryCode}`}
                 onClick={() => {
-                  onSelect(s.loc)
+                  console.log('[AddDestinationSheet] suggestion selected:', s.label)
+                  onSelectRef.current(s.loc)
                   handleClose()
                 }}
                 style={{

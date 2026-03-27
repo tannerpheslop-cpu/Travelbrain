@@ -16,6 +16,7 @@ import SearchPage from './pages/SearchPage'
 import SharedTripPage from './pages/SharedTripPage'
 import GlobalActions from './components/GlobalActions'
 import ErrorBoundary from './components/ErrorBoundary'
+import { ToastProvider } from './components/Toast'
 import NotFoundPage from './pages/NotFoundPage'
 import DevLoginPage from './pages/DevLoginPage'
 
@@ -61,12 +62,14 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
+          <ToastProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               {import.meta.env.DEV && <Route path="/dev-login" element={<DevLoginPage />} />}
               <Route path="/s/:shareToken" element={<SharedTripPage />} />
               <Route path="/*" element={<AppLayout />} />
             </Routes>
+          </ToastProvider>
           </AuthProvider>
         </BrowserRouter>
         {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
