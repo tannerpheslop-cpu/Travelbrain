@@ -13,6 +13,7 @@ import { optimizedImageUrl } from '../lib/optimizedImage'
 import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
 import { BrandMark, CategoryPill, CountryCodeBadge, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import ScrollToTop from '../components/ScrollToTop'
+import SunsetBackground from '../components/horizon/SunsetBackground'
 import ImageWithFade from '../components/ImageWithFade'
 import { getPlacePhoto } from '../components/SavedItemImage'
 import type { SavedItem, Category } from '../types'
@@ -453,11 +454,14 @@ export default function InboxPage() {
 
   return (
     <>
-    <div className="px-5 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+    {/* Night sky background */}
+    <SunsetBackground saveCount={items.length} />
+
+    <div className="night-sky px-5 pb-24 relative z-[1]" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
 
       {/* ── Header ── */}
       <BrandMark className="mb-2 block" />
-      <h1 className="text-[32px] font-bold leading-[1.2] tracking-[-0.5px] text-text-primary">Horizon</h1>
+      <h1 className="text-[32px] font-bold leading-[1.2] tracking-[-0.5px]" style={{ color: 'var(--color-night-text-primary)' }}>Horizon</h1>
       {items.length > 0 && (
         <div className="mt-1">
           <MetadataLine items={[
@@ -468,7 +472,7 @@ export default function InboxPage() {
       )}
 
       {/* ── Divider ── */}
-      <div className="mt-4 mb-3 border-t border-border" />
+      <div className="mt-4 mb-3 border-t" style={{ borderColor: 'var(--color-edge-strong)' }} />
 
       {/* ── Row 1: Search bar (full width) ── */}
       <div className="relative mb-2">
@@ -478,7 +482,8 @@ export default function InboxPage() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search saves..."
-          className="w-full pl-9 pr-3 py-2 bg-bg-card border border-border-input rounded-lg text-sm text-text-primary placeholder:text-text-ghost focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors"
+          className="w-full pl-9 pr-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors"
+          style={{ background: 'var(--color-surface)', border: '1px solid var(--color-edge-strong)', color: 'var(--color-night-text-primary)' }}
         />
         {searchQuery && (
           <button

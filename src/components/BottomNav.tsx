@@ -60,7 +60,10 @@ export default function BottomNav() {
   const location = useLocation()
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-20 bg-bg-card border-t border-border pb-[env(safe-area-inset-bottom)]">
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-20 pb-[env(safe-area-inset-bottom)]"
+      style={{ background: 'var(--color-surface)', borderTop: '0.5px solid var(--color-surface-elevated)' }}
+    >
       <div className="flex justify-around items-center h-16 max-w-lg mx-auto px-2">
         {navItems.map((item) => {
           // Custom active check: match any of the item's matchPaths as prefixes
@@ -70,13 +73,8 @@ export default function BottomNav() {
             <NavLink
               key={item.to}
               to={item.to}
-              className={
-                `flex flex-col items-center gap-0.5 px-5 py-2 rounded-2xl text-xs font-semibold transition-all ${
-                  isActive
-                    ? 'text-accent bg-accent-light'
-                    : 'text-text-faint hover:text-text-tertiary hover:bg-bg-muted'
-                }`
-              }
+              className="flex flex-col items-center gap-0.5 px-5 py-2 rounded-2xl text-xs font-semibold transition-all"
+              style={{ color: isActive ? 'var(--color-copper)' : 'var(--color-night-text-secondary)' }}
             >
               {item.icon(isActive)}
               <span>{item.label}</span>

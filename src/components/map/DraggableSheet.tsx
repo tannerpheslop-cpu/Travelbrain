@@ -310,10 +310,10 @@ export default function DraggableSheet({
         left: 0,
         right: 0,
         height,
-        background: 'var(--color-bg-page)',
+        background: 'var(--color-surface)',
         borderTopLeftRadius: 16,
         borderTopRightRadius: 16,
-        boxShadow: '0 -2px 20px rgba(0,0,0,0.08)',
+        boxShadow: '0 -2px 20px rgba(0,0,0,0.25)',
         display: 'flex',
         flexDirection: 'column',
         zIndex: 20,
@@ -342,7 +342,7 @@ export default function DraggableSheet({
             width: 36,
             height: 4,
             borderRadius: 2,
-            background: 'var(--color-border-secondary, #d5d2cb)',
+            background: 'var(--color-night-text-tertiary, #4a5068)',
           }}
         />
       </div>

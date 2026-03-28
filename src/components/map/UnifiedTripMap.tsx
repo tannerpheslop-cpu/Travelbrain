@@ -666,7 +666,7 @@ export default function UnifiedTripMap({
   // ── Trip-level sheet header — tabs only (title/stats are on map overlay) ──
   const tripSheetHeader = (
     <div style={{ padding: '4px 16px 0' }}>
-      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--color-border-light)' }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '0.5px solid var(--color-surface-elevated)' }}>
         <TripSheetTab label="Destinations" active />
         <TripSheetTab label="Itinerary" />
         <TripSheetTab label="Logistics" />
@@ -691,13 +691,13 @@ export default function UnifiedTripMap({
               onClick={() => isCityLevel(d) ? enterDestination(d.id) : undefined}
               style={{
                 display: 'flex', alignItems: 'center', width: '100%', padding: '12px 16px',
-                borderBottom: '1px solid var(--color-border-light)', background: 'none', border: 'none',
-                borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: 'var(--color-border-light)',
+                background: 'none', border: 'none',
+                borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: 'var(--color-surface-elevated)',
                 cursor: isCityLevel(d) ? 'pointer' : 'default', textAlign: 'left',
               }}
             >
               {/* Chapter number */}
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--color-accent-light)',
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--color-surface-elevated)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 12 }}>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 800, color: MAP_COLORS.accent }}>
                   {chapterNum}
@@ -705,33 +705,33 @@ export default function UnifiedTripMap({
               </div>
               {/* Name + dates/count */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0, lineHeight: 1.3,
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600, color: 'var(--color-night-text-primary)', margin: 0, lineHeight: 1.3,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {cityName}
-                  {d.location_country && <span style={{ fontWeight: 400, color: 'var(--color-text-tertiary)', fontSize: 13 }}> · {d.location_country}</span>}
+                  {d.location_country && <span style={{ fontWeight: 400, color: 'var(--color-night-text-secondary)', fontSize: 13 }}> · {d.location_country}</span>}
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                   {d.start_date && d.end_date ? (
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-secondary)' }}>
                       {formatShortDate(d.start_date)} – {formatShortDate(d.end_date)}
                     </span>
                   ) : (
                     <button type="button" onClick={(e) => { e.stopPropagation(); onDatesTap?.(d.id) }}
                       data-testid={`add-dates-${d.id}`}
                       style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
-                        color: MAP_COLORS.accent, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+                        color: 'var(--color-copper)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
                       + add dates
                     </button>
                   )}
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-ghost)' }}>·</span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-tertiary)' }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-tertiary)' }}>·</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-secondary)' }}>
                     {d._count} save{d._count !== 1 ? 's' : ''}
                   </span>
                 </div>
               </div>
               {/* Chevron */}
               {isCityLevel(d) && (
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: 'var(--color-text-ghost)' }}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: 'var(--color-night-text-tertiary)' }}>
                   <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
@@ -954,8 +954,8 @@ function TripSheetTab({ label, active = false }: { label: string; active?: boole
       fontFamily: "'DM Sans', sans-serif",
       fontSize: 13,
       fontWeight: active ? 600 : 400,
-      color: active ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
-      borderBottom: active ? '2px solid var(--color-accent)' : '2px solid transparent',
+      color: active ? 'var(--color-copper)' : 'var(--color-night-text-secondary)',
+      borderBottom: active ? '2px solid var(--color-copper)' : '2px solid transparent',
       cursor: active ? 'default' : 'not-allowed',
       opacity: active ? 1 : 0.5,
     }}>

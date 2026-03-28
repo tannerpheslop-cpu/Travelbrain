@@ -66,6 +66,21 @@ input, textarea, select {
   font-size: 16px !important;
 }
 
+/* ── Night sky page overrides ── */
+/* When .night-sky is on the page wrapper, remap text colors to dark-mode tokens */
+.night-sky .text-text-primary { color: var(--color-night-text-primary) !important; }
+.night-sky .text-text-secondary { color: var(--color-night-text-secondary) !important; }
+.night-sky .text-text-tertiary { color: var(--color-night-text-tertiary) !important; }
+.night-sky .text-text-faint { color: var(--color-night-text-tertiary) !important; }
+.night-sky .text-text-ghost { color: var(--color-night-text-tertiary) !important; }
+.night-sky .text-text-mist { color: var(--color-night-text-secondary) !important; }
+.night-sky .border-border { border-color: rgba(212, 224, 240, 0.08) !important; }
+.night-sky .border-border-input { border-color: rgba(212, 224, 240, 0.1) !important; }
+.night-sky .border-border-light { border-color: rgba(212, 224, 240, 0.06) !important; }
+.night-sky .bg-bg-card { background-color: var(--color-surface) !important; }
+.night-sky .bg-bg-muted { background-color: var(--color-surface-elevated) !important; }
+.night-sky .bg-bg-page { background-color: transparent !important; }
+
 /* ── Mapbox overrides ── */
 /* Hide large Mapbox logo, keep compact (i) attribution */
 .mapboxgl-ctrl-logo {
