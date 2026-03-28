@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
-import { useTripQuery, useTripDestinations, useInboxClusters, useDeleteTrip, useToggleFavorite, useCreateDestination, useCompanionsQuery, queryKeys, type DestWithCount } from '../hooks/queries'
+import { useTripQuery, useTripDestinations, useInboxClusters, useDeleteTrip, useToggleFavorite, useCreateDestination, useSavedItems, useCompanionsQuery, queryKeys, type DestWithCount } from '../hooks/queries'
 import { useCompanions as useCompanionsLegacy } from '../hooks/useCompanions'
 import type { CompanionWithUser, PendingInvite } from '../hooks/useCompanions'
 import { useRoutes } from '../hooks/useRoutes'
@@ -15,6 +15,8 @@ import { getScopedCountryCodes } from '../lib/continentCodes'
 import UnifiedTripMap from '../components/map/UnifiedTripMap'
 import AddDestinationSheet from '../components/map/AddDestinationSheet'
 import { useToast } from '../components/Toast'
+import { onItemAddedToDestination } from '../lib/triggerPrecisionUpgrade'
+import { expandGroupToDestinations } from '../lib/groupSavesByGeography'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { trySetTripCoverFromName } from '../lib/tripCoverImage'
 import { type CountryCluster } from '../lib/clusters'
@@ -274,6 +276,7 @@ export default function TripOverviewPage() {
   const { data: destsData, isLoading: destsQueryLoading } = useTripDestinations(id)
   useCompanionsQuery(id) // pre-warm cache for companion modal
   const { data: inboxClustersData } = useInboxClusters()
+  const { data: horizonSaves } = useSavedItems()
   const deleteTripMutation = useDeleteTrip()
   const toggleFavMutation = useToggleFavorite()
   // Local mutable state derived from query data (for optimistic updates)
@@ -787,6 +790,67 @@ export default function TripOverviewPage() {
             if (window.location.pathname !== newPath) {
               window.history.pushState(null, '', newPath)
             }
+          }}
+          horizonSaves={horizonSaves}
+          onSuggestionAddDest={async (group) => {
+            if (!id) return
+            const expanded = expandGroupToDestinations(group)
+            for (let i = 0; i < expanded.length; i++) {
+              const d = expanded[i]
+              await createDestMutation.mutateAsync({
+                tripId: id,
+                location: {
+                  name: d.name, lat: d.lat, lng: d.lng,
+                  place_id: `suggestion-${d.name}`,
+                  country: d.countryName, country_code: d.countryCode,
+                  location_type: d.locationType, proximity_radius_km: d.locationType === 'country' ? 500 : 50,
+                  name_en: null, name_local: null,
+                },
+                sortOrder: destinations.length + i,
+              })
+            }
+            queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id) })
+            toast(expanded.length > 1
+              ? `${group.label} added — ${expanded.length} destinations`
+              : 'Destination added')
+          }}
+          onSuggestionAddAll={async (group) => {
+            if (!id) return
+            const expanded = expandGroupToDestinations(group)
+            let totalSaves = 0
+            for (let i = 0; i < expanded.length; i++) {
+              const d = expanded[i]
+              const dest = await createDestMutation.mutateAsync({
+                tripId: id,
+                location: {
+                  name: d.name, lat: d.lat, lng: d.lng,
+                  place_id: `suggestion-${d.name}`,
+                  country: d.countryName, country_code: d.countryCode,
+                  location_type: d.locationType, proximity_radius_km: d.locationType === 'country' ? 500 : 50,
+                  name_en: null, name_local: null,
+                },
+                sortOrder: destinations.length + i,
+              })
+              const destId = (dest as any)?.id
+              if (destId && d.saves.length > 0) {
+                for (let j = 0; j < d.saves.length; j++) {
+                  await supabase.from('destination_items').insert({
+                    destination_id: destId, item_id: d.saves[j].id,
+                    day_index: null, sort_order: j,
+                  })
+                }
+                totalSaves += d.saves.length
+                // Fire auto-precision (fire-and-forget, 1s throttle)
+                for (const save of d.saves) {
+                  onItemAddedToDestination(save.id).catch(() => {})
+                  await new Promise(r => setTimeout(r, 1000))
+                }
+              }
+            }
+            queryClient.invalidateQueries({ queryKey: queryKeys.tripDestinations(id) })
+            toast(expanded.length > 1
+              ? `${group.label} added — ${expanded.length} destinations, ${totalSaves} saves`
+              : `${group.label} added with ${totalSaves} saves`)
           }}
         />
       )}

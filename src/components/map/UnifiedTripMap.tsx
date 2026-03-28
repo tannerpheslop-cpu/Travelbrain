@@ -10,6 +10,8 @@ import DraggableSheet from './DraggableSheet'
 import SheetItemRow from './SheetItemRow'
 import QuickLocationPicker from './QuickLocationPicker'
 import AddItemsSheet from './AddItemsSheet'
+import SuggestionList from './SuggestionList'
+import { groupSavesByGeography, rankSuggestions, type SaveInput, type SuggestionGroup } from '../../lib/groupSavesByGeography'
 import { useToast } from '../Toast'
 import { supabase } from '../../lib/supabase'
 // onItemAddedToDestination fires inside AddItemsSheet
@@ -46,6 +48,12 @@ export interface UnifiedTripMapProps {
   initialDestId?: string | null
   /** Called when the view level changes (for URL sync) */
   onLevelChange?: (level: ViewLevel, destId: string | null) => void
+  /** Horizon saves for suggestion grouping */
+  horizonSaves?: SaveInput[]
+  /** Called when user taps "Add destination" on a suggestion (no items) */
+  onSuggestionAddDest?: (group: SuggestionGroup) => void
+  /** Called when user taps "Add all X" on a suggestion (destination + items) */
+  onSuggestionAddAll?: (group: SuggestionGroup) => void
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -94,8 +102,12 @@ export default function UnifiedTripMap({
   onDatesTap,
   initialDestId,
   onLevelChange,
+  horizonSaves,
+  onSuggestionAddDest,
+  onSuggestionAddAll,
 }: UnifiedTripMapProps) {
   const { toast } = useToast()
+  const [suggestionGranularity, setSuggestionGranularity] = useState<'city' | 'country' | 'continent'>('country')
   const containerRef = useRef<HTMLDivElement>(null)
   const mapWrapperRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -738,6 +750,30 @@ export default function UnifiedTripMap({
           )
         })
       )}
+
+      {/* Suggestions from Horizon */}
+      {horizonSaves && horizonSaves.length > 0 && onSuggestionAddDest && onSuggestionAddAll && (() => {
+        const groups = groupSavesByGeography(horizonSaves, suggestionGranularity)
+        const ranked = destinations.length > 0
+          ? rankSuggestions(groups, destinations.map(d => ({
+              location_name: d.location_name,
+              location_lat: d.location_lat,
+              location_lng: d.location_lng,
+              location_country_code: d.location_country_code,
+            })))
+          : groups
+        const unassigned = horizonSaves.filter(s => !s.location_lat || !s.location_lng).length
+        return (
+          <SuggestionList
+            groups={ranked}
+            granularity={suggestionGranularity}
+            onGranularityChange={setSuggestionGranularity}
+            onAddDestination={onSuggestionAddDest}
+            onAddAll={onSuggestionAddAll}
+            unassignedCount={unassigned}
+          />
+        )
+      })()}
     </div>
   )
 

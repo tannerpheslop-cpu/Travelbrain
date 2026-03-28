@@ -2,9 +2,11 @@
 
 > Claude Code: Read this file and DESIGN-SYSTEM.md at the start of every session. This file is the source of truth for the product vision, architecture, data model, and design principles. DESIGN-SYSTEM.md is the authoritative reference for all visual and styling decisions. Every feature you build should be consistent with both documents.
 >
-> Additional context documents: `/docs/TRIP-CONTEXT.md`, `/docs/SAVE-FLOW-CONTEXT.md`, `/docs/HORIZON-CONTEXT.md`, `/docs/LOCATION-DETECTION-CONTEXT.md`, `/docs/MAP-NAVIGATION.md`. Read these when working on the relevant subsystem.
+> Additional context documents: `/docs/TRIP-CONTEXT.md`, `/docs/SAVE-FLOW-CONTEXT.md`, `/docs/HORIZON-CONTEXT.md`, `/docs/LOCATION-DETECTION-CONTEXT.md`, `/docs/MAP-NAVIGATION.md`, `/docs/TRIP-CREATION.md`. Read these when working on the relevant subsystem.
 >
 > **Note:** The map navigation feature (`/docs/MAP-NAVIGATION.md`) supersedes the previous topo map brief. It is the next major build.
+>
+> **Note:** The trip creation flow has been redesigned. See `TRIP-CREATION.md` for the new flow, suggestion system, and implementation phases. The old two-step creation modal (name → destinations) is superseded by `TRIP-CREATION.md`.
 
 ---
 

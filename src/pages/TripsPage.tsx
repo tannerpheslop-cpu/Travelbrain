@@ -1,22 +1,12 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { useTripsQuery, useCreateTrip, useCreateDestination, queryKeys, fetchTrip, fetchTripDestinations, type TripWithDestinations } from '../hooks/queries'
+import { useTripsQuery, useCreateTrip, queryKeys, fetchTrip, fetchTripDestinations, type TripWithDestinations } from '../hooks/queries'
 import { useAuth } from '../lib/auth'
-import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
-import { fetchPlacePhoto } from '../lib/googleMaps'
-import { fetchDestinationPhoto } from '../lib/unsplash'
-import { trySetTripCoverFromName } from '../lib/tripCoverImage'
-import { getScopedCountryCodes } from '../lib/continentCodes'
-import { getInboxClusters, type CountryCluster } from '../lib/clusters'
-import { trackEvent } from '../lib/analytics'
 import { selectFeaturedTrip } from '../utils/featuredTrip'
-import type { SavedItem } from '../types'
-import { supabase } from '../lib/supabase'
 import { Plus } from 'lucide-react'
-import { CategoryPill, DashedCard } from '../components/ui'
+import { DashedCard } from '../components/ui'
 import { optimizedImageUrl } from '../lib/optimizedImage'
-import ImageWithFade from '../components/ImageWithFade'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -39,39 +29,6 @@ function formatDateRange(start: string, end: string): string {
   return `${s} – ${e}`
 }
 
-/**
- * Returns whether the trip name matches this cluster at the city or country level.
- * City match takes priority (more specific).
- */
-function matchClusterToTripName(cluster: CountryCluster, tripName: string): 'city' | 'country' | null {
-  const q = tripName.toLowerCase().trim()
-  if (!q) return null
-  for (const city of cluster.cities) {
-    const cn = city.name.toLowerCase()
-    if (cn.includes(q) || q.includes(cn)) return 'city'
-  }
-  const country = cluster.country.toLowerCase()
-  if (country.includes(q) || q.includes(country)) return 'country'
-  return null
-}
-
-function clusterSummary(cluster: CountryCluster): string {
-  const { cities, item_count } = cluster
-  const saves = `${item_count} save${item_count !== 1 ? 's' : ''}`
-  if (cities.length === 0) return saves
-  if (cities.length === 1) return `${saves} in ${cities[0].name}`
-  const top = cities.slice(0, 3).map((c) => c.name)
-  const more = cities.length > 3 ? ` +${cities.length - 3} more` : ''
-  return `${saves} across ${top.join(', ')}${more}`
-}
-
-function buildLocationLabel(names: string[]): string {
-  if (names.length === 0) return ''
-  if (names.length === 1) return names[0]
-  if (names.length === 2) return `${names[0]} and ${names[1]}`
-  return `${names.length} destinations`
-}
-
 // ── Status label helper ──────────────────────────────────────────────────────
 
 function statusLabel(status: string): string {
@@ -83,708 +40,114 @@ function statusLabel(status: string): string {
   }
 }
 
-// ── Create Trip Modal (2-step) ────────────────────────────────────────────────
+// ── Create Trip Sheet (single step) ──────────────────────────────────────────
 
-type CreateStep = 'name' | 'destinations'
-
-interface CreateTripModalProps {
+interface CreateTripSheetProps {
   onClose: () => void
   onCreated: (tripId: string) => void
-  createTrip: (input: { title: string }) => Promise<{ trip: TripWithDestinations | null; error: string | null }>
-  createDestination: (tripId: string, location: LocationSelection, sortOrder: number, imageUrl?: string, imageSource?: string, imageCreditName?: string, imageCreditUrl?: string) => Promise<{ destination: unknown; error: string | null }>
+  createTrip: (input: { title: string }) => Promise<{ trip: any | null; error: string | null }>
 }
 
-function CreateTripModal({ onClose, onCreated, createTrip, createDestination }: CreateTripModalProps) {
-  const { user } = useAuth()
-  const [step, setStep] = useState<CreateStep>('name')
+function CreateTripSheet({ onClose, onCreated, createTrip }: CreateTripSheetProps) {
   const [title, setTitle] = useState('')
   const titleInputRef = useRef<HTMLInputElement>(null)
-  const [destinations, setDestinations] = useState<LocationSelection[]>([])
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [autocompleteKey, setAutocompleteKey] = useState(0)
+  const [visible, setVisible] = useState(false)
 
-  // Programmatic focus after modal animation completes (more reliable than autoFocus on mobile)
   useEffect(() => {
-    if (step === 'name') {
-      const timer = setTimeout(() => titleInputRef.current?.focus(), 150)
-      return () => clearTimeout(timer)
-    }
-  }, [step])
+    requestAnimationFrame(() => setVisible(true))
+    const timer = setTimeout(() => titleInputRef.current?.focus(), 200)
+    return () => clearTimeout(timer)
+  }, [])
 
-  // Cluster suggestion state
-  const [clusters, setClusters] = useState<CountryCluster[]>([])
-  const [allLocatedItems, setAllLocatedItems] = useState<SavedItem[]>([])
-  const [clustersLoading, setClustersLoading] = useState(false)
-  const [expandedSuggKey, setExpandedSuggKey] = useState<string | null>(null)
+  const handleClose = useCallback(() => {
+    setVisible(false)
+    setTimeout(onClose, 250)
+  }, [onClose])
 
-  // Multi-select suggestion state — place_ids of selected suggestions
-  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set())
-
-  const handleNextStep = async (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim()) { setError('Trip name is required.'); return }
-    setError(null)
-    setStep('destinations')
-
-    if (user) {
-      setClustersLoading(true)
-      const [clusterResults, { data: itemData }] = await Promise.all([
-        getInboxClusters(user.id),
-        supabase
-          .from('saved_items')
-          .select('id, title, category, image_url, location_lat, location_lng, location_country_code, location_place_id')
-          .eq('user_id', user.id)
-          .eq('is_archived', false)
-          .not('location_lat', 'is', null)
-          .not('location_lng', 'is', null)
-          .not('location_country_code', 'is', null),
-      ])
-      // Filter clusters by trip name scope (continent, country, city)
-      const scopedCodes = getScopedCountryCodes(title, clusterResults)
-      const filteredClusters = scopedCodes
-        ? clusterResults.filter((c) => scopedCodes.has(c.country_code))
-        : clusterResults
-      setClusters(filteredClusters)
-      setAllLocatedItems((itemData as SavedItem[] | null) ?? [])
-      setClustersLoading(false)
-      if (clusterResults.length > 0) {
-        trackEvent('cluster_suggestion_shown', user.id, {
-          countries: clusterResults.map((c) => c.country),
-          total_items: clusterResults.reduce((s, c) => s + c.item_count, 0),
-        })
-      }
-    }
-  }
-
-  const addDestination = useCallback(
-    (loc: LocationSelection) => {
-      setDestinations((prev) => {
-        if (prev.some((d) => d.place_id === loc.place_id)) return prev
-        return [...prev, loc]
-      })
-    },
-    [],
-  )
-
-  const handleLocationSelect = (loc: LocationSelection | null) => {
-    if (!loc) return
-    addDestination(loc)
-    setAutocompleteKey((k) => k + 1)
-  }
-
-  const removeDestination = (placeId: string) => {
-    setDestinations((prev) => prev.filter((d) => d.place_id !== placeId))
-  }
-
-  // ── Cluster suggestion handlers ──────────────────────────────────────────────
-
-  // Toggle a suggestion in the multi-select set
-  const toggleSuggestion = useCallback(
-    (loc: LocationSelection) => {
-      setSelectedSuggestions((prev) => {
-        const next = new Set(prev)
-        if (next.has(loc.place_id)) {
-          next.delete(loc.place_id)
-        } else {
-          next.add(loc.place_id)
-        }
-        return next
-      })
-    },
-    [],
-  )
-
-  // Batch-add all selected suggestions to destinations
-  const handleAddSelectedSuggestions = useCallback(() => {
-    // We need to find the LocationSelection objects for all selected place_ids
-    // They could be cities from clusters or the addLoc from city-scoped suggestions
-    const locsToAdd: LocationSelection[] = []
-    for (const placeId of selectedSuggestions) {
-      // Already in destinations?
-      if (destinations.some((d) => d.place_id === placeId)) continue
-      // Check cluster cities
-      for (const cluster of clusters) {
-        // Check if it's the country itself
-        if (placeId === `cluster-country-${cluster.country_code}`) {
-          locsToAdd.push({
-            name: cluster.country,
-            lat: cluster.lat,
-            lng: cluster.lng,
-            place_id: placeId,
-            country: cluster.country,
-            country_code: cluster.country_code,
-            location_type: 'country',
-            proximity_radius_km: 500,
-            name_en: null,
-            name_local: null,
-          })
-          break
-        }
-        const city = cluster.cities.find((c) => c.place_id === placeId)
-        if (city) {
-          locsToAdd.push({
-            name: city.name,
-            lat: city.lat,
-            lng: city.lng,
-            place_id: city.place_id,
-            country: cluster.country,
-            country_code: cluster.country_code,
-            location_type: 'city',
-            proximity_radius_km: 50,
-            name_en: null,
-            name_local: null,
-          })
-          break
-        }
-      }
-    }
-    for (const loc of locsToAdd) {
-      addDestination(loc)
-      trackEvent('cluster_suggestion_accepted', user?.id ?? null, {
-        name: loc.name,
-        type: loc.location_type,
-      })
-    }
-    setSelectedSuggestions(new Set())
-  }, [selectedSuggestions, destinations, clusters, addDestination, user])
-
-  const handleCreate = async () => {
-    console.log('[handleCreate] Starting, title:', title, 'destinations:', destinations.length)
+    if (!title.trim() || saving) return
     setSaving(true)
-    setError(null)
-
     try {
-      // Step 1: Create the trip first — don't block on photos
-      console.log('[handleCreate] Creating trip...')
-      const tripResult = await createTrip({ title })
-      const { trip, error: tripError } = tripResult
-      console.log('[handleCreate] Trip result:', trip?.id ?? 'null', 'error:', tripError)
-
-      if (tripError || !trip) {
-        setError(tripError ?? 'Failed to create trip.')
+      const { trip, error } = await createTrip({ title: title.trim() })
+      if (error || !trip) {
+        console.error('Failed to create trip:', error)
+        setSaving(false)
         return
       }
-
-      // Step 2: Add destinations with photos — best effort, don't block
-      if (destinations.length > 0) {
-        for (let i = 0; i < destinations.length; i++) {
-          try {
-            console.log('[handleCreate] Adding destination:', destinations[i].name)
-            // Photo fetch with 5s timeout to prevent hanging
-            let photo: { url: string; source: 'unsplash' | 'google_places'; creditName?: string; creditUrl?: string } | null = null
-            try {
-              const photoPromise = (async () => {
-                const unsplash = await fetchDestinationPhoto(destinations[i].name).catch(() => null)
-                if (unsplash?.url) return { url: unsplash.url, source: 'unsplash' as const, creditName: unsplash.photographer, creditUrl: unsplash.profileUrl }
-                const gPhoto = await fetchPlacePhoto(destinations[i].place_id).catch(() => null)
-                if (gPhoto) return { url: gPhoto, source: 'google_places' as const, creditName: undefined, creditUrl: undefined }
-                return null
-              })()
-              photo = await Promise.race([
-                photoPromise,
-                new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
-              ])
-            } catch { /* ignore photo errors */ }
-
-            await createDestination(trip.id, destinations[i], i, photo?.url, photo?.source, photo?.creditName, photo?.creditUrl)
-            console.log('[handleCreate] Destination added:', destinations[i].name)
-          } catch (destErr) {
-            console.error('[handleCreate] Failed to add destination:', destinations[i].name, destErr)
-          }
-        }
-      } else {
-        // No destinations — set cover from trip name
-        void trySetTripCoverFromName(trip.id, title)
-      }
-
-      // ALWAYS close modal and navigate
-      console.log('[handleCreate] Calling onCreated:', trip.id)
       onCreated(trip.id)
     } catch (err) {
-      console.error('[handleCreate] Failed:', err)
-      setError('Failed to create trip. Please try again.')
-    } finally {
-      console.log('[handleCreate] Finally — resetting saving state')
+      console.error('Failed to create trip:', err)
       setSaving(false)
     }
   }
 
-  // ── Suggestion scope ────────────────────────────────────────────────────────
-  // Determines what kind of suggestions to show (if any) based on trip context.
-
-  type SuggScope =
-    | { kind: 'city'; items: SavedItem[]; locationLabel: string; addLoc: LocationSelection | null }
-    | { kind: 'country'; clusters: CountryCluster[]; locationLabel: string }
-
-  const suggScope: SuggScope | null = (() => {
-    if (clusters.length === 0) return null
-
-    if (destinations.length > 0) {
-      const countryDests = destinations.filter((d) => d.location_type === 'country')
-      const cityDests = destinations.filter((d) => d.location_type !== 'country')
-
-      if (countryDests.length > 0) {
-        const matching = clusters.filter((c) =>
-          countryDests.some((d) => d.country_code === c.country_code),
-        )
-        if (matching.length === 0) return null
-        const labels = countryDests.map((d) => shortDestName(d.name))
-        return { kind: 'country', clusters: matching, locationLabel: buildLocationLabel(labels) }
-      }
-
-      if (cityDests.length > 0) {
-        const items = allLocatedItems.filter((item) =>
-          cityDests.some(
-            (d) =>
-              item.location_country_code === d.country_code &&
-              Math.abs((item.location_lat ?? 999) - d.lat) <= 0.45 &&
-              Math.abs((item.location_lng ?? 999) - d.lng) <= 0.45,
-          ),
-        )
-        if (items.length === 0) return null
-        const labels = cityDests.map((d) => shortDestName(d.name))
-        return { kind: 'city', items, locationLabel: buildLocationLabel(labels), addLoc: null }
-      }
-
-      return null
-    }
-
-    // No destinations yet — infer scope from trip name
-    const q = title.trim()
-    if (!q) return null
-
-    for (const cluster of clusters) {
-      const matchType = matchClusterToTripName(cluster, q)
-      if (matchType === 'city') {
-        const lq = q.toLowerCase()
-        const matchedCity = cluster.cities.find((c) => {
-          const cn = c.name.toLowerCase()
-          return cn.includes(lq) || lq.includes(cn)
-        })
-        if (!matchedCity) continue
-        const items = allLocatedItems.filter(
-          (i) =>
-            i.location_country_code === cluster.country_code &&
-            Math.abs((i.location_lat ?? 999) - matchedCity.lat) <= 0.45 &&
-            Math.abs((i.location_lng ?? 999) - matchedCity.lng) <= 0.45,
-        )
-        if (items.length === 0) continue
-        const addLoc: LocationSelection = {
-          name: matchedCity.name,
-          lat: matchedCity.lat,
-          lng: matchedCity.lng,
-          place_id: matchedCity.place_id,
-          country: cluster.country,
-          country_code: cluster.country_code,
-          location_type: 'city',
-          proximity_radius_km: 50,
-          name_en: null,
-          name_local: null,
-        }
-        return { kind: 'city', items, locationLabel: matchedCity.name, addLoc }
-      }
-      if (matchType === 'country') {
-        return { kind: 'country', clusters: [cluster], locationLabel: cluster.country }
-      }
-    }
-
-    return null
-  })()
-
   return (
     <>
-      {/* Backdrop — click/tap to close */}
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-
-      {/* Sheet — anchored to bottom, same pattern as SaveSheet */}
       <div
-        className="fixed inset-x-0 bottom-0 z-50 bg-bg-card rounded-t-3xl shadow-xl flex flex-col sm:inset-auto sm:top-1/2 sm:left-1/2 sm:-translate-x-1/2 sm:-translate-y-1/2 sm:w-full sm:max-w-lg sm:rounded-2xl"
-        style={{ maxHeight: '85dvh' }}
-        onClick={(e) => e.stopPropagation()}
+        className="fixed inset-0 z-40 transition-opacity duration-250"
+        style={{ background: visible ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)' }}
+        onClick={handleClose}
+      />
+      <div
+        data-testid="create-trip-sheet"
+        className="fixed inset-x-0 bottom-0 z-50"
+        style={{
+          background: 'var(--color-bg-card)',
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          transform: visible ? 'translateY(0)' : 'translateY(100%)',
+          transition: 'transform 300ms cubic-bezier(0.25, 1, 0.5, 1)',
+        }}
+        onClick={e => e.stopPropagation()}
       >
-        <div className="w-10 h-1 bg-border-input rounded-full mx-auto mt-2 sm:hidden" />
-
-        {/* Header — compact */}
-        <div className="px-4 py-3 border-b border-border-subtle">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              {step === 'destinations' && (
-                <button
-                  type="button"
-                  onClick={() => setStep('name')}
-                  className="text-text-faint hover:text-text-secondary transition-colors"
-                  aria-label="Back"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-                    <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              )}
-              <h2 className="text-base font-semibold text-text-primary">
-                {step === 'name' ? 'New Trip' : title}
-              </h2>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-full text-text-faint hover:text-text-secondary hover:bg-bg-muted transition-colors"
-              aria-label="Close"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
-                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-              </svg>
-            </button>
-          </div>
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12, paddingBottom: 4 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--color-border-input)' }} />
         </div>
-
-        {/* Scrollable body */}
-        <div className="px-4 py-3 flex-1 overflow-y-auto">
-          {/* ── Step 1: Name ── */}
-          {step === 'name' && (
-            <form onSubmit={handleNextStep} className="space-y-3">
-              <input
-                ref={titleInputRef}
-                type="text"
-                value={title}
-                onChange={(e) => { setTitle(e.target.value); setError(null) }}
-                placeholder="Trip name, e.g. China 2026"
-                className="w-full px-4 py-3 border border-border-input rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint"
-              />
-              {error && <p className="text-sm text-error">{error}</p>}
-              <button
-                type="submit"
-                disabled={!title.trim()}
-                className="w-full py-3.5 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                style={{ minHeight: 48 }}
-              >
-                Next
-              </button>
-            </form>
-          )}
-
-          {/* ── Step 2: Destinations ── */}
-          {step === 'destinations' && (
-            <div className="space-y-3">
-
-              {/* Search input + inline suggestions panel */}
-              <div>
-                <LocationAutocomplete
-                  key={autocompleteKey}
-                  value=""
-                  onSelect={handleLocationSelect}
-                  label=""
-                  optional={false}
-                  placeholder="Search destinations..."
-                  placesTypes={['(regions)']}
-                  clearOnSelect
-                  className={clustersLoading || suggScope !== null ? 'rounded-t-xl rounded-b-none' : ''}
-                />
-
-                {/* Suggestions panel — visually attached below the input */}
-                {(clustersLoading || suggScope !== null) && (
-                  <div className="border-x border-b border-border-input rounded-b-xl bg-bg-card overflow-hidden shadow-sm">
-
-                    {/* Loading skeleton */}
-                    {clustersLoading && (
-                      <div className="px-3.5 py-3 space-y-3 animate-pulse border-t border-border-subtle">
-                        <div className="h-3 bg-bg-muted rounded-full w-36" />
-                        {[0, 1].map((i) => (
-                          <div key={i} className="flex items-center gap-3">
-                            <div className="w-8 h-8 bg-bg-muted rounded-lg shrink-0" />
-                            <div className="flex-1 space-y-1.5">
-                              <div className="h-3 bg-bg-muted rounded-full w-24" />
-                              <div className="h-2.5 bg-bg-muted rounded-full w-36" />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Results */}
-                    {!clustersLoading && suggScope !== null && (
-                      <>
-                        {/* Section label */}
-                        <div className="px-3.5 pt-2.5 pb-1.5 border-t border-border-subtle">
-                          <p className="text-xs font-medium text-text-faint uppercase tracking-wide">
-                            Your saves in {suggScope.locationLabel}
-                          </p>
-                        </div>
-
-                        {/* City-scoped: individual save rows (hide items whose city is already added) */}
-                        {suggScope.kind === 'city' && (() => {
-                          const visibleItems = suggScope.items.filter((item) =>
-                            !destinations.some(
-                              (d) =>
-                                d.country_code === item.location_country_code &&
-                                Math.abs((item.location_lat ?? 999) - d.lat) <= 0.45 &&
-                                Math.abs((item.location_lng ?? 999) - d.lng) <= 0.45,
-                            ),
-                          )
-                          if (visibleItems.length === 0 && !suggScope.addLoc) return null
-                          return (
-                          <div>
-                            {visibleItems.map((item) => (
-                              <div
-                                key={item.id}
-                                className="flex items-center gap-3 px-3.5 py-2.5 border-t border-border-subtle"
-                              >
-                                <div className="w-8 h-8 rounded-lg shrink-0 flex-none bg-bg-muted overflow-hidden flex items-center justify-center">
-                                  {item.image_url ? (
-                                    <ImageWithFade src={item.image_url} alt={item.title} context="grid-thumbnail" className="w-full h-full object-cover opacity-60" />
-                                  ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 text-text-ghost">
-                                      <path fillRule="evenodd" d="M11.54 22.351l.07.04.028.016a.76.76 0 00.723 0l.028-.015.071-.041a16.975 16.975 0 001.144-.742 19.58 19.58 0 002.683-2.282c1.944-2.003 3.5-4.697 3.5-8.338C20 5.945 16.368 2 12 2 7.632 2 4 5.945 4 10.988c0 3.64 1.556 6.334 3.5 8.337a19.578 19.578 0 002.683 2.282 16.944 16.944 0 001.144.742zM12 14a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                                    </svg>
-                                  )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm text-text-secondary truncate leading-snug">{item.title}</p>
-                                  <p className="text-xs text-text-faint leading-snug">{suggScope.locationLabel}</p>
-                                </div>
-                                <CategoryPill
-                                  label={item.category.charAt(0).toUpperCase() + item.category.slice(1)}
-                                  dominant={item.category === 'hotel'}
-                                  className="shrink-0"
-                                />
-                              </div>
-                            ))}
-                            {/* Add city chip */}
-                            {suggScope.addLoc && !destinations.some((d) => d.place_id === suggScope.addLoc?.place_id) && (() => {
-                              const isSelected = selectedSuggestions.has(suggScope.addLoc!.place_id)
-                              return (
-                              <button
-                                type="button"
-                                onClick={() => toggleSuggestion(suggScope.addLoc!)}
-                                className={`w-full flex items-center gap-3 px-3.5 py-2.5 border-t border-border-subtle transition-colors ${
-                                  isSelected ? 'bg-accent-light text-accent' : 'text-accent hover:bg-accent-light'
-                                }`}
-                              >
-                                <span className={`flex items-center justify-center w-8 h-8 rounded-lg shrink-0 ${
-                                  isSelected ? 'bg-accent text-white' : 'bg-accent-light'
-                                }`}>
-                                  {isSelected ? (
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
-                                      <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
-                                    </svg>
-                                  ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-4 h-4">
-                                      <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
-                                    </svg>
-                                  )}
-                                </span>
-                                <span className="text-sm font-medium">{isSelected ? `${shortDestName(suggScope.addLoc!.name)} selected` : `Add ${shortDestName(suggScope.addLoc!.name)} to trip`}</span>
-                              </button>
-                              )
-                            })()}
-                          </div>
-                          )
-                        })()}
-
-                        {/* Country-scoped: cluster rows */}
-                        {suggScope.kind === 'country' && (
-                          <div>
-                            {suggScope.clusters.map((cluster) => {
-                              const isExpanded = expandedSuggKey === cluster.country_code
-                              return (
-                                <div key={cluster.country_code}>
-                                  {/* Cluster row — tap to expand */}
-                                  <div
-                                    className="flex items-center gap-3 px-3.5 py-2.5 border-t border-border-subtle cursor-pointer hover:bg-bg-page active:bg-bg-muted transition-colors select-none"
-                                    onClick={() => setExpandedSuggKey(isExpanded ? null : cluster.country_code)}
-                                  >
-                                    <span className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-bg-muted text-xs font-bold text-text-tertiary shrink-0 tracking-wide">
-                                      {cluster.country_code}
-                                    </span>
-                                    <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-text-secondary leading-snug">{cluster.country}</p>
-                                      <p className="text-xs text-text-faint leading-snug">{clusterSummary(cluster)}</p>
-                                    </div>
-                                    <svg
-                                      xmlns="http://www.w3.org/2000/svg"
-                                      viewBox="0 0 16 16"
-                                      fill="currentColor"
-                                      className={`w-4 h-4 text-text-faint shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                                    >
-                                      <path fillRule="evenodd" d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                                    </svg>
-                                  </div>
-
-                                  {/* Expanded: activity tree grouped by city */}
-                                  {isExpanded && (
-                                    <div className="bg-bg-page border-t border-border-subtle">
-                                      <div className="mx-3.5 mt-2.5 mb-1 border-l-2 border-border space-y-2">
-                                        {cluster.cities.map((city) => {
-                                          const cityItems = allLocatedItems.filter(
-                                            (i) =>
-                                              i.location_country_code === cluster.country_code &&
-                                              Math.abs((i.location_lat ?? 999) - city.lat) <= 0.45 &&
-                                              Math.abs((i.location_lng ?? 999) - city.lng) <= 0.45,
-                                          )
-                                          const alreadyAdded = destinations.some((d) => d.place_id === city.place_id)
-                                          const isSelected = selectedSuggestions.has(city.place_id)
-                                          const cityLoc: LocationSelection = {
-                                            name: city.name,
-                                            lat: city.lat,
-                                            lng: city.lng,
-                                            place_id: city.place_id,
-                                            country: cluster.country,
-                                            country_code: cluster.country_code,
-                                            location_type: 'city',
-                                            proximity_radius_km: 50,
-                                            name_en: null,
-                                            name_local: null,
-                                          }
-                                          const addBtn = (
-                                            <button
-                                              type="button"
-                                              disabled={alreadyAdded}
-                                              onClick={() => {
-                                                if (alreadyAdded) return
-                                                toggleSuggestion(cityLoc)
-                                              }}
-                                              className={`flex items-center justify-center w-6 h-6 rounded-full transition-colors shrink-0 ${
-                                                alreadyAdded
-                                                  ? 'bg-bg-muted text-text-tertiary cursor-default'
-                                                  : isSelected
-                                                  ? 'bg-accent text-white'
-                                                  : 'bg-bg-card border border-border text-text-faint hover:border-accent/50 hover:text-accent'
-                                              }`}
-                                              aria-label={alreadyAdded ? `${city.name} added` : isSelected ? `${city.name} selected` : `Add ${city.name}`}
-                                            >
-                                              {alreadyAdded || isSelected ? (
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
-                                                  <path fillRule="evenodd" d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z" clipRule="evenodd" />
-                                                </svg>
-                                              ) : (
-                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
-                                                  <path d="M8.75 3.75a.75.75 0 0 0-1.5 0v3.5h-3.5a.75.75 0 0 0 0 1.5h3.5v3.5a.75.75 0 0 0 1.5 0v-3.5h3.5a.75.75 0 0 0 0-1.5h-3.5v-3.5Z" />
-                                                </svg>
-                                              )}
-                                            </button>
-                                          )
-                                          return (
-                                            <div key={city.place_id}>
-                                              {/* City label */}
-                                              <p className="text-xs font-semibold text-text-faint uppercase tracking-wide pl-3 pb-0.5">
-                                                {city.name}
-                                              </p>
-                                              {/* Activity rows — one per inbox item near this city */}
-                                              {cityItems.length > 0 ? (
-                                                cityItems.map((item) => (
-                                                  <div key={item.id} className="flex items-center gap-2 pl-3 pr-0 py-1">
-                                                    <p className="text-sm text-text-secondary truncate flex-1 leading-snug">{item.title}</p>
-                                                    {addBtn}
-                                                  </div>
-                                                ))
-                                              ) : (
-                                                /* Fallback: no items resolved, show count row */
-                                                <div className="flex items-center gap-2 pl-3 pr-0 py-1">
-                                                  <p className="text-sm text-text-tertiary flex-1">{city.item_count} save{city.item_count !== 1 ? 's' : ''}</p>
-                                                  {addBtn}
-                                                </div>
-                                              )}
-                                            </div>
-                                          )
-                                        })}
-                                      </div>
-                                      <div className="border-t border-border-subtle px-3.5 py-2.5">
-                                        {(() => {
-                                          const countryPlaceId = `cluster-country-${cluster.country_code}`
-                                          const countrySelected = selectedSuggestions.has(countryPlaceId)
-                                          return (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                toggleSuggestion({
-                                                  name: cluster.country,
-                                                  lat: cluster.lat,
-                                                  lng: cluster.lng,
-                                                  place_id: countryPlaceId,
-                                                  country: cluster.country,
-                                                  country_code: cluster.country_code,
-                                                  location_type: 'country',
-                                                  proximity_radius_km: 500,
-                                                  name_en: null,
-                                                  name_local: null,
-                                                })
-                                              }
-                                              className={`text-sm transition-colors ${countrySelected ? 'text-accent font-medium' : 'text-accent hover:text-accent'}`}
-                                            >
-                                              {countrySelected ? `${cluster.country} selected ✓` : `Just add ${cluster.country} — I'll pick cities later`}
-                                            </button>
-                                          )
-                                        })()}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )
-                            })}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Batch-add button for selected suggestions */}
-              {selectedSuggestions.size > 0 && (
-                <button
-                  type="button"
-                  onClick={handleAddSelectedSuggestions}
-                  className="w-full py-2.5 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover transition-colors"
-                >
-                  Add {selectedSuggestions.size} destination{selectedSuggestions.size !== 1 ? 's' : ''}
-                </button>
-              )}
-
-              {/* Added destinations pills */}
-              {destinations.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {destinations.map((d) => (
-                    <div
-                      key={d.place_id}
-                      className="flex items-center gap-1 pl-2.5 pr-1.5 py-1 bg-accent-light border border-accent/25 rounded-full"
-                    >
-                      <span className="text-xs font-medium text-accent">{shortDestName(d.name)}</span>
-                      <button
-                        type="button"
-                        onClick={() => removeDestination(d.place_id)}
-                        className="text-text-faint hover:text-accent transition-colors"
-                        aria-label={`Remove ${d.name}`}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
-                          <path d="M5.28 4.22a.75.75 0 00-1.06 1.06L6.94 8l-2.72 2.72a.75.75 0 101.06 1.06L8 9.06l2.72 2.72a.75.75 0 101.06-1.06L9.06 8l2.72-2.72a.75.75 0 00-1.06-1.06L8 6.94 5.28 4.22z" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {error && <p className="text-sm text-error">{error}</p>}
-
-              <button
-                type="button"
-                onClick={handleCreate}
-                disabled={saving}
-                className="w-full py-3.5 bg-accent text-white rounded-xl text-sm font-semibold hover:bg-accent-hover active:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                style={{ minHeight: 48 }}
-              >
-                {saving
-                  ? 'Creating…'
-                  : destinations.length === 0
-                  ? 'Create Trip'
-                  : `Create with ${destinations.length} destination${destinations.length !== 1 ? 's' : ''}`}
-              </button>
-
-              {/* Extra padding so button scrolls above bottom nav on mobile */}
-              <div style={{ height: 80 }} />
-            </div>
-          )}
-        </div>
+        <form onSubmit={handleCreate} style={{ padding: '8px 16px 24px' }}>
+          <h2 style={{
+            fontFamily: "'DM Sans', sans-serif",
+            fontSize: 16, fontWeight: 600,
+            color: 'var(--color-text-primary)',
+            marginBottom: 12,
+          }}>New Trip</h2>
+          <input
+            ref={titleInputRef}
+            type="text"
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="Trip name, e.g. Japan 2026"
+            style={{
+              width: '100%', padding: '12px 14px',
+              border: '1px solid var(--color-border-input)',
+              borderRadius: 12, fontSize: 16,
+              fontFamily: "'DM Sans', sans-serif",
+              color: 'var(--color-text-primary)',
+              background: 'var(--color-bg-page)',
+              outline: 'none',
+            }}
+          />
+          <button
+            type="submit"
+            disabled={!title.trim() || saving}
+            data-testid="create-trip-btn"
+            style={{
+              width: '100%', marginTop: 12,
+              padding: '14px 0',
+              borderRadius: 12, border: 'none',
+              background: title.trim() ? 'var(--color-accent)' : 'var(--color-bg-muted)',
+              color: title.trim() ? '#ffffff' : 'var(--color-text-tertiary)',
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 14, fontWeight: 600,
+              cursor: title.trim() ? 'pointer' : 'not-allowed',
+              opacity: saving ? 0.7 : 1,
+              transition: 'background 150ms ease, color 150ms ease',
+            }}
+          >
+            {saving ? 'Creating...' : 'Create'}
+          </button>
+        </form>
       </div>
     </>
   )
@@ -1076,11 +439,9 @@ export default function TripsPage() {
   const queryClient = useQueryClient()
   const { data: trips = [], isLoading: loading } = useTripsQuery()
   const createTripMutation = useCreateTrip()
-  const createDestMutation = useCreateDestination()
   const [showModal, setShowModal] = useState(false)
   const navigate = useNavigate()
 
-  // Wrap mutations to match the interface expected by CreateTripModal
   const createTrip = useCallback(
     async (input: { title: string }): Promise<{ trip: TripWithDestinations | null; error: string | null }> => {
       try {
@@ -1091,33 +452,6 @@ export default function TripsPage() {
       }
     },
     [createTripMutation],
-  )
-  const createDestination = useCallback(
-    async (
-      tripId: string,
-      location: LocationSelection,
-      sortOrder: number,
-      imageUrl?: string,
-      imageSource?: string,
-      imageCreditName?: string,
-      imageCreditUrl?: string,
-    ): Promise<{ destination: unknown; error: string | null }> => {
-      try {
-        const dest = await createDestMutation.mutateAsync({
-          tripId,
-          location,
-          sortOrder,
-          imageUrl,
-          imageSource,
-          imageCreditName,
-          imageCreditUrl,
-        })
-        return { destination: dest, error: null }
-      } catch (err) {
-        return { destination: null, error: (err as Error).message }
-      }
-    },
-    [createDestMutation],
   )
 
   useEffect(() => {
@@ -1246,13 +580,12 @@ export default function TripsPage() {
         </>
       )}
 
-      {/* Create Trip Modal */}
+      {/* Create Trip Sheet */}
       {showModal && (
-        <CreateTripModal
+        <CreateTripSheet
           onClose={() => setShowModal(false)}
           onCreated={(tripId) => { setShowModal(false); navigate(`/trip/${tripId}`) }}
           createTrip={createTrip}
-          createDestination={createDestination}
         />
       )}
     </div>
