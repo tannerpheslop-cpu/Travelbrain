@@ -794,7 +794,9 @@ export default function TripOverviewPage() {
           horizonSaves={horizonSaves}
           onSuggestionAddDest={async (group) => {
             if (!id) return
-            const expanded = expandGroupToDestinations(group)
+            const existingNames = new Set(destinations.map(d => d.location_name.split(',')[0].toLowerCase()))
+            const expanded = expandGroupToDestinations(group).filter(d => !existingNames.has(d.name.toLowerCase()))
+            if (expanded.length === 0) { toast('All cities already in trip'); return }
             for (let i = 0; i < expanded.length; i++) {
               const d = expanded[i]
               await createDestMutation.mutateAsync({
@@ -816,7 +818,9 @@ export default function TripOverviewPage() {
           }}
           onSuggestionAddAll={async (group) => {
             if (!id) return
-            const expanded = expandGroupToDestinations(group)
+            const existingNames = new Set(destinations.map(d => d.location_name.split(',')[0].toLowerCase()))
+            const expanded = expandGroupToDestinations(group).filter(d => !existingNames.has(d.name.toLowerCase()))
+            if (expanded.length === 0) { toast('All cities already in trip'); return }
             let totalSaves = 0
             for (let i = 0; i < expanded.length; i++) {
               const d = expanded[i]

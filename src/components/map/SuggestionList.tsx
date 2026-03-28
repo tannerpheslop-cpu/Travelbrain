@@ -3,12 +3,20 @@ import { MapPin, Plus } from 'lucide-react'
 import SegmentedControl from '../SegmentedControl'
 import { expandGroupToDestinations, type SuggestionGroup } from '../../lib/groupSavesByGeography'
 
-// ── Flag emoji from country code ─────────────────────────────────────────────
+// ── Country code badge (no emojis) ───────────────────────────────────────────
 
-function flagEmoji(code: string | undefined): string {
-  if (!code || code.length !== 2) return '🌍'
-  return String.fromCodePoint(
-    ...code.toUpperCase().split('').map(c => 0x1F1E6 + c.charCodeAt(0) - 65),
+function CountryBadge({ code }: { code: string | undefined }) {
+  const label = code && code.length === 2 ? code.toUpperCase() : '—'
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: 28, height: 20, borderRadius: 4,
+      background: 'var(--color-bg-muted)', flexShrink: 0,
+      fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
+      color: 'var(--color-text-tertiary)', letterSpacing: 0.5,
+    }}>
+      {label}
+    </span>
   )
 }
 
@@ -79,7 +87,7 @@ export default function SuggestionList({
           fontSize: 13,
           color: 'var(--color-text-tertiary)',
         }}>
-          No suggestions — save some places to your Horizon first
+          Save travel inspiration to Horizon and suggestions will appear here.
         </div>
       )}
 
@@ -87,7 +95,6 @@ export default function SuggestionList({
         <SuggestionRow
           key={group.id}
           group={group}
-          granularity={granularity}
           showConfirmation={confirmGroupId === group.id}
           onTapPlus={() => handleAdd(group)}
           onAddDestination={() => {
@@ -158,26 +165,22 @@ export default function SuggestionList({
 
 function SuggestionRow({
   group,
-  granularity,
   showConfirmation,
   onTapPlus,
   onAddDestination,
   onAddAll,
 }: {
   group: SuggestionGroup
-  granularity: string
   showConfirmation: boolean
   onTapPlus: () => void
   onAddDestination: () => void
   onAddAll: () => void
 }) {
-  const flag = granularity === 'continent' ? '🌍' : flagEmoji(group.countryCode)
-
   return (
     <div data-testid={`suggestion-row-${group.id}`}>
       {/* Main row */}
       <div style={{ display: 'flex', alignItems: 'center', padding: '8px 16px', gap: 10 }}>
-        <span style={{ fontSize: 18, lineHeight: 1, flexShrink: 0 }}>{flag}</span>
+        <CountryBadge code={group.countryCode} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <span style={{
             fontFamily: "'DM Sans', sans-serif",
@@ -265,7 +268,7 @@ function SuggestionRow({
                 cursor: 'pointer',
               }}
             >
-              {isMulti ? 'Add destinations' : 'Add destination'}
+              {isMulti ? 'Add all empty' : 'Add empty'}
             </button>
             <button
               type="button"
@@ -284,7 +287,7 @@ function SuggestionRow({
                 cursor: 'pointer',
               }}
             >
-              Add all {group.saveCount}
+              {isMulti ? `Add all with ${group.saveCount} saves` : `Add with ${group.saveCount} saves`}
             </button>
           </div>
         </div>
