@@ -760,8 +760,8 @@ export default function TripOverviewPage() {
   return (
     <div className="px-5 pb-24 max-w-[860px] mx-auto" style={{ paddingTop: 'calc(0.75rem + env(safe-area-inset-top))' }}>
 
-      {/* ── Unified Trip Map (trip + destination levels) ── */}
-      {destinations.length > 0 && (
+      {/* ── Unified Trip Map (trip + destination levels) — always rendered, even with 0 destinations ── */}
+      {trip && (
         <UnifiedTripMap
           tripId={id!}
           tripTitle={trip?.title ?? ''}

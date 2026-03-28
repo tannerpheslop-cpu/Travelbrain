@@ -54,9 +54,10 @@ const defaultProps = {
 }
 
 describe('UnifiedTripMap', () => {
-  it('trip with 0 destinations renders nothing', () => {
-    const { container } = render(<UnifiedTripMap {...defaultProps} destinations={[]} />)
-    expect(container.innerHTML).toBe('')
+  it('trip with 0 destinations renders world map with empty state', () => {
+    render(<UnifiedTripMap {...defaultProps} destinations={[]} />)
+    // Map should render — empty trips show world view with suggestion sheet
+    expect(screen.getByTestId('empty-state-add-dest')).toBeInTheDocument()
   })
 
   it('trip with 1 city destination starts at destination level', () => {
