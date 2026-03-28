@@ -108,6 +108,34 @@ function clampBounds(nodes: SimNode[], width: number, height: number): void {
   }
 }
 
+// ── Session storage persistence ──────────────────────────────────────────────
+
+const STORAGE_KEY = 'youji-graph-positions'
+
+function loadPersistedPositions(): Map<string, { x: number; y: number }> {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    if (!raw) return new Map()
+    const parsed = JSON.parse(raw) as Record<string, { x: number; y: number }>
+    return new Map(Object.entries(parsed))
+  } catch {
+    return new Map()
+  }
+}
+
+function savePersistedPositions(positions: Map<string, { x: number; y: number }>): void {
+  try {
+    const obj: Record<string, { x: number; y: number }> = {}
+    for (const [id, pos] of positions) obj[id] = pos
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(obj))
+  } catch {
+    // sessionStorage might be full or unavailable — ignore
+  }
+}
+
+// Exported for testing
+export { loadPersistedPositions, savePersistedPositions, STORAGE_KEY }
+
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useGraphSimulation({
@@ -125,7 +153,7 @@ export function useGraphSimulation({
   const frameRef = useRef<number>(0)
   const simNodesRef = useRef<SimNode[]>([])
   const simEdgesRef = useRef<SimEdge[]>([])
-  const prevPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+  const prevPositionsRef = useRef<Map<string, { x: number; y: number }>>(loadPersistedPositions())
 
   // ── Create / update simulation ──
   useEffect(() => {
@@ -154,6 +182,11 @@ export function useGraphSimulation({
 
     // Seed positions (restore previous or compute initial)
     seedPositions(simNodes, width, height, prevPositionsRef.current)
+
+    // Check how many nodes have restored positions vs new
+    const restoredCount = simNodes.filter(n => prevPositionsRef.current.has(n.id)).length
+    const newRatio = (simNodes.length - restoredCount) / simNodes.length
+    const skipAnimation = restoredCount > 0 && newRatio < 0.5
 
     // Build simulation edges (d3 wants source/target as node references or IDs)
     const simEdges: SimEdge[] = edges.map(e => ({
@@ -191,7 +224,11 @@ export function useGraphSimulation({
         .strength(GRAPH.COLLISION_STRENGTH)
       )
 
-    setIsSettled(false)
+    // If all (or most) positions restored, start nearly settled
+    if (skipAnimation) {
+      sim.alpha(0.05) // Very low — just nudge, don't reshake
+    }
+    setIsSettled(skipAnimation)
 
     // Batched tick handler
     sim.on('tick', () => {
@@ -214,24 +251,26 @@ export function useGraphSimulation({
         // Check if settled
         if (sim.alpha() < 0.01) {
           setIsSettled(true)
-          // Persist positions
+          // Persist positions to ref + sessionStorage
           for (const n of simNodesRef.current) {
             if (n.x != null && n.y != null) {
               prevPositionsRef.current.set(n.id, { x: n.x, y: n.y })
             }
           }
+          savePersistedPositions(prevPositionsRef.current)
         }
       })
     })
 
     sim.on('end', () => {
       setIsSettled(true)
-      // Persist final positions
+      // Persist final positions to ref + sessionStorage
       for (const n of simNodesRef.current) {
         if (n.x != null && n.y != null) {
           prevPositionsRef.current.set(n.id, { x: n.x, y: n.y })
         }
       }
+      savePersistedPositions(prevPositionsRef.current)
     })
 
     simRef.current = sim
@@ -239,6 +278,8 @@ export function useGraphSimulation({
     return () => {
       sim.stop()
       cancelAnimationFrame(frameRef.current)
+      // Save positions on unmount
+      savePersistedPositions(prevPositionsRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodes.length, edges.length, width, height, enabled])
