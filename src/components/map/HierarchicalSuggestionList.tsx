@@ -16,9 +16,9 @@ function CountryBadge({ code }: { code: string }) {
     <span style={{
       display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
       width: 26, height: 18, borderRadius: 4,
-      background: 'var(--color-bg-muted)', flexShrink: 0,
+      background: 'var(--color-surface-elevated)', flexShrink: 0,
       fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
-      color: 'var(--color-text-tertiary)', letterSpacing: 0.5,
+      color: 'var(--color-night-text-secondary)', letterSpacing: 0.5,
     }}>
       {code}
     </span>
@@ -79,7 +79,7 @@ export default function HierarchicalSuggestionList({
     return (
       <div style={{
         padding: '20px 16px', textAlign: 'center',
-        fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-tertiary)',
+        fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-night-text-tertiary)',
       }}>
         Save travel inspiration to Horizon and suggestions will appear here.
       </div>
@@ -98,22 +98,22 @@ export default function HierarchicalSuggestionList({
             style={{
               display: 'flex', alignItems: 'center', width: '100%',
               padding: '10px 16px', gap: 8,
-              background: 'var(--color-bg-muted)', border: 'none', cursor: 'pointer',
+              background: 'var(--color-surface-elevated)', border: 'none', cursor: 'pointer',
               textAlign: 'left',
             }}
           >
             {expandedContinents.has(continent.name)
-              ? <ChevronDown size={14} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
-              : <ChevronRight size={14} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
+              ? <ChevronDown size={14} style={{ color: 'var(--color-night-text-tertiary)', flexShrink: 0 }} />
+              : <ChevronRight size={14} style={{ color: 'var(--color-night-text-tertiary)', flexShrink: 0 }} />
             }
             <div style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--color-night-text-primary)' }}>
                 {continent.name}
               </span>
-              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--color-text-tertiary)', marginLeft: 6 }}>
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--color-night-text-tertiary)', marginLeft: 6 }}>
                 · {continent.totalSaves} save{continent.totalSaves !== 1 ? 's' : ''}
               </span>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--color-text-ghost)', marginTop: 1 }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--color-night-text-tertiary)', marginTop: 1 }}>
                 {continentSubtitle(continent)}
               </div>
             </div>
@@ -144,23 +144,23 @@ export default function HierarchicalSuggestionList({
                   display: 'flex', alignItems: 'center', width: '100%',
                   padding: '8px 16px 8px 28px', gap: 8,
                   background: 'none', border: 'none', cursor: 'pointer',
-                  borderBottom: '1px solid var(--color-border-light)',
+                  borderBottom: '0.5px solid var(--color-surface-elevated)',
                   textAlign: 'left',
                 }}
               >
                 {expandedCountries.has(country.countryCode)
-                  ? <ChevronDown size={12} style={{ color: 'var(--color-text-ghost)', flexShrink: 0 }} />
-                  : <ChevronRight size={12} style={{ color: 'var(--color-text-ghost)', flexShrink: 0 }} />
+                  ? <ChevronDown size={12} style={{ color: 'var(--color-night-text-tertiary)', flexShrink: 0 }} />
+                  : <ChevronRight size={12} style={{ color: 'var(--color-night-text-tertiary)', flexShrink: 0 }} />
                 }
                 <CountryBadge code={country.countryCode} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: 'var(--color-night-text-primary)' }}>
                     {country.countryName}
                   </span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-tertiary)', marginLeft: 6 }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-tertiary)', marginLeft: 6 }}>
                     · {country.totalSaves} save{country.totalSaves !== 1 ? 's' : ''}
                   </span>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10, color: 'var(--color-text-ghost)', marginTop: 1 }}>
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10, color: 'var(--color-night-text-tertiary)', marginTop: 1 }}>
                     {countrySubtitle(country)}
                   </div>
                 </div>
@@ -187,14 +187,14 @@ export default function HierarchicalSuggestionList({
                   style={{
                     display: 'flex', alignItems: 'center',
                     padding: '7px 16px 7px 56px', gap: 8,
-                    borderBottom: '1px solid var(--color-border-light)',
+                    borderBottom: '0.5px solid var(--color-surface-elevated)',
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary)' }}>
+                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: 'var(--color-night-text-primary)' }}>
                       {city.cityName}
                     </span>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-tertiary)', marginLeft: 6 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-tertiary)', marginLeft: 6 }}>
                       · {city.saveCount} save{city.saveCount !== 1 ? 's' : ''}
                     </span>
                   </div>
@@ -224,11 +224,11 @@ export default function HierarchicalSuggestionList({
           data-testid="unassigned-saves"
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 16px', borderTop: '1px solid var(--color-border-light)', marginTop: 4,
+            padding: '10px 16px', borderTop: '0.5px solid var(--color-surface-elevated)', marginTop: 4,
           }}
         >
-          <MapPin size={14} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-tertiary)' }}>
+          <MapPin size={14} style={{ color: 'var(--color-night-text-tertiary)', flexShrink: 0 }} />
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-night-text-tertiary)' }}>
             {tree.unassignedCount} save{tree.unassignedCount !== 1 ? 's' : ''} have no location
           </span>
         </div>

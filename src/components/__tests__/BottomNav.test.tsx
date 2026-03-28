@@ -16,7 +16,8 @@ function getNavItem(label: string) {
 }
 
 function isActive(el: HTMLElement): boolean {
-  return el.className.includes('text-accent')
+  // Active tab uses copper color via inline style
+  return el.style.color === 'var(--color-copper)'
 }
 
 describe('BottomNav', () => {
