@@ -60,8 +60,10 @@ describe('TravelGraph interaction logic', () => {
       { id: 'd', title: 'D', city: 'Tokyo', countryCode: 'JP', categories: [], isClaimedByTrip: false, x: 108, y: 88 },
     ]
     const labels = computeClusterLabels(nodes)
-    expect(labels).toHaveLength(1)
-    expect(labels[0].city).toBe('Tokyo')
+    // 4 JP nodes → country label "Japan" + city label "Tokyo" (3+ in one city)
+    const countryLabels = labels.filter(l => l.level === 'country')
+    expect(countryLabels).toHaveLength(1)
+    expect(countryLabels[0].text).toBe('Japan')
   })
 
   it('selected node has bright state colors defined', () => {

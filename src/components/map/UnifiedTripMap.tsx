@@ -666,7 +666,7 @@ export default function UnifiedTripMap({
   // ── Trip-level sheet header — tabs only (title/stats are on map overlay) ──
   const tripSheetHeader = (
     <div style={{ padding: '4px 16px 0' }}>
-      <div style={{ display: 'flex', gap: 0, borderBottom: '0.5px solid var(--color-surface-elevated)' }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '0.5px solid #f1efe8' }}>
         <TripSheetTab label="Destinations" active />
         <TripSheetTab label="Itinerary" />
         <TripSheetTab label="Logistics" />
@@ -692,12 +692,12 @@ export default function UnifiedTripMap({
               style={{
                 display: 'flex', alignItems: 'center', width: '100%', padding: '12px 16px',
                 background: 'none', border: 'none',
-                borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: 'var(--color-surface-elevated)',
+                borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: '#f1efe8',
                 cursor: isCityLevel(d) ? 'pointer' : 'default', textAlign: 'left',
               }}
             >
               {/* Chapter number */}
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--color-surface-elevated)',
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#f1efe8',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 12 }}>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 800, color: MAP_COLORS.accent }}>
                   {chapterNum}
@@ -705,14 +705,14 @@ export default function UnifiedTripMap({
               </div>
               {/* Name + dates/count */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600, color: 'var(--color-night-text-primary)', margin: 0, lineHeight: 1.3,
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600, color: '#1a1d27', margin: 0, lineHeight: 1.3,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {cityName}
-                  {d.location_country && <span style={{ fontWeight: 400, color: 'var(--color-night-text-secondary)', fontSize: 13 }}> · {d.location_country}</span>}
+                  {d.location_country && <span style={{ fontWeight: 400, color: '#888780', fontSize: 13 }}> · {d.location_country}</span>}
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                   {d.start_date && d.end_date ? (
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-secondary)' }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#888780' }}>
                       {formatShortDate(d.start_date)} – {formatShortDate(d.end_date)}
                     </span>
                   ) : (
@@ -723,15 +723,15 @@ export default function UnifiedTripMap({
                       + add dates
                     </button>
                   )}
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-tertiary)' }}>·</span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-secondary)' }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b4b2a9' }}>·</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#888780' }}>
                     {d._count} save{d._count !== 1 ? 's' : ''}
                   </span>
                 </div>
               </div>
               {/* Chevron */}
               {isCityLevel(d) && (
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: 'var(--color-night-text-tertiary)' }}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: '#b4b2a9' }}>
                   <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               )}
@@ -954,7 +954,7 @@ function TripSheetTab({ label, active = false }: { label: string; active?: boole
       fontFamily: "'DM Sans', sans-serif",
       fontSize: 13,
       fontWeight: active ? 600 : 400,
-      color: active ? 'var(--color-copper)' : 'var(--color-night-text-secondary)',
+      color: active ? 'var(--color-copper)' : '#888780',
       borderBottom: active ? '2px solid var(--color-copper)' : '2px solid transparent',
       cursor: active ? 'default' : 'not-allowed',
       opacity: active ? 1 : 0.5,

@@ -54,56 +54,138 @@ function countConnections(nodeId: string, edges: GraphEdge[]): number {
   return edges.filter(e => e.source === nodeId || e.target === nodeId).length
 }
 
+// ── Star glow helpers ────────────────────────────────────────────────────────
+
+/** Generate a 4-point star SVG path centered at (cx, cy). */
+function starPath(cx: number, cy: number, outerR: number, innerR: number): string {
+  const points: [number, number][] = []
+  for (let i = 0; i < 4; i++) {
+    const outerAngle = (i * Math.PI / 2) - Math.PI / 2
+    const innerAngle = outerAngle + Math.PI / 4
+    points.push([cx + Math.cos(outerAngle) * outerR, cy + Math.sin(outerAngle) * outerR])
+    points.push([cx + Math.cos(innerAngle) * innerR, cy + Math.sin(innerAngle) * innerR])
+  }
+  return 'M' + points.map(p => p.join(',')).join('L') + 'Z'
+}
+
+/** Deterministic hash → rotation angle (0-44 degrees) for visual variation. */
+function starRotation(id: string): number {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash + id.charCodeAt(i)) | 0
+  }
+  return Math.abs(hash) % 45
+}
+
+/** Star glow parameters per node state. */
+const STAR_PARAMS: Record<NodeState, { outerMult: number; innerMult: number; blur: number }> = {
+  dim:     { outerMult: 3,   innerMult: 1,   blur: 1.5 },
+  default: { outerMult: 4,   innerMult: 1.2, blur: 2 },
+  claimed: { outerMult: 4,   innerMult: 1.2, blur: 2 },
+  bright:  { outerMult: 5,   innerMult: 1.5, blur: 2.5 },
+}
+
 // ── Cluster label computation ────────────────────────────────────────────────
 
+/** Country-to-name lookup for common travel countries */
+const COUNTRY_NAMES: Record<string, string> = {
+  JP: 'Japan', CN: 'China', TW: 'Taiwan', KR: 'South Korea', TH: 'Thailand',
+  VN: 'Vietnam', IN: 'India', HK: 'Hong Kong', SG: 'Singapore', MY: 'Malaysia',
+  ID: 'Indonesia', PH: 'Philippines', MN: 'Mongolia', MM: 'Myanmar', LA: 'Laos',
+  KH: 'Cambodia', NP: 'Nepal', LK: 'Sri Lanka', US: 'United States', CA: 'Canada',
+  MX: 'Mexico', GB: 'United Kingdom', FR: 'France', DE: 'Germany', IT: 'Italy',
+  ES: 'Spain', PT: 'Portugal', NL: 'Netherlands', CH: 'Switzerland', AT: 'Austria',
+  GR: 'Greece', TR: 'Turkey', AU: 'Australia', NZ: 'New Zealand', BR: 'Brazil',
+  AR: 'Argentina', CL: 'Chile', PE: 'Peru', CO: 'Colombia', CR: 'Costa Rica',
+  ZA: 'South Africa', MA: 'Morocco', EG: 'Egypt', KE: 'Kenya', TZ: 'Tanzania',
+  AE: 'UAE', JO: 'Jordan', OM: 'Oman', IS: 'Iceland', NO: 'Norway', SE: 'Sweden',
+  DK: 'Denmark', FI: 'Finland', IE: 'Ireland', CZ: 'Czech Republic', PL: 'Poland',
+  HR: 'Croatia', HU: 'Hungary', RO: 'Romania', BG: 'Bulgaria', UZ: 'Uzbekistan',
+  KG: 'Kyrgyzstan', GE: 'Georgia',
+}
+
 interface ClusterLabel {
-  city: string
+  text: string
+  level: 'country' | 'city'
   x: number
   y: number
   nodeCount: number
-  width: number  // estimated bounding box width
+  width: number
   height: number
 }
 
+const COUNTRY_LABEL_MIN = 2
+const CITY_LABEL_MIN = 3
+
 function computeClusterLabels(nodes: GraphNode[]): ClusterLabel[] {
-  // Group by city
-  const cityGroups = new Map<string, GraphNode[]>()
+  // Group by country
+  const countryGroups = new Map<string, GraphNode[]>()
   for (const n of nodes) {
-    if (!n.city) continue
-    const key = n.city.toLowerCase()
-    const group = cityGroups.get(key) ?? []
+    if (!n.countryCode) continue
+    const group = countryGroups.get(n.countryCode) ?? []
     group.push(n)
-    cityGroups.set(key, group)
+    countryGroups.set(n.countryCode, group)
   }
 
   const labels: ClusterLabel[] = []
-  for (const [, group] of cityGroups) {
-    if (group.length < GRAPH.CLUSTER_LABEL_MIN) continue
-    // Centroid x, highest node y (minimum y) - offset
-    const cx = group.reduce((s, n) => s + n.x, 0) / group.length
-    const minY = Math.min(...group.map(n => n.y))
-    const displayName = group[0].city ?? ''
+
+  for (const [code, countryNodes] of countryGroups) {
+    if (countryNodes.length < COUNTRY_LABEL_MIN) continue
+
+    // Country label
+    const cx = countryNodes.reduce((s, n) => s + n.x, 0) / countryNodes.length
+    const minY = Math.min(...countryNodes.map(n => n.y))
+    const countryName = COUNTRY_NAMES[code] ?? code
     labels.push({
-      city: displayName,
+      text: countryName,
+      level: 'country',
       x: cx,
-      y: minY - 15,
-      nodeCount: group.length,
-      width: displayName.length * 6.5 + 8, // estimate
+      y: minY - 20,
+      nodeCount: countryNodes.length,
+      width: countryName.length * 7 + 8,
       height: 14,
     })
+
+    // City sub-labels within this country
+    const cityGroups = new Map<string, GraphNode[]>()
+    for (const n of countryNodes) {
+      if (!n.city) continue
+      const key = n.city.toLowerCase()
+      const group = cityGroups.get(key) ?? []
+      group.push(n)
+      cityGroups.set(key, group)
+    }
+
+    for (const [, cityNodes] of cityGroups) {
+      if (cityNodes.length < CITY_LABEL_MIN) continue
+      const cityCx = cityNodes.reduce((s, n) => s + n.x, 0) / cityNodes.length
+      const cityMinY = Math.min(...cityNodes.map(n => n.y))
+      const cityName = cityNodes[0].city ?? ''
+      labels.push({
+        text: cityName,
+        level: 'city',
+        x: cityCx,
+        y: cityMinY - 12,
+        nodeCount: cityNodes.length,
+        width: cityName.length * 6 + 6,
+        height: 12,
+      })
+    }
   }
 
-  // Collision avoidance: hide smaller cluster if overlapping
+  // Collision avoidance: country labels have priority over city labels
   const visible = new Set(labels.map((_, i) => i))
   for (let i = 0; i < labels.length; i++) {
     for (let j = i + 1; j < labels.length; j++) {
       if (!visible.has(i) || !visible.has(j)) continue
       const a = labels[i], b = labels[j]
-      // Check bounding box overlap
       const overlapX = Math.abs(a.x - b.x) < (a.width + b.width) / 2
       const overlapY = Math.abs(a.y - b.y) < (a.height + b.height) / 2
       if (overlapX && overlapY) {
-        // Hide the smaller cluster
+        // Country labels always win over city labels
+        if (a.level === 'country' && b.level === 'city') { visible.delete(j); continue }
+        if (b.level === 'country' && a.level === 'city') { visible.delete(i); continue }
+        // Same level: hide the smaller cluster
         if (a.nodeCount < b.nodeCount) visible.delete(i)
         else visible.delete(j)
       }
@@ -398,15 +480,23 @@ export default function TravelGraph({
   }, [selectedNodeId, selectedCluster, connectedToSelected, simulatedNodes, fadeProgress, staggerOrder])
 
   // ── Edge opacity based on selection ──
+  // Adaptive edge scaling: more visible for sparse graphs, fainter for dense
+  const opacityScale = Math.max(0.5, Math.min(1.5, 30 / Math.max(1, simulatedNodes.length)))
+  const widthScale = Math.max(0.8, Math.min(1.5, 25 / Math.max(1, simulatedNodes.length)))
+
   const getEdgeOpacity = useCallback((e: { sourceId: string; targetId: string; type: GraphEdge['type'] }): number => {
-    const base = EDGE_STYLES[e.type].opacity
+    const base = EDGE_STYLES[e.type].opacity * opacityScale
     if (selectedNodeId) {
       if (e.sourceId === selectedNodeId || e.targetId === selectedNodeId) return base * 2
       return base * 0.3
     }
     if (selectedCluster) return base * 0.5
     return base
-  }, [selectedNodeId, selectedCluster])
+  }, [selectedNodeId, selectedCluster, opacityScale])
+
+  const getEdgeWidth = useCallback((type: GraphEdge['type']): number => {
+    return EDGE_STYLES[type].width * widthScale
+  }, [widthScale])
 
   // ── Tap handlers ──
   const handleNodeTap = useCallback((nodeId: string) => {
@@ -470,25 +560,30 @@ export default function TravelGraph({
         >
           {/* Defs */}
           <defs>
-            <filter id="node-glow" x="-200%" y="-200%" width="500%" height="500%">
-              <feGaussianBlur stdDeviation="3" result="blur" />
-              <feMerge>
-                <feMergeNode in="blur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
+            {/* Star glow filters — one per blur level */}
+            <filter id="star-glow-dim" x="-100%" y="-100%" width="300%" height="300%">
+              <feGaussianBlur stdDeviation="1.5" />
+            </filter>
+            <filter id="star-glow-default" x="-100%" y="-100%" width="300%" height="300%">
+              <feGaussianBlur stdDeviation="2" />
+            </filter>
+            <filter id="star-glow-claimed" x="-100%" y="-100%" width="300%" height="300%">
+              <feGaussianBlur stdDeviation="2" />
+            </filter>
+            <filter id="star-glow-bright" x="-100%" y="-100%" width="300%" height="300%">
+              <feGaussianBlur stdDeviation="2.5" />
             </filter>
           </defs>
 
           {/* Layer 1: Edges */}
           <g data-testid="edges-layer">
             {resolvedEdges.map((e, i) => {
-              const style = EDGE_STYLES[e.type]
               return (
                 <line
                   key={`edge-${i}`}
                   x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
                   stroke="#d4e0f0"
-                  strokeWidth={style.width}
+                  strokeWidth={getEdgeWidth(e.type)}
                   opacity={getEdgeOpacity(e)}
                   style={{ transition: 'opacity 300ms ease' }}
                 />
@@ -504,14 +599,16 @@ export default function TravelGraph({
               const radius = getNodeRadius(cc)
               const { fill, glowOpacity } = NODE_COLORS[state]
               const opacity = getNodeOpacity(node.id)
+              const sp = STAR_PARAMS[state]
+              const rot = starRotation(node.id)
               return (
-                <circle
+                <path
                   key={`glow-${node.id}`}
-                  cx={node.x} cy={node.y}
-                  r={radius * 4}
+                  d={starPath(node.x, node.y, radius * sp.outerMult, radius * sp.innerMult)}
                   fill={fill}
                   opacity={glowOpacity * opacity}
-                  filter="url(#node-glow)"
+                  filter={`url(#star-glow-${state})`}
+                  transform={`rotate(${rot} ${node.x} ${node.y})`}
                   style={{ transition: 'opacity 300ms ease' }}
                 />
               )
@@ -560,24 +657,25 @@ export default function TravelGraph({
           <g data-testid="cluster-labels">
             {clusterLabels.map(label => (
               <text
-                key={`label-${label.city}`}
-                data-testid={`cluster-label-${label.city.toLowerCase()}`}
+                key={`label-${label.level}-${label.text}`}
+                data-testid={`cluster-label-${label.text.toLowerCase()}`}
+                data-level={label.level}
                 x={label.x}
                 y={label.y}
                 textAnchor="middle"
                 style={{
                   fontFamily: "'DM Sans', sans-serif",
-                  fontSize: '11px',
-                  fontWeight: 500,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  fill: '#edf2fa',
-                  fillOpacity: 0.6,
+                  fontSize: label.level === 'country' ? '11px' : '9px',
+                  fontWeight: label.level === 'country' ? 500 : 400,
+                  textTransform: label.level === 'country' ? 'uppercase' : 'none',
+                  letterSpacing: label.level === 'country' ? '1px' : '0.3px',
+                  fill: label.level === 'country' ? '#edf2fa' : '#b8c8e0',
+                  fillOpacity: label.level === 'country' ? 0.5 : 0.6,
                   pointerEvents: 'none',
                   userSelect: 'none',
                 }}
               >
-                {label.city}
+                {label.text}
               </text>
             ))}
           </g>
@@ -614,5 +712,15 @@ export default function TravelGraph({
 }
 
 // Export for testing
-export { getNodeRadius, getNodeState, NODE_COLORS, EDGE_STYLES, computeClusterLabels }
+export { getNodeRadius, getNodeState, NODE_COLORS, EDGE_STYLES, computeClusterLabels, starPath, starRotation, STAR_PARAMS }
+
+/** Compute edge opacity scale for a given node count. Exported for testing. */
+export function computeEdgeOpacityScale(nodeCount: number): number {
+  return Math.max(0.5, Math.min(1.5, 30 / Math.max(1, nodeCount)))
+}
+
+/** Compute edge width scale for a given node count. Exported for testing. */
+export function computeEdgeWidthScale(nodeCount: number): number {
+  return Math.max(0.8, Math.min(1.5, 25 / Math.max(1, nodeCount)))
+}
 export type { ClusterLabel }

@@ -11,10 +11,11 @@ import type { PillGroup } from '../components/PillSheet'
 import { categoryLabel } from '../utils/categoryIcons'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
-import { BrandMark, CategoryPill, CountryCodeBadge, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
+import { CategoryPill, CountryCodeBadge, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import ScrollToTop from '../components/ScrollToTop'
 import SunsetBackground from '../components/horizon/SunsetBackground'
 import TravelGraph from '../components/horizon/TravelGraph'
+import DraggableSheet from '../components/map/DraggableSheet'
 import ImageWithFade from '../components/ImageWithFade'
 import { getPlacePhoto } from '../components/SavedItemImage'
 import type { SavedItem, Category } from '../types'
@@ -462,51 +463,77 @@ export default function InboxPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────
 
+  // Unique cities for stats
+  const uniqueCities = useMemo(() => {
+    const set = new Set<string>()
+    items.forEach((item) => {
+      const city = item.location_name?.split(',')[0]?.trim()
+      if (city) set.add(city.toLowerCase())
+    })
+    return set.size
+  }, [items])
+
   return (
     <>
-    {/* Night sky background */}
+    {/* ── Background layer: sunset + graph (fixed, full viewport) ── */}
     <SunsetBackground saveCount={items.length} />
-
-    <div className="night-sky px-5 pb-24 relative z-[1]" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-
-      {/* ── Header ── */}
-      <BrandMark className="mb-2 block" />
-      <h1 className="text-[32px] font-bold leading-[1.2] tracking-[-0.5px]" style={{ color: 'var(--color-night-text-primary)' }}>Horizon</h1>
-      {items.length > 0 && (
-        <div className="mt-1">
-          <MetadataLine items={[
-            `${items.length} save${items.length !== 1 ? 's' : ''}`,
-            `${uniqueCountries} ${uniqueCountries === 1 ? 'country' : 'countries'}`,
-          ]} />
-        </div>
-      )}
-
-      {/* ── Travel Graph Hero ── */}
-      {!searchQuery && selectedFilters.length === 0 && items.length > 0 && (
+    {items.length > 0 && (
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1 }}>
         <TravelGraph
           savedItems={items}
           claimedItemIds={assignedItemIds}
+          height={typeof window !== 'undefined' ? window.innerHeight : 700}
           onNodeSelect={(item) => {
-            // Preview handled internally by TravelGraph
             if (!item) setGraphCluster(null)
           }}
           onClusterSelect={(city) => setGraphCluster(city)}
         />
-      )}
+      </div>
+    )}
 
-      {/* ── Divider ── */}
-      <div className="mt-4 mb-3 border-t" style={{ borderColor: 'var(--color-edge-strong)' }} />
+    {/* ── Sheet layer: all structured content ── */}
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10, pointerEvents: 'none' }}>
+      <DraggableSheet
+        snapPoints={[0.15, 0.5, 0.85]}
+        initialSnap="half"
+        header={
+          <div style={{
+            textAlign: 'center',
+            padding: '4px 16px 8px',
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 13,
+            color: '#888780',
+          }}>
+            {graphCluster ? (
+              <span style={{ color: '#c45a2d' }}>
+                {graphCluster} · {filtered.length} saves
+              </span>
+            ) : (
+              <span>
+                {items.length} saves · {uniqueCountries} countries · {uniqueCities} cities
+              </span>
+            )}
+          </div>
+        }
+      >
+        <div style={{
+          background: 'var(--color-surface-light, #faf8f4)',
+          color: 'var(--color-text-on-light, #1a1d27)',
+          minHeight: '100%',
+          padding: '0 16px 120px',
+          pointerEvents: 'auto',
+        }}>
 
       {/* ── Row 1: Search bar (full width) ── */}
       <div className="relative mb-2">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-faint pointer-events-none" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: '#888780' }} />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search saves..."
           className="w-full pl-9 pr-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors"
-          style={{ background: 'var(--color-surface)', border: '1px solid var(--color-edge-strong)', color: 'var(--color-night-text-primary)' }}
+          style={{ background: '#f0eeea', border: '1px solid #e0ddd7', color: '#1a1d27' }}
         />
         {searchQuery && (
           <button
@@ -780,6 +807,8 @@ export default function InboxPage() {
         </div>
         )
       })()}
+        </div>
+      </DraggableSheet>
     </div>
 
     {/* PillSheet Filter */}

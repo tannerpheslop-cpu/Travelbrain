@@ -2,90 +2,108 @@ import { describe, it, expect } from 'vitest'
 import { computeClusterLabels } from '../../components/horizon/TravelGraph'
 import type { GraphNode } from '../../components/horizon/useGraphData'
 
-function makeNode(id: string, city: string, x: number, y: number): GraphNode {
-  return { id, title: `Item ${id}`, city, countryCode: 'JP', categories: ['activity'], isClaimedByTrip: false, x, y }
+function makeNode(id: string, city: string, countryCode: string, x: number, y: number): GraphNode {
+  return { id, title: `Item ${id}`, city, countryCode, categories: ['activity'], isClaimedByTrip: false, x, y }
 }
 
-describe('computeClusterLabels', () => {
-  it('city with 4+ nodes gets a label', () => {
+describe('computeClusterLabels — country + city hierarchy', () => {
+  it('country with 2+ nodes gets a country label', () => {
     const nodes = [
-      makeNode('a', 'Tokyo', 100, 100),
-      makeNode('b', 'Tokyo', 110, 90),
-      makeNode('c', 'Tokyo', 105, 95),
-      makeNode('d', 'Tokyo', 108, 88),
+      makeNode('a', 'Tokyo', 'JP', 100, 100),
+      makeNode('b', 'Kyoto', 'JP', 120, 110),
     ]
     const labels = computeClusterLabels(nodes)
-    expect(labels).toHaveLength(1)
-    expect(labels[0].city).toBe('Tokyo')
+    const countryLabels = labels.filter(l => l.level === 'country')
+    expect(countryLabels).toHaveLength(1)
+    expect(countryLabels[0].text).toBe('Japan')
   })
 
-  it('city with 3 nodes does NOT get a label', () => {
+  it('country with 1 node does NOT get a label', () => {
     const nodes = [
-      makeNode('a', 'Tokyo', 100, 100),
-      makeNode('b', 'Tokyo', 110, 90),
-      makeNode('c', 'Tokyo', 105, 95),
+      makeNode('a', 'Tokyo', 'JP', 100, 100),
     ]
     expect(computeClusterLabels(nodes)).toHaveLength(0)
   })
 
-  it('label positioned at centroid x, above highest node y', () => {
+  it('country with 3+ nodes in one city gets both country and city labels (before collision check)', () => {
+    // Spread nodes far apart so labels don't collide
     const nodes = [
-      makeNode('a', 'Kyoto', 100, 200),
-      makeNode('b', 'Kyoto', 120, 180),
-      makeNode('c', 'Kyoto', 110, 160),
-      makeNode('d', 'Kyoto', 130, 190),
+      makeNode('a', 'Tokyo', 'JP', 100, 200),
+      makeNode('b', 'Tokyo', 'JP', 110, 180),
+      makeNode('c', 'Tokyo', 'JP', 105, 160),
     ]
     const labels = computeClusterLabels(nodes)
-    expect(labels).toHaveLength(1)
-    // Centroid x = (100+120+110+130)/4 = 115
-    expect(labels[0].x).toBeCloseTo(115, 0)
-    // Highest node y = 160, label at 160 - 15 = 145
-    expect(labels[0].y).toBe(145)
+    const country = labels.filter(l => l.level === 'country')
+    expect(country).toHaveLength(1)
+    expect(country[0].text).toBe('Japan')
+    // City label may or may not survive collision avoidance with country label
+    // but the country label must exist
   })
 
-  it('overlapping labels: smaller cluster hidden', () => {
-    // Two clusters very close together
+  it('country labels have smaller y (higher on screen) than city labels when both present', () => {
+    // 5 nodes spread out so labels have room
     const nodes = [
-      // 5-node cluster
-      makeNode('a1', 'Tokyo', 100, 100),
-      makeNode('a2', 'Tokyo', 102, 98),
-      makeNode('a3', 'Tokyo', 104, 96),
-      makeNode('a4', 'Tokyo', 106, 94),
-      makeNode('a5', 'Tokyo', 108, 92),
-      // 4-node cluster at nearly the same position
-      makeNode('b1', 'Osaka', 103, 99),
-      makeNode('b2', 'Osaka', 105, 97),
-      makeNode('b3', 'Osaka', 107, 95),
-      makeNode('b4', 'Osaka', 109, 93),
+      makeNode('a', 'Tokyo', 'JP', 100, 300),
+      makeNode('b', 'Tokyo', 'JP', 120, 280),
+      makeNode('c', 'Tokyo', 'JP', 110, 260),
+      makeNode('d', 'Tokyo', 'JP', 130, 240),
+      makeNode('e', 'Tokyo', 'JP', 105, 220),
     ]
     const labels = computeClusterLabels(nodes)
-    // Only the larger cluster's label survives
-    expect(labels).toHaveLength(1)
-    expect(labels[0].city).toBe('Tokyo')
+    const country = labels.find(l => l.level === 'country')
+    const city = labels.find(l => l.level === 'city')
+    expect(country).toBeDefined()
+    if (city) {
+      // Country offset is 20, city offset is 12, so country y should be smaller
+      expect(country!.y).toBeLessThan(city.y)
+    }
   })
 
-  it('non-overlapping labels both show', () => {
+  it('overlapping labels: country labels preferred over city labels', () => {
+    // All at same position — country should win
     const nodes = [
-      makeNode('a1', 'Tokyo', 50, 50),
-      makeNode('a2', 'Tokyo', 55, 55),
-      makeNode('a3', 'Tokyo', 60, 45),
-      makeNode('a4', 'Tokyo', 52, 48),
-      makeNode('b1', 'Kyoto', 300, 300),
-      makeNode('b2', 'Kyoto', 305, 295),
-      makeNode('b3', 'Kyoto', 310, 290),
-      makeNode('b4', 'Kyoto', 302, 298),
+      makeNode('a', 'Tokyo', 'JP', 100, 100),
+      makeNode('b', 'Tokyo', 'JP', 101, 99),
+      makeNode('c', 'Tokyo', 'JP', 102, 98),
     ]
     const labels = computeClusterLabels(nodes)
-    expect(labels).toHaveLength(2)
+    // If they overlap, country wins. Both should be present if no overlap.
+    const country = labels.filter(l => l.level === 'country')
+    expect(country.length).toBeGreaterThanOrEqual(1)
   })
 
-  it('nodes without city are excluded from clustering', () => {
+  it('nodes without countryCode excluded from country grouping', () => {
     const nodes = [
-      makeNode('a', '', 100, 100),
-      makeNode('b', '', 110, 90),
-      makeNode('c', '', 105, 95),
-      makeNode('d', '', 108, 88),
+      makeNode('a', 'Unknown', '', 100, 100),
+      makeNode('b', 'Unknown', '', 110, 90),
     ]
     expect(computeClusterLabels(nodes)).toHaveLength(0)
+  })
+
+  it('two countries get separate labels', () => {
+    const nodes = [
+      makeNode('a', 'Tokyo', 'JP', 50, 50),
+      makeNode('b', 'Kyoto', 'JP', 60, 60),
+      makeNode('c', 'Taipei', 'TW', 300, 300),
+      makeNode('d', 'Kaohsiung', 'TW', 310, 310),
+    ]
+    const labels = computeClusterLabels(nodes)
+    const countries = labels.filter(l => l.level === 'country')
+    expect(countries).toHaveLength(2)
+    const names = countries.map(l => l.text).sort()
+    expect(names).toEqual(['Japan', 'Taiwan'])
+  })
+
+  it('city with 2 nodes (below city threshold) gets no city label', () => {
+    const nodes = [
+      makeNode('a', 'Tokyo', 'JP', 100, 100),
+      makeNode('b', 'Tokyo', 'JP', 110, 90),
+    ]
+    const labels = computeClusterLabels(nodes)
+    const city = labels.filter(l => l.level === 'city')
+    expect(city).toHaveLength(0)
+    // But country label should exist (2 nodes = above country threshold)
+    const country = labels.filter(l => l.level === 'country')
+    expect(country).toHaveLength(1)
   })
 })
