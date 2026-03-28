@@ -584,7 +584,7 @@ export default function TripsPage() {
       {showModal && (
         <CreateTripSheet
           onClose={() => setShowModal(false)}
-          onCreated={(tripId) => { setShowModal(false); navigate(`/trip/${tripId}`) }}
+          onCreated={(tripId) => { setShowModal(false); navigate(`/trip/${tripId}?new=true`) }}
           createTrip={createTrip}
         />
       )}
