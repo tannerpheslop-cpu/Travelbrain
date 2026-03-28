@@ -318,6 +318,7 @@ export default function DraggableSheet({
         flexDirection: 'column',
         zIndex: 20,
         overflow: 'hidden',
+        pointerEvents: 'auto',
         ...(animating
           ? { transition: `height ${SPRING_MS}ms ${SPRING_EASING}` }
           : {}),
