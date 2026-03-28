@@ -676,6 +676,8 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
 
 > See `/docs/QA-AGENT.md` for QA Agent process and checklists.
 
+**ABSOLUTE RULE: NEVER use emoji characters in the UI.** Use text labels (e.g., "JP", "CN"), icons (Lucide), or styled badges instead. This applies to flag emojis, icon emojis, decorative emojis — all of them. Country identifiers use the two-letter code badge pattern (e.g., `<CountryCodeBadge code="JP" />`).
+
 **ABSOLUTE RULE: NEVER commit without writing tests that follow the Testing Standards below. Every test must verify user-visible behavior and must fail if the feature/fix is reverted.**
 
 **ALWAYS run the test suite before committing. If the suite takes more than 3 minutes, something is wrong — investigate before adding more tests.**

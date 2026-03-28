@@ -664,19 +664,10 @@ export default function UnifiedTripMap({
     </div>
   ) : null
 
-  // ── Trip-level sheet header ──
+  // ── Trip-level sheet header — tabs only (title/stats are on map overlay) ──
   const tripSheetHeader = (
-    <div style={{ padding: '8px 16px 0' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 17, fontWeight: 600, color: 'var(--color-text-primary)' }}>
-          {tripTitle}
-        </span>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-tertiary)' }}>
-          {destinations.length} destination{destinations.length !== 1 ? 's' : ''}
-        </span>
-      </div>
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: 0, marginTop: 10, borderBottom: '1px solid var(--color-border-light)' }}>
+    <div style={{ padding: '4px 16px 0' }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid var(--color-border-light)' }}>
         <TripSheetTab label="Destinations" active />
         <TripSheetTab label="Itinerary" />
         <TripSheetTab label="Logistics" />
@@ -687,18 +678,11 @@ export default function UnifiedTripMap({
   // ── Trip-level sheet content: destination rows ──
   const tripSheetContent = (
     <div data-testid="trip-sheet-destinations">
-      {cityDests.length === 0 ? (
-        <button type="button" onClick={onAddDestination} data-testid="empty-state-add-dest"
-          style={{ display: 'block', width: '100%', padding: '32px 16px', textAlign: 'center', background: 'none', border: 'none', cursor: 'pointer' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--color-accent-light)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 20, color: 'var(--color-accent)' }}>+</span>
-          </div>
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>Where are you headed?</p>
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-tertiary)', margin: 0 }}>Add a city, country, or region to get started</p>
-        </button>
+      {destinations.length === 0 ? (
+        <div data-testid="empty-state-add-dest" />
       ) : (
         destinations.map((d, i) => {
-          const chapterNum = String(destinations.filter((dd, ii) => ii <= i && isCityLevel(dd)).length).padStart(2, '0')
+          const chapterNum = String(i + 1).padStart(2, '0')
           const cityName = d.location_name.split(',')[0]
           return (
             <button
@@ -717,7 +701,7 @@ export default function UnifiedTripMap({
               <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--color-accent-light)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 12 }}>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 800, color: MAP_COLORS.accent }}>
-                  {isCityLevel(d) ? chapterNum : '—'}
+                  {chapterNum}
                 </span>
               </div>
               {/* Name + dates/count */}
@@ -768,10 +752,26 @@ export default function UnifiedTripMap({
               location_country_code: d.location_country_code,
             })))
           : groups
+        // Bug 1 fix: Filter out suggestions matching existing destinations
+        const destNames = new Set(destinations.map(d => d.location_name.split(',')[0].toLowerCase()))
+        const destCountryCodes = new Set(destinations.map(d => d.location_country_code?.toUpperCase()).filter(Boolean))
+        const filtered = ranked.filter(g => {
+          const gLabel = g.label.toLowerCase()
+          // At city level: exclude if city name matches a destination
+          if (suggestionGranularity === 'city' && destNames.has(gLabel)) return false
+          // At country level: exclude if country code matches a destination's country AND all cities in that country are covered
+          if (suggestionGranularity === 'country' && g.countryCode && destCountryCodes.has(g.countryCode)) {
+            // Only exclude if ALL cities in this group are already destinations
+            const groupCities = g.cities?.map(c => c.name.toLowerCase()) ?? [gLabel]
+            const allCovered = groupCities.every(c => destNames.has(c))
+            if (allCovered) return false
+          }
+          return true
+        })
         const unassigned = horizonSaves.filter(s => !s.location_lat || !s.location_lng).length
         return (
           <SuggestionList
-            groups={ranked}
+            groups={filtered}
             granularity={suggestionGranularity}
             onGranularityChange={setSuggestionGranularity}
             onAddDestination={onSuggestionAddDest}
