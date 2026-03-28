@@ -2,7 +2,9 @@
 
 > Claude Code: Read this file and DESIGN-SYSTEM.md at the start of every session. This file is the source of truth for the product vision, architecture, data model, and design principles. DESIGN-SYSTEM.md is the authoritative reference for all visual and styling decisions. Every feature you build should be consistent with both documents.
 >
-> Additional context documents: `/docs/TRIP-CONTEXT.md`, `/docs/SAVE-FLOW-CONTEXT.md`, `/docs/HORIZON-CONTEXT.md`, `/docs/LOCATION-DETECTION-CONTEXT.md`, `/docs/MAP-NAVIGATION.md`, `/docs/TRIP-CREATION.md`, `/docs/BRAND-IDENTITY.md`. Read these when working on the relevant subsystem.
+> Additional context documents: `/docs/TRIP-CONTEXT.md`, `/docs/SAVE-FLOW-CONTEXT.md`, `/docs/HORIZON-CONTEXT.md`, `/docs/LOCATION-DETECTION-CONTEXT.md`, `/docs/MAP-NAVIGATION.md`, `/docs/TRIP-CREATION.md`, `/docs/BRAND-IDENTITY.md`, `/docs/TRAVEL-GRAPH.md`. Read these when working on the relevant subsystem.
+>
+> **Note:** `/docs/TRAVEL-GRAPH.md` — Travel Graph force-directed visualization on Horizon. D3 physics, SVG rendering, interaction rules.
 >
 > **Note:** The visual identity has been redesigned around a night sky metaphor. See `BRAND-IDENTITY.md` for the canonical color system, surface rules, and implementation sequencing. This supersedes all previous brand/design references including the "traveler's notebook" metaphor and warm-neutral palette.
 >

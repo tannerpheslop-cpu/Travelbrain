@@ -14,6 +14,7 @@ import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
 import { BrandMark, CategoryPill, CountryCodeBadge, MetadataLine, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import ScrollToTop from '../components/ScrollToTop'
 import SunsetBackground from '../components/horizon/SunsetBackground'
+import TravelGraph from '../components/horizon/TravelGraph'
 import ImageWithFade from '../components/ImageWithFade'
 import { getPlacePhoto } from '../components/SavedItemImage'
 import type { SavedItem, Category } from '../types'
@@ -250,6 +251,9 @@ export default function InboxPage() {
     }
   }, [queryClient, user?.id])
 
+  // ── Graph state ──────────────────────────────────────────────────────────
+  const [graphCluster, setGraphCluster] = useState<string | null>(null)
+
   // ── Derived data ─────────────────────────────────────────────────────────
 
   const assignedItemIds = useMemo(
@@ -368,9 +372,15 @@ export default function InboxPage() {
           if (!hasMatch) return false
         }
 
+        // Graph cluster filter: when a cluster is selected on the graph, only show that city
+        if (graphCluster) {
+          const city = item.location_name?.split(',')[0]?.trim()?.toLowerCase()
+          if (city !== graphCluster.toLowerCase()) return false
+        }
+
         return true
       }),
-    [items, searchQuery, parsedFilters, assignedItemIds],
+    [items, searchQuery, parsedFilters, assignedItemIds, graphCluster],
   )
 
   // ── Recently Added: entries < 48h old, not viewed, not in a trip ────────
@@ -469,6 +479,19 @@ export default function InboxPage() {
             `${uniqueCountries} ${uniqueCountries === 1 ? 'country' : 'countries'}`,
           ]} />
         </div>
+      )}
+
+      {/* ── Travel Graph Hero ── */}
+      {!searchQuery && selectedFilters.length === 0 && items.length > 0 && (
+        <TravelGraph
+          savedItems={items}
+          claimedItemIds={assignedItemIds}
+          onNodeSelect={(item) => {
+            // Preview handled internally by TravelGraph
+            if (!item) setGraphCluster(null)
+          }}
+          onClusterSelect={(city) => setGraphCluster(city)}
+        />
       )}
 
       {/* ── Divider ── */}
