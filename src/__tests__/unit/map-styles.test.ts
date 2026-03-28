@@ -15,13 +15,24 @@ describe('Map styles — light mode', () => {
   })
 })
 
-describe('Map styles — dark mode', () => {
-  it('uses the correct water color (#242320)', () => {
-    expect(darkColors.water).toBe('#242320')
+describe('Map styles — dark mode (cool palette)', () => {
+  it('uses cool blue-dark water (#060a16)', () => {
+    expect(darkColors.water).toBe('#060a16')
   })
 
-  it('uses the correct land color (#333230)', () => {
-    expect(darkColors.land).toBe('#333230')
+  it('uses cool blue-gray land (#0e1326)', () => {
+    expect(darkColors.land).toBe('#0e1326')
+  })
+
+  it('land is lighter than water (distinguishable)', () => {
+    // Water: #060a16, Land: #0e1326 — land should have higher brightness
+    const waterBrightness = parseInt(darkColors.water.slice(1), 16)
+    const landBrightness = parseInt(darkColors.land.slice(1), 16)
+    expect(landBrightness).toBeGreaterThan(waterBrightness)
+  })
+
+  it('uses cool text for labels (#8088a0)', () => {
+    expect(darkColors.labelMajor).toBe('#8088a0')
   })
 
   it('uses a Mapbox dark base style', () => {

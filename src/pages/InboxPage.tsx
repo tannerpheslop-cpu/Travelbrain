@@ -482,7 +482,7 @@ export default function InboxPage() {
         <TravelGraph
           savedItems={items}
           claimedItemIds={assignedItemIds}
-          height={typeof window !== 'undefined' ? window.innerHeight : 700}
+          height={typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.82) : 580}
           onNodeSelect={(item) => {
             if (!item) setGraphCluster(null)
           }}
