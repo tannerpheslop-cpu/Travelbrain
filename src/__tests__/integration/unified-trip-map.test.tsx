@@ -64,8 +64,8 @@ describe('UnifiedTripMap', () => {
     render(<UnifiedTripMap {...defaultProps} destinations={[tokyo]} />)
     // Destination-level overlays should be visible
     expect(screen.getByTestId('dest-map-back')).toBeInTheDocument()
-    // Single-city: back says "Trips", identifier shows "Asia 2026 · Tokyo"
-    expect(screen.getByTestId('dest-map-back').textContent).toContain('Trips')
+    // Back at Level 2 shows trip title (goes to Level 1, not trips library)
+    expect(screen.getByTestId('dest-map-back').textContent).toContain('Asia 2026')
   })
 
   it('trip with 2+ city destinations starts at trip level', () => {

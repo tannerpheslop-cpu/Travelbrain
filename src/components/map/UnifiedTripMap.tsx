@@ -10,8 +10,8 @@ import DraggableSheet from './DraggableSheet'
 import SheetItemRow from './SheetItemRow'
 import QuickLocationPicker from './QuickLocationPicker'
 import AddItemsSheet from './AddItemsSheet'
-import SuggestionList from './SuggestionList'
-import { groupSavesByGeography, rankSuggestions, type SaveInput, type SuggestionGroup } from '../../lib/groupSavesByGeography'
+import HierarchicalSuggestionList from './HierarchicalSuggestionList'
+import { buildSuggestionTree, type SaveInput, type SuggestionGroup } from '../../lib/groupSavesByGeography'
 import { useToast } from '../Toast'
 import { supabase } from '../../lib/supabase'
 // onItemAddedToDestination fires inside AddItemsSheet
@@ -54,6 +54,8 @@ export interface UnifiedTripMapProps {
   onSuggestionAddDest?: (group: SuggestionGroup) => void
   /** Called when user taps "Add all X" on a suggestion (destination + items) */
   onSuggestionAddAll?: (group: SuggestionGroup) => void
+  /** True when trip was just created (stay at Level 1 even with 1 destination) */
+  isNewTrip?: boolean
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -105,9 +107,10 @@ export default function UnifiedTripMap({
   horizonSaves,
   onSuggestionAddDest,
   onSuggestionAddAll,
+  isNewTrip,
 }: UnifiedTripMapProps) {
   const { toast } = useToast()
-  const [suggestionGranularity, setSuggestionGranularity] = useState<'city' | 'country' | 'continent'>('country')
+  // Granularity state removed — using hierarchical tree instead
   const containerRef = useRef<HTMLDivElement>(null)
   const mapWrapperRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -121,14 +124,16 @@ export default function UnifiedTripMap({
   const cityDests = useMemo(() => destinations.filter(isCityLevel), [destinations])
 
   // Determine initial level
+  // During creation (isNewTrip), always start at trip level even with 1 destination.
+  // When re-entering an existing trip with 1 city destination, auto-zoom to Level 2.
   const getInitialLevel = (): ViewLevel => {
     if (initialDestId) return 'destination'
-    if (cityDests.length === 1) return 'destination'
+    if (!isNewTrip && cityDests.length === 1) return 'destination'
     return 'trip'
   }
   const getInitialDestId = (): string | null => {
     if (initialDestId) return initialDestId
-    if (cityDests.length === 1) return cityDests[0].id
+    if (!isNewTrip && cityDests.length === 1) return cityDests[0].id
     return null
   }
 
@@ -136,7 +141,7 @@ export default function UnifiedTripMap({
   const [activeDestId, setActiveDestId] = useState<string | null>(getInitialDestId)
   const activeDest = destinations.find(d => d.id === activeDestId) ?? null
   const prevCityCountRef = useRef(cityDests.length)
-  const isSingleCityTrip = cityDests.length === 1
+  // isSingleCityTrip removed — back at Level 2 always goes to Level 1
 
   // ── Destination-level data ──
   const [destItems, setDestItems] = useState<SavedItem[]>([])
@@ -445,19 +450,17 @@ export default function UnifiedTripMap({
     // Clean destination-level layers
     cleanDestLayers(map)
 
-    // Add destination markers — city-level only (no country markers)
+    // Add destination markers — ALL destinations get markers
     for (const m of markersRef.current) m.remove()
     markersRef.current = []
 
-    let chapterIdx = 0
     const newMarkers: DestinationMarker[] = []
-    for (const d of destinations) {
-      if (!isCityLevel(d)) continue
-      chapterIdx++
+    for (let i = 0; i < destinations.length; i++) {
+      const d = destinations[i]
       newMarkers.push(createDestinationMarker({
         map,
         lngLat: [d.location_lng, d.location_lat],
-        chapter: chapterIdx,
+        chapter: i + 1,
         cityName: d.location_name.split(',')[0],
         dark: prefersDark,
         onClick: () => onTapRef.current?.(d.id),
@@ -465,25 +468,21 @@ export default function UnifiedTripMap({
     }
     markersRef.current = newMarkers
 
-    // Route — only between city-level destinations
+    // Route — between ALL destinations
     routeRef.current?.remove()
-    if (cityDests.length >= 2 && styleLoadedRef.current) {
-      const points = cityDests.map(d => ({ lat: d.location_lat, lng: d.location_lng }))
+    if (destinations.length >= 2 && styleLoadedRef.current) {
+      const points = destinations.map(d => ({ lat: d.location_lat, lng: d.location_lng }))
       routeRef.current = createMapRoute(map, points)
     }
 
-    // Viewport — fit city-level destinations
+    // Viewport — fit ALL destinations
     if (destinations.length === 0) {
-      // Empty trip — world view
       map.flyTo({ center: [20, 30], zoom: 1.5, duration: 0 })
-    } else if (cityDests.length === 0 && destinations.length > 0) {
-      // Country-only: zoom to first destination
-      map.flyTo({ center: [destinations[0].location_lng, destinations[0].location_lat], zoom: 5, duration: 0 })
-    } else if (cityDests.length === 1) {
-      map.flyTo({ center: [cityDests[0].location_lng, cityDests[0].location_lat], zoom: SINGLE_DESTINATION_ZOOM, duration: 0 })
-    } else if (cityDests.length >= 2) {
+    } else if (destinations.length === 1) {
+      map.flyTo({ center: [destinations[0].location_lng, destinations[0].location_lat], zoom: SINGLE_DESTINATION_ZOOM, duration: 0 })
+    } else {
       const bounds = new mapboxgl.LngLatBounds()
-      for (const d of cityDests) bounds.extend([d.location_lng, d.location_lat])
+      for (const d of destinations) bounds.extend([d.location_lng, d.location_lat])
       map.fitBounds(bounds, { padding: FIT_BOUNDS_PADDING, duration: 0 })
     }
 
@@ -741,42 +740,39 @@ export default function UnifiedTripMap({
         })
       )}
 
-      {/* Suggestions from Horizon */}
+      {/* Hierarchical suggestions from Horizon */}
       {horizonSaves && horizonSaves.length > 0 && onSuggestionAddDest && onSuggestionAddAll && (() => {
-        const groups = groupSavesByGeography(horizonSaves, suggestionGranularity)
-        const ranked = destinations.length > 0
-          ? rankSuggestions(groups, destinations.map(d => ({
-              location_name: d.location_name,
-              location_lat: d.location_lat,
-              location_lng: d.location_lng,
-              location_country_code: d.location_country_code,
-            })))
-          : groups
-        // Bug 1 fix: Filter out suggestions matching existing destinations
-        const destNames = new Set(destinations.map(d => d.location_name.split(',')[0].toLowerCase()))
-        const destCountryCodes = new Set(destinations.map(d => d.location_country_code?.toUpperCase()).filter(Boolean))
-        const filtered = ranked.filter(g => {
-          const gLabel = g.label.toLowerCase()
-          // At city level: exclude if city name matches a destination
-          if (suggestionGranularity === 'city' && destNames.has(gLabel)) return false
-          // At country level: exclude if country code matches a destination's country AND all cities in that country are covered
-          if (suggestionGranularity === 'country' && g.countryCode && destCountryCodes.has(g.countryCode)) {
-            // Only exclude if ALL cities in this group are already destinations
-            const groupCities = g.cities?.map(c => c.name.toLowerCase()) ?? [gLabel]
-            const allCovered = groupCities.every(c => destNames.has(c))
-            if (allCovered) return false
-          }
-          return true
-        })
-        const unassigned = horizonSaves.filter(s => !s.location_lat || !s.location_lng).length
+        const destNames = destinations.map(d => d.location_name)
+        const tree = buildSuggestionTree(horizonSaves, destNames)
         return (
-          <SuggestionList
-            groups={filtered}
-            granularity={suggestionGranularity}
-            onGranularityChange={setSuggestionGranularity}
-            onAddDestination={onSuggestionAddDest}
-            onAddAll={onSuggestionAddAll}
-            unassignedCount={unassigned}
+          <HierarchicalSuggestionList
+            tree={tree}
+            onAddCity={(city, countryCode, _countryName) => {
+              onSuggestionAddDest({
+                id: `city-${city.cityName}`, label: city.cityName,
+                countryCode, saveCount: city.saveCount, saves: city.saves,
+                cities: [{ name: city.cityName, saveCount: city.saveCount, saves: city.saves, lat: city.lat, lng: city.lng }],
+              })
+            }}
+            onAddCountry={(country) => {
+              onSuggestionAddAll({
+                id: `country-${country.countryCode}`, label: country.countryName,
+                countryCode: country.countryCode, saveCount: country.totalSaves,
+                saves: country.cities.flatMap(c => c.saves),
+                cities: country.cities.map(c => ({ name: c.cityName, saveCount: c.saveCount, saves: c.saves, lat: c.lat, lng: c.lng })),
+              })
+            }}
+            onAddContinent={(continent) => {
+              // Add all countries in the continent
+              for (const country of continent.countries) {
+                onSuggestionAddAll({
+                  id: `country-${country.countryCode}`, label: country.countryName,
+                  countryCode: country.countryCode, saveCount: country.totalSaves,
+                  saves: country.cities.flatMap(c => c.saves),
+                  cities: country.cities.map(c => ({ name: c.cityName, saveCount: c.saveCount, saves: c.saves, lat: c.lat, lng: c.lng })),
+                })
+              }
+            }}
           />
         )
       })()}
@@ -815,9 +811,9 @@ export default function UnifiedTripMap({
           </div>
           {/* Destination-level back */}
           <div style={{ opacity: destOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'destination' ? 'auto' : 'none', position: level === 'destination' ? 'relative' : 'absolute', top: 0, left: 0 }}>
-            <button type="button" data-testid="dest-map-back" onClick={isSingleCityTrip ? onBack ?? exitToTrip : exitToTrip}
+            <button type="button" data-testid="dest-map-back" onClick={exitToTrip}
               style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(255,255,255,0.12)', backdropFilter: 'blur(4px)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', color: '#f5f3ef', fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, boxShadow: '0 1px 3px rgba(0,0,0,0.15)', textShadow: '0 1px 2px rgba(0,0,0,0.3)', minWidth: 44, minHeight: 44, WebkitTapHighlightColor: 'transparent' }}>
-              <ChevronLeft size={14} /> {isSingleCityTrip ? 'Trips' : tripTitle}
+              <ChevronLeft size={14} /> {tripTitle}
             </button>
           </div>
         </div>
@@ -862,9 +858,9 @@ export default function UnifiedTripMap({
           {activeDest && (
             <div data-testid="dest-map-identifier" style={{ opacity: destOverlayOpacity, transition: 'opacity 250ms ease', pointerEvents: level === 'destination' ? 'auto' : 'none', position: level === 'destination' ? 'relative' : 'absolute', top: 0, left: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {!isSingleCityTrip && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 800, color: MAP_COLORS.accent }}>{String(destChapter).padStart(2, '0')}</span>}
+                <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 14, fontWeight: 800, color: MAP_COLORS.accent }}>{String(destChapter).padStart(2, '0')}</span>
                 <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 20, fontWeight: 600, color: '#f5f3ef', lineHeight: 1.2, textShadow: '0 1px 4px rgba(0,0,0,0.5)', margin: 0 }}>
-                  {isSingleCityTrip ? `${tripTitle} · ${activeDest.location_name.split(',')[0]}` : activeDest.location_name.split(',')[0]}
+                  {activeDest.location_name.split(',')[0]}
                 </h2>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 5, flexWrap: 'wrap' }}>

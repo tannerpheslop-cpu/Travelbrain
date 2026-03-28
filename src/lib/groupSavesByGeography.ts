@@ -387,3 +387,118 @@ export function expandGroupToDestinations(group: SuggestionGroup): ExpandedDesti
     saves: city.saves,
   }))
 }
+
+// ── Hierarchical suggestion tree ────────────────────────────────────────────
+
+export interface TreeCityGroup {
+  cityName: string
+  saves: SaveInput[]
+  saveCount: number
+  lat: number
+  lng: number
+}
+
+export interface TreeCountryGroup {
+  countryCode: string
+  countryName: string
+  cities: TreeCityGroup[]
+  totalSaves: number
+}
+
+export interface TreeContinentGroup {
+  name: string
+  countries: TreeCountryGroup[]
+  totalSaves: number
+}
+
+export interface SuggestionTree {
+  continents: TreeContinentGroup[]
+  unassignedCount: number
+}
+
+/**
+ * Builds a continent > country > city tree from the user's Horizon saves,
+ * excluding cities that already exist as trip destinations.
+ */
+export function buildSuggestionTree(
+  saves: SaveInput[],
+  existingDestinationNames: string[],
+): SuggestionTree {
+  const destNames = new Set(existingDestinationNames.map(n => n.split(',')[0].trim().toLowerCase()))
+
+  // Filter saves with location data
+  const located = saves.filter(s => s.location_lat && s.location_lng && s.location_country_code)
+  const unassignedCount = saves.filter(s => !s.location_lat || !s.location_lng).length
+
+  // Group by country code → city
+  const countryMap = new Map<string, Map<string, SaveInput[]>>()
+  for (const s of located) {
+    const cc = s.location_country_code!.toUpperCase()
+    if (!countryMap.has(cc)) countryMap.set(cc, new Map())
+    const cityMap = countryMap.get(cc)!
+    const city = cityName(s.location_name)
+    if (!cityMap.has(city)) cityMap.set(city, [])
+    cityMap.get(city)!.push(s)
+  }
+
+  // Build country groups, excluding cities already in trip
+  const countryGroups: TreeCountryGroup[] = []
+  for (const [cc, cityMap] of countryMap) {
+    const cities: TreeCityGroup[] = []
+    for (const [name, citySaves] of cityMap) {
+      if (destNames.has(name.toLowerCase())) continue // Skip existing destinations
+      const c = centroid(citySaves)
+      cities.push({ cityName: name, saves: citySaves, saveCount: citySaves.length, lat: c.lat, lng: c.lng })
+    }
+    if (cities.length === 0) continue // All cities already in trip
+    cities.sort((a, b) => b.saveCount - a.saveCount)
+    const countryName = cities[0].saves[0]?.location_country ?? cc
+    countryGroups.push({
+      countryCode: cc,
+      countryName,
+      cities,
+      totalSaves: cities.reduce((sum, c) => sum + c.saveCount, 0),
+    })
+  }
+  countryGroups.sort((a, b) => b.totalSaves - a.totalSaves)
+
+  // Group countries into continents
+  const continentMap = new Map<string, TreeCountryGroup[]>()
+  for (const cg of countryGroups) {
+    const continent = COUNTRY_TO_CONTINENT[cg.countryCode] ?? 'Other'
+    if (!continentMap.has(continent)) continentMap.set(continent, [])
+    continentMap.get(continent)!.push(cg)
+  }
+
+  const continents: TreeContinentGroup[] = []
+  for (const [name, countries] of continentMap) {
+    continents.push({
+      name,
+      countries,
+      totalSaves: countries.reduce((sum, c) => sum + c.totalSaves, 0),
+    })
+  }
+  continents.sort((a, b) => b.totalSaves - a.totalSaves)
+
+  return { continents, unassignedCount }
+}
+
+/** Truncate a name to maxLen chars with ellipsis. */
+export function truncateName(name: string, maxLen = 20): string {
+  return name.length > maxLen ? name.slice(0, maxLen) + '...' : name
+}
+
+/** Generate subtitle text previewing what [+] will create. */
+export function countrySubtitle(country: TreeCountryGroup): string {
+  if (country.cities.length <= 3) {
+    return `Adds ${country.cities.map(c => truncateName(c.cityName)).join(', ')} · ${country.totalSaves} saves`
+  }
+  return `Adds ${country.cities.length} cities · ${country.totalSaves} saves`
+}
+
+export function continentSubtitle(continent: TreeContinentGroup): string {
+  if (continent.countries.length <= 3) {
+    return `Adds ${continent.countries.map(c => truncateName(c.countryName)).join(', ')} · ${continent.totalSaves} saves`
+  }
+  return `Adds ${continent.countries.length} countries · ${continent.totalSaves} saves`
+}

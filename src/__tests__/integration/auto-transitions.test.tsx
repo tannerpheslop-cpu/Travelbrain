@@ -75,11 +75,11 @@ describe('Auto-transitions + single-destination logic', () => {
     expect(screen.getByTestId('dest-map-identifier')).toBeInTheDocument()
   })
 
-  it('single-city trip back breadcrumb says "Trips" not trip title', () => {
+  it('back at Level 2 always shows trip title (goes to Level 1)', () => {
     render(<UnifiedTripMap {...base} destinations={[tokyo]} />)
     const backBtn = screen.getByTestId('dest-map-back')
-    expect(backBtn.textContent).toContain('Trips')
-    expect(backBtn.textContent).not.toContain('Asia 2026')
+    // Back always shows trip title — goes to Level 1, not trips library
+    expect(backBtn.textContent).toContain('Asia 2026')
   })
 
   it('multi-city trip back breadcrumb says trip title', () => {
@@ -88,17 +88,18 @@ describe('Auto-transitions + single-destination logic', () => {
     expect(backBtn.textContent).toContain('Asia 2026')
   })
 
-  it('single-city trip identifier shows trip name + city', () => {
+  it('single-city trip identifier shows chapter number + city name', () => {
     render(<UnifiedTripMap {...base} destinations={[tokyo]} />)
     const identifier = screen.getByTestId('dest-map-identifier')
-    expect(identifier.textContent).toContain('Asia 2026')
     expect(identifier.textContent).toContain('Tokyo')
   })
 
-  it('single-city trip back button calls onBack (goes to trips library)', () => {
+  it('single-city trip back button calls exitToTrip (stays in trip, not onBack)', () => {
     const onBack = vi.fn()
     render(<UnifiedTripMap {...base} onBack={onBack} destinations={[tokyo]} />)
+    // Back at Level 2 goes to Level 1 (exitToTrip), NOT trips library (onBack)
     screen.getByTestId('dest-map-back').click()
-    expect(onBack).toHaveBeenCalled()
+    // onBack should NOT be called — exitToTrip handles the navigation
+    expect(onBack).not.toHaveBeenCalled()
   })
 })

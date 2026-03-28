@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
@@ -267,6 +267,8 @@ export default function TripOverviewPage() {
   const { id, destId: urlDestId } = useParams()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const isNewTrip = searchParams.get('new') === 'true'
 
   const queryClient = useQueryClient()
   const { toast } = useToast()
@@ -785,6 +787,7 @@ export default function TripOverviewPage() {
           onItemSelect={(itemId) => navigate(`/item/${itemId}?backTo=${encodeURIComponent(`/trip/${id}`)}`)}
           onDatesTap={(destId) => setDatePickerDestId(destId)}
           initialDestId={urlDestId ?? null}
+          isNewTrip={isNewTrip}
           onLevelChange={(_level, destId) => {
             const newPath = destId ? `/trip/${id}/dest/${destId}` : `/trip/${id}`
             if (window.location.pathname !== newPath) {
