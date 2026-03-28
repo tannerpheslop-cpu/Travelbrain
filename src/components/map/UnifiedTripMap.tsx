@@ -395,13 +395,17 @@ export default function UnifiedTripMap({
 
   // ── Initialize Mapbox map (ONE instance, persists across levels) ──
   useEffect(() => {
-    if (!containerRef.current || destinations.length === 0 || collapsed || !token) return
+    if (!containerRef.current || collapsed || !token) return
 
     const style = prefersDark ? DARK_STYLE : LIGHT_STYLE
+    // Default world center; overridden by fitBounds if destinations exist
+    const defaultCenter: [number, number] = destinations.length > 0
+      ? [destinations[0].location_lng, destinations[0].location_lat]
+      : [20, 30] // World view center
     const map = new mapboxgl.Map({
       container: containerRef.current,
       style,
-      center: [destinations[0].location_lng, destinations[0].location_lat],
+      center: defaultCenter,
       zoom: 4,
       attributionControl: false,
       logoPosition: 'bottom-left',
@@ -428,7 +432,7 @@ export default function UnifiedTripMap({
       setMapReady(false)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefersDark, collapsed, token, destinations.length === 0])
+  }, [prefersDark, collapsed, token])
 
   // Country highlighting removed — Mapbox vector source never rendered on device,
   // GeoJSON approach added visual noise. Clean map with just markers + route.
@@ -469,7 +473,10 @@ export default function UnifiedTripMap({
     }
 
     // Viewport — fit city-level destinations
-    if (cityDests.length === 0 && destinations.length > 0) {
+    if (destinations.length === 0) {
+      // Empty trip — world view
+      map.flyTo({ center: [20, 30], zoom: 1.5, duration: 0 })
+    } else if (cityDests.length === 0 && destinations.length > 0) {
       // Country-only: zoom to first destination
       map.flyTo({ center: [destinations[0].location_lng, destinations[0].location_lat], zoom: 5, duration: 0 })
     } else if (cityDests.length === 1) {
@@ -621,9 +628,8 @@ export default function UnifiedTripMap({
     if (activeDestId) fetchDestItems(activeDestId)
   }, [activeDestId, fetchDestItems, toast])
 
-  // ── No destinations → null ──
-  if (destinations.length === 0) return null
-  if (collapsed) {
+  // ── Collapsed state (only when destinations exist) ──
+  if (destinations.length > 0 && collapsed) {
     return <CollapsedMapBar destinationCount={destinations.length} onExpand={() => onCollapseToggle?.(false)} />
   }
 
