@@ -49,6 +49,12 @@ export interface SavedItem {
   location_locked: boolean
   location_precision: 'precise' | 'city' | 'country' | null
   has_pending_extraction: boolean
+  source_title: string | null
+  source_thumbnail: string | null
+  source_author: string | null
+  source_platform: string | null
+  enrichment_source: string | null
+  photo_attribution: string | null
   created_at: string
 }
 

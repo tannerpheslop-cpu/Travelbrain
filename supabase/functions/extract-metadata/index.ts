@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { createClient } from "jsr:@supabase/supabase-js@2"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,6 +13,20 @@ interface MetadataResult {
   description: string | null
   site_name: string | null
   url: string
+  // Enrichment fields (populated when Google Places enrichment succeeds)
+  enriched?: boolean
+  place_id?: string
+  latitude?: number
+  longitude?: number
+  formatted_address?: string
+  category?: string
+  photo_attribution?: string
+  rating?: number | null
+  // Source attribution (original platform metadata, demoted when enriched)
+  source_title?: string
+  source_thumbnail?: string
+  source_author?: string
+  source_platform?: string
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -68,49 +83,156 @@ async function handleYouTube(url: URL): Promise<MetadataResult | null> {
 }
 
 // ── Google Maps ──────────────────────────────────────────────────────────────
+// NEVER parse Google Maps page HTML — it's client-rendered and useless.
+// All data comes from the URL structure.
+
+/** Parse a resolved Google Maps URL for place name, coordinates, and search query. */
+function parseGoogleMapsUrl(fullUrl: URL): {
+  placeName: string | null
+  lat: number | null
+  lng: number | null
+  searchQuery: string | null
+} {
+  const fullPath = fullUrl.pathname + fullUrl.search + fullUrl.hash
+
+  // 1. Place name from /maps/place/PLACE+NAME/...
+  const placeMatch = fullUrl.pathname.match(/\/maps\/place\/([^/@]+)/)
+  const placeName = placeMatch
+    ? decodeURIComponent(placeMatch[1]).replace(/\+/g, " ")
+    : null
+
+  // 2. Search query from /maps/search/QUERY/...
+  const searchMatch = fullUrl.pathname.match(/\/maps\/search\/([^/@]+)/)
+  const searchQuery = searchMatch
+    ? decodeURIComponent(searchMatch[1]).replace(/\+/g, " ")
+    : null
+
+  // 3. Coordinates — prefer !3d/!4d (more precise) over @lat,lng
+  let lat: number | null = null
+  let lng: number | null = null
+
+  // Check !3d and !4d in data parameter (most precise)
+  const d3Match = fullPath.match(/!3d(-?\d+\.?\d*)/)
+  const d4Match = fullPath.match(/!4d(-?\d+\.?\d*)/)
+  if (d3Match && d4Match) {
+    lat = parseFloat(d3Match[1])
+    lng = parseFloat(d4Match[1])
+  }
+
+  // Fallback: @LAT,LNG,ZOOMz in the path
+  if (lat === null || lng === null) {
+    const atMatch = fullUrl.pathname.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*),/)
+    if (atMatch) {
+      lat = parseFloat(atMatch[1])
+      lng = parseFloat(atMatch[2])
+    }
+  }
+
+  // Fallback: ?q=LAT,LNG query parameter
+  if (lat === null || lng === null) {
+    const q = fullUrl.searchParams.get("q")
+    if (q) {
+      const qMatch = q.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/)
+      if (qMatch) {
+        lat = parseFloat(qMatch[1])
+        lng = parseFloat(qMatch[2])
+      }
+    }
+  }
+
+  return { placeName, lat, lng, searchQuery }
+}
+
+/** Follow redirects manually (up to 5 hops) for Google Maps short links. */
+async function resolveGoogleMapsRedirect(url: URL): Promise<URL> {
+  let current = url
+  for (let i = 0; i < 5; i++) {
+    try {
+      const res = await fetch(current.href, {
+        redirect: "manual",
+        signal: AbortSignal.timeout(5000),
+        headers: { "User-Agent": "Mozilla/5.0 (compatible; Youji/1.0)" },
+      })
+      const location = res.headers.get("location")
+      if (!location || res.status < 300 || res.status >= 400) {
+        // If we got a 200 with a useful URL, use the final URL
+        if (res.url && res.url !== current.href) {
+          try { return new URL(res.url) } catch { /* use current */ }
+        }
+        return current
+      }
+      current = new URL(location, current.href)
+    } catch {
+      return current // Return whatever we have on failure
+    }
+  }
+  return current
+}
 
 async function handleGoogleMaps(url: URL): Promise<MetadataResult | null> {
   try {
-    // Follow redirects for short links
+    const originalUrl = url.href
+
+    // Step 1: Resolve the final URL (short links need redirect following)
     let fullUrl = url
-    const host = url.hostname
-    if (host === "goo.gl" || host === "maps.app.goo.gl") {
+    const host = url.hostname.replace(/^www\./, "")
+    const needsRedirect = host === "goo.gl" || host === "maps.app.goo.gl"
+    const isAlreadyFull = url.pathname.includes("/maps/")
+
+    if (needsRedirect) {
+      // Try auto-follow first, then manual redirect loop as fallback
       try {
         const res = await fetch(url.href, { redirect: "follow", signal: AbortSignal.timeout(5000) })
         fullUrl = new URL(res.url)
       } catch {
-        return null
+        // Auto-follow failed — try manual redirect loop
+        fullUrl = await resolveGoogleMapsRedirect(url)
       }
+      console.log(`[extract-metadata] Maps redirect: ${url.href} → ${fullUrl.href}`)
+    } else if (!isAlreadyFull) {
+      // Unknown maps URL format — try following anyway
+      try {
+        const res = await fetch(url.href, { redirect: "follow", signal: AbortSignal.timeout(5000) })
+        if (res.url !== url.href) fullUrl = new URL(res.url)
+      } catch { /* use original */ }
     }
 
-    // Extract place name from path: /maps/place/PLACE+NAME/@LAT,LNG,...
-    const pathMatch = fullUrl.pathname.match(/\/maps\/place\/([^/@]+)/)
-    const placeName = pathMatch ? decodeURIComponent(pathMatch[1]).replace(/\+/g, " ") : null
+    // Step 2: Parse the URL (NEVER parse HTML)
+    const { placeName, lat, lng, searchQuery } = parseGoogleMapsUrl(fullUrl)
 
-    // Extract coordinates: @LAT,LNG,ZOOM
-    const coordMatch = fullUrl.pathname.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*),/)
-    const lat = coordMatch ? parseFloat(coordMatch[1]) : null
-    const lng = coordMatch ? parseFloat(coordMatch[2]) : null
+    // Step 3: Build title
+    let title: string
+    if (placeName) {
+      title = placeName
+    } else if (searchQuery) {
+      title = searchQuery
+    } else {
+      title = "Google Maps location"
+    }
 
-    if (!placeName && !lat) return null
-
-    // Build thumbnail from Google Static Maps (if we have coords and API key)
-    let image: string | null = null
-    const apiKey = Deno.env.get("GOOGLE_API_KEY")
-    if (lat && lng && apiKey) {
-      image = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=15&size=400x200&key=${apiKey}`
+    // Step 4: Build description with coordinates
+    let description = "Place on Google Maps"
+    if (lat !== null && lng !== null) {
+      description = `${lat.toFixed(6)}, ${lng.toFixed(6)}`
     }
 
     return {
-      title: placeName ?? "Google Maps Location",
-      image,
-      description: lat && lng ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : "Place on Google Maps",
+      title,
+      image: null, // Thumbnail comes from enrichment pipeline, not here
+      description,
       site_name: "Google Maps",
-      url: fullUrl.href,
+      url: originalUrl,
     }
   } catch (err) {
     console.log(`[extract-metadata] Google Maps handler failed: ${err}`)
-    return null
+    // Do NOT fall back to generic OG — Maps HTML is useless
+    return {
+      title: "Google Maps location",
+      image: null,
+      description: "Place on Google Maps",
+      site_name: "Google Maps",
+      url: url.href,
+    }
   }
 }
 
@@ -455,6 +577,244 @@ const HANDLER_REGISTRY: Array<{ match: (url: URL) => boolean; handler: Handler }
 ]
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GOOGLE PLACES ENRICHMENT
+// ══════════════════════════════════════════════════════════════════════════════
+
+const PLACES_CATEGORY_MAP: Record<string, string> = {
+  restaurant: "restaurant", cafe: "restaurant", bar: "restaurant",
+  bakery: "restaurant", meal_takeaway: "restaurant", food: "restaurant",
+  tourist_attraction: "activity", museum: "activity", art_gallery: "activity",
+  park: "activity", natural_feature: "activity", point_of_interest: "activity",
+  lodging: "hotel", hotel: "hotel", hostel: "hotel", motel: "hotel",
+  hiking_area: "activity", ski_resort: "activity", stadium: "activity",
+  gym: "activity", campground: "activity",
+}
+
+function mapPlaceTypes(types: string[]): string {
+  for (const t of types) {
+    const mapped = PLACES_CATEGORY_MAP[t]
+    if (mapped) return mapped
+  }
+  return "general"
+}
+
+/** Should we attempt enrichment for this result? */
+function shouldEnrich(result: MetadataResult, isGoogleMaps: boolean): boolean {
+  // Google Maps: always enrich
+  if (isGoogleMaps) return true
+
+  const title = result.title
+  if (!title || title.length > 60) return false
+
+  // Skip headlines / listicle titles
+  const headline = /^(?:\d+\s|best\s|top\s|guide\sto|how\sto|worst\s|most\s|amazing\s|ultimate\s)/i
+  if (headline.test(title)) return false
+
+  // Skip very generic titles
+  if (title.length < 3) return false
+
+  return true
+}
+
+/** Detect source platform from URL hostname. */
+function detectPlatform(url: URL): string | null {
+  const h = url.hostname.replace(/^www\./, "").replace(/^m\./, "").replace(/^mobile\./, "")
+  if (h === "youtube.com" || h === "youtu.be") return "youtube"
+  if (h === "instagram.com") return "instagram"
+  if (h === "tiktok.com" || h === "vm.tiktok.com") return "tiktok"
+  if (h === "twitter.com" || h === "x.com" || h === "t.co") return "x"
+  if (h.startsWith("pinterest.") || h === "pin.it") return "pinterest"
+  if (h === "reddit.com" || h === "old.reddit.com" || h === "redd.it") return "reddit"
+  if (h.includes("google.") && url.pathname.includes("/maps")) return "google_maps"
+  return null
+}
+
+interface EnrichmentResult {
+  title: string
+  image: string | null
+  category: string
+  latitude: number
+  longitude: number
+  formatted_address: string
+  place_id: string
+  photo_attribution: string | null
+  rating: number | null
+}
+
+/** Generate a cache key from place name + approximate coordinates. */
+async function generateQueryHash(placeName: string, lat: number | null, lng: number | null): Promise<string> {
+  const normalized = placeName.toLowerCase().trim()
+  const key = lat !== null && lng !== null
+    ? `${normalized}|${lat.toFixed(2)}|${lng.toFixed(2)}`
+    : normalized
+  const encoded = new TextEncoder().encode(key)
+  const hashBuffer = await crypto.subtle.digest("SHA-256", encoded)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("")
+}
+
+/** Get admin Supabase client for cache operations. */
+function getAdminClient() {
+  const url = Deno.env.get("SUPABASE_URL")
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+  if (!url || !key) return null
+  return createClient(url, key)
+}
+
+async function enrichWithGooglePlaces(
+  placeName: string,
+  lat: number | null,
+  lng: number | null,
+  knownPlaceId?: string | null,
+): Promise<EnrichmentResult | null> {
+  const apiKey = Deno.env.get("GOOGLE_API_KEY")
+  if (!apiKey) {
+    console.log("[enrichment] No GOOGLE_API_KEY — skipping")
+    return null
+  }
+
+  const admin = getAdminClient()
+
+  try {
+    // ── Cache check ──
+    if (admin) {
+      // 1. Check by query_hash
+      const queryHash = await generateQueryHash(placeName, lat, lng)
+      const { data: cached } = await admin
+        .from("place_enrichment_cache")
+        .select("*")
+        .eq("query_hash", queryHash)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle()
+
+      if (cached) {
+        console.log(`[enrichment] Cache HIT (query_hash) for "${placeName}" → "${cached.place_name}"`)
+        return {
+          title: cached.place_name,
+          image: cached.photo_url,
+          category: cached.category ?? "general",
+          latitude: cached.latitude,
+          longitude: cached.longitude,
+          formatted_address: cached.formatted_address ?? "",
+          place_id: cached.place_id ?? "",
+          photo_attribution: cached.photo_attribution,
+          rating: cached.rating,
+        }
+      }
+
+      // 2. Check by place_id (if known from platform handler, e.g. Google Maps URL)
+      if (knownPlaceId) {
+        const { data: pidCached } = await admin
+          .from("place_enrichment_cache")
+          .select("*")
+          .eq("place_id", knownPlaceId)
+          .gt("expires_at", new Date().toISOString())
+          .maybeSingle()
+
+        if (pidCached) {
+          console.log(`[enrichment] Cache HIT (place_id) for ${knownPlaceId} → "${pidCached.place_name}"`)
+          return {
+            title: pidCached.place_name,
+            image: pidCached.photo_url,
+            category: pidCached.category ?? "general",
+            latitude: pidCached.latitude,
+            longitude: pidCached.longitude,
+            formatted_address: pidCached.formatted_address ?? "",
+            place_id: pidCached.place_id ?? "",
+            photo_attribution: pidCached.photo_attribution,
+            rating: pidCached.rating,
+          }
+        }
+      }
+    }
+
+    // ── Cache miss — call Google Places API ──
+    let textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(placeName)}&key=${apiKey}`
+    if (lat !== null && lng !== null) {
+      textSearchUrl += `&location=${lat},${lng}&radius=5000`
+    }
+
+    console.log(`[enrichment] Cache MISS — Text Search for: "${placeName}"`)
+    const searchRes = await fetch(textSearchUrl, { signal: AbortSignal.timeout(8000) })
+    if (!searchRes.ok) {
+      console.log(`[enrichment] Text Search failed: HTTP ${searchRes.status}`)
+      return null
+    }
+
+    const searchData = await searchRes.json() as {
+      results?: Array<{
+        name?: string
+        formatted_address?: string
+        geometry?: { location?: { lat: number; lng: number } }
+        place_id?: string
+        types?: string[]
+        rating?: number
+        photos?: Array<{ photo_reference: string; html_attributions?: string[] }>
+      }>
+      status?: string
+    }
+
+    if (!searchData.results?.length) {
+      console.log(`[enrichment] No results for "${placeName}"`)
+      return null
+    }
+
+    const place = searchData.results[0]
+    if (!place.name || !place.geometry?.location || !place.place_id) return null
+
+    // Get photo
+    let image: string | null = null
+    let photoAttribution: string | null = null
+    if (place.photos?.length) {
+      const photoRef = place.photos[0].photo_reference
+      image = `https://maps.googleapis.com/maps/api/place/photo?photoreference=${photoRef}&maxwidth=800&key=${apiKey}`
+      photoAttribution = place.photos[0].html_attributions?.join(", ") ?? null
+    }
+
+    console.log(`[enrichment] Found: "${place.name}" (${place.place_id})`)
+
+    const result: EnrichmentResult = {
+      title: place.name,
+      image,
+      category: mapPlaceTypes(place.types ?? []),
+      latitude: place.geometry.location.lat,
+      longitude: place.geometry.location.lng,
+      formatted_address: place.formatted_address ?? "",
+      place_id: place.place_id,
+      photo_attribution: photoAttribution,
+      rating: place.rating ?? null,
+    }
+
+    // ── Write to cache ──
+    if (admin) {
+      const queryHash = await generateQueryHash(placeName, lat, lng)
+      admin.from("place_enrichment_cache").upsert({
+        query_hash: queryHash,
+        place_id: place.place_id,
+        place_name: place.name,
+        category: result.category,
+        latitude: result.latitude,
+        longitude: result.longitude,
+        formatted_address: result.formatted_address,
+        photo_url: image,
+        photo_attribution: photoAttribution,
+        rating: result.rating,
+        place_types: place.types ?? [],
+        expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      }, { onConflict: "query_hash" }).then(({ error }) => {
+        if (error) console.log(`[enrichment] Cache write failed: ${error.message}`)
+        else console.log(`[enrichment] Cached: "${place.name}" (${queryHash.slice(0, 12)}...)`)
+      })
+    }
+
+    return result
+  } catch (err) {
+    console.log(`[enrichment] Error: ${err}`)
+    return null
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
 // GENERIC OG EXTRACTION (existing logic, preserved)
 // ══════════════════════════════════════════════════════════════════════════════
 
@@ -626,24 +986,64 @@ Deno.serve(async (req) => {
     console.log(`[extract-metadata] START url=${parsedUrl.href}`)
 
     // ── Try platform-specific handlers first ──
+    let result: MetadataResult | null = null
+    let handlerMatched = false
+    const isGoogleMaps = parsedUrl.hostname.replace(/^www\./, "").includes("google") && parsedUrl.pathname.includes("/maps") ||
+      parsedUrl.hostname === "goo.gl" || parsedUrl.hostname === "maps.app.goo.gl"
+
     for (const { match, handler } of HANDLER_REGISTRY) {
       if (match(parsedUrl)) {
         console.log(`[extract-metadata] Matched platform handler for ${parsedUrl.hostname}`)
-        const result = await handler(parsedUrl)
-        if (result) {
-          console.log(`[extract-metadata] Platform handler result: ${JSON.stringify(result)}`)
-          return new Response(JSON.stringify(result), {
-            status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          })
-        }
-        console.log(`[extract-metadata] Platform handler returned null, falling back to generic`)
+        result = await handler(parsedUrl)
+        handlerMatched = true
+        if (result) console.log(`[extract-metadata] Platform handler result: ${JSON.stringify(result)}`)
+        else console.log(`[extract-metadata] Platform handler returned null`)
         break
       }
     }
 
-    // ── Fall back to generic OG extraction ──
-    const result = await genericOgExtraction(parsedUrl, url)
-    console.log(`[extract-metadata] RESULT ${JSON.stringify(result)}`)
+    // Fall back to generic OG extraction
+    if (!result) {
+      result = await genericOgExtraction(parsedUrl, url)
+    }
+
+    // ── Google Places enrichment ──
+    if (result.title && shouldEnrich(result, isGoogleMaps)) {
+      console.log(`[extract-metadata] Attempting enrichment for "${result.title}"`)
+      const enriched = await enrichWithGooglePlaces(
+        result.title,
+        (result as Record<string, unknown>).latitude as number | null ?? null,
+        (result as Record<string, unknown>).longitude as number | null ?? null,
+      )
+
+      if (enriched) {
+        const platform = detectPlatform(parsedUrl)
+        // Demote original metadata to source attribution
+        result = {
+          ...result,
+          // Place becomes hero
+          title: enriched.title,
+          image: enriched.image ?? result.image, // Places photo or keep platform thumbnail
+          description: enriched.formatted_address || result.description,
+          // Enrichment fields
+          enriched: true,
+          place_id: enriched.place_id,
+          latitude: enriched.latitude,
+          longitude: enriched.longitude,
+          formatted_address: enriched.formatted_address,
+          category: enriched.category,
+          photo_attribution: enriched.photo_attribution,
+          rating: enriched.rating,
+          // Source attribution (original platform data)
+          source_title: result.title !== enriched.title ? result.title : undefined,
+          source_thumbnail: result.image !== enriched.image ? result.image : undefined,
+          source_platform: platform ?? undefined,
+        }
+        console.log(`[extract-metadata] Enriched: "${enriched.title}" (${enriched.place_id})`)
+      }
+    }
+
+    console.log(`[extract-metadata] FINAL RESULT ${JSON.stringify(result)}`)
 
     return new Response(JSON.stringify(result), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -163,14 +163,43 @@ describe('Reddit thumbnail validation', () => {
 
 // ── Google Maps URL parsing ──────────────────────────────────────────────────
 
-function parseGoogleMapsUrl(urlStr: string): { placeName: string | null; lat: number | null; lng: number | null } {
+function parseGoogleMapsUrl(urlStr: string): {
+  placeName: string | null; lat: number | null; lng: number | null; searchQuery: string | null
+} {
   const url = new URL(urlStr)
-  const pathMatch = url.pathname.match(/\/maps\/place\/([^/@]+)/)
-  const placeName = pathMatch ? decodeURIComponent(pathMatch[1]).replace(/\+/g, ' ') : null
-  const coordMatch = url.pathname.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*),/)
-  const lat = coordMatch ? parseFloat(coordMatch[1]) : null
-  const lng = coordMatch ? parseFloat(coordMatch[2]) : null
-  return { placeName, lat, lng }
+  const fullPath = url.pathname + url.search + url.hash
+
+  const placeMatch = url.pathname.match(/\/maps\/place\/([^/@]+)/)
+  const placeName = placeMatch ? decodeURIComponent(placeMatch[1]).replace(/\+/g, ' ') : null
+
+  const searchMatch = url.pathname.match(/\/maps\/search\/([^/@]+)/)
+  const searchQuery = searchMatch ? decodeURIComponent(searchMatch[1]).replace(/\+/g, ' ') : null
+
+  // Prefer !3d/!4d (precise) over @lat,lng
+  let lat: number | null = null
+  let lng: number | null = null
+
+  const d3Match = fullPath.match(/!3d(-?\d+\.?\d*)/)
+  const d4Match = fullPath.match(/!4d(-?\d+\.?\d*)/)
+  if (d3Match && d4Match) {
+    lat = parseFloat(d3Match[1])
+    lng = parseFloat(d4Match[1])
+  }
+
+  if (lat === null || lng === null) {
+    const atMatch = url.pathname.match(/@(-?\d+\.?\d*),(-?\d+\.?\d*),/)
+    if (atMatch) { lat = parseFloat(atMatch[1]); lng = parseFloat(atMatch[2]) }
+  }
+
+  if (lat === null || lng === null) {
+    const q = url.searchParams.get('q')
+    if (q) {
+      const qMatch = q.match(/^(-?\d+\.?\d*),(-?\d+\.?\d*)$/)
+      if (qMatch) { lat = parseFloat(qMatch[1]); lng = parseFloat(qMatch[2]) }
+    }
+  }
+
+  return { placeName, lat, lng, searchQuery }
 }
 
 describe('Google Maps URL parsing', () => {
@@ -179,20 +208,46 @@ describe('Google Maps URL parsing', () => {
     expect(result.placeName).toBe('Tokyo Tower')
   })
 
-  it('extracts coordinates', () => {
+  it('extracts @coordinates from path', () => {
     const result = parseGoogleMapsUrl('https://www.google.com/maps/place/Tokyo/@35.6762,139.6503,12z/')
     expect(result.lat).toBeCloseTo(35.6762)
     expect(result.lng).toBeCloseTo(139.6503)
   })
 
-  it('handles URL-encoded names', () => {
+  it('prefers !3d/!4d coordinates over @coordinates', () => {
+    const url = 'https://www.google.com/maps/place/O.POism/@25.0486639,121.5317676,13.17z/data=!4m6!3m5!1s0x3442a95c7bb723fb:0x2005bb51f3950be3!8m2!3d25.0531487!4d121.5216036!16s'
+    const result = parseGoogleMapsUrl(url)
+    expect(result.lat).toBeCloseTo(25.0531487, 4) // From !3d
+    expect(result.lng).toBeCloseTo(121.5216036, 4) // From !4d
+  })
+
+  it('handles URL-encoded names (Chinese characters)', () => {
+    const url = 'https://www.google.com/maps/place/O.POism+%E5%8F%B0%E5%8C%97%E4%B8%AD%E5%B1%B1%E5%BA%97/@25.0486639,121.5317676,13.17z/'
+    const result = parseGoogleMapsUrl(url)
+    expect(result.placeName).toBe('O.POism 台北中山店')
+  })
+
+  it('handles URL-encoded names (accented characters)', () => {
     const result = parseGoogleMapsUrl('https://www.google.com/maps/place/Caf%C3%A9+de+Flore/@48.854,2.332,17z/')
     expect(result.placeName).toBe('Café de Flore')
   })
 
-  it('returns nulls for non-place Maps URLs', () => {
+  it('extracts search query from /maps/search/', () => {
+    const result = parseGoogleMapsUrl('https://www.google.com/maps/search/best+ramen+tokyo/@35.68,139.69,12z/')
+    expect(result.searchQuery).toBe('best ramen tokyo')
+    expect(result.placeName).toBeNull()
+  })
+
+  it('extracts coordinates from ?q= parameter', () => {
+    const result = parseGoogleMapsUrl('https://www.google.com/maps?q=35.6762,139.6503')
+    expect(result.lat).toBeCloseTo(35.6762)
+    expect(result.lng).toBeCloseTo(139.6503)
+  })
+
+  it('returns nulls for coordinate-only URLs (no place name)', () => {
     const result = parseGoogleMapsUrl('https://www.google.com/maps/@35.6762,139.6503,12z/')
     expect(result.placeName).toBeNull()
-    expect(result.lat).toBeCloseTo(35.6762) // coords still extractable
+    expect(result.searchQuery).toBeNull()
+    expect(result.lat).toBeCloseTo(35.6762)
   })
 })

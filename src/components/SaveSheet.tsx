@@ -19,6 +19,18 @@ interface Metadata {
   description: string | null
   site_name: string | null
   url: string
+  // Enrichment fields (from Google Places enrichment)
+  enriched?: boolean
+  place_id?: string
+  latitude?: number
+  longitude?: number
+  formatted_address?: string
+  category?: string
+  photo_attribution?: string
+  source_title?: string
+  source_thumbnail?: string
+  source_author?: string
+  source_platform?: string
 }
 
 const categoryPills: { value: Category; label: string }[] = [
@@ -377,6 +389,29 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       ...corePayload,
       location_name_en: location?.name_en ?? null,
       location_name_local: location?.name_local ?? null,
+      // Source attribution (when Google Places enrichment ran)
+      ...(metadata?.enriched ? {
+        source_title: metadata.source_title ?? null,
+        source_thumbnail: metadata.source_thumbnail ?? null,
+        source_author: metadata.source_author ?? null,
+        source_platform: metadata.source_platform ?? null,
+        enrichment_source: 'google_places',
+        photo_attribution: metadata.photo_attribution ?? null,
+      } : {}),
+    }
+
+    // If enrichment provided precise location data and user hasn't manually set location
+    if (metadata?.enriched && metadata.latitude && metadata.longitude && !location) {
+      extendedPayload.location_lat = metadata.latitude
+      extendedPayload.location_lng = metadata.longitude
+      extendedPayload.location_place_id = metadata.place_id ?? null
+      extendedPayload.location_precision = 'precise'
+      extendedPayload.location_name = metadata.formatted_address ?? null
+    }
+
+    // If enrichment provided a category and user hasn't selected one
+    if (metadata?.enriched && metadata.category && selectedTags.length === 0) {
+      extendedPayload.category = metadata.category
     }
 
     // Try with all columns first; fall back to core columns if a column doesn't exist

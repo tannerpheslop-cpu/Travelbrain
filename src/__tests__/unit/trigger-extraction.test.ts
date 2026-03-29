@@ -26,7 +26,14 @@ function makeItem(overrides: Partial<SavedItem> = {}): SavedItem {
     image_options: null, image_option_index: null,
     first_viewed_at: null, left_recent: false,
     location_locked: false, location_precision: null,
-    has_pending_extraction: false, created_at: new Date().toISOString(),
+    has_pending_extraction: false,
+    source_title: null,
+    source_thumbnail: null,
+    source_author: null,
+    source_platform: null,
+    enrichment_source: null,
+    photo_attribution: null,
+    created_at: new Date().toISOString(),
     ...overrides,
   }
 }
