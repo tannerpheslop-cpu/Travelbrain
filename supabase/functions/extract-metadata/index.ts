@@ -659,6 +659,41 @@ function isSpecificPlace(types: string[]): boolean {
   return hasSpecificType
 }
 
+/** Quick scan: does the text contain geographic keywords (countries, major cities)? */
+const GEO_KEYWORDS = new Set([
+  // Countries (EN)
+  "japan", "taiwan", "china", "korea", "thailand", "vietnam", "indonesia", "singapore",
+  "malaysia", "philippines", "cambodia", "laos", "myanmar", "nepal", "india", "sri lanka",
+  "mongolia", "turkey", "greece", "italy", "france", "spain", "portugal", "germany",
+  "switzerland", "austria", "iceland", "norway", "sweden", "denmark", "finland",
+  "united kingdom", "ireland", "mexico", "peru", "colombia", "brazil", "argentina", "chile",
+  "morocco", "egypt", "kenya", "tanzania", "south africa", "australia", "new zealand",
+  // Countries (CJK)
+  "台灣", "日本", "中國", "韓國", "泰國", "越南", "印尼", "新加坡", "馬來西亞",
+  "菲律賓", "柬埔寨", "印度", "尼泊爾", "蒙古", "土耳其", "希臘", "義大利", "法國",
+  "西班牙", "德國", "瑞士", "冰島", "挪威", "英國", "墨西哥", "祕魯", "巴西",
+  "摩洛哥", "埃及", "澳洲", "紐西蘭",
+  // Major cities (EN)
+  "tokyo", "osaka", "kyoto", "taipei", "beijing", "shanghai", "chengdu", "hong kong",
+  "bangkok", "seoul", "hanoi", "bali", "singapore", "paris", "london", "rome", "barcelona",
+  "new york", "los angeles", "sydney", "auckland",
+  // Major cities (CJK)
+  "東京", "大阪", "京都", "台北", "北京", "上海", "成都", "香港",
+  "曼谷", "首爾", "河內", "巴黎", "倫敦", "羅馬", "巴塞隆納", "雪梨",
+  // Geographic features
+  "mountain", "mount", "mt.", "lake", "river", "island", "beach", "volcano", "gorge",
+  "valley", "canyon", "falls", "peak", "trail",
+  "山", "湖", "河", "島", "海", "灣", "峰", "嶺", "溪", "瀑布", "谷",
+])
+
+function titleContainsGeography(title: string): boolean {
+  const lower = title.toLowerCase()
+  for (const keyword of GEO_KEYWORDS) {
+    if (lower.includes(keyword)) return true
+  }
+  return false
+}
+
 /** Should we attempt enrichment for this result? */
 function shouldEnrich(
   result: MetadataResult,
@@ -668,13 +703,14 @@ function shouldEnrich(
   // Google Maps: always enrich
   if (isGoogleMaps) return true
 
-  // Non-Maps: enrich only if location detection found something
-  if (!hasDetectedLocation) return false
-
-  // Must have a title to extract keywords from
+  // Must have a title
   if (!result.title || result.title.length < 3) return false
 
-  return true
+  // Enrich if: coordinates available OR title contains geographic keywords
+  if (hasDetectedLocation) return true
+  if (titleContainsGeography(result.title)) return true
+
+  return false
 }
 
 /** Detect source platform from URL hostname. */
@@ -1073,12 +1109,14 @@ Deno.serve(async (req) => {
     }
 
     // ── Google Places enrichment ──
-    // Determine if location was detected (from platform handler or title analysis)
     const resultLat = (result as Record<string, unknown>).latitude as number | null ?? null
     const resultLng = (result as Record<string, unknown>).longitude as number | null ?? null
     const hasDetectedLocation = (resultLat !== null && resultLng !== null) || isGoogleMaps
+    const hasGeoTitle = result.title ? titleContainsGeography(result.title) : false
+    const willEnrich = result.title ? shouldEnrich(result, isGoogleMaps, hasDetectedLocation) : false
+    console.log(`[AUDIT] hasDetectedLocation=${hasDetectedLocation} hasGeoTitle=${hasGeoTitle} willEnrich=${willEnrich} isGoogleMaps=${isGoogleMaps} lat=${resultLat} lng=${resultLng} title="${result.title?.slice(0,60)}"`)
 
-    if (result.title && shouldEnrich(result, isGoogleMaps, hasDetectedLocation)) {
+    if (willEnrich) {
       // Extract place keywords from the title
       const keywords = extractPlaceKeywords(result.title)
       const query = keywords.length >= 2 ? keywords : result.title
