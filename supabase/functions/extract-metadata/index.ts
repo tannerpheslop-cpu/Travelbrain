@@ -1112,11 +1112,7 @@ Deno.serve(async (req) => {
     const resultLat = (result as Record<string, unknown>).latitude as number | null ?? null
     const resultLng = (result as Record<string, unknown>).longitude as number | null ?? null
     const hasDetectedLocation = (resultLat !== null && resultLng !== null) || isGoogleMaps
-    const hasGeoTitle = result.title ? titleContainsGeography(result.title) : false
-    const willEnrich = result.title ? shouldEnrich(result, isGoogleMaps, hasDetectedLocation) : false
-    console.log(`[AUDIT] hasDetectedLocation=${hasDetectedLocation} hasGeoTitle=${hasGeoTitle} willEnrich=${willEnrich} isGoogleMaps=${isGoogleMaps} lat=${resultLat} lng=${resultLng} title="${result.title?.slice(0,60)}"`)
-
-    if (willEnrich) {
+    if (result.title && shouldEnrich(result, isGoogleMaps, hasDetectedLocation)) {
       // Extract place keywords from the title
       const keywords = extractPlaceKeywords(result.title)
       const query = keywords.length >= 2 ? keywords : result.title
