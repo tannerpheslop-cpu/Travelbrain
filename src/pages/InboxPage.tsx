@@ -493,6 +493,25 @@ export default function InboxPage() {
       </div>
     )}
 
+    {/* ── Youji wordmark on the sky ── */}
+    <div style={{
+      position: 'fixed',
+      top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+      left: 16,
+      zIndex: 5,
+      pointerEvents: 'none',
+    }}>
+      <span style={{
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: 17,
+        fontWeight: 500,
+        color: '#b8c8e0',
+        letterSpacing: '0.5px',
+      }}>
+        youji
+      </span>
+    </div>
+
     {/* ── Stats overlay on the sky (just above the sheet) ── */}
     {items.length > 0 && (
       <div style={{
