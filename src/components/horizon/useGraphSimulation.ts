@@ -49,6 +49,8 @@ export interface UseGraphSimulationResult {
   simulatedEdges: GraphEdge[]
   isSettled: boolean
   addNode: (node: GraphNode) => void
+  /** Update the Y-axis bounding constraint. Nodes will drift to fill the new area. */
+  updateBounds: (newHeight: number) => void
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -154,6 +156,8 @@ export function useGraphSimulation({
   const simNodesRef = useRef<SimNode[]>([])
   const simEdgesRef = useRef<SimEdge[]>([])
   const prevPositionsRef = useRef<Map<string, { x: number; y: number }>>(loadPersistedPositions())
+  const boundsWidthRef = useRef(width)
+  const boundsHeightRef = useRef(height)
 
   // ── Create / update simulation ──
   useEffect(() => {
@@ -230,9 +234,12 @@ export function useGraphSimulation({
     }
     setIsSettled(skipAnimation)
 
+    boundsWidthRef.current = width
+    boundsHeightRef.current = height
+
     // Batched tick handler
     sim.on('tick', () => {
-      clampBounds(simNodesRef.current, width, height)
+      clampBounds(simNodesRef.current, boundsWidthRef.current, boundsHeightRef.current)
 
       cancelAnimationFrame(frameRef.current)
       frameRef.current = requestAnimationFrame(() => {
@@ -306,5 +313,18 @@ export function useGraphSimulation({
     setIsSettled(false)
   }, [width, height])
 
-  return { simulatedNodes, simulatedEdges, isSettled, addNode }
+  // ── Update bounds (responsive density) ──
+  const updateBounds = useCallback((newHeight: number) => {
+    const sim = simRef.current
+    if (!sim) return
+    boundsHeightRef.current = newHeight
+    // Update center force to the new center
+    sim.force('center', forceCenter<SimNode>(boundsWidthRef.current / 2, newHeight / 2)
+      .strength(GRAPH.CENTER_STRENGTH))
+    // Gentle reheat so nodes drift to new positions over ~500-800ms
+    sim.alpha(0.3).restart()
+    setIsSettled(false)
+  }, [])
+
+  return { simulatedNodes, simulatedEdges, isSettled, addNode, updateBounds }
 }

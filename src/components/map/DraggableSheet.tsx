@@ -363,6 +363,7 @@ export default function DraggableSheet({
           overflowY: 'auto',
           overflowX: 'hidden',
           overscrollBehavior: 'contain',
+          overscrollBehaviorX: 'none',
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-y',
         }}
