@@ -145,13 +145,13 @@ function parseGoogleMapsUrl(fullUrl: URL): {
 
 /** Follow redirects manually (up to 5 hops) for Google Maps short links. */
 async function resolveGoogleMapsRedirect(url: URL): Promise<URL> {
-  let current = url
+  let current = stripGoogleTrackingParams(url)
   for (let i = 0; i < 5; i++) {
     try {
       const res = await fetch(current.href, {
         redirect: "manual",
         signal: AbortSignal.timeout(5000),
-        headers: { "User-Agent": "Mozilla/5.0 (compatible; Youji/1.0)" },
+        headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
       })
       const location = res.headers.get("location")
       if (!location || res.status < 300 || res.status >= 400) {
@@ -169,6 +169,16 @@ async function resolveGoogleMapsRedirect(url: URL): Promise<URL> {
   return current
 }
 
+/** Strip Google tracking parameters from short URLs before redirect. */
+function stripGoogleTrackingParams(url: URL): URL {
+  const trackingParams = ['g_st', 'g_ep', 'entry', 'shorturl', 'skid']
+  const cleaned = new URL(url.href)
+  for (const param of trackingParams) {
+    cleaned.searchParams.delete(param)
+  }
+  return cleaned
+}
+
 async function handleGoogleMaps(url: URL): Promise<MetadataResult | null> {
   try {
     const originalUrl = url.href
@@ -180,13 +190,16 @@ async function handleGoogleMaps(url: URL): Promise<MetadataResult | null> {
     const isAlreadyFull = url.pathname.includes("/maps/")
 
     if (needsRedirect) {
+      // Strip tracking params (g_st, g_ep, etc.) — they can cause wrong redirects
+      const cleanUrl = stripGoogleTrackingParams(url)
+
       // Try auto-follow first, then manual redirect loop as fallback
       try {
-        const res = await fetch(url.href, { redirect: "follow", signal: AbortSignal.timeout(5000) })
+        const res = await fetch(cleanUrl.href, { redirect: "follow", signal: AbortSignal.timeout(5000) })
         fullUrl = new URL(res.url)
       } catch {
         // Auto-follow failed — try manual redirect loop
-        fullUrl = await resolveGoogleMapsRedirect(url)
+        fullUrl = await resolveGoogleMapsRedirect(cleanUrl)
       }
       console.log(`[extract-metadata] Maps redirect: ${url.href} → ${fullUrl.href}`)
     } else if (!isAlreadyFull) {
