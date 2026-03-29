@@ -213,7 +213,38 @@ async function resolveGoogleMapsShortLink(url: URL): Promise<URL> {
     } catch { break }
   }
 
-  console.log(`[extract-metadata] Maps short link could not be resolved server-side: ${url.href}`)
+  // Strategy 4: Use the Cloud Run headless browser resolver
+  // Firebase Dynamic Links require JS execution — only a real browser can resolve them
+  const resolverEndpoint = Deno.env.get("URL_RESOLVER_ENDPOINT")
+  const resolverKey = Deno.env.get("URL_RESOLVER_API_KEY")
+  if (resolverEndpoint) {
+    try {
+      console.log(`[extract-metadata] Calling headless resolver for: ${url.href}`)
+      const res = await fetch(`${resolverEndpoint}/resolve`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(resolverKey ? { "x-api-key": resolverKey } : {}),
+        },
+        body: JSON.stringify({ url: url.href }),
+        signal: AbortSignal.timeout(15000), // resolver has its own 10s timeout + overhead
+      })
+      const body = await res.text()
+      console.log(`[extract-metadata] Headless resolver response: status=${res.status} body=${body.substring(0, 500)}`)
+      if (res.ok) {
+        const data = JSON.parse(body) as { success: boolean; resolved_url?: string; error?: string }
+        if (data.success && data.resolved_url && data.resolved_url.includes("/maps/")) {
+          console.log(`[extract-metadata] Headless resolver succeeded: ${data.resolved_url}`)
+          return new URL(data.resolved_url)
+        }
+        console.log(`[extract-metadata] Headless resolver returned non-maps URL or failure: ${data.resolved_url ?? data.error}`)
+      }
+    } catch (e) {
+      console.log(`[extract-metadata] Headless resolver error: ${e}`)
+    }
+  }
+
+  console.log(`[extract-metadata] Maps short link could not be resolved: ${url.href}`)
   return url
 }
 
