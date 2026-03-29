@@ -598,20 +598,81 @@ function mapPlaceTypes(types: string[]): string {
   return "general"
 }
 
+// ── Filler word lists for keyword extraction ─────────────────────────────────
+
+const EN_FILLER = new Set([
+  "epic", "best", "amazing", "ultimate", "guide", "top", "vlog", "trip", "travel",
+  "day", "days", "we", "i", "my", "our", "the", "a", "an", "to", "in", "at", "of",
+  "for", "how", "what", "why", "watch", "must", "see", "visit", "try", "go", "went",
+  "this", "that", "it", "so", "very", "really", "just", "got", "get", "most", "worst",
+  "part", "review", "tour", "exploring", "explore", "discovered", "finding", "found",
+])
+
+const CN_FILLER = new Set([
+  "我們", "我", "你", "最", "的", "了", "這", "那", "只為了", "為了", "拍", "上", "去",
+  "來", "很", "超", "真的", "終於", "竟然", "居然", "一定要", "好", "太", "又", "都",
+  "就", "也", "還", "在", "是", "有", "沒", "不", "吧", "嗎", "呢", "啊", "吃",
+])
+
+/** Strip filler words, emoji, and leading numbers/punctuation from a title. */
+function extractPlaceKeywords(title: string): string {
+  let cleaned = title
+    // Strip emoji
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, "")
+    // Strip leading numbers + punctuation ("10 Best..." → "Best...", "Day 3:" → "")
+    .replace(/^\d+[\.\)\-:\s]+/, "")
+    .trim()
+
+  // Strip English filler words
+  const enWords = cleaned.split(/\s+/).filter(w => {
+    const lower = w.toLowerCase().replace(/[^a-z]/g, "")
+    return lower.length > 0 && !EN_FILLER.has(lower)
+  })
+
+  // Strip Chinese filler (check each filler against the string)
+  let cnCleaned = cleaned
+  for (const filler of CN_FILLER) {
+    cnCleaned = cnCleaned.split(filler).join("")
+  }
+
+  // Use whichever approach produced more useful content
+  const enResult = enWords.join(" ").trim()
+  const cnResult = cnCleaned.replace(/[，。！？、：；\s]+/g, " ").trim()
+
+  // If the title is primarily CJK, prefer the CJK-cleaned version
+  const hasCJK = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\uac00-\ud7af]/.test(title)
+  const result = hasCJK ? cnResult : enResult
+
+  return result.length >= 2 ? result : ""
+}
+
+/** Check if a Places result is a specific POI (not a broad area like a city/country). */
+function isSpecificPlace(types: string[]): boolean {
+  const broadTypes = new Set([
+    "locality", "administrative_area_level_1", "administrative_area_level_2",
+    "administrative_area_level_3", "country", "continent", "sublocality",
+    "sublocality_level_1", "neighborhood", "postal_code", "political",
+    "geocode", "route", "colloquial_area",
+  ])
+  // If ALL types are broad, skip enrichment
+  const hasSpecificType = types.some(t => !broadTypes.has(t))
+  return hasSpecificType
+}
+
 /** Should we attempt enrichment for this result? */
-function shouldEnrich(result: MetadataResult, isGoogleMaps: boolean): boolean {
+function shouldEnrich(
+  result: MetadataResult,
+  isGoogleMaps: boolean,
+  hasDetectedLocation: boolean,
+): boolean {
   // Google Maps: always enrich
   if (isGoogleMaps) return true
 
-  const title = result.title
-  if (!title || title.length > 60) return false
+  // Non-Maps: enrich only if location detection found something
+  if (!hasDetectedLocation) return false
 
-  // Skip headlines / listicle titles
-  const headline = /^(?:\d+\s|best\s|top\s|guide\sto|how\sto|worst\s|most\s|amazing\s|ultimate\s)/i
-  if (headline.test(title)) return false
-
-  // Skip very generic titles
-  if (title.length < 3) return false
+  // Must have a title to extract keywords from
+  if (!result.title || result.title.length < 3) return false
 
   return true
 }
@@ -639,6 +700,7 @@ interface EnrichmentResult {
   place_id: string
   photo_attribution: string | null
   rating: number | null
+  place_types: string[]
 }
 
 /** Generate a cache key from place name + approximate coordinates. */
@@ -699,6 +761,7 @@ async function enrichWithGooglePlaces(
           place_id: cached.place_id ?? "",
           photo_attribution: cached.photo_attribution,
           rating: cached.rating,
+          place_types: Array.isArray(cached.place_types) ? cached.place_types : [],
         }
       }
 
@@ -723,6 +786,7 @@ async function enrichWithGooglePlaces(
             place_id: pidCached.place_id ?? "",
             photo_attribution: pidCached.photo_attribution,
             rating: pidCached.rating,
+            place_types: Array.isArray(pidCached.place_types) ? pidCached.place_types : [],
           }
         }
       }
@@ -783,6 +847,7 @@ async function enrichWithGooglePlaces(
       place_id: place.place_id,
       photo_attribution: photoAttribution,
       rating: place.rating ?? null,
+      place_types: place.types ?? [],
     }
 
     // ── Write to cache ──
@@ -1008,15 +1073,24 @@ Deno.serve(async (req) => {
     }
 
     // ── Google Places enrichment ──
-    if (result.title && shouldEnrich(result, isGoogleMaps)) {
-      console.log(`[extract-metadata] Attempting enrichment for "${result.title}"`)
+    // Determine if location was detected (from platform handler or title analysis)
+    const resultLat = (result as Record<string, unknown>).latitude as number | null ?? null
+    const resultLng = (result as Record<string, unknown>).longitude as number | null ?? null
+    const hasDetectedLocation = (resultLat !== null && resultLng !== null) || isGoogleMaps
+
+    if (result.title && shouldEnrich(result, isGoogleMaps, hasDetectedLocation)) {
+      // Extract place keywords from the title
+      const keywords = extractPlaceKeywords(result.title)
+      const query = keywords.length >= 2 ? keywords : result.title
+      console.log(`[extract-metadata] Attempting enrichment — query: "${query}" (from title: "${result.title}")`)
+
       const enriched = await enrichWithGooglePlaces(
-        result.title,
-        (result as Record<string, unknown>).latitude as number | null ?? null,
-        (result as Record<string, unknown>).longitude as number | null ?? null,
+        query,
+        resultLat,
+        resultLng,
       )
 
-      if (enriched) {
+      if (enriched && isSpecificPlace(enriched.place_types)) {
         const platform = detectPlatform(parsedUrl)
         // Demote original metadata to source attribution
         result = {
@@ -1040,6 +1114,8 @@ Deno.serve(async (req) => {
           source_platform: platform ?? undefined,
         }
         console.log(`[extract-metadata] Enriched: "${enriched.title}" (${enriched.place_id})`)
+      } else if (enriched) {
+        console.log(`[extract-metadata] Enrichment skipped — result is too broad (${enriched.place_types.join(", ")})`)
       }
     }
 
