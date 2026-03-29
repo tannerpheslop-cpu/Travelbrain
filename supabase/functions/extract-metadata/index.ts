@@ -86,6 +86,55 @@ async function handleYouTube(url: URL): Promise<MetadataResult | null> {
 // NEVER parse Google Maps page HTML — it's client-rendered and useless.
 // All data comes from the URL structure.
 
+/**
+ * Clean a raw place name extracted from a Google Maps URL path.
+ * Some URLs encode the full address: "104, Taiwan, Taipei City, Zhongshan District, Lane 16, ... O.POism 台北中山店"
+ * We want just the business/POI name, not the address.
+ *
+ * Strategy: if the string looks like an address (has commas + address keywords),
+ * extract the last meaningful segment (the business name is usually at the end).
+ * If we have coordinates, we'll rely on Google Places enrichment for the correct
+ * display name anyway — this just needs to be a reasonable title.
+ */
+function cleanGoogleMapsPlaceName(raw: string): string {
+  // If no commas, it's probably just a place name — return as-is
+  if (!raw.includes(',')) return raw.trim()
+
+  // Address indicators (case-insensitive)
+  const addressWords = /\b(road|rd|street|st|lane|section|district|city|county|province|region|floor|no\.|number|avenue|ave|boulevard|blvd|highway|hwy|alley|號)\b/i
+  const countryPattern = /\b(taiwan|japan|china|thailand|vietnam|korea|indonesia|malaysia|singapore|philippines|cambodia|india|usa|united states|uk|france|germany|italy|spain|australia)\b/i
+  const postalCode = /\b\d{3,6}\b/
+
+  const looksLikeAddress = addressWords.test(raw) || countryPattern.test(raw) || postalCode.test(raw)
+
+  if (!looksLikeAddress) return raw.trim()
+
+  // Split by comma and find the business name
+  // In Google Maps address strings, the business name is usually the LAST segment
+  // Example: "104, Taiwan, Taipei City, Zhongshan District, Lane 16, Section 2, Zhongshan N Rd, 9號O.POism 台北中山店"
+  const parts = raw.split(',').map(p => p.trim()).filter(Boolean)
+
+  // Walk backwards — find the first segment that doesn't look like a pure address component
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i]
+    // Skip if it's just a number, country, city, district, or road
+    if (/^\d+$/.test(part)) continue
+    if (countryPattern.test(part) && part.split(/\s+/).length <= 2) continue
+    if (/^(taipei|tokyo|hong kong|bangkok|shanghai|beijing|seoul|osaka|kyoto)\s*(city)?$/i.test(part)) continue
+    if (/district|province|county|region|prefecture/i.test(part) && !addressWords.test(part.replace(/district|province|county|region|prefecture/gi, ''))) continue
+
+    // This looks like it might contain the business name
+    // If it starts with an address number + the name, extract the name part
+    const nameFromNumbered = part.match(/^[\d\-]+號\s*(.+)/) ?? part.match(/^[\d\-]+\s+(.+)/)
+    if (nameFromNumbered) return nameFromNumbered[1].trim()
+
+    return part.trim()
+  }
+
+  // Couldn't isolate a name — return the last segment as best guess
+  return parts[parts.length - 1]?.trim() ?? raw.trim()
+}
+
 /** Parse a resolved Google Maps URL for place name, coordinates, and search query. */
 function parseGoogleMapsUrl(fullUrl: URL): {
   placeName: string | null
@@ -97,9 +146,11 @@ function parseGoogleMapsUrl(fullUrl: URL): {
 
   // 1. Place name from /maps/place/PLACE+NAME/...
   const placeMatch = fullUrl.pathname.match(/\/maps\/place\/([^/@]+)/)
-  const placeName = placeMatch
-    ? decodeURIComponent(placeMatch[1]).replace(/\+/g, " ")
-    : null
+  let placeName: string | null = null
+  if (placeMatch) {
+    const raw = decodeURIComponent(placeMatch[1]).replace(/\+/g, " ")
+    placeName = cleanGoogleMapsPlaceName(raw)
+  }
 
   // 2. Search query from /maps/search/QUERY/...
   const searchMatch = fullUrl.pathname.match(/\/maps\/search\/([^/@]+)/)
@@ -157,46 +208,12 @@ function parseGoogleMapsUrl(fullUrl: URL): {
 async function resolveGoogleMapsShortLink(url: URL): Promise<URL> {
   const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-  // Google Maps short links (maps.app.goo.gl) use Firebase Dynamic Links.
-  // Server-side fetching returns a JS app page, not an HTTP redirect.
-  // Multiple strategies attempted; only some work depending on the link.
-
-  // Strategy 1: Auto-follow redirect (works for some short codes)
-  try {
-    const res = await fetch(url.href, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(5000),
-      headers: { "User-Agent": UA },
-    })
-    if (res.url && res.url !== url.href && res.url.includes("/maps/")) {
-      console.log(`[extract-metadata] Maps resolved via auto-follow: ${res.url}`)
-      return new URL(res.url)
-    }
-
-    // Strategy 2: Parse the HTML response for the Firebase DL destination
-    // The page contains WIZ_global_data with an encoded link, or a
-    // <link rel="canonical"> or og:url meta tag pointing to the Maps URL
-    const html = await res.text()
-
-    // Try og:url — Google sometimes embeds the destination in OG tags
-    const ogUrlMatch = html.match(/property="og:url"\s+content="([^"]+google[^"]*\/maps\/[^"]+)"/i)
-      ?? html.match(/content="([^"]+google[^"]*\/maps\/[^"]+)"\s+property="og:url"/i)
-    if (ogUrlMatch) {
-      console.log(`[extract-metadata] Maps resolved via og:url: ${ogUrlMatch[1]}`)
-      return new URL(decodeHtmlEntities(ogUrlMatch[1]))
-    }
-
-    // Try any embedded google.com/maps URL in the HTML
-    const extracted = extractRedirectFromHtml(html)
-    if (extracted) {
-      console.log(`[extract-metadata] Maps resolved via HTML extraction: ${extracted}`)
-      return new URL(extracted)
-    }
-  } catch { /* continue */ }
-
-  // Strategy 3: Manual redirect loop (handles multi-hop 301/302 chains)
+  // Tier 1: Manual redirect loop — follow 301/302 Location headers.
+  // This is the fastest path and works for desktop share links.
+  // We use manual mode because Deno's redirect:'follow' doesn't always
+  // report the final URL correctly for cross-origin redirects.
   let current = url
-  for (let i = 0; i < 5; i++) {
+  for (let hop = 0; hop < 8; hop++) {
     try {
       const res = await fetch(current.href, {
         redirect: "manual",
@@ -204,13 +221,36 @@ async function resolveGoogleMapsShortLink(url: URL): Promise<URL> {
         headers: { "User-Agent": UA },
       })
       const loc = res.headers.get("location")
-      if (!loc || res.status < 300 || res.status >= 400) break
-      current = new URL(loc, current.href)
-      if (current.href.includes("/maps/")) {
-        console.log(`[extract-metadata] Maps resolved via manual chain: ${current.href}`)
-        return current
+
+      if (loc && res.status >= 300 && res.status < 400) {
+        current = new URL(loc, current.href)
+        if (current.href.includes("google.com/maps") || current.href.includes("google.com.tw/maps")) {
+          console.log(`[extract-metadata] Maps resolved via redirect chain (${hop + 1} hops): ${current.href}`)
+          return current
+        }
+        continue // follow the next hop
       }
-    } catch { break }
+
+      // Got a 200 — check if Deno's res.url reveals the final destination
+      if (res.url && res.url !== current.href && res.url.includes("/maps/")) {
+        console.log(`[extract-metadata] Maps resolved via res.url: ${res.url}`)
+        return new URL(res.url)
+      }
+
+      // 200 with no redirect — this is the Firebase Dynamic Links page.
+      // Try to extract a Maps URL from the HTML body.
+      const html = await res.text()
+      const extracted = extractRedirectFromHtml(html)
+      if (extracted) {
+        console.log(`[extract-metadata] Maps resolved via HTML extraction: ${extracted}`)
+        return new URL(extracted)
+      }
+
+      // Tier 1 exhausted — no redirect, no Maps URL in HTML
+      break
+    } catch {
+      break
+    }
   }
 
   // Strategy 4: Use the Cloud Run headless browser resolver
