@@ -289,3 +289,55 @@ describe('Google Maps tracking param stripping', () => {
     expect(result).toBe('https://maps.app.goo.gl/ffAc3Vkgp4LLM7oj8')
   })
 })
+
+// ── Google Maps place name cleaning ──────────────────────────────────────────
+
+// Mirror the Edge Function's cleanGoogleMapsPlaceName for testing
+function cleanGoogleMapsPlaceName(raw: string): string {
+  if (!raw.includes(',')) return raw.trim()
+  const addressWords = /\b(road|rd|street|st|lane|section|district|city|county|province|region|floor|no\.|number|avenue|ave|boulevard|blvd|highway|hwy|alley|號)\b/i
+  const countryPattern = /\b(taiwan|japan|china|thailand|vietnam|korea|indonesia|malaysia|singapore|philippines|cambodia|india|usa|united states|uk|france|germany|italy|spain|australia)\b/i
+  const postalCode = /\b\d{3,6}\b/
+  const looksLikeAddress = addressWords.test(raw) || countryPattern.test(raw) || postalCode.test(raw)
+  if (!looksLikeAddress) return raw.trim()
+  const parts = raw.split(',').map(p => p.trim()).filter(Boolean)
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i]
+    if (/^\d+$/.test(part)) continue
+    if (countryPattern.test(part) && part.split(/\s+/).length <= 2) continue
+    if (/^(taipei|tokyo|hong kong|bangkok|shanghai|beijing|seoul|osaka|kyoto)\s*(city)?$/i.test(part)) continue
+    if (/district|province|county|region|prefecture/i.test(part) && !addressWords.test(part.replace(/district|province|county|region|prefecture/gi, ''))) continue
+    const nameFromNumbered = part.match(/^[\d\-]+號\s*(.+)/) ?? part.match(/^[\d\-]+\s+(.+)/)
+    if (nameFromNumbered) return nameFromNumbered[1].trim()
+    return part.trim()
+  }
+  return parts[parts.length - 1]?.trim() ?? raw.trim()
+}
+
+describe('Google Maps place name cleaning', () => {
+  it('returns simple names unchanged', () => {
+    expect(cleanGoogleMapsPlaceName('Tokyo Tower')).toBe('Tokyo Tower')
+  })
+
+  it('extracts business name from full address string', () => {
+    expect(cleanGoogleMapsPlaceName(
+      '104, Taiwan, Taipei City, Zhongshan District, Lane 16, Section 2, Zhongshan N Rd, 9號O.POism 台北中山店'
+    )).toBe('O.POism 台北中山店')
+  })
+
+  it('handles address with numbered prefix', () => {
+    expect(cleanGoogleMapsPlaceName(
+      'Japan, Tokyo, Shibuya, 1-2-3 Ichiran Ramen'
+    )).toBe('Ichiran Ramen')
+  })
+
+  it('returns name when no address indicators', () => {
+    expect(cleanGoogleMapsPlaceName('Café de Flore, Paris')).toBe('Café de Flore, Paris')
+  })
+
+  it('handles Chinese place names with address', () => {
+    expect(cleanGoogleMapsPlaceName(
+      'Taiwan, Taipei City, Da-an District, Section 4, Zhongxiao E Rd, 101號鼎泰豐'
+    )).toBe('鼎泰豐')
+  })
+})
