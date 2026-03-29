@@ -3,8 +3,8 @@ FROM ghcr.io/puppeteer/puppeteer:latest
 WORKDIR /app
 
 # Copy package files and install dependencies
-COPY package.json package-lock.json* ./
-RUN npm ci --production --ignore-scripts
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts
 
 # Copy application code
 COPY index.js ./
