@@ -106,6 +106,50 @@ function isSpecificPlace(types: string[]): boolean {
   return types.some(t => !broadTypes.has(t))
 }
 
+// ── Title geography detection ────────────────────────────────────────────────
+
+const GEO_KEYWORDS = new Set([
+  'japan', 'taiwan', 'china', 'korea', 'thailand', 'vietnam', 'tokyo', 'osaka',
+  'kyoto', 'taipei', 'beijing', 'shanghai', 'hong kong', 'bangkok', 'seoul',
+  'paris', 'london', 'rome', 'bali', 'mountain', 'mount', 'lake', 'island',
+  '台灣', '日本', '中國', '東京', '台北', '香港', '山', '湖', '島',
+])
+
+function titleContainsGeography(title: string): boolean {
+  const lower = title.toLowerCase()
+  for (const keyword of GEO_KEYWORDS) {
+    if (lower.includes(keyword)) return true
+  }
+  return false
+}
+
+describe('titleContainsGeography', () => {
+  it('detects English country name', () => {
+    expect(titleContainsGeography('Amazing Food in Thailand')).toBe(true)
+  })
+
+  it('detects Chinese country name', () => {
+    expect(titleContainsGeography('只為了拍台灣最美的桌布')).toBe(true)
+  })
+
+  it('detects Chinese geographic feature (山)', () => {
+    expect(titleContainsGeography('我們爬上合歡山頂')).toBe(true)
+  })
+
+  it('detects English city name', () => {
+    expect(titleContainsGeography('Best Ramen in Tokyo')).toBe(true)
+  })
+
+  it('detects "mountain" keyword', () => {
+    expect(titleContainsGeography('Hiking Mount Siguniang')).toBe(true)
+  })
+
+  it('returns false for non-geographic titles', () => {
+    expect(titleContainsGeography('My Morning Routine')).toBe(false)
+    expect(titleContainsGeography('How to Pack Light')).toBe(false)
+  })
+})
+
 describe('isSpecificPlace', () => {
   it('restaurant is specific', () => {
     expect(isSpecificPlace(['restaurant', 'food', 'point_of_interest', 'establishment'])).toBe(true)
