@@ -497,7 +497,7 @@ export default function InboxPage() {
     {items.length > 0 && (
       <div style={{
         position: 'fixed',
-        top: 'calc(50vh - 28px)',
+        top: 'calc(30vh - 24px)',
         left: 0,
         right: 0,
         zIndex: 5,
@@ -519,10 +519,10 @@ export default function InboxPage() {
       </div>
     )}
 
-    {/* ── Sheet layer: structured content (50% min, no peek) ── */}
+    {/* ── Sheet layer: structured content (50% min, 70% default, 100% full) ── */}
     <div style={{ position: 'fixed', inset: 0, zIndex: 10, pointerEvents: 'none' }}>
       <DraggableSheet
-        snapPoints={[0.5, 0.85, 0.85]}
+        snapPoints={[0.5, 0.7, 1.0]}
         initialSnap="half"
         header={<div style={{ height: 4 }} />}
       >
