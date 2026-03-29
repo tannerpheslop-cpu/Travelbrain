@@ -1,0 +1,14 @@
+{
+  "name": "youji-url-resolver",
+  "version": "1.0.0",
+  "description": "Headless browser URL resolver for short links (Google Maps, t.co, etc.)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "puppeteer": "^22.0.0"
+  }
+}

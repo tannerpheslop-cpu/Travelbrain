@@ -143,31 +143,110 @@ function parseGoogleMapsUrl(fullUrl: URL): {
   return { placeName, lat, lng, searchQuery }
 }
 
-/** Follow redirects manually (up to 5 hops) for Google Maps short links. */
-async function resolveGoogleMapsRedirect(url: URL): Promise<URL> {
-  let current = stripGoogleTrackingParams(url)
+/**
+ * Resolve a Google Maps short link to a full maps URL.
+ *
+ * Google short links (maps.app.goo.gl) may redirect via:
+ * 1. HTTP 301/302 with Location header — standard redirect
+ * 2. HTTP 200 with an HTML page containing a JS redirect — Google serves
+ *    an HTML page with window.location or a meta refresh when the runtime
+ *    doesn't look like a browser
+ *
+ * We handle both cases.
+ */
+async function resolveGoogleMapsShortLink(url: URL): Promise<URL> {
+  const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+  // Google Maps short links (maps.app.goo.gl) use Firebase Dynamic Links.
+  // Server-side fetching returns a JS app page, not an HTTP redirect.
+  // Multiple strategies attempted; only some work depending on the link.
+
+  // Strategy 1: Auto-follow redirect (works for some short codes)
+  try {
+    const res = await fetch(url.href, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(5000),
+      headers: { "User-Agent": UA },
+    })
+    if (res.url && res.url !== url.href && res.url.includes("/maps/")) {
+      console.log(`[extract-metadata] Maps resolved via auto-follow: ${res.url}`)
+      return new URL(res.url)
+    }
+
+    // Strategy 2: Parse the HTML response for the Firebase DL destination
+    // The page contains WIZ_global_data with an encoded link, or a
+    // <link rel="canonical"> or og:url meta tag pointing to the Maps URL
+    const html = await res.text()
+
+    // Try og:url — Google sometimes embeds the destination in OG tags
+    const ogUrlMatch = html.match(/property="og:url"\s+content="([^"]+google[^"]*\/maps\/[^"]+)"/i)
+      ?? html.match(/content="([^"]+google[^"]*\/maps\/[^"]+)"\s+property="og:url"/i)
+    if (ogUrlMatch) {
+      console.log(`[extract-metadata] Maps resolved via og:url: ${ogUrlMatch[1]}`)
+      return new URL(decodeHtmlEntities(ogUrlMatch[1]))
+    }
+
+    // Try any embedded google.com/maps URL in the HTML
+    const extracted = extractRedirectFromHtml(html)
+    if (extracted) {
+      console.log(`[extract-metadata] Maps resolved via HTML extraction: ${extracted}`)
+      return new URL(extracted)
+    }
+  } catch { /* continue */ }
+
+  // Strategy 3: Manual redirect loop (handles multi-hop 301/302 chains)
+  let current = url
   for (let i = 0; i < 5; i++) {
     try {
       const res = await fetch(current.href, {
         redirect: "manual",
         signal: AbortSignal.timeout(5000),
-        headers: { "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+        headers: { "User-Agent": UA },
       })
-      const location = res.headers.get("location")
-      if (!location || res.status < 300 || res.status >= 400) {
-        // If we got a 200 with a useful URL, use the final URL
-        if (res.url && res.url !== current.href) {
-          try { return new URL(res.url) } catch { /* use current */ }
-        }
+      const loc = res.headers.get("location")
+      if (!loc || res.status < 300 || res.status >= 400) break
+      current = new URL(loc, current.href)
+      if (current.href.includes("/maps/")) {
+        console.log(`[extract-metadata] Maps resolved via manual chain: ${current.href}`)
         return current
       }
-      current = new URL(location, current.href)
-    } catch {
-      return current // Return whatever we have on failure
-    }
+    } catch { break }
   }
-  return current
+
+  console.log(`[extract-metadata] Maps short link could not be resolved server-side: ${url.href}`)
+  return url
 }
+
+/**
+ * Extract a Google Maps URL from an HTML page that uses JS or meta redirect.
+ * Google short link pages embed the full URL in several places:
+ * - <meta http-equiv="refresh" content="0;url=...">
+ * - window.location = '...'
+ * - <a href="...">...</a> with a maps URL
+ */
+function extractRedirectFromHtml(html: string): string | null {
+  // Pattern 1: meta refresh
+  const metaMatch = html.match(/content=["'][^"']*url=(https?:\/\/[^"'\s>]+google[^"'\s>]*\/maps\/[^"'\s>]+)/i)
+  if (metaMatch) return decodeHtmlEntities(metaMatch[1])
+
+  // Pattern 2: window.location or location.href or location.replace
+  const jsMatch = html.match(/(?:window\.)?location(?:\.href)?\s*=\s*["'](https?:\/\/[^"']+google[^"']*\/maps\/[^"']+)/i)
+  if (jsMatch) return jsMatch[1]
+  const replaceMatch = html.match(/location\.replace\(["'](https?:\/\/[^"']+google[^"']*\/maps\/[^"']+)/i)
+  if (replaceMatch) return replaceMatch[1]
+
+  // Pattern 3: any href containing a full google maps URL
+  const hrefMatch = html.match(/href=["'](https?:\/\/(?:www\.)?google\.com\/maps\/[^"']+)/i)
+  if (hrefMatch) return decodeHtmlEntities(hrefMatch[1])
+
+  // Pattern 4: any google.com/maps URL anywhere in the HTML (broadest fallback)
+  const anyMatch = html.match(/(https?:\/\/(?:www\.)?google\.com\/maps\/place\/[^\s"'<>]+)/)
+  if (anyMatch) return decodeHtmlEntities(anyMatch[1])
+
+  return null
+}
+
+// decodeHtmlEntities defined below (shared with generic OG parser)
 
 /** Strip Google tracking parameters from short URLs before redirect. */
 function stripGoogleTrackingParams(url: URL): URL {
@@ -193,14 +272,7 @@ async function handleGoogleMaps(url: URL): Promise<MetadataResult | null> {
       // Strip tracking params (g_st, g_ep, etc.) — they can cause wrong redirects
       const cleanUrl = stripGoogleTrackingParams(url)
 
-      // Try auto-follow first, then manual redirect loop as fallback
-      try {
-        const res = await fetch(cleanUrl.href, { redirect: "follow", signal: AbortSignal.timeout(5000) })
-        fullUrl = new URL(res.url)
-      } catch {
-        // Auto-follow failed — try manual redirect loop
-        fullUrl = await resolveGoogleMapsRedirect(cleanUrl)
-      }
+      fullUrl = await resolveGoogleMapsShortLink(cleanUrl)
       console.log(`[extract-metadata] Maps redirect: ${url.href} → ${fullUrl.href}`)
     } else if (!isAlreadyFull) {
       // Unknown maps URL format — try following anyway
@@ -713,8 +785,11 @@ function shouldEnrich(
   isGoogleMaps: boolean,
   hasDetectedLocation: boolean,
 ): boolean {
-  // Google Maps: always enrich
-  if (isGoogleMaps) return true
+  // Google Maps: enrich only if we extracted a real place name (not fallback)
+  if (isGoogleMaps) {
+    const fallbacks = ["Google Maps location", "Place on Google Maps", "Google Maps"]
+    return !fallbacks.includes(result.title ?? "")
+  }
 
   // Must have a title
   if (!result.title || result.title.length < 3) return false
