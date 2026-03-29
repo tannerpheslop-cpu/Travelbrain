@@ -500,12 +500,6 @@ export default function TripsPage() {
     })
   }, [trips, loading, user, queryClient])
 
-  const totalCountries = useMemo(() => {
-    const codes = new Set<string>()
-    trips.forEach(t => t.trip_destinations?.forEach(d => { if (d.location_country_code) codes.add(d.location_country_code) }))
-    return codes.size
-  }, [trips])
-  const totalDests = useMemo(() => trips.reduce((s, t) => s + (t.trip_destinations?.length ?? 0), 0), [trips])
   // Global numbering: hero=01, then sequential across all carousels
   let globalNum = 2 // hero is 01
   const scheduledStart = globalNum; globalNum += grouped.scheduled.length
@@ -513,34 +507,27 @@ export default function TripsPage() {
   const aspirationalStart = globalNum
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', paddingBottom: 96, background: 'var(--color-deep-bg)', minHeight: '100vh' }}>
-      {/* ── Header ── */}
-      <div style={{ padding: '28px 20px 0' }}>
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 500, letterSpacing: 3, textTransform: 'uppercase' as const, color: 'var(--color-night-text-tertiary)', marginBottom: 4 }}>
-          youji 游记
-        </div>
-        <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: -0.5, margin: 0, color: 'var(--color-night-text-primary)' }}>Trips</h1>
-        {trips.length > 0 && (
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: 'var(--color-night-text-secondary)', marginTop: 5, display: 'flex', gap: 10 }}>
-            <span>{trips.length} trips</span>
-            <span style={{ color: 'var(--color-night-text-tertiary)' }}>·</span>
-            <span>{totalCountries} countries</span>
-            <span style={{ color: 'var(--color-night-text-tertiary)' }}>·</span>
-            <span>{totalDests} destinations</span>
-          </div>
-        )}
+    <div style={{ maxWidth: 860, margin: '0 auto', paddingBottom: 120, background: 'var(--color-deep-bg)', minHeight: '100vh', paddingTop: 'calc(12px + env(safe-area-inset-top))' }}>
+      {/* FAB — bottom-right, triggers trip creation */}
+      <div
+        className="fixed z-25 right-4 pointer-events-none"
+        style={{ bottom: 'calc(4rem + env(safe-area-inset-bottom) + 1rem)' }}
+      >
         <button
+          type="button"
           onClick={() => setShowModal(true)}
+          className="pointer-events-auto"
           style={{
-            marginTop: 14, padding: '9px 20px', fontSize: 13, fontWeight: 600,
-            border: 'none', borderRadius: 8, background: 'var(--color-copper)', color: 'white',
-            fontFamily: "'DM Sans', sans-serif", boxShadow: '0 1px 4px rgba(196,90,45,0.25)',
-            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+            width: 52, height: 52, borderRadius: '50%',
+            background: 'var(--color-copper)', color: 'white',
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 2px 12px rgba(196,90,45,0.3)',
           }}
+          aria-label="New trip"
         >
-          <Plus size={14} /> New trip
+          <Plus size={24} />
         </button>
-        <div style={{ height: 0.5, background: 'var(--color-surface-elevated)', margin: '18px 0 20px' }} />
       </div>
 
       {/* ── Loading ── */}

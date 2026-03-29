@@ -366,6 +366,10 @@ export default function DraggableSheet({
           overscrollBehaviorX: 'none',
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-y',
+          /* Bottom padding: ensures content stops above bottom nav + map edge.
+             calc: nav ~64px + safe-area + buffer. Using a generous fixed value
+             works for both short and long content without excessive empty space. */
+          paddingBottom: 'calc(80px + env(safe-area-inset-bottom))',
         }}
       >
         {children}
