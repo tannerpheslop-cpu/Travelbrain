@@ -7,6 +7,7 @@ import { detectUrl } from '../lib/urlDetect'
 import { detectCategoriesFromText } from '../lib/detectCategory'
 import { writeItemTags } from '../hooks/queries'
 import { useRapidCapture } from '../hooks/useRapidCapture'
+import { triggerMultiItemExtraction } from '../lib/triggerExtraction'
 import { MapPin, Loader2 } from 'lucide-react'
 import ImageWithFade from './ImageWithFade'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
@@ -439,6 +440,20 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     console.log('[SaveSheet] Calling onSaved for:', savedItem.id)
     onSaved(savedItem)
     console.log('[SaveSheet] onSaved completed')
+
+    // Fire-and-forget: multi-item extraction for URL saves
+    if (sourceType === 'url' && savedItem.source_url) {
+      // Get existing entry titles for duplicate detection
+      const { data: existingItems } = await supabase
+        .from('saved_items')
+        .select('title')
+        .eq('user_id', user.id)
+        .neq('id', savedItem.id)
+      const existingTitles = (existingItems ?? []).map((i: { title: string }) => i.title)
+      triggerMultiItemExtraction(savedItem, user.id, existingTitles).catch(
+        e => console.error('[extract-multi-items] trigger failed:', e),
+      )
+    }
 
     setSaving(false)
     setSaved(true)

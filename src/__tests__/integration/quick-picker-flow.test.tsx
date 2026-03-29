@@ -78,6 +78,7 @@ const needsLocationItem: SavedItem = {
   location_place_id: null, location_country: 'Japan', location_country_code: 'JP',
   location_name_en: null, location_name_local: null,
   location_locked: false, location_precision: 'city',
+  has_pending_extraction: false,
   category: 'restaurant' as Category, notes: null, tags: null,
   is_archived: false, image_display: 'none', image_source: null,
   image_credit_name: null, image_credit_url: null,

@@ -312,6 +312,33 @@ export function useTripLinkCounts(): Map<string, number> {
   }, [mappings])
 }
 
+/** Fetch pending extraction counts per source entry. Returns Map<entryId, itemCount>. */
+export function usePendingExtractionCounts(): Map<string, number> {
+  const { user } = useAuth()
+  const { data = [] } = useQuery({
+    queryKey: ['pending-extraction-counts', user?.id],
+    queryFn: async () => {
+      if (!user) return []
+      const { data, error } = await supabase
+        .from('pending_extractions')
+        .select('source_entry_id, extracted_items')
+        .eq('user_id', user.id)
+        .eq('status', 'pending')
+      if (error) throw error
+      return (data ?? []) as Array<{ source_entry_id: string; extracted_items: unknown[] }>
+    },
+    enabled: !!user,
+  })
+  return useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const row of data) {
+      const items = Array.isArray(row.extracted_items) ? row.extracted_items : []
+      counts.set(row.source_entry_id, items.length)
+    }
+    return counts
+  }, [data])
+}
+
 // ── Mutations ─────────────────────────────────────────────────────────────────
 
 /** Delete a saved item with cascading FK cleanup. */

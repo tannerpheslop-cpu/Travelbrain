@@ -4,12 +4,13 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import { useSavedItem, useDeleteItem, useItemTags, useAddTag, useRemoveTag, queryKeys } from '../hooks/queries'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQueryClient, useQuery } from '@tanstack/react-query'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { SecondaryButton, ConfirmDeleteModal } from '../components/ui'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
-import type { SavedItem, Category } from '../types'
+import type { SavedItem, Category, ExtractedItem } from '../types'
+import SelectionOverlay from '../components/SelectionOverlay'
 import { X } from 'lucide-react'
 
 const categoryPills: { value: Category; label: string }[] = [
@@ -38,6 +39,23 @@ export default function ItemDetailPage() {
   const addTagMutation = useAddTag()
   const removeTagMutation = useRemoveTag()
 
+  // Pending extraction for this item
+  const { data: pendingExtraction } = useQuery({
+    queryKey: ['pending-extraction', id],
+    queryFn: async () => {
+      if (!id) return null
+      const { data } = await supabase
+        .from('pending_extractions')
+        .select('id, extracted_items, content_type')
+        .eq('source_entry_id', id)
+        .eq('status', 'pending')
+        .maybeSingle()
+      return data as { id: string; extracted_items: unknown[]; content_type: string } | null
+    },
+    enabled: !!id,
+  })
+  const extractedCount = Array.isArray(pendingExtraction?.extracted_items) ? pendingExtraction!.extracted_items.length : 0
+
   // Editable fields
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<Category>('general')
@@ -52,6 +70,7 @@ export default function ItemDetailPage() {
   const [toast, setToast] = useState<string | null>(null)
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [showSelectionOverlay, setShowSelectionOverlay] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -109,6 +128,19 @@ export default function ItemDetailPage() {
         })
     }
   }, [itemData, id])
+
+  // Clear extraction badge on detail open
+  useEffect(() => {
+    if (itemData?.has_pending_extraction && id) {
+      supabase
+        .from('saved_items')
+        .update({ has_pending_extraction: false })
+        .eq('id', id)
+        .then(() => {
+          // Badge cleared — will disappear when user returns to Horizon
+        })
+    }
+  }, [itemData?.has_pending_extraction, id])
 
   // Auto-save with debounce
   const saveChanges = useCallback(async (updates: Partial<SavedItem>) => {
@@ -336,6 +368,37 @@ export default function ItemDetailPage() {
       ) : null}
 
       {/* Title */}
+      {/* Pending extraction banner */}
+      {pendingExtraction && extractedCount >= 2 && (
+        <div
+          data-testid="extraction-banner"
+          style={{
+            marginTop: 12,
+            padding: '12px 14px',
+            background: 'rgba(196, 90, 45, 0.08)',
+            borderRadius: 10,
+            border: '1px solid rgba(196, 90, 45, 0.15)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+          }}
+          onClick={() => setShowSelectionOverlay(true)}
+        >
+          <div>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: '#c45a2d', margin: 0 }}>
+              We found {extractedCount} items in this article
+            </p>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#888780', margin: '2px 0 0' }}>
+              Tap to review and save individually
+            </p>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: '#c45a2d' }}>
+            <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+      )}
+
       <input
         type="text"
         value={title}
@@ -373,6 +436,23 @@ export default function ItemDetailPage() {
           itemId={item.id}
           onClose={() => setShowTripSheet(false)}
           onAdded={(tripTitle) => handleToast(`Added to "${tripTitle}"`)}
+        />
+      )}
+
+      {/* Selection overlay for multi-item extraction */}
+      {showSelectionOverlay && pendingExtraction && item && user && (
+        <SelectionOverlay
+          extractionId={pendingExtraction.id}
+          sourceTitle={item.title}
+          sourceUrl={item.source_url ?? ''}
+          contentType={pendingExtraction.content_type as 'listicle' | 'itinerary' | 'guide'}
+          items={pendingExtraction.extracted_items as Array<ExtractedItem & { likely_duplicate?: boolean }>}
+          userId={user.id}
+          onClose={() => {
+            setShowSelectionOverlay(false)
+            // Refetch to update the banner
+            queryClient.invalidateQueries({ queryKey: ['pending-extraction', id] })
+          }}
         />
       )}
 

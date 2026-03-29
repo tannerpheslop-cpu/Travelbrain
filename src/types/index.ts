@@ -48,7 +48,30 @@ export interface SavedItem {
   left_recent: boolean
   location_locked: boolean
   location_precision: 'precise' | 'city' | 'country' | null
+  has_pending_extraction: boolean
   created_at: string
+}
+
+/** An extracted item from a URL (listicle, itinerary, guide). */
+export interface ExtractedItem {
+  name: string
+  category: Category
+  location_name: string | null
+  description: string | null
+  source_order: number
+}
+
+/** A pending extraction result awaiting user review. */
+export interface PendingExtraction {
+  id: string
+  user_id: string
+  source_entry_id: string
+  source_url: string
+  extracted_items: ExtractedItem[]
+  content_type: 'listicle' | 'itinerary' | 'guide'
+  status: 'pending' | 'reviewed' | 'expired'
+  created_at: string
+  expires_at: string
 }
 
 export type CoverImageSource = 'destination' | 'trip_name' | 'user_upload'

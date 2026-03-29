@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { useSavedItems, useTripsQuery, useTripItemMappings, useTripLinkCounts, useUserCustomTags, queryKeys, fetchTrips } from '../hooks/queries'
+import { useSavedItems, useTripsQuery, useTripItemMappings, useTripLinkCounts, usePendingExtractionCounts, useUserCustomTags, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
 import { useToast } from '../components/Toast'
 import PillSheet from '../components/PillSheet'
@@ -160,6 +160,7 @@ export default function InboxPage() {
 
   const { data: allTripItems = [] } = useTripItemMappings()
   const tripLinkCounts = useTripLinkCounts()
+  const extractionCounts = usePendingExtractionCounts()
 
   const loading = itemsLoading
   const error = itemsError ? 'Could not load your saves. Tap to retry.' : null
@@ -794,7 +795,7 @@ export default function InboxPage() {
             >
               {recentlyAdded.map((item) => (
                 <div key={item.id} style={{ width: 170, flexShrink: 0 }}>
-                  <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} eager showShimmer={!item.location_name && (Date.now() - new Date(item.created_at).getTime()) < 30000} />
+                  <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} extractionCount={extractionCounts.get(item.id)} eager showShimmer={!item.location_name && (Date.now() - new Date(item.created_at).getTime()) < 30000} />
                 </div>
               ))}
             </div>
@@ -802,7 +803,7 @@ export default function InboxPage() {
             /* List: vertical stack of compact rows */
             <div className="flex flex-col">
               {recentlyAdded.map((item) => (
-                <ListRow key={item.id} item={item} />
+                <ListRow key={item.id} item={item} extractionCount={extractionCounts.get(item.id)} />
               ))}
             </div>
           )}
@@ -911,13 +912,13 @@ export default function InboxPage() {
                 <div className="grid grid-cols-2" style={{ gap: 8 }}>
                   {group.items.map((item) => {
                     const idx = gridIndex++
-                    return <GridCard key={item.id} item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} eager={idx < 6} />
+                    return <GridCard key={item.id} item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} extractionCount={extractionCounts.get(item.id)} eager={idx < 6} />
                   })}
                 </div>
               ) : (
                 <div className="flex flex-col">
                   {group.items.map((item) => (
-                    <ListRow key={item.id} item={item} />
+                    <ListRow key={item.id} item={item} extractionCount={extractionCounts.get(item.id)} />
                   ))}
                 </div>
               )}
@@ -1000,11 +1001,13 @@ function GridCard({
   tripCount,
   eager,
   showShimmer,
+  extractionCount,
 }: {
   item: SavedItem
   tripCount: number
   eager?: boolean
   showShimmer?: boolean
+  extractionCount?: number
 }) {
   // Show image card if item has any image source:
   // 1. image_display is 'thumbnail' or 'featured' (backfilled)
@@ -1021,9 +1024,9 @@ function GridCard({
   const showImage = hasDirectImage || (item.image_display !== 'none' && hasImageSource)
 
   if (showImage) {
-    return <ImageCard item={item} tripCount={tripCount} eager={eager} showShimmer={showShimmer} />
+    return <ImageCard item={item} tripCount={tripCount} eager={eager} showShimmer={showShimmer} extractionCount={extractionCount} />
   }
-  return <TextCard item={item} tripCount={tripCount} showShimmer={showShimmer} />
+  return <TextCard item={item} tripCount={tripCount} showShimmer={showShimmer} extractionCount={extractionCount} />
 }
 
 // ─── Trip Count Pill (shared between card types) ─────────────────────────────
@@ -1064,6 +1067,27 @@ function TripCountPill({ count, variant }: { count: number; variant: 'image' | '
   )
 }
 
+// ─── Extraction Badge (pending multi-item extraction) ─────────────────────────
+
+function ExtractionBadge({ count }: { count: number }) {
+  if (count < 2) return null
+  return (
+    <span
+      data-testid="extraction-badge"
+      style={{
+        position: 'absolute', top: 6, right: 6, zIndex: 5,
+        background: '#c45a2d', color: '#fff',
+        fontFamily: "'JetBrains Mono', monospace",
+        fontSize: 10, fontWeight: 500,
+        padding: '2px 8px', borderRadius: 999,
+        whiteSpace: 'nowrap',
+      }}
+    >
+      +{count}
+    </span>
+  )
+}
+
 // ─── Location Shimmer (pending server-side detection) ─────────────────────────
 
 function LocationShimmer({ variant }: { variant: 'image' | 'text' }) {
@@ -1091,7 +1115,7 @@ function LocationShimmer({ variant }: { variant: 'image' | 'text' }) {
 
 // ─── Image Card (image_display = 'thumbnail') ────────────────────────────────
 
-function ImageCard({ item, tripCount, eager, showShimmer }: { item: SavedItem; tripCount: number; eager?: boolean; showShimmer?: boolean }) {
+function ImageCard({ item, tripCount, eager, showShimmer, extractionCount }: { item: SavedItem; tripCount: number; eager?: boolean; showShimmer?: boolean; extractionCount?: number }) {
   const city = item.location_name ? extractCity(item.location_name) : null
   const rawUrl = item.image_url ?? item.places_photo_url ?? null
   const [photoUrl, setPhotoUrl] = useState<string | null>(rawUrl)
@@ -1155,6 +1179,8 @@ function ImageCard({ item, tripCount, eager, showShimmer }: { item: SavedItem; t
         />
         {/* Trip count pill */}
         <TripCountPill count={tripCount} variant="image" />
+        {/* Extraction badge */}
+        {item.has_pending_extraction && <ExtractionBadge count={extractionCount ?? 0} />}
         {/* Content at bottom */}
         <div className="absolute bottom-0 left-0 right-0" style={{ padding: '8px 10px' }}>
           <p
@@ -1205,7 +1231,7 @@ function ImageCard({ item, tripCount, eager, showShimmer }: { item: SavedItem; t
 
 // ─── Text Card (image_display = 'none') ──────────────────────────────────────
 
-function TextCard({ item, tripCount, showShimmer }: { item: SavedItem; tripCount: number; showShimmer?: boolean }) {
+function TextCard({ item, tripCount, showShimmer, extractionCount }: { item: SavedItem; tripCount: number; showShimmer?: boolean; extractionCount?: number }) {
   const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
 
@@ -1217,6 +1243,8 @@ function TextCard({ item, tripCount, showShimmer }: { item: SavedItem; tripCount
     >
       {/* Trip count pill */}
       <TripCountPill count={tripCount} variant="text" />
+      {/* Extraction badge */}
+      {item.has_pending_extraction && <ExtractionBadge count={extractionCount ?? 0} />}
         {/* Content — pinned to bottom */}
         <div
           className="flex flex-col justify-end"
@@ -1279,8 +1307,10 @@ function TextCard({ item, tripCount, showShimmer }: { item: SavedItem; tripCount
 
 function ListRow({
   item,
+  extractionCount,
 }: {
   item: SavedItem
+  extractionCount?: number
 }) {
   const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
@@ -1310,6 +1340,16 @@ function ListRow({
             </span>
           )}
           <CategoryPill label={categoryLabel[item.category]} />
+          {item.has_pending_extraction && extractionCount && extractionCount >= 2 && (
+            <span style={{
+              background: '#c45a2d', color: '#fff',
+              fontFamily: "'JetBrains Mono', monospace",
+              fontSize: 10, fontWeight: 500,
+              padding: '1px 6px', borderRadius: 999,
+            }}>
+              +{extractionCount}
+            </span>
+          )}
           <span className="font-mono text-[10px] text-text-faint ml-1">
             {formatDate(item.created_at)}
           </span>
