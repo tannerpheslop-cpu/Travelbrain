@@ -77,6 +77,7 @@ function makeItem(overrides: Partial<SavedItem> & { id: string }): SavedItem {
     left_recent: false,
     location_locked: false,
     location_precision: null,
+    has_pending_extraction: false,
     created_at: new Date().toISOString(),
     ...overrides,
   }

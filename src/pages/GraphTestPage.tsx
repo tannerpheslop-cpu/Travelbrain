@@ -31,6 +31,7 @@ function mockItem(
     image_options: null, image_option_index: null,
     first_viewed_at: null, left_recent: false,
     location_locked: false, location_precision: city ? 'city' : null,
+    has_pending_extraction: false,
     created_at: new Date().toISOString(),
   }
 }

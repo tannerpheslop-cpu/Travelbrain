@@ -24,6 +24,7 @@ function makeItem(overrides: Partial<SavedItem> = {}): SavedItem {
     location_name_local: null,
     location_locked: false,
     location_precision: 'precise',
+    has_pending_extraction: false,
     category: 'activity' as Category,
     notes: null,
     tags: null,
