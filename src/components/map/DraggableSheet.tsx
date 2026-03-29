@@ -361,6 +361,7 @@ export default function DraggableSheet({
         style={{
           flex: 1,
           overflowY: 'auto',
+          overflowX: 'hidden',
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-y',
