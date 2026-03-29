@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -191,6 +191,8 @@ export default function InboxPage() {
 
   // ── Local UI state ─────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchExpanded, setSearchExpanded] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [showSaveSheet, setShowSaveSheet] = useState(false)
   const [showPillSheet, setShowPillSheet] = useState(false)
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
@@ -475,14 +477,14 @@ export default function InboxPage() {
 
   return (
     <>
-    {/* ── Background layer: sunset + graph (fixed, full viewport) ── */}
+    {/* ── Background layer: sunset + graph (fixed, top 50%) ── */}
     <SunsetBackground saveCount={items.length} />
     {items.length > 0 && (
-      <div style={{ position: 'fixed', inset: 0, zIndex: 1 }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '50vh', zIndex: 1 }}>
         <TravelGraph
           savedItems={items}
           claimedItemIds={assignedItemIds}
-          height={typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.82) : 580}
+          height={typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.5) : 420}
           onNodeSelect={(item) => {
             if (!item) setGraphCluster(null)
           }}
@@ -491,30 +493,38 @@ export default function InboxPage() {
       </div>
     )}
 
-    {/* ── Sheet layer: all structured content ── */}
+    {/* ── Stats overlay on the sky (just above the sheet) ── */}
+    {items.length > 0 && (
+      <div style={{
+        position: 'fixed',
+        top: 'calc(50vh - 28px)',
+        left: 0,
+        right: 0,
+        zIndex: 5,
+        textAlign: 'center',
+        pointerEvents: 'none',
+      }}>
+        <span style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: 12,
+          fontWeight: 400,
+          color: graphCluster ? '#c45a2d' : '#b8c8e0',
+          opacity: 0.7,
+        }}>
+          {graphCluster
+            ? `${graphCluster} · ${filtered.length} saves`
+            : `${items.length} saves · ${uniqueCountries} countries · ${uniqueCities} cities`
+          }
+        </span>
+      </div>
+    )}
+
+    {/* ── Sheet layer: structured content (50% min, no peek) ── */}
     <div style={{ position: 'fixed', inset: 0, zIndex: 10, pointerEvents: 'none' }}>
       <DraggableSheet
-        snapPoints={[0.15, 0.5, 0.85]}
+        snapPoints={[0.5, 0.85, 0.85]}
         initialSnap="half"
-        header={
-          <div style={{
-            textAlign: 'center',
-            padding: '4px 16px 8px',
-            fontFamily: "'JetBrains Mono', monospace",
-            fontSize: 13,
-            color: '#888780',
-          }}>
-            {graphCluster ? (
-              <span style={{ color: '#c45a2d' }}>
-                {graphCluster} · {filtered.length} saves
-              </span>
-            ) : (
-              <span>
-                {items.length} saves · {uniqueCountries} countries · {uniqueCities} cities
-              </span>
-            )}
-          </div>
-        }
+        header={<div style={{ height: 4 }} />}
       >
         <div style={{
           background: 'var(--color-surface-light, #faf8f4)',
@@ -524,119 +534,134 @@ export default function InboxPage() {
           pointerEvents: 'auto',
         }}>
 
-      {/* ── Row 1: Search bar (full width) ── */}
-      <div className="relative mb-2">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none" style={{ color: '#888780' }} />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search saves..."
-          className="w-full pl-9 pr-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 transition-colors"
-          style={{ background: '#f0eeea', border: '1px solid #e0ddd7', color: '#1a1d27' }}
-        />
-        {searchQuery && (
+      {/* ── Compact toolbar (one row) ── */}
+      {searchExpanded ? (
+        /* Expanded search state */
+        <div className="flex items-center gap-2 mb-3" style={{ height: 36 }}>
           <button
             type="button"
-            onClick={() => setSearchQuery('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-text-secondary"
+            onClick={() => { setSearchQuery(''); setSearchExpanded(false) }}
+            className="flex items-center justify-center shrink-0"
+            style={{ width: 32, height: 32, color: '#888780', background: 'none', border: 'none', cursor: 'pointer' }}
+            aria-label="Close search"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-4 h-4" />
           </button>
-        )}
-      </div>
-
-      {/* ── Row 2: Filter icon + View toggle ── */}
-      <div className="flex items-center justify-between mb-3">
-        {/* Filter button — icon only */}
-        <button
-          type="button"
-          onClick={() => setShowPillSheet(true)}
-          className="flex items-center justify-center shrink-0 transition-colors"
-          style={{
-            width: 36,
-            height: 36,
-            color: selectedFilters.length > 0 ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-            border: `1px solid ${selectedFilters.length > 0 ? 'var(--color-accent)' : 'var(--color-border-input)'}`,
-            borderRadius: 8,
-            background: selectedFilters.length > 0 ? 'var(--color-accent-light)' : 'transparent',
-          }}
-          data-testid="horizon-filter-btn"
-          aria-label="Filter"
-        >
-          <SlidersHorizontal className="w-4 h-4" />
-        </button>
-
-        {/* Group mode toggle */}
-        <div className="flex rounded-md border border-border-input overflow-hidden shrink-0" style={{ height: 36 }}>
+          <div className="relative flex-1">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search saves..."
+              className="w-full px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+              style={{ background: '#f1efe8', border: '0.5px solid #e8e6e1', color: '#1a1d27', fontSize: 16 }}
+              autoFocus
+            />
+          </div>
           <button
             type="button"
-            onClick={() => setGroupMode('country')}
-            className="transition-colors"
-            style={{
-              padding: '0 10px',
-              height: 36,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              fontWeight: groupMode === 'country' ? 500 : 400,
-              background: groupMode === 'country' ? 'var(--color-bg-muted)' : 'transparent',
-              color: groupMode === 'country' ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-            aria-label="Group by country"
+            onClick={() => { setSearchQuery(''); setSearchExpanded(false) }}
+            style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#888780', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}
           >
-            Country
-          </button>
-          <button
-            type="button"
-            onClick={() => setGroupMode('city')}
-            className="transition-colors"
-            style={{
-              padding: '0 10px',
-              height: 36,
-              fontFamily: 'var(--font-mono)',
-              fontSize: 10,
-              fontWeight: groupMode === 'city' ? 500 : 400,
-              background: groupMode === 'city' ? 'var(--color-bg-muted)' : 'transparent',
-              color: groupMode === 'city' ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-            aria-label="Group by city"
-          >
-            City
+            Cancel
           </button>
         </div>
+      ) : (
+        /* Collapsed toolbar */
+        <div className="flex items-center justify-between mb-3" style={{ height: 36 }}>
+          {/* Left: search + filter icons */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => { setSearchExpanded(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
+              className="flex items-center justify-center"
+              style={{ width: 32, height: 32, color: searchQuery ? '#c45a2d' : '#888780', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}
+              aria-label="Search"
+              data-testid="horizon-search-btn"
+            >
+              <Search className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowPillSheet(true)}
+              className="flex items-center justify-center"
+              style={{
+                width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer',
+                color: selectedFilters.length > 0 ? '#c45a2d' : '#888780',
+                background: selectedFilters.length > 0 ? 'rgba(196,90,45,0.08)' : 'none',
+              }}
+              data-testid="horizon-filter-btn"
+              aria-label="Filter"
+            >
+              <SlidersHorizontal className="w-4 h-4" />
+            </button>
+          </div>
 
-        {/* View toggle */}
-        <div className="flex rounded-lg border border-border overflow-hidden shrink-0">
-          <button
-            type="button"
-            onClick={() => setViewMode('grid')}
-            className={`w-8 h-8 flex items-center justify-center transition-colors ${
-              viewMode === 'grid'
-                ? 'bg-text-primary text-white'
-                : 'bg-transparent text-text-faint hover:text-text-secondary'
-            }`}
-            aria-label="Grid view"
-          >
-            <LayoutGrid className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('list')}
-            className={`w-8 h-8 flex items-center justify-center transition-colors ${
-              viewMode === 'list'
-                ? 'bg-text-primary text-white'
-                : 'bg-transparent text-text-faint hover:text-text-secondary'
-            }`}
-            aria-label="List view"
-          >
-            <List className="w-3.5 h-3.5" />
-          </button>
+          {/* Right: group toggle + view toggle */}
+          <div className="flex items-center gap-2">
+            {/* Group mode toggle */}
+            <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid #e8e6e1' }}>
+              <button
+                type="button"
+                onClick={() => setGroupMode('country')}
+                style={{
+                  padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'country' ? 600 : 400,
+                  background: groupMode === 'country' ? '#f1efe8' : 'transparent',
+                  color: groupMode === 'country' ? '#1a1d27' : '#b4b2a9',
+                }}
+                aria-label="Group by country"
+              >
+                Country
+              </button>
+              <button
+                type="button"
+                onClick={() => setGroupMode('city')}
+                style={{
+                  padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'city' ? 600 : 400,
+                  background: groupMode === 'city' ? '#f1efe8' : 'transparent',
+                  color: groupMode === 'city' ? '#1a1d27' : '#b4b2a9',
+                }}
+                aria-label="Group by city"
+              >
+                City
+              </button>
+            </div>
+
+            {/* View toggle */}
+            <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid #e8e6e1' }}>
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                className="flex items-center justify-center"
+                style={{
+                  width: 28, height: 28, border: 'none', cursor: 'pointer',
+                  background: viewMode === 'grid' ? '#1a1d27' : 'transparent',
+                  color: viewMode === 'grid' ? '#faf8f4' : '#b4b2a9',
+                }}
+                aria-label="Grid view"
+              >
+                <LayoutGrid className="w-3 h-3" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('list')}
+                className="flex items-center justify-center"
+                style={{
+                  width: 28, height: 28, border: 'none', cursor: 'pointer',
+                  background: viewMode === 'list' ? '#1a1d27' : 'transparent',
+                  color: viewMode === 'list' ? '#faf8f4' : '#b4b2a9',
+                }}
+                aria-label="List view"
+              >
+                <List className="w-3 h-3" />
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* ── Row 3: Active Filter Pills (horizontal scroll + Clear all) ── */}
       {selectedFilters.length > 0 && (

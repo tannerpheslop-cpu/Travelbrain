@@ -573,6 +573,28 @@ export default function TravelGraph({
             <filter id="star-glow-bright" x="-100%" y="-100%" width="300%" height="300%">
               <feGaussianBlur stdDeviation="2.5" />
             </filter>
+
+            {/* Soft center dot gradients — diffuse edges for point-of-light effect */}
+            <radialGradient id="dot-default">
+              <stop offset="0%" stopColor="#d4e0f0" stopOpacity="1" />
+              <stop offset="60%" stopColor="#d4e0f0" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#d4e0f0" stopOpacity="0.3" />
+            </radialGradient>
+            <radialGradient id="dot-claimed">
+              <stop offset="0%" stopColor="#c45a2d" stopOpacity="1" />
+              <stop offset="60%" stopColor="#c45a2d" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#c45a2d" stopOpacity="0.3" />
+            </radialGradient>
+            <radialGradient id="dot-dim">
+              <stop offset="0%" stopColor="#b8c8e0" stopOpacity="0.8" />
+              <stop offset="60%" stopColor="#b8c8e0" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="#b8c8e0" stopOpacity="0.15" />
+            </radialGradient>
+            <radialGradient id="dot-bright">
+              <stop offset="0%" stopColor="#edf2fa" stopOpacity="1" />
+              <stop offset="60%" stopColor="#edf2fa" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="#edf2fa" stopOpacity="0.4" />
+            </radialGradient>
           </defs>
 
           {/* Layer 1: Edges */}
@@ -620,9 +642,9 @@ export default function TravelGraph({
             {simulatedNodes.map(node => {
               const cc = connectionCounts.get(node.id) ?? 0
               const state = selectedNodeId === node.id ? 'bright' : getNodeState(node, cc)
-              const radius = getNodeRadius(cc)
-              const { fill } = NODE_COLORS[state]
+              const radius = getNodeRadius(cc) * 1.5  // 1.5x to compensate for soft edge
               const opacity = getNodeOpacity(node.id)
+              const gradientId = `dot-${state}`
               return (
                 <circle
                   key={`node-${node.id}`}
@@ -630,7 +652,7 @@ export default function TravelGraph({
                   data-state={state}
                   cx={node.x} cy={node.y}
                   r={radius}
-                  fill={fill}
+                  fill={`url(#${gradientId})`}
                   opacity={opacity}
                   style={{ transition: 'opacity 300ms ease' }}
                 />
