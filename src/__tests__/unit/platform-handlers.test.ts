@@ -251,3 +251,41 @@ describe('Google Maps URL parsing', () => {
     expect(result.lat).toBeCloseTo(35.6762)
   })
 })
+
+// ── Google Maps tracking param stripping ─────────────────────────────────────
+
+function stripGoogleTrackingParams(urlStr: string): string {
+  const url = new URL(urlStr)
+  const trackingParams = ['g_st', 'g_ep', 'entry', 'shorturl', 'skid']
+  for (const param of trackingParams) {
+    url.searchParams.delete(param)
+  }
+  return url.href
+}
+
+describe('Google Maps tracking param stripping', () => {
+  it('strips ?g_st=ic from mobile share links', () => {
+    const result = stripGoogleTrackingParams('https://maps.app.goo.gl/A8tH3XcFD6rBpCcu5?g_st=ic')
+    expect(result).toBe('https://maps.app.goo.gl/A8tH3XcFD6rBpCcu5')
+  })
+
+  it('strips ?g_ep= parameter', () => {
+    const result = stripGoogleTrackingParams('https://maps.app.goo.gl/abc123?g_ep=xyz')
+    expect(result).toBe('https://maps.app.goo.gl/abc123')
+  })
+
+  it('strips multiple tracking params at once', () => {
+    const result = stripGoogleTrackingParams('https://maps.app.goo.gl/abc123?g_st=ic&g_ep=xyz&entry=ttu')
+    expect(result).toBe('https://maps.app.goo.gl/abc123')
+  })
+
+  it('preserves non-tracking params', () => {
+    const result = stripGoogleTrackingParams('https://maps.app.goo.gl/abc123?custom=value&g_st=ic')
+    expect(result).toBe('https://maps.app.goo.gl/abc123?custom=value')
+  })
+
+  it('returns URL unchanged if no tracking params', () => {
+    const result = stripGoogleTrackingParams('https://maps.app.goo.gl/ffAc3Vkgp4LLM7oj8')
+    expect(result).toBe('https://maps.app.goo.gl/ffAc3Vkgp4LLM7oj8')
+  })
+})
