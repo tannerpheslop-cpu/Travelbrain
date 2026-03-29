@@ -206,51 +206,39 @@ function parseGoogleMapsUrl(fullUrl: URL): {
  * We handle both cases.
  */
 async function resolveGoogleMapsShortLink(url: URL): Promise<URL> {
-  const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+  // Tier 1: fetch with redirect:'follow' and NO custom User-Agent.
+  // Deno's default UA gets proper HTTP redirects from Google for desktop links.
+  // Adding a Chrome UA causes Google to serve Firebase Dynamic Links JS page instead.
+  try {
+    const res = await fetch(url.href, { redirect: "follow", signal: AbortSignal.timeout(5000) })
+    if (res.url && res.url !== url.href && res.url.includes("/maps/")) {
+      console.log(`[extract-metadata] Maps resolved via tier 1 (auto-follow): ${res.url}`)
+      return new URL(res.url)
+    }
+  } catch { /* tier 1 failed, continue to tier 2 */ }
 
-  // Tier 1: Manual redirect loop — follow 301/302 Location headers.
-  // This is the fastest path and works for desktop share links.
-  // We use manual mode because Deno's redirect:'follow' doesn't always
-  // report the final URL correctly for cross-origin redirects.
+  // Tier 1b: Manual redirect loop as secondary fast path
   let current = url
-  for (let hop = 0; hop < 8; hop++) {
+  for (let hop = 0; hop < 5; hop++) {
     try {
       const res = await fetch(current.href, {
         redirect: "manual",
         signal: AbortSignal.timeout(5000),
-        headers: { "User-Agent": UA },
       })
       const loc = res.headers.get("location")
-
-      if (loc && res.status >= 300 && res.status < 400) {
-        current = new URL(loc, current.href)
-        if (current.href.includes("google.com/maps") || current.href.includes("google.com.tw/maps")) {
-          console.log(`[extract-metadata] Maps resolved via redirect chain (${hop + 1} hops): ${current.href}`)
-          return current
+      if (!loc || res.status < 300 || res.status >= 400) {
+        if (res.url && res.url !== current.href && res.url.includes("/maps/")) {
+          console.log(`[extract-metadata] Maps resolved via tier 1b (res.url): ${res.url}`)
+          return new URL(res.url)
         }
-        continue // follow the next hop
+        break
       }
-
-      // Got a 200 — check if Deno's res.url reveals the final destination
-      if (res.url && res.url !== current.href && res.url.includes("/maps/")) {
-        console.log(`[extract-metadata] Maps resolved via res.url: ${res.url}`)
-        return new URL(res.url)
+      current = new URL(loc, current.href)
+      if (current.href.includes("/maps/")) {
+        console.log(`[extract-metadata] Maps resolved via tier 1b (manual chain, ${hop + 1} hops): ${current.href}`)
+        return current
       }
-
-      // 200 with no redirect — this is the Firebase Dynamic Links page.
-      // Try to extract a Maps URL from the HTML body.
-      const html = await res.text()
-      const extracted = extractRedirectFromHtml(html)
-      if (extracted) {
-        console.log(`[extract-metadata] Maps resolved via HTML extraction: ${extracted}`)
-        return new URL(extracted)
-      }
-
-      // Tier 1 exhausted — no redirect, no Maps URL in HTML
-      break
-    } catch {
-      break
-    }
+    } catch { break }
   }
 
   // Strategy 4: Use the Cloud Run headless browser resolver
