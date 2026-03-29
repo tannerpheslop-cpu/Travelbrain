@@ -287,8 +287,14 @@ export default function TravelGraph({
   const [selectedCluster, setSelectedCluster] = useState<string | null>(null)
 
   // ── Stagger fade-in state ──
+  // Skip entrance animation on return visits within the same session
+  const ENTRANCE_FLAG = 'youji-horizon-entrance-played'
+  const entranceAlreadyPlayed = useRef(() => {
+    try { return sessionStorage.getItem(ENTRANCE_FLAG) === 'true' } catch { return false }
+  })
+  const skipEntrance = entranceAlreadyPlayed.current()
   const mountTimeRef = useRef(Date.now())
-  const [fadeProgress, setFadeProgress] = useState(0) // 0 = start, 1 = all visible
+  const [fadeProgress, setFadeProgress] = useState(skipEntrance ? 1 : 0)
   const prevItemIdsRef = useRef<Set<string>>(new Set())
   const newNodeIdRef = useRef<string | null>(null)
   const newNodeTimeRef = useRef(0)
@@ -314,7 +320,7 @@ export default function TravelGraph({
   }, [heightProp])
 
   // Data
-  const { nodes, edges, stats } = useGraphData(savedItems, claimedItemIds)
+  const { nodes, edges } = useGraphData(savedItems, claimedItemIds)
 
   // Simulation
   const { simulatedNodes, simulatedEdges, addNode } = useGraphSimulation({
@@ -351,18 +357,26 @@ export default function TravelGraph({
   useEffect(() => {
     if (simulatedNodes.length === 0) return
 
+    // If entrance already played and no new node, skip animation entirely
+    if (skipEntrance && !newNodeIdRef.current) {
+      setFadeProgress(1)
+      return
+    }
+
     const totalDuration = GRAPH.FADE_STAGGER_CAP + GRAPH.FADE_DURATION
     const tick = () => {
       const elapsed = Date.now() - mountTimeRef.current
       const newNodeElapsed = newNodeIdRef.current ? Date.now() - newNodeTimeRef.current : Infinity
 
       // Continue animating if stagger or new-node fade is in progress
-      const staggerDone = elapsed > totalDuration
+      const staggerDone = skipEntrance || elapsed > totalDuration
       const newNodeDone = !newNodeIdRef.current || newNodeElapsed > GRAPH.NEW_FADE
 
       if (staggerDone && newNodeDone) {
         setFadeProgress(1)
         if (newNodeIdRef.current && newNodeDone) newNodeIdRef.current = null
+        // Mark entrance as played for this session
+        try { sessionStorage.setItem(ENTRANCE_FLAG, 'true') } catch { /* ignore */ }
         return
       }
 
@@ -707,28 +721,7 @@ export default function TravelGraph({
         {selectedItem && <NodePreviewCard item={selectedItem} />}
       </div>
 
-      {/* Stats line */}
-      <div
-        data-testid="graph-stats"
-        style={{
-          textAlign: 'center',
-          padding: '10px 16px 4px',
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 13,
-          fontWeight: 400,
-          letterSpacing: '0.3px',
-        }}
-      >
-        {selectedCluster ? (
-          <span style={{ color: '#c45a2d' }}>
-            {selectedCluster} · {simulatedNodes.filter(n => n.city?.toLowerCase() === selectedCluster.toLowerCase()).length} saves
-          </span>
-        ) : (
-          <span style={{ color: 'var(--color-star-default, #d4e0f0)' }}>
-            {stats.saves} saves · {stats.countries} countries · {stats.cities} cities
-          </span>
-        )}
-      </div>
+      {/* Stats counter removed — the graph itself is the accumulation visualization */}
     </div>
   )
 }

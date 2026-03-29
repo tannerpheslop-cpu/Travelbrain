@@ -457,34 +457,34 @@ export default function InboxPage() {
     })
   }, [tripsWithDests])
 
-  const uniqueCountries = useMemo(() => {
-    const set = new Set<string>()
-    items.forEach((item) => { if (item.location_country_code) set.add(item.location_country_code) })
-    return set.size
-  }, [items])
+  // ── Snap persistence + responsive sky height ──────────────────────────────
+  const SNAP_STORAGE_KEY = 'youji_horizon_snap'
+  const SNAP_FRACTIONS: Record<string, number> = { peek: 0.5, half: 0.7, full: 1.0 }
+  const getStoredSnap = (): 'peek' | 'half' | 'full' => {
+    try {
+      const stored = sessionStorage.getItem(SNAP_STORAGE_KEY)
+      if (stored === 'peek' || stored === 'half' || stored === 'full') return stored
+    } catch { /* SSR / privacy mode */ }
+    return 'half'
+  }
+  const initialSnap = getStoredSnap()
+  const [skyHeight, setSkyHeight] = useState(() => {
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 844
+    return Math.round(vh * (1 - (SNAP_FRACTIONS[initialSnap] ?? 0.7)))
+  })
 
   // ── Render ───────────────────────────────────────────────────────────────
-
-  // Unique cities for stats
-  const uniqueCities = useMemo(() => {
-    const set = new Set<string>()
-    items.forEach((item) => {
-      const city = item.location_name?.split(',')[0]?.trim()
-      if (city) set.add(city.toLowerCase())
-    })
-    return set.size
-  }, [items])
 
   return (
     <>
     {/* ── Background layer: sunset + graph (fixed, top 50%) ── */}
     <SunsetBackground saveCount={items.length} />
     {items.length > 0 && (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '50vh', zIndex: 1 }}>
+      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: `${skyHeight}px`, zIndex: 1, transition: 'height 300ms ease' }}>
         <TravelGraph
           savedItems={items}
           claimedItemIds={assignedItemIds}
-          height={typeof window !== 'undefined' ? Math.round(window.innerHeight * 0.5) : 420}
+          height={skyHeight}
           onNodeSelect={(item) => {
             if (!item) setGraphCluster(null)
           }}
@@ -512,37 +512,19 @@ export default function InboxPage() {
       </span>
     </div>
 
-    {/* ── Stats overlay on the sky (just above the sheet) ── */}
-    {items.length > 0 && (
-      <div style={{
-        position: 'fixed',
-        top: 'calc(30vh - 24px)',
-        left: 0,
-        right: 0,
-        zIndex: 5,
-        textAlign: 'center',
-        pointerEvents: 'none',
-      }}>
-        <span style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: 12,
-          fontWeight: 400,
-          color: graphCluster ? '#c45a2d' : '#b8c8e0',
-          opacity: 0.7,
-        }}>
-          {graphCluster
-            ? `${graphCluster} · ${filtered.length} saves`
-            : `${items.length} saves · ${uniqueCountries} countries · ${uniqueCities} cities`
-          }
-        </span>
-      </div>
-    )}
+    {/* Stats counter removed — the graph itself is the accumulation visualization */}
 
     {/* ── Sheet layer: structured content (50% min, 70% default, 100% full) ── */}
     <div style={{ position: 'fixed', inset: 0, zIndex: 10, pointerEvents: 'none' }}>
       <DraggableSheet
         snapPoints={[0.5, 0.7, 1.0]}
-        initialSnap="half"
+        initialSnap={getStoredSnap()}
+        onSnapChange={(snap) => {
+          try { sessionStorage.setItem(SNAP_STORAGE_KEY, snap) } catch { /* ignore */ }
+          const vh = window.innerHeight
+          const fraction = SNAP_FRACTIONS[snap] ?? 0.7
+          setSkyHeight(Math.round(vh * (1 - fraction)))
+        }}
         header={<div style={{ height: 4 }} />}
       >
         <div style={{
