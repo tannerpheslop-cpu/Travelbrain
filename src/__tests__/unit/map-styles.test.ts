@@ -15,24 +15,28 @@ describe('Map styles — light mode', () => {
   })
 })
 
-describe('Map styles — dark mode (cool palette)', () => {
-  it('uses cool blue-dark water (#060a16)', () => {
-    expect(darkColors.water).toBe('#060a16')
+describe('Map styles — dark mode (cool slate)', () => {
+  it('uses cool slate water (#0d1a2e)', () => {
+    expect(darkColors.water).toBe('#0d1a2e')
   })
 
-  it('uses cool blue-gray land (#0e1326)', () => {
-    expect(darkColors.land).toBe('#0e1326')
+  it('uses cool slate land (#182438)', () => {
+    expect(darkColors.land).toBe('#182438')
   })
 
-  it('land is lighter than water (distinguishable)', () => {
-    // Water: #060a16, Land: #0e1326 — land should have higher brightness
-    const waterBrightness = parseInt(darkColors.water.slice(1), 16)
-    const landBrightness = parseInt(darkColors.land.slice(1), 16)
-    expect(landBrightness).toBeGreaterThan(waterBrightness)
+  it('land is lighter than water (coastlines visible)', () => {
+    const waterVal = parseInt(darkColors.water.slice(1), 16)
+    const landVal = parseInt(darkColors.land.slice(1), 16)
+    expect(landVal).toBeGreaterThan(waterVal)
   })
 
-  it('uses cool text for labels (#8088a0)', () => {
-    expect(darkColors.labelMajor).toBe('#8088a0')
+  it('borders are thin cool blue (#2a3a52)', () => {
+    expect(darkColors.border).toBe('#2a3a52')
+  })
+
+  it('road/label color is subdued slate (#6880a0)', () => {
+    expect(darkColors.roadColor).toBe('#6880a0')
+    expect(darkColors.labelMajor).toBe('#6880a0')
   })
 
   it('uses a Mapbox dark base style', () => {
