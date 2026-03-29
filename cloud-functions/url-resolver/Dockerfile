@@ -1,17 +1,21 @@
 FROM ghcr.io/puppeteer/puppeteer:latest
 
-# The puppeteer image runs as 'pptruser' (non-root)
-# Set WORKDIR to pptruser's home so npm has write permissions
+# Install as root (Docker build runs as root)
+USER root
 WORKDIR /home/pptruser/app
 
-# Copy package files and install dependencies
-COPY --chown=pptruser:pptruser package.json package-lock.json ./
+# Copy and install dependencies
+COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 
 # Copy application code
-COPY --chown=pptruser:pptruser index.js ./
+COPY index.js ./
 
-# Cloud Run uses PORT env var
+# Fix ownership so pptruser can run the app
+RUN chown -R pptruser:pptruser /home/pptruser/app
+
+# Switch back to non-root user (required for Puppeteer)
+USER pptruser
+
 EXPOSE 8080
-
 CMD ["node", "index.js"]
