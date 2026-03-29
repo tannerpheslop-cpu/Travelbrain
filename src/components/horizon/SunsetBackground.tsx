@@ -170,14 +170,18 @@ export default function SunsetBackground({ saveCount }: SunsetBackgroundProps) {
       data-testid="sunset-background"
       style={{
         position: 'fixed',
-        inset: 0,
+        // Extend beyond the viewport edges to cover Dynamic Island / safe area
+        top: 'calc(-1 * env(safe-area-inset-top, 0px))',
+        left: 0,
+        right: 0,
+        bottom: 0,
         zIndex: 0,
         pointerEvents: 'none',
-        background: '#080c18', // deep-bg below the gradient
+        background: '#080c18', // deep-bg fills everything, gradient overlays the top
       }}
     >
-      {/* Gradient container — compressed to top 50% of viewport */}
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50vh', overflow: 'hidden' }}>
+      {/* Gradient container — extends into safe area at top, overlaps sheet by 4px at bottom */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 'calc(50vh + 4px)', overflow: 'hidden' }}>
         {/* Layer 1: Linear gradient */}
         <div
           data-testid="sunset-layer-1"

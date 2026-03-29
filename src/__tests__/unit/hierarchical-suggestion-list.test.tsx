@@ -61,60 +61,65 @@ describe('HierarchicalSuggestionList', () => {
     onAddContinent: vi.fn(),
   }
 
-  it('renders continent headers', () => {
+  it('renders "From your Horizon" section label', () => {
     render(<HierarchicalSuggestionList {...defaultProps} />)
-    expect(screen.getByText('Asia')).toBeInTheDocument()
+    expect(screen.getByTestId('suggestions-label')).toHaveTextContent('From your Horizon')
   })
 
-  it('renders country rows under continents', () => {
+  it('renders flat city-level suggestion rows', () => {
     render(<HierarchicalSuggestionList {...defaultProps} />)
-    expect(screen.getByText('Japan')).toBeInTheDocument()
-    expect(screen.getByText('Taiwan')).toBeInTheDocument()
-  })
-
-  it('expanding a country shows city rows', () => {
-    render(<HierarchicalSuggestionList {...defaultProps} />)
-    // Japan has 2 cities — default expanded (<=2 cities)
+    // All 3 cities should be visible as flat rows
     expect(screen.getByText('Tokyo')).toBeInTheDocument()
     expect(screen.getByText('Kyoto')).toBeInTheDocument()
+    expect(screen.getByText('Taipei')).toBeInTheDocument()
   })
 
-  it('[+] on a city calls onAddCity', () => {
+  it('shows country name next to city name', () => {
+    render(<HierarchicalSuggestionList {...defaultProps} />)
+    // Japan appears as secondary text for Tokyo and Kyoto
+    const japanTexts = screen.getAllByText(/Japan/)
+    expect(japanTexts.length).toBeGreaterThanOrEqual(2)
+  })
+
+  it('tapping a suggestion row calls onAddCity', () => {
     const onAddCity = vi.fn()
     render(<HierarchicalSuggestionList {...defaultProps} onAddCity={onAddCity} />)
-    fireEvent.click(screen.getByTestId('city-add-Tokyo'))
+    fireEvent.click(screen.getByTestId('suggestion-JP-Tokyo'))
     expect(onAddCity).toHaveBeenCalledWith(
       expect.objectContaining({ cityName: 'Tokyo' }),
       'JP', 'Japan',
     )
   })
 
-  it('[+] on a country calls onAddCountry', () => {
-    const onAddCountry = vi.fn()
-    render(<HierarchicalSuggestionList {...defaultProps} onAddCountry={onAddCountry} />)
-    fireEvent.click(screen.getByTestId('country-add-JP'))
-    expect(onAddCountry).toHaveBeenCalledWith(expect.objectContaining({ countryCode: 'JP' }))
-  })
-
-  it('Add all on continent calls onAddContinent', () => {
-    const onAddContinent = vi.fn()
-    render(<HierarchicalSuggestionList {...defaultProps} onAddContinent={onAddContinent} />)
-    fireEvent.click(screen.getByTestId('continent-add-Asia'))
-    expect(onAddContinent).toHaveBeenCalledWith(expect.objectContaining({ name: 'Asia' }))
+  it('rows are sorted by save count descending', () => {
+    const { container } = render(<HierarchicalSuggestionList {...defaultProps} />)
+    const buttons = container.querySelectorAll('[data-testid^="suggestion-"]')
+    // Tokyo (2) and Taipei (2) before Kyoto (1)
+    const texts = Array.from(buttons).map(b => b.textContent)
+    const kyotoIdx = texts.findIndex(t => t?.includes('Kyoto'))
+    const tokyoIdx = texts.findIndex(t => t?.includes('Tokyo'))
+    expect(tokyoIdx).toBeLessThan(kyotoIdx)
   })
 
   it('shows unassigned count', () => {
     render(<HierarchicalSuggestionList {...defaultProps} />)
-    expect(screen.getByTestId('unassigned-saves')).toBeInTheDocument()
-    expect(screen.getByText(/1 save have no location/)).toBeInTheDocument()
+    expect(screen.getByText(/1 save.* have no location/)).toBeInTheDocument()
   })
 
-  it('collapsing a continent hides its countries', () => {
-    render(<HierarchicalSuggestionList {...defaultProps} />)
-    // Asia is expanded by default
-    expect(screen.getByText('Japan')).toBeInTheDocument()
-    // Collapse
-    fireEvent.click(screen.getByTestId('continent-toggle-Asia'))
-    expect(screen.queryByText('Japan')).not.toBeInTheDocument()
+  it('shows empty message when no suggestions and no unassigned', () => {
+    render(
+      <HierarchicalSuggestionList
+        {...defaultProps}
+        tree={{ continents: [], unassignedCount: 0 }}
+      />,
+    )
+    expect(screen.getByText(/Save travel inspiration/)).toBeInTheDocument()
+  })
+
+  it('no separate Add buttons on rows — entire row is the tap target', () => {
+    const { container } = render(<HierarchicalSuggestionList {...defaultProps} />)
+    // There should be no buttons with text "Add" or "+" inside suggestion rows
+    const addButtons = container.querySelectorAll('[data-testid^="suggestion-"] button')
+    expect(addButtons.length).toBe(0) // No nested buttons — the row itself IS the button
   })
 })

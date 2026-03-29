@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -10,7 +10,7 @@ import PillSheet from '../components/PillSheet'
 import type { PillGroup } from '../components/PillSheet'
 import { categoryLabel } from '../utils/categoryIcons'
 import { optimizedImageUrl } from '../lib/optimizedImage'
-import { LayoutGrid, List, SlidersHorizontal, Search, X } from 'lucide-react'
+import { LayoutGrid, List, SlidersHorizontal, Search, X, ChevronDown, ChevronRight } from 'lucide-react'
 import { CategoryPill, CountryCodeBadge, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
 import ScrollToTop from '../components/ScrollToTop'
 import SunsetBackground from '../components/horizon/SunsetBackground'
@@ -147,6 +147,13 @@ export default function InboxPage() {
   const navLocation = useLocation()
   const queryClient = useQueryClient()
 
+  // ── Set body background to match sky (covers Dynamic Island / safe area) ──
+  useEffect(() => {
+    const prev = document.body.style.backgroundColor
+    document.body.style.backgroundColor = '#080c18'
+    return () => { document.body.style.backgroundColor = prev }
+  }, [])
+
   // ── React Query data ───────────────────────────────────────────────────
   const { data: items = [], isLoading: itemsLoading, error: itemsError } = useSavedItems()
   const { data: tripsWithDests = [] } = useTripsQuery()
@@ -208,6 +215,17 @@ export default function InboxPage() {
     return saved === 'city' ? 'city' : 'country'
   })
   const [inboxToast, setInboxToast] = useState<string | null>(null)
+
+  // Collapse state for region groups (not persisted — resets on navigation)
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
+  const toggleGroupCollapse = useCallback((groupKey: string) => {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(groupKey)) next.delete(groupKey)
+      else next.add(groupKey)
+      return next
+    })
+  }, [])
 
   // Persist group mode preference
   useEffect(() => {
@@ -796,34 +814,99 @@ export default function InboxPage() {
         let gridIndex = 0
         return (
         <div className="space-y-6">
-          {geoGroups.map((group) => (
-            <section key={group.city ? `${group.countryCode}:${group.city}` : (group.countryCode ?? '__unsorted__')}>
-              {/* Group header — hidden when country filter is active in country mode */}
+          {geoGroups.map((group) => {
+            const groupKey = group.city ? `${group.countryCode}:${group.city}` : (group.countryCode ?? '__unsorted__')
+            const isCollapsed = collapsedGroups.has(groupKey)
+            const groupLabel = groupMode === 'city' && group.city ? group.city : (group.country ?? 'Unplaced')
+            return (
+            <section key={groupKey}>
+              {/* Group header — tappable to collapse/expand */}
               {!(hasCountryFilter && groupMode === 'country') && (
-              <div className="flex items-center gap-2 mb-3">
-                {groupMode === 'city' && group.city ? (
-                  <>
-                    <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, margin: 0 }} className="text-text-primary">
-                      {group.city}
-                    </h2>
-                    {group.countryCode && <CountryCodeBadge code={group.countryCode} />}
-                    <span className="font-mono text-[10px] text-text-ghost">{group.items.length}</span>
-                  </>
-                ) : (
-                  <>
-                    {group.country && group.countryCode && (
-                      <CountryCodeBadge code={group.countryCode} />
+                viewMode === 'list' ? (
+                  /* List view: section header style */
+                  <button
+                    type="button"
+                    onClick={() => toggleGroupCollapse(groupKey)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                      padding: '10px 0 6px',
+                      borderBottom: '0.5px solid #e8e6e1',
+                      marginBottom: isCollapsed ? 0 : 4,
+                      background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
+                      borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: '#e8e6e1',
+                    }}
+                  >
+                    {group.countryCode && (
+                      <span style={{
+                        fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
+                        color: '#888780', letterSpacing: 0.5,
+                        background: '#f1efe8', borderRadius: 4,
+                        padding: '2px 6px', flexShrink: 0,
+                      }}>
+                        {group.countryCode}
+                      </span>
                     )}
-                    <h2 className="font-mono text-[11px] font-bold uppercase tracking-[1.5px] text-text-faint">
-                      {group.country ?? 'Unplaced'}
+                    <h2 style={{
+                      fontFamily: "'DM Sans', sans-serif",
+                      fontSize: 14, fontWeight: 500, color: '#1a1d27',
+                      margin: 0, flex: 1,
+                    }}>
+                      {groupLabel}
                     </h2>
-                    <span className="font-mono text-[10px] text-text-ghost">{group.items.length}</span>
-                  </>
-                )}
-              </div>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b4b2a9', marginRight: 4 }}>
+                      {group.items.length}
+                    </span>
+                    {isCollapsed
+                      ? <ChevronRight size={16} style={{ color: '#888780', flexShrink: 0 }} />
+                      : <ChevronDown size={16} style={{ color: '#888780', flexShrink: 0 }} />
+                    }
+                  </button>
+                ) : (
+                  /* Grid view: compact header with collapse toggle */
+                  <button
+                    type="button"
+                    onClick={() => toggleGroupCollapse(groupKey)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                      marginBottom: isCollapsed ? 0 : 12,
+                      background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0,
+                    }}
+                  >
+                    {groupMode === 'city' && group.city ? (
+                      <>
+                        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, margin: 0, color: '#1a1d27' }}>
+                          {group.city}
+                        </h2>
+                        {group.countryCode && <CountryCodeBadge code={group.countryCode} />}
+                      </>
+                    ) : (
+                      <>
+                        {group.country && group.countryCode && (
+                          <CountryCodeBadge code={group.countryCode} />
+                        )}
+                        <h2 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: '#888780', margin: 0 }}>
+                          {group.country ?? 'Unplaced'}
+                        </h2>
+                      </>
+                    )}
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b4b2a9', flex: 1 }}>
+                      {group.items.length}
+                    </span>
+                    {isCollapsed
+                      ? <ChevronRight size={16} style={{ color: '#888780', flexShrink: 0 }} />
+                      : <ChevronDown size={16} style={{ color: '#888780', flexShrink: 0 }} />
+                    }
+                  </button>
+                )
               )}
 
-              {/* Grid or List */}
+              {/* Content — collapsible with smooth animation */}
+              <div style={{
+                overflow: 'hidden',
+                maxHeight: isCollapsed ? 0 : 9999,
+                opacity: isCollapsed ? 0 : 1,
+                transition: 'max-height 200ms ease, opacity 200ms ease',
+              }}>
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-2" style={{ gap: 8 }}>
                   {group.items.map((item) => {
@@ -838,8 +921,9 @@ export default function InboxPage() {
                   ))}
                 </div>
               )}
+              </div>
             </section>
-          ))}
+          )})}
         </div>
         )
       })()}

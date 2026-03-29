@@ -1,29 +1,10 @@
-import { useState, useCallback } from 'react'
-import { ChevronRight, ChevronDown, Plus, MapPin } from 'lucide-react'
-import { MAP_COLORS } from './mapConfig'
+import { useCallback } from 'react'
 import type {
   SuggestionTree,
   TreeContinentGroup,
   TreeCountryGroup,
   TreeCityGroup,
 } from '../../lib/groupSavesByGeography'
-import { countrySubtitle, continentSubtitle } from '../../lib/groupSavesByGeography'
-
-// ── Country code badge (no emojis) ───────────────────────────────────────────
-
-function CountryBadge({ code }: { code: string }) {
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      width: 26, height: 18, borderRadius: 4,
-      background: '#f1efe8', flexShrink: 0,
-      fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
-      color: '#888780', letterSpacing: 0.5,
-    }}>
-      {code}
-    </span>
-  )
-}
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,48 +15,142 @@ export interface HierarchicalSuggestionListProps {
   onAddContinent: (continent: TreeContinentGroup) => void
 }
 
+// ── Dashed circle with "+" ──────────────────────────────────────────────────
+
+function DashedPlusCircle() {
+  return (
+    <div style={{
+      width: 28,
+      height: 28,
+      borderRadius: '50%',
+      border: '1.5px dashed #c45a2d',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+      marginRight: 12,
+    }}>
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <line x1="6" y1="1" x2="6" y2="11" stroke="#c45a2d" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="1" y1="6" x2="11" y2="6" stroke="#c45a2d" strokeWidth="1.5" strokeLinecap="round" />
+      </svg>
+    </div>
+  )
+}
+
+// ── Suggestion row — matches confirmed destination row layout ────────────────
+
+function SuggestionRow({
+  cityName,
+  countryName,
+  saveCount,
+  onClick,
+  testId,
+}: {
+  cityName: string
+  countryName?: string
+  saveCount: number
+  onClick: () => void
+  testId?: string
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testId}
+      onClick={onClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        width: '100%',
+        padding: '12px 16px',
+        background: 'none',
+        border: 'none',
+        borderBottomWidth: 0.5,
+        borderBottomStyle: 'solid',
+        borderBottomColor: '#f1efe8',
+        cursor: 'pointer',
+        textAlign: 'left',
+      }}
+    >
+      <DashedPlusCircle />
+
+      {/* Name + save count — same layout as confirmed rows */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{
+          fontFamily: "'DM Sans', sans-serif",
+          fontSize: 15,
+          fontWeight: 600,
+          color: '#1a1d27',
+          margin: 0,
+          lineHeight: 1.3,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+          {cityName}
+          {countryName && (
+            <span style={{ fontWeight: 400, color: '#888780', fontSize: 13 }}>
+              {' '}· {countryName}
+            </span>
+          )}
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: 10,
+            color: '#888780',
+          }}>
+            {saveCount} save{saveCount !== 1 ? 's' : ''}
+          </span>
+        </div>
+      </div>
+    </button>
+  )
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function HierarchicalSuggestionList({
   tree,
   onAddCity,
-  onAddCountry,
-  onAddContinent,
+  onAddCountry: _onAddCountry,
 }: HierarchicalSuggestionListProps) {
-  // Expand/collapse state
-  const [expandedContinents, setExpandedContinents] = useState<Set<string>>(
-    () => new Set(tree.continents.map(c => c.name)), // All continents expanded by default
-  )
-  const [expandedCountries, setExpandedCountries] = useState<Set<string>>(() => {
-    // Countries with 1-2 cities expanded, 3+ collapsed
-    const expanded = new Set<string>()
-    for (const cont of tree.continents) {
-      for (const country of cont.countries) {
-        if (country.cities.length <= 2) expanded.add(country.countryCode)
+  // Flatten the tree into city-level suggestion rows
+  const flatSuggestions = useCallback(() => {
+    const rows: Array<{
+      key: string
+      cityName: string
+      countryName: string
+      countryCode: string
+      saveCount: number
+      city: TreeCityGroup
+      country: TreeCountryGroup
+    }> = []
+
+    for (const continent of tree.continents) {
+      for (const country of continent.countries) {
+        for (const city of country.cities) {
+          rows.push({
+            key: `${country.countryCode}-${city.cityName}`,
+            cityName: city.cityName,
+            countryName: country.countryName,
+            countryCode: country.countryCode,
+            saveCount: city.saveCount,
+            city,
+            country,
+          })
+        }
       }
     }
-    return expanded
-  })
 
-  const toggleContinent = useCallback((name: string) => {
-    setExpandedContinents(prev => {
-      const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
-      return next
-    })
-  }, [])
+    // Sort by save count descending
+    rows.sort((a, b) => b.saveCount - a.saveCount)
+    return rows
+  }, [tree])
 
-  const toggleCountry = useCallback((code: string) => {
-    setExpandedCountries(prev => {
-      const next = new Set(prev)
-      if (next.has(code)) next.delete(code)
-      else next.add(code)
-      return next
-    })
-  }, [])
+  const rows = flatSuggestions()
 
-  if (tree.continents.length === 0 && tree.unassignedCount === 0) {
+  if (rows.length === 0 && tree.unassignedCount === 0) {
     return (
       <div style={{
         padding: '20px 16px', textAlign: 'center',
@@ -88,149 +163,47 @@ export default function HierarchicalSuggestionList({
 
   return (
     <div data-testid="hierarchical-suggestions">
-      {tree.continents.map(continent => (
-        <div key={continent.name} data-testid={`continent-${continent.name}`}>
-          {/* Continent header */}
-          <button
-            type="button"
-            onClick={() => toggleContinent(continent.name)}
-            data-testid={`continent-toggle-${continent.name}`}
-            style={{
-              display: 'flex', alignItems: 'center', width: '100%',
-              padding: '10px 16px', gap: 8,
-              background: '#f1efe8', border: 'none', cursor: 'pointer',
-              textAlign: 'left',
-            }}
-          >
-            {expandedContinents.has(continent.name)
-              ? <ChevronDown size={14} style={{ color: '#b4b2a9', flexShrink: 0 }} />
-              : <ChevronRight size={14} style={{ color: '#b4b2a9', flexShrink: 0 }} />
-            }
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: '#1a1d27' }}>
-                {continent.name}
-              </span>
-              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#b4b2a9', marginLeft: 6 }}>
-                · {continent.totalSaves} save{continent.totalSaves !== 1 ? 's' : ''}
-              </span>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#b4b2a9', marginTop: 1 }}>
-                {continentSubtitle(continent)}
-              </div>
-            </div>
-            <button
-              type="button"
-              data-testid={`continent-add-${continent.name}`}
-              onClick={e => { e.stopPropagation(); onAddContinent(continent) }}
-              style={{
-                padding: '4px 10px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 600,
-                color: MAP_COLORS.accent, background: 'var(--color-accent-light)',
-                whiteSpace: 'nowrap', flexShrink: 0,
-              }}
-            >
-              Add all
-            </button>
-          </button>
-
-          {/* Countries (visible when continent expanded) */}
-          {expandedContinents.has(continent.name) && continent.countries.map(country => (
-            <div key={country.countryCode} data-testid={`country-${country.countryCode}`}>
-              {/* Country row */}
-              <button
-                type="button"
-                onClick={() => toggleCountry(country.countryCode)}
-                data-testid={`country-toggle-${country.countryCode}`}
-                style={{
-                  display: 'flex', alignItems: 'center', width: '100%',
-                  padding: '8px 16px 8px 28px', gap: 8,
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  borderBottom: '0.5px solid #f1efe8',
-                  textAlign: 'left',
-                }}
-              >
-                {expandedCountries.has(country.countryCode)
-                  ? <ChevronDown size={12} style={{ color: '#b4b2a9', flexShrink: 0 }} />
-                  : <ChevronRight size={12} style={{ color: '#b4b2a9', flexShrink: 0 }} />
-                }
-                <CountryBadge code={country.countryCode} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: '#1a1d27' }}>
-                    {country.countryName}
-                  </span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b4b2a9', marginLeft: 6 }}>
-                    · {country.totalSaves} save{country.totalSaves !== 1 ? 's' : ''}
-                  </span>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10, color: '#b4b2a9', marginTop: 1 }}>
-                    {countrySubtitle(country)}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  data-testid={`country-add-${country.countryCode}`}
-                  onClick={e => { e.stopPropagation(); onAddCountry(country) }}
-                  style={{
-                    width: 28, height: 28, minWidth: 28, borderRadius: '50%', border: 'none',
-                    background: MAP_COLORS.accent, color: '#ffffff',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    cursor: 'pointer', flexShrink: 0,
-                  }}
-                >
-                  <Plus size={14} />
-                </button>
-              </button>
-
-              {/* Cities (visible when country expanded) */}
-              {expandedCountries.has(country.countryCode) && country.cities.map(city => (
-                <div
-                  key={city.cityName}
-                  data-testid={`city-${city.cityName}`}
-                  style={{
-                    display: 'flex', alignItems: 'center',
-                    padding: '7px 16px 7px 56px', gap: 8,
-                    borderBottom: '0.5px solid #f1efe8',
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: '#1a1d27' }}>
-                      {city.cityName}
-                    </span>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b4b2a9', marginLeft: 6 }}>
-                      · {city.saveCount} save{city.saveCount !== 1 ? 's' : ''}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    data-testid={`city-add-${city.cityName}`}
-                    onClick={() => onAddCity(city, country.countryCode, country.countryName)}
-                    style={{
-                      width: 26, height: 26, minWidth: 26, borderRadius: '50%', border: 'none',
-                      background: MAP_COLORS.accent, color: '#ffffff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      cursor: 'pointer', flexShrink: 0,
-                    }}
-                  >
-                    <Plus size={12} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          ))}
+      {/* Section label */}
+      {rows.length > 0 && (
+        <div style={{
+          padding: '14px 16px 6px',
+          fontFamily: "'DM Sans', sans-serif",
+          fontSize: 11,
+          fontWeight: 500,
+          textTransform: 'uppercase',
+          letterSpacing: '0.04em',
+          color: '#8088a0',
+        }}
+        data-testid="suggestions-label"
+        >
+          From your Horizon
         </div>
+      )}
+
+      {/* Flat suggestion rows — same layout as confirmed destination rows */}
+      {rows.map(row => (
+        <SuggestionRow
+          key={row.key}
+          testId={`suggestion-${row.key}`}
+          cityName={row.cityName}
+          countryName={row.countryName}
+          saveCount={row.saveCount}
+          onClick={() => onAddCity(row.city, row.countryCode, row.countryName)}
+        />
       ))}
 
       {/* Unassigned saves */}
       {tree.unassignedCount > 0 && (
-        <div
-          data-testid="unassigned-saves"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '10px 16px', borderTop: '0.5px solid #f1efe8', marginTop: 4,
-          }}
-        >
-          <MapPin size={14} style={{ color: '#b4b2a9', flexShrink: 0 }} />
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#b4b2a9' }}>
-            {tree.unassignedCount} save{tree.unassignedCount !== 1 ? 's' : ''} have no location
-          </span>
+        <div style={{
+          padding: '10px 16px',
+          display: 'flex', alignItems: 'center', gap: 8,
+          fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#b4b2a9',
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
+          {tree.unassignedCount} save{tree.unassignedCount !== 1 ? 's' : ''} have no location
         </div>
       )}
     </div>
