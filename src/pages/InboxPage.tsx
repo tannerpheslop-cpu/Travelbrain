@@ -493,11 +493,30 @@ export default function InboxPage() {
       </div>
     )}
 
+    {/* ── Youji wordmark on the sky ── */}
+    <div style={{
+      position: 'fixed',
+      top: 'calc(env(safe-area-inset-top, 0px) + 12px)',
+      left: 16,
+      zIndex: 5,
+      pointerEvents: 'none',
+    }}>
+      <span style={{
+        fontFamily: "'DM Sans', sans-serif",
+        fontSize: 17,
+        fontWeight: 500,
+        color: '#b8c8e0',
+        letterSpacing: '0.5px',
+      }}>
+        youji
+      </span>
+    </div>
+
     {/* ── Stats overlay on the sky (just above the sheet) ── */}
     {items.length > 0 && (
       <div style={{
         position: 'fixed',
-        top: 'calc(50vh - 28px)',
+        top: 'calc(30vh - 24px)',
         left: 0,
         right: 0,
         zIndex: 5,
@@ -519,10 +538,10 @@ export default function InboxPage() {
       </div>
     )}
 
-    {/* ── Sheet layer: structured content (50% min, no peek) ── */}
+    {/* ── Sheet layer: structured content (50% min, 70% default, 100% full) ── */}
     <div style={{ position: 'fixed', inset: 0, zIndex: 10, pointerEvents: 'none' }}>
       <DraggableSheet
-        snapPoints={[0.5, 0.85, 0.85]}
+        snapPoints={[0.5, 0.7, 1.0]}
         initialSnap="half"
         header={<div style={{ height: 4 }} />}
       >
@@ -754,29 +773,39 @@ export default function InboxPage() {
         </div>
       )}
 
-      {/* ── Recently Added — Horizontal Scroll ── */}
+      {/* ── Recently Added ── */}
       {!loading && !error && recentlyAdded.length > 0 && (
-        <section style={{ borderTop: '1px solid var(--color-border)', borderBottom: '1px solid var(--color-border)', paddingTop: 16, paddingBottom: 16, marginBottom: 20 }}>
+        <section style={{ borderTop: '1px solid #e8e6e1', borderBottom: '1px solid #e8e6e1', paddingTop: 16, paddingBottom: 16, marginBottom: 20 }}>
           <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', margin: 0 }}>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: '#1a1d27', margin: 0 }}>
               Recently added
             </h2>
-            <span className="font-mono" style={{ fontSize: 10, color: 'var(--color-text-tertiary)' }}>{recentlyAdded.length}</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b4b2a9' }}>{recentlyAdded.length}</span>
           </div>
-          <div
-            className="scrollbar-hide"
-            style={{
-              display: 'flex', gap: 10, overflowX: 'auto',
-              scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
-              margin: '0 -20px', padding: '0 20px',
-            }}
-          >
-            {recentlyAdded.map((item) => (
-              <div key={item.id} style={{ width: 170, flexShrink: 0 }}>
-                <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} eager showShimmer={!item.location_name && (Date.now() - new Date(item.created_at).getTime()) < 30000} />
-              </div>
-            ))}
-          </div>
+          {viewMode === 'grid' ? (
+            /* Grid: horizontal scroll of tile cards */
+            <div
+              className="scrollbar-hide"
+              style={{
+                display: 'flex', gap: 10, overflowX: 'auto',
+                scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch',
+                margin: '0 -16px', padding: '0 16px',
+              }}
+            >
+              {recentlyAdded.map((item) => (
+                <div key={item.id} style={{ width: 170, flexShrink: 0 }}>
+                  <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} eager showShimmer={!item.location_name && (Date.now() - new Date(item.created_at).getTime()) < 30000} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            /* List: vertical stack of compact rows */
+            <div className="flex flex-col">
+              {recentlyAdded.map((item) => (
+                <ListRow key={item.id} item={item} />
+              ))}
+            </div>
+          )}
         </section>
       )}
 

@@ -173,26 +173,30 @@ export default function SunsetBackground({ saveCount }: SunsetBackgroundProps) {
         inset: 0,
         zIndex: 0,
         pointerEvents: 'none',
+        background: '#080c18', // deep-bg below the gradient
       }}
     >
-      {/* Layer 1: Linear gradient */}
-      <div
-        data-testid="sunset-layer-1"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: linearGradient,
-        }}
-      />
-      {/* Layer 2: Radial overlay */}
-      <div
-        data-testid="sunset-layer-2"
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: radialGradient,
-        }}
-      />
+      {/* Gradient container — compressed to top 50% of viewport */}
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '50vh', overflow: 'hidden' }}>
+        {/* Layer 1: Linear gradient */}
+        <div
+          data-testid="sunset-layer-1"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: linearGradient,
+          }}
+        />
+        {/* Layer 2: Radial overlay */}
+        <div
+          data-testid="sunset-layer-2"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: radialGradient,
+          }}
+        />
+      </div>
     </div>
   )
 }
