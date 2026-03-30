@@ -22,7 +22,10 @@ export async function triggerMultiItemExtraction(
     const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
     // Call the Edge Function
-    const response = await fetch(`${supabaseUrl}/functions/v1/extract-multi-items`, {
+    const fetchUrl = `${supabaseUrl}/functions/v1/extract-multi-items`
+    console.log('[extract-multi-items] Calling:', fetchUrl, 'with URL:', savedItem.source_url)
+
+    const response = await fetch(fetchUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -32,12 +35,16 @@ export async function triggerMultiItemExtraction(
       body: JSON.stringify({ url: savedItem.source_url }),
     })
 
+    console.log('[extract-multi-items] Response:', response.status, response.statusText)
+
     if (!response.ok) {
-      console.error('[extract-multi-items] HTTP error:', response.status)
+      const errorText = await response.text().catch(() => 'no body')
+      console.error('[extract-multi-items] HTTP error:', response.status, errorText)
       return
     }
 
     const result = await response.json()
+    console.log('[extract-multi-items] Result:', result.success, 'items:', result.items?.length ?? 0)
 
     if (!result.success || !result.items || result.items.length < 2) {
       // Single item or extraction failed — nothing to do
