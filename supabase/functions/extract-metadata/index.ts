@@ -394,8 +394,9 @@ async function handleInstagram(url: URL): Promise<MetadataResult | null> {
       thumbnail_url?: string
     }
 
+    const rawTitle = data.title || (data.author_name ? `${data.author_name}'s post` : "Instagram post")
     return {
-      title: data.title || (data.author_name ? `${data.author_name}'s post` : "Instagram post"),
+      title: cleanInstagramTitle(rawTitle),
       image: data.thumbnail_url ?? null,
       description: data.author_name ? `Post by ${data.author_name} on Instagram` : null,
       site_name: "Instagram",
@@ -803,7 +804,92 @@ function isSpecificPlace(types: string[]): boolean {
   return hasSpecificType
 }
 
-/** Quick scan: does the text contain geographic keywords (countries, major cities)? */
+// ── Article/listicle rejection filter ────────────────────────────────────────
+// Titles that MENTION a place but are ABOUT an article should not trigger enrichment.
+
+function isArticleTitle(title: string): boolean {
+  const lower = title.toLowerCase()
+
+  // Number + superlative: "7 best", "10 top", "15 easy"
+  if (/\d+\s*(best|top|easy|great|amazing|beautiful|cheap|free|must|essential|ultimate|perfect|incredible|stunning)/i.test(title)) return true
+
+  // Guide/list patterns (EN)
+  const articlePatterns = [
+    "guide to", "guide for", "travel guide", "complete guide",
+    "day trips from", "things to do", "places to visit",
+    "where to eat", "what to do", "where to stay",
+    "itinerary", "bucket list", "travel tips",
+    "tips for", "how to visit",
+    "weekend in", "hours in", "days in",
+  ]
+  if (articlePatterns.some(p => lower.includes(p))) return true
+
+  // Guide/list patterns (CJK)
+  const cjkArticlePatterns = ["攻略", "指南", "懶人包", "必去", "最佳", "推薦"]
+  if (cjkArticlePatterns.some(p => title.includes(p))) return true
+
+  // CJK number patterns: "10大", "7個", "5間"
+  if (/\d+\s*[大個間家處]/.test(title)) return true
+
+  // SEO metadata after pipe: "Title | keyword, keyword"
+  if (title.includes("|") && (title.split("|")[1]?.includes(",") ?? false)) return true
+
+  return false
+}
+
+// ── Instagram title cleanup ─────────────────────────────────────────────────
+
+function cleanInstagramTitle(raw: string): string {
+  let t = raw
+  // Decode HTML entities
+  t = t.replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+    try { return String.fromCodePoint(parseInt(hex, 16)) } catch { return "" }
+  })
+  t = t.replace(/&#(\d+);/g, (_, dec) => {
+    try { return String.fromCodePoint(parseInt(dec, 10)) } catch { return "" }
+  })
+  t = t.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
+
+  // Strip "on instagram:" boilerplate (case-insensitive)
+  t = t.replace(/\s*on\s+instagram\s*:\s*/gi, ": ")
+
+  // Strip "| Instagram" suffix
+  t = t.replace(/\s*\|\s*Instagram\s*$/i, "")
+
+  // Strip emoji (Unicode emoji ranges)
+  t = t.replace(/[\u{1F600}-\u{1F9FF}\u{2600}-\u{27BF}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1FA00}-\u{1FA9F}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}\u{20E3}\u{E0020}-\u{E007F}]/gu, "")
+
+  // If title starts with "username: " or "username, desc: ", extract after colon
+  const colonIdx = t.indexOf(":")
+  if (colonIdx > 0 && colonIdx < 40) {
+    const afterColon = t.slice(colonIdx + 1).trim()
+    if (afterColon.length > 5) t = afterColon
+  }
+
+  // Trim quotes and ellipsis
+  t = t.replace(/^[""\u201C\u201D]+|[""\u201C\u201D]+$/g, "").replace(/\.{3,}$|…$/g, "").trim()
+
+  // Truncate at last complete sentence under 100 chars
+  if (t.length > 100) {
+    const sentences = t.match(/[^.!?]+[.!?]+/g)
+    if (sentences) {
+      let truncated = ""
+      for (const s of sentences) {
+        if ((truncated + s).length > 100) break
+        truncated += s
+      }
+      if (truncated.length > 10) t = truncated.trim()
+      else t = t.slice(0, 97) + "..."
+    } else {
+      t = t.slice(0, 97) + "..."
+    }
+  }
+
+  return t.trim()
+}
+
+// ── Geography detection ─────────────────────────────────────────────────────
+
 const GEO_KEYWORDS = new Set([
   // Countries (EN)
   "japan", "taiwan", "china", "korea", "thailand", "vietnam", "indonesia", "singapore",
@@ -824,10 +910,19 @@ const GEO_KEYWORDS = new Set([
   // Major cities (CJK)
   "東京", "大阪", "京都", "台北", "北京", "上海", "成都", "香港",
   "曼谷", "首爾", "河內", "巴黎", "倫敦", "羅馬", "巴塞隆納", "雪梨",
-  // Geographic features
+  // Geographic features (EN) — expanded
   "mountain", "mount", "mt.", "lake", "river", "island", "beach", "volcano", "gorge",
-  "valley", "canyon", "falls", "peak", "trail",
+  "valley", "canyon", "falls", "waterfall", "peak", "trail", "cave", "reef", "glacier",
+  "plateau", "cliff", "summit", "ridge", "pass", "bay", "harbor", "harbour", "peninsula",
+  "delta", "oasis", "strait", "cape", "forest", "jungle", "desert", "creek", "spring",
+  "hot spring", "temple", "shrine", "monastery", "palace", "castle", "fortress", "ruins",
+  "bridge", "tower", "cathedral", "basilica", "mosque", "pagoda", "national park",
+  // Geographic features (CJK)
   "山", "湖", "河", "島", "海", "灣", "峰", "嶺", "溪", "瀑布", "谷",
+  "峽", "峽谷", "洞", "洞穴", "冰川", "火山", "高原", "懸崖", "半島", "沙漠",
+  "溫泉", "寺", "廟", "神社", "宮", "城", "塔", "橋", "古蹟", "步道", "國家公園",
+  // Geographic features (JP)
+  "峡", "滝", "浜", "洞窟", "温泉", "公園",
 ])
 
 function titleContainsGeography(title: string): boolean {
@@ -852,6 +947,9 @@ function shouldEnrich(
 
   // Must have a title
   if (!result.title || result.title.length < 3) return false
+
+  // REJECT article/listicle titles before checking geography
+  if (isArticleTitle(result.title)) return false
 
   // Enrich if: coordinates available OR title contains geographic keywords
   if (hasDetectedLocation) return true
