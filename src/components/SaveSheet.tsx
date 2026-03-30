@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
@@ -58,6 +59,7 @@ function sourceChar(siteName: string | null): string {
 
 export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bulkInputRef = useRef<HTMLTextAreaElement>(null)
@@ -483,6 +485,9 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
             .neq('id', savedItem.id)
           const existingTitles = (existingItems ?? []).map((i: { title: string }) => i.title)
           await triggerMultiItemExtraction(savedItem, user.id, existingTitles)
+          // Invalidate caches so the badge and count appear on Horizon
+          queryClient.invalidateQueries({ queryKey: ['saved-items'] })
+          queryClient.invalidateQueries({ queryKey: ['pending-extraction-counts'] })
         } catch (e) {
           console.error('[extract-multi-items] trigger failed:', e)
         }

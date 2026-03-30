@@ -1,5 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, fireEvent } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+const wrapper = ({ children }: { children: React.ReactNode }) => (
+  <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+)
 
 // Mock dependencies that SaveSheet needs
 vi.mock('../../lib/supabase', () => ({
@@ -39,7 +45,7 @@ describe('BUG-003 regression: SaveSheet click propagation closes sheet', () => {
     const onClose = vi.fn()
     const onSaved = vi.fn()
 
-    render(<SaveSheet onClose={onClose} onSaved={onSaved} />)
+    render(<SaveSheet onClose={onClose} onSaved={onSaved} />, { wrapper })
 
     // Find the sheet content div (fixed bottom-0 z-50)
     const sheetContent = document.querySelector('.fixed.inset-x-0.bottom-0.z-50')
@@ -54,7 +60,7 @@ describe('BUG-003 regression: SaveSheet click propagation closes sheet', () => {
     const onClose = vi.fn()
     const onSaved = vi.fn()
 
-    render(<SaveSheet onClose={onClose} onSaved={onSaved} />)
+    render(<SaveSheet onClose={onClose} onSaved={onSaved} />, { wrapper })
 
     // Find the backdrop div (fixed inset-0 z-40)
     const backdrop = document.querySelector('.fixed.inset-0.z-40')
