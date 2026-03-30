@@ -800,8 +800,19 @@ function isSpecificPlace(types: string[]): boolean {
     "geocode", "route", "colloquial_area",
   ])
   // If ALL types are broad, skip enrichment
-  const hasSpecificType = types.some(t => !broadTypes.has(t))
-  return hasSpecificType
+  if (types.every(t => broadTypes.has(t))) return false
+
+  // Explicit whitelist of specific place types
+  const specificTypes = new Set([
+    "restaurant", "cafe", "bar", "bakery", "food", "meal_takeaway",
+    "tourist_attraction", "museum", "art_gallery", "park", "natural_feature",
+    "point_of_interest", "lodging", "hotel", "hostel",
+    "hiking_area", "campground", "church", "hindu_temple", "mosque", "synagogue",
+    "airport", "train_station", "bus_station", "subway_station",
+    "shopping_mall", "zoo", "aquarium", "amusement_park", "stadium",
+    "university", "spa", "gym", "establishment", "premise", "store",
+  ])
+  return types.some(t => specificTypes.has(t))
 }
 
 // ── Article/listicle rejection filter ────────────────────────────────────────
@@ -825,11 +836,11 @@ function isArticleTitle(title: string): boolean {
   if (articlePatterns.some(p => lower.includes(p))) return true
 
   // Guide/list patterns (CJK)
-  const cjkArticlePatterns = ["攻略", "指南", "懶人包", "必去", "最佳", "推薦"]
+  const cjkArticlePatterns = ["攻略", "指南", "懶人包", "必去", "必吃", "必玩", "最佳", "推薦"]
   if (cjkArticlePatterns.some(p => title.includes(p))) return true
 
-  // CJK number patterns: "10大", "7個", "5間"
-  if (/\d+\s*[大個間家處]/.test(title)) return true
+  // CJK number patterns: "10大", "7個", "5間", "10选", "5種"
+  if (/\d+\s*[大個間家處选選件種樣座条]/.test(title)) return true
 
   // SEO metadata after pipe: "Title | keyword, keyword"
   if (title.includes("|") && (title.split("|")[1]?.includes(",") ?? false)) return true
@@ -888,56 +899,15 @@ function cleanInstagramTitle(raw: string): string {
   return t.trim()
 }
 
-// ── Geography detection ─────────────────────────────────────────────────────
-
-const GEO_KEYWORDS = new Set([
-  // Countries (EN)
-  "japan", "taiwan", "china", "korea", "thailand", "vietnam", "indonesia", "singapore",
-  "malaysia", "philippines", "cambodia", "laos", "myanmar", "nepal", "india", "sri lanka",
-  "mongolia", "turkey", "greece", "italy", "france", "spain", "portugal", "germany",
-  "switzerland", "austria", "iceland", "norway", "sweden", "denmark", "finland",
-  "united kingdom", "ireland", "mexico", "peru", "colombia", "brazil", "argentina", "chile",
-  "morocco", "egypt", "kenya", "tanzania", "south africa", "australia", "new zealand",
-  // Countries (CJK)
-  "台灣", "日本", "中國", "韓國", "泰國", "越南", "印尼", "新加坡", "馬來西亞",
-  "菲律賓", "柬埔寨", "印度", "尼泊爾", "蒙古", "土耳其", "希臘", "義大利", "法國",
-  "西班牙", "德國", "瑞士", "冰島", "挪威", "英國", "墨西哥", "祕魯", "巴西",
-  "摩洛哥", "埃及", "澳洲", "紐西蘭",
-  // Major cities (EN)
-  "tokyo", "osaka", "kyoto", "taipei", "beijing", "shanghai", "chengdu", "hong kong",
-  "bangkok", "seoul", "hanoi", "bali", "singapore", "paris", "london", "rome", "barcelona",
-  "new york", "los angeles", "sydney", "auckland",
-  // Major cities (CJK)
-  "東京", "大阪", "京都", "台北", "北京", "上海", "成都", "香港",
-  "曼谷", "首爾", "河內", "巴黎", "倫敦", "羅馬", "巴塞隆納", "雪梨",
-  // Geographic features (EN) — expanded
-  "mountain", "mount", "mt.", "lake", "river", "island", "beach", "volcano", "gorge",
-  "valley", "canyon", "falls", "waterfall", "peak", "trail", "cave", "reef", "glacier",
-  "plateau", "cliff", "summit", "ridge", "pass", "bay", "harbor", "harbour", "peninsula",
-  "delta", "oasis", "strait", "cape", "forest", "jungle", "desert", "creek", "spring",
-  "hot spring", "temple", "shrine", "monastery", "palace", "castle", "fortress", "ruins",
-  "bridge", "tower", "cathedral", "basilica", "mosque", "pagoda", "national park",
-  // Geographic features (CJK)
-  "山", "湖", "河", "島", "海", "灣", "峰", "嶺", "溪", "瀑布", "谷",
-  "峽", "峽谷", "洞", "洞穴", "冰川", "火山", "高原", "懸崖", "半島", "沙漠",
-  "溫泉", "寺", "廟", "神社", "宮", "城", "塔", "橋", "古蹟", "步道", "國家公園",
-  // Geographic features (JP)
-  "峡", "滝", "浜", "洞窟", "温泉", "公園",
-])
-
-function titleContainsGeography(title: string): boolean {
-  const lower = title.toLowerCase()
-  for (const keyword of GEO_KEYWORDS) {
-    if (lower.includes(keyword)) return true
-  }
-  return false
-}
+// ── Enrichment decision ──────────────────────────────────────────────────────
+// No keyword lists. Send the cleaned title to Places and let the result quality
+// decide. Google handles every language natively.
 
 /** Should we attempt enrichment for this result? */
 function shouldEnrich(
   result: MetadataResult,
   isGoogleMaps: boolean,
-  hasDetectedLocation: boolean,
+  _hasDetectedLocation: boolean,
 ): boolean {
   // Google Maps: enrich only if we extracted a real place name (not fallback)
   if (isGoogleMaps) {
@@ -945,17 +915,14 @@ function shouldEnrich(
     return !fallbacks.includes(result.title ?? "")
   }
 
-  // Must have a title
-  if (!result.title || result.title.length < 3) return false
+  // Must have a title with reasonable length
+  if (!result.title || result.title.length < 3 || result.title.length > 150) return false
 
-  // REJECT article/listicle titles before checking geography
+  // REJECT article/listicle titles — structural patterns only
   if (isArticleTitle(result.title)) return false
 
-  // Enrich if: coordinates available OR title contains geographic keywords
-  if (hasDetectedLocation) return true
-  if (titleContainsGeography(result.title)) return true
-
-  return false
+  // Everything else: attempt enrichment. Places result quality decides.
+  return true
 }
 
 /** Detect source platform from URL hostname. */
