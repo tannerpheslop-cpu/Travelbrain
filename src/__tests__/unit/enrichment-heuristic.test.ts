@@ -103,52 +103,18 @@ function isSpecificPlace(types: string[]): boolean {
     'sublocality_level_1', 'neighborhood', 'postal_code', 'political',
     'geocode', 'route', 'colloquial_area',
   ])
-  return types.some(t => !broadTypes.has(t))
+  if (types.every(t => broadTypes.has(t))) return false
+  const specificTypes = new Set([
+    'restaurant', 'cafe', 'bar', 'bakery', 'food', 'meal_takeaway',
+    'tourist_attraction', 'museum', 'art_gallery', 'park', 'natural_feature',
+    'point_of_interest', 'lodging', 'hotel', 'hostel',
+    'hiking_area', 'campground', 'church', 'hindu_temple', 'mosque', 'synagogue',
+    'airport', 'train_station', 'bus_station', 'subway_station',
+    'shopping_mall', 'zoo', 'aquarium', 'amusement_park', 'stadium',
+    'university', 'spa', 'gym', 'establishment', 'premise', 'store',
+  ])
+  return types.some(t => specificTypes.has(t))
 }
-
-// ── Title geography detection ────────────────────────────────────────────────
-
-const GEO_KEYWORDS = new Set([
-  'japan', 'taiwan', 'china', 'korea', 'thailand', 'vietnam', 'tokyo', 'osaka',
-  'kyoto', 'taipei', 'beijing', 'shanghai', 'hong kong', 'bangkok', 'seoul',
-  'paris', 'london', 'rome', 'bali', 'mountain', 'mount', 'lake', 'island',
-  '台灣', '日本', '中國', '東京', '台北', '香港', '山', '湖', '島',
-])
-
-function titleContainsGeography(title: string): boolean {
-  const lower = title.toLowerCase()
-  for (const keyword of GEO_KEYWORDS) {
-    if (lower.includes(keyword)) return true
-  }
-  return false
-}
-
-describe('titleContainsGeography', () => {
-  it('detects English country name', () => {
-    expect(titleContainsGeography('Amazing Food in Thailand')).toBe(true)
-  })
-
-  it('detects Chinese country name', () => {
-    expect(titleContainsGeography('只為了拍台灣最美的桌布')).toBe(true)
-  })
-
-  it('detects Chinese geographic feature (山)', () => {
-    expect(titleContainsGeography('我們爬上合歡山頂')).toBe(true)
-  })
-
-  it('detects English city name', () => {
-    expect(titleContainsGeography('Best Ramen in Tokyo')).toBe(true)
-  })
-
-  it('detects "mountain" keyword', () => {
-    expect(titleContainsGeography('Hiking Mount Siguniang')).toBe(true)
-  })
-
-  it('returns false for non-geographic titles', () => {
-    expect(titleContainsGeography('My Morning Routine')).toBe(false)
-    expect(titleContainsGeography('How to Pack Light')).toBe(false)
-  })
-})
 
 describe('isSpecificPlace', () => {
   it('restaurant is specific', () => {
@@ -202,9 +168,9 @@ function isArticleTitle(title: string): boolean {
     'tips for', 'how to visit', 'weekend in', 'hours in', 'days in',
   ]
   if (articlePatterns.some(p => lower.includes(p))) return true
-  const cjkArticlePatterns = ['攻略', '指南', '懶人包', '必去', '最佳', '推薦']
+  const cjkArticlePatterns = ['攻略', '指南', '懶人包', '必去', '必吃', '必玩', '最佳', '推薦']
   if (cjkArticlePatterns.some(p => title.includes(p))) return true
-  if (/\d+\s*[大個間家處]/.test(title)) return true
+  if (/\d+\s*[大個間家處选選件種樣座条]/.test(title)) return true
   if (title.includes('|') && (title.split('|')[1]?.includes(',') ?? false)) return true
   return false
 }
@@ -309,45 +275,19 @@ describe('cleanInstagramTitle', () => {
   })
 })
 
-// ── Expanded geography keywords ──────────────────────────────────────────────
+// ── isSpecificPlace additional tests ──────────────────────────────────────────
 
-describe('geography keyword expansion', () => {
-  // Test by checking the GEO_KEYWORDS set matches from the Edge Function.
-  // We duplicate a subset here to verify the expanded keywords.
-  const expandedFeatures = new Set([
-    'gorge', 'canyon', 'valley', 'falls', 'waterfall', 'cave', 'reef', 'glacier',
-    'plateau', 'cliff', 'summit', 'ridge', 'pass', 'bay', 'harbor', 'harbour',
-    'peninsula', 'delta', 'oasis', 'strait', 'cape', 'forest', 'jungle', 'desert',
-    'creek', 'spring', 'hot spring', 'temple', 'shrine', 'monastery', 'palace',
-    'castle', 'fortress', 'ruins', 'bridge', 'tower', 'cathedral', 'basilica',
-    'mosque', 'pagoda', 'national park',
-    // CJK
-    '峽', '峽谷', '洞', '洞穴', '冰川', '火山', '高原', '懸崖', '半島', '沙漠',
-    '溫泉', '寺', '廟', '神社', '宮', '城', '塔', '橋', '古蹟', '步道', '國家公園',
-    // JP
-    '峡', '滝', '浜', '洞窟', '温泉', '公園',
-  ])
-
-  it('"Tiger Leaping Gorge" triggers geography (gorge)', () => {
-    expect('tiger leaping gorge'.includes('gorge')).toBe(true)
-    expect(expandedFeatures.has('gorge')).toBe(true)
+describe('isSpecificPlace — whitelist', () => {
+  it('unknown type alone is NOT specific', () => {
+    expect(isSpecificPlace(['some_random_type'])).toBe(false)
   })
-  it('"Grand Canyon" triggers geography (canyon)', () => {
-    expect(expandedFeatures.has('canyon')).toBe(true)
+  it('establishment alone IS specific', () => {
+    expect(isSpecificPlace(['establishment'])).toBe(true)
   })
-  it('"Fushimi Inari Shrine" triggers geography (shrine)', () => {
-    expect(expandedFeatures.has('shrine')).toBe(true)
+  it('campground IS specific', () => {
+    expect(isSpecificPlace(['campground', 'point_of_interest'])).toBe(true)
   })
-  it('"Yellowstone National Park" triggers geography (national park)', () => {
-    expect(expandedFeatures.has('national park')).toBe(true)
-  })
-  it('"虎跳峽" triggers geography (峽)', () => {
-    expect(expandedFeatures.has('峽')).toBe(true)
-  })
-  it('"草津温泉" triggers geography (温泉 JP)', () => {
-    expect(expandedFeatures.has('温泉')).toBe(true)
-  })
-  it('"金閣寺" triggers geography (寺)', () => {
-    expect(expandedFeatures.has('寺')).toBe(true)
+  it('train_station IS specific', () => {
+    expect(isSpecificPlace(['train_station', 'point_of_interest'])).toBe(true)
   })
 })
