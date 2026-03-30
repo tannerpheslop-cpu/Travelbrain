@@ -472,23 +472,29 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       }
     }
 
+    // Fire-and-forget: multi-item extraction for URL saves
+    // MUST happen BEFORE onSaved — onSaved may unmount this component,
+    // which would kill any awaited async work after it.
+    if (sourceType === 'url' && savedItem.source_url) {
+      // Wrap in a self-contained async IIFE so it survives unmount
+      ;(async () => {
+        try {
+          const { data: existingItems } = await supabase
+            .from('saved_items')
+            .select('title')
+            .eq('user_id', user.id)
+            .neq('id', savedItem.id)
+          const existingTitles = (existingItems ?? []).map((i: { title: string }) => i.title)
+          await triggerMultiItemExtraction(savedItem, user.id, existingTitles)
+        } catch (e) {
+          console.error('[extract-multi-items] trigger failed:', e)
+        }
+      })()
+    }
+
     console.log('[SaveSheet] Calling onSaved for:', savedItem.id)
     onSaved(savedItem)
     console.log('[SaveSheet] onSaved completed')
-
-    // Fire-and-forget: multi-item extraction for URL saves
-    if (sourceType === 'url' && savedItem.source_url) {
-      // Get existing entry titles for duplicate detection
-      const { data: existingItems } = await supabase
-        .from('saved_items')
-        .select('title')
-        .eq('user_id', user.id)
-        .neq('id', savedItem.id)
-      const existingTitles = (existingItems ?? []).map((i: { title: string }) => i.title)
-      triggerMultiItemExtraction(savedItem, user.id, existingTitles).catch(
-        e => console.error('[extract-multi-items] trigger failed:', e),
-      )
-    }
 
     setSaving(false)
     setSaved(true)
