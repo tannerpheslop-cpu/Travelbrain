@@ -361,67 +361,190 @@ function extractAddressFromSchema(obj: Record<string, unknown>): string | null {
   return parts.length > 0 ? parts.join(", ") : null
 }
 
-// ── Layer 2: HTML pattern matching ───────────────────────────────────────────
+// ── Layer 1b: Condé Nast data-item JSON extraction ──────────────────────────
 
-function extractFromHtmlPatterns(html: string): { items: ExtractedItem[]; contentType: "listicle" | "itinerary" | "guide" } {
-  const content = getMainContent(html)
+function extractFromCondeNastDataItems(html: string): ExtractedItem[] {
   const items: ExtractedItem[] = []
 
-  // Find all h2 and h3 headings with their following content
-  // Pattern: <h2...>heading text</h2> followed by <p>...</p> blocks
-  const headingPattern = /<(h[23])[^>]*>([\s\S]*?)<\/\1>/gi
-  const headings: Array<{ level: string; text: string; index: number }> = []
-  let hMatch: RegExpExecArray | null
+  // Condé Nast sites embed venue data in HTML-encoded JSON within data-item attributes
+  // Pattern: data-item="{&quot;dangerousHed&quot;:&quot;&lt;p&gt;Name&lt;/p&gt;&quot;,...}"
+  const dataItemPattern = /data-item="(\{[^"]*\})"/g
+  let match: RegExpExecArray | null
 
-  while ((hMatch = headingPattern.exec(content)) !== null) {
-    const text = stripTags(hMatch[2]).trim()
-    if (text.length > 2 && text.length < 200) {
-      headings.push({ level: hMatch[1], text, index: hMatch.index })
+  while ((match = dataItemPattern.exec(html)) !== null) {
+    try {
+      const decoded = decodeHtml(match[1])
+      const data = JSON.parse(decoded) as Record<string, unknown>
+      const hed = String(data.dangerousHed || "")
+      if (!hed) continue
+
+      const name = stripTags(hed).trim()
+      if (!name || name.length < 2) continue
+
+      const contentType = String(data.contentType || "general")
+      const category = contentType === "restaurant" ? "restaurant"
+        : contentType === "hotel" ? "hotel"
+        : contentType === "activity" || contentType === "attraction" ? "activity"
+        : guessCategoryFromText(name, "")
+
+      items.push({
+        name,
+        category,
+        location_name: null,
+        description: null,
+        source_order: items.length + 1,
+      })
+    } catch {
+      // Malformed JSON — skip this item
     }
   }
 
-  // Need 3+ headings at the same level to detect a list pattern
-  const h2Count = headings.filter(h => h.level === "h2").length
-  const h3Count = headings.filter(h => h.level === "h3").length
-  const targetLevel = h2Count >= 3 ? "h2" : h3Count >= 3 ? "h3" : null
+  return items.slice(0, MAX_ITEMS)
+}
 
-  if (!targetLevel || Math.max(h2Count, h3Count) < 3) {
-    return { items: [], contentType: "guide" }
+// ── Layer 2: HTML pattern matching (expanded) ────────────────────────────────
+
+function extractFromHtmlPatterns(html: string): { items: ExtractedItem[]; contentType: "listicle" | "itinerary" | "guide" } {
+  const content = getMainContent(html)
+
+  // Try Layer 2a: Repeated container detection (most publisher-agnostic)
+  const containerResult = extractFromRepeatedContainers(content)
+  if (containerResult.length >= 2) {
+    return { items: containerResult, contentType: detectContentType(containerResult) }
   }
 
-  const targetHeadings = headings.filter(h => h.level === targetLevel)
+  // Try Layer 2b: Same-class heading sequences
+  const sameClassResult = extractFromSameClassHeadings(content)
+  if (sameClassResult.length >= 2) {
+    return { items: sameClassResult, contentType: detectContentType(sameClassResult) }
+  }
 
-  // Detect content type from heading patterns
-  let contentType: "listicle" | "itinerary" | "guide" = "guide"
-  const dayPattern = /^(?:day\s*\d|week\s*\d|\d+\s*(?:st|nd|rd|th)\s*day|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i
-  const numberedPattern = /^\d+[\.\)\-\s]/
+  // Try Layer 2c: Heading sequences (h2/h3/h4, numbered or non-numbered)
+  const headingResult = extractFromHeadingSequences(content)
+  if (headingResult.length >= 2) {
+    return { items: headingResult, contentType: detectContentType(headingResult) }
+  }
 
-  const hasDayHeadings = targetHeadings.some(h => dayPattern.test(h.text))
-  const hasNumberedHeadings = targetHeadings.filter(h => numberedPattern.test(h.text)).length >= 3
+  return { items: [], contentType: "guide" }
+}
 
-  if (hasDayHeadings) contentType = "itinerary"
-  else if (hasNumberedHeadings) contentType = "listicle"
-  else contentType = "listicle" // default for repeated headings
+/** Layer 2a: Find repeated container elements (same class, each with heading + paragraph) */
+function extractFromRepeatedContainers(content: string): ExtractedItem[] {
+  const items: ExtractedItem[] = []
 
-  // Extract items from each heading block
-  for (let i = 0; i < targetHeadings.length; i++) {
-    const heading = targetHeadings[i]
-    const nextHeadingIdx = i + 1 < targetHeadings.length ? targetHeadings[i + 1].index : content.length
-    const blockHtml = content.slice(heading.index, nextHeadingIdx)
+  // Find class names that appear 3+ times on container-like elements (div, section, article, li)
+  const containerPattern = /<(div|section|article|li)\s+[^>]*class="([^"]+)"[^>]*>([\s\S]*?)<\/\1>/gi
+  const classBuckets = new Map<string, Array<{ html: string }>>()
+  let match: RegExpExecArray | null
 
-    // Strip leading number/punctuation from heading name
+  while ((match = containerPattern.exec(content)) !== null) {
+    const cls = match[2]
+    // Skip very generic or utility classes
+    if (cls.length < 5 || /^(container|wrapper|row|col|flex|grid|block|section)$/i.test(cls)) continue
+
+    const bucket = classBuckets.get(cls) ?? []
+    bucket.push({ html: match[3] })
+    classBuckets.set(cls, bucket)
+  }
+
+  // Find the largest bucket with 3+ items that each contain a heading + paragraph
+  let bestBucket: Array<{ html: string }> = []
+  for (const [, bucket] of classBuckets) {
+    if (bucket.length < 3) continue
+    // Verify each container has a heading and substantial text
+    const valid = bucket.filter(b => {
+      const hasHeading = /<h[1-6][^>]*>[^<]{2,}/i.test(b.html)
+      const hasText = /<p[^>]*>[^<]{50,}/i.test(b.html) || stripTags(b.html).length > 80
+      return hasHeading && hasText
+    })
+    if (valid.length >= 3 && valid.length > bestBucket.length) {
+      bestBucket = valid
+    }
+  }
+
+  for (const container of bestBucket) {
+    const headingMatch = container.html.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i)
+    if (!headingMatch) continue
+    const name = stripTags(headingMatch[1])
+      .replace(/^\d+[\.\)\-\s:]+/, "")
+      .replace(/^\s*[\-–—]\s*/, "")
+      .trim()
+    if (!name || name.length < 2) continue
+
+    const pMatch = container.html.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
+    const description = pMatch ? truncate(stripTags(pMatch[1]), 200) : null
+    const locationName = extractLocationFromBlock(container.html)
+
+    items.push({
+      name,
+      category: guessCategoryFromText(name, description || ""),
+      location_name: locationName,
+      description,
+      source_order: items.length + 1,
+    })
+  }
+
+  return items.slice(0, MAX_ITEMS)
+}
+
+/** Layer 2b: Find 3+ headings sharing the same CSS class */
+function extractFromSameClassHeadings(content: string): ExtractedItem[] {
+  const items: ExtractedItem[] = []
+
+  // Find all headings with their classes
+  const headingPattern = /<(h[2-4])\s+[^>]*class="([^"]+)"[^>]*>([\s\S]*?)<\/\1>/gi
+  const classBuckets = new Map<string, Array<{ text: string; index: number; level: string }>>()
+  let match: RegExpExecArray | null
+
+  while ((match = headingPattern.exec(content)) !== null) {
+    const cls = match[2]
+    const text = stripTags(match[3]).trim()
+    if (text.length < 2 || text.length > 200) continue
+
+    const bucket = classBuckets.get(cls) ?? []
+    bucket.push({ text, index: match.index, level: match[1] })
+    classBuckets.set(cls, bucket)
+  }
+
+  // Find the largest class bucket with 3+ headings
+  let bestClass = ""
+  let bestCount = 0
+  for (const [cls, bucket] of classBuckets) {
+    if (bucket.length >= 3 && bucket.length > bestCount) {
+      // Verify substantial text between headings (filter out nav menus)
+      let hasSubstantialGaps = true
+      for (let i = 0; i < Math.min(bucket.length - 1, 5); i++) {
+        const gapStart = bucket[i].index + bucket[i].text.length
+        const gapEnd = bucket[i + 1].index
+        const gap = content.slice(gapStart, gapEnd)
+        if (stripTags(gap).trim().length < 50) {
+          hasSubstantialGaps = false
+          break
+        }
+      }
+      if (hasSubstantialGaps) {
+        bestClass = cls
+        bestCount = bucket.length
+      }
+    }
+  }
+
+  if (!bestClass) return items
+
+  const headings = classBuckets.get(bestClass)!
+  for (let i = 0; i < headings.length; i++) {
+    const heading = headings[i]
+    const nextIdx = i + 1 < headings.length ? headings[i + 1].index : content.length
+    const blockHtml = content.slice(heading.index, nextIdx)
+
     const name = heading.text
       .replace(/^\d+[\.\)\-\s:]+/, "")
       .replace(/^\s*[\-–—]\s*/, "")
       .trim()
-
     if (!name || name.length < 2) continue
 
-    // Extract first paragraph as description
     const pMatch = blockHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
     const description = pMatch ? truncate(stripTags(pMatch[1]), 200) : null
-
-    // Try to detect location from the block
     const locationName = extractLocationFromBlock(blockHtml)
 
     items.push({
@@ -433,7 +556,81 @@ function extractFromHtmlPatterns(html: string): { items: ExtractedItem[]; conten
     })
   }
 
-  return { items: items.slice(0, MAX_ITEMS), contentType }
+  return items.slice(0, MAX_ITEMS)
+}
+
+/** Layer 2c: Heading sequences at h2/h3/h4 (expanded from original h2/h3 only) */
+function extractFromHeadingSequences(content: string): ExtractedItem[] {
+  const items: ExtractedItem[] = []
+
+  // Include h4 in the pattern (was h2/h3 only)
+  const headingPattern = /<(h[234])[^>]*>([\s\S]*?)<\/\1>/gi
+  const headings: Array<{ level: string; text: string; index: number }> = []
+  let hMatch: RegExpExecArray | null
+
+  while ((hMatch = headingPattern.exec(content)) !== null) {
+    const text = stripTags(hMatch[2]).trim()
+    if (text.length > 2 && text.length < 200) {
+      headings.push({ level: hMatch[1], text, index: hMatch.index })
+    }
+  }
+
+  // Find the heading level with the most instances (need 3+)
+  const counts: Record<string, number> = {}
+  for (const h of headings) {
+    counts[h.level] = (counts[h.level] || 0) + 1
+  }
+  const targetLevel = Object.entries(counts)
+    .filter(([, c]) => c >= 3)
+    .sort(([, a], [, b]) => b - a)[0]?.[0] ?? null
+
+  if (!targetLevel) return items
+
+  const targetHeadings = headings.filter(h => h.level === targetLevel)
+
+  // Verify substantial text between headings (filter out nav/menu headings)
+  let validCount = 0
+  for (let i = 0; i < Math.min(targetHeadings.length - 1, 5); i++) {
+    const gapStart = targetHeadings[i].index + targetHeadings[i].text.length
+    const gapEnd = targetHeadings[i + 1].index
+    const gap = content.slice(gapStart, gapEnd)
+    if (stripTags(gap).trim().length >= 50) validCount++
+  }
+  if (validCount < 2) return items // Most gaps too short — probably nav
+
+  for (let i = 0; i < targetHeadings.length; i++) {
+    const heading = targetHeadings[i]
+    const nextHeadingIdx = i + 1 < targetHeadings.length ? targetHeadings[i + 1].index : content.length
+    const blockHtml = content.slice(heading.index, nextHeadingIdx)
+
+    const name = heading.text
+      .replace(/^\d+[\.\)\-\s:]+/, "")
+      .replace(/^\s*[\-–—]\s*/, "")
+      .replace(/^\d+\s+OF\s+\d+\s*/i, "") // Fodor's "1 OF 25" pattern
+      .trim()
+    if (!name || name.length < 2) continue
+
+    const pMatch = blockHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
+    const description = pMatch ? truncate(stripTags(pMatch[1]), 200) : null
+    const locationName = extractLocationFromBlock(blockHtml)
+
+    items.push({
+      name,
+      category: guessCategoryFromText(name, description || ""),
+      location_name: locationName,
+      description,
+      source_order: items.length + 1,
+    })
+  }
+
+  return items.slice(0, MAX_ITEMS)
+}
+
+/** Detect content type from extracted items */
+function detectContentType(items: ExtractedItem[]): "listicle" | "itinerary" | "guide" {
+  const dayPattern = /^(?:day\s*\d|week\s*\d|\d+\s*(?:st|nd|rd|th)\s*day|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i
+  const hasDays = items.some(it => dayPattern.test(it.name))
+  return hasDays ? "itinerary" : "listicle"
 }
 
 function extractLocationFromBlock(blockHtml: string): string | null {
@@ -525,16 +722,31 @@ Deno.serve(async (req: Request) => {
 
     const sourceTitle = getTitle(html)
 
-    // Layer 1: JSON-LD
-    let items = extractFromJsonLd(html)
+    // Extraction layers — first to return 2+ items wins
+    let items: ExtractedItem[] = []
     let contentType: "listicle" | "itinerary" | "guide" = "listicle"
 
-    // Layer 2: HTML patterns (only if Layer 1 found < 2 items)
+    // Layer 1a: JSON-LD / schema.org (Eater, The Infatuation, etc.)
+    items = extractFromJsonLd(html)
+    if (items.length >= 2) {
+      console.log(`[multi-extract] Layer 1a (JSON-LD) found ${items.length} items`)
+    }
+
+    // Layer 1b: Condé Nast data-item JSON (CN Traveler, Bon Appétit)
+    if (items.length < 2) {
+      items = extractFromCondeNastDataItems(html)
+      if (items.length >= 2) {
+        console.log(`[multi-extract] Layer 1b (Condé Nast) found ${items.length} items`)
+      }
+    }
+
+    // Layer 2: HTML pattern matching (containers, same-class headings, heading sequences)
     if (items.length < 2) {
       const htmlResult = extractFromHtmlPatterns(html)
       if (htmlResult.items.length >= 2) {
         items = htmlResult.items
         contentType = htmlResult.contentType
+        console.log(`[multi-extract] Layer 2 (HTML) found ${items.length} items (${contentType})`)
       }
     }
 
