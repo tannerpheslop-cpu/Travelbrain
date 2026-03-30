@@ -402,260 +402,168 @@ function extractFromCondeNastDataItems(html: string): ExtractedItem[] {
   return items.slice(0, MAX_ITEMS)
 }
 
-// ── Layer 2: HTML pattern matching (expanded) ────────────────────────────────
+// ── Layer 3: Haiku LLM extraction ────────────────────────────────────────────
 
-function extractFromHtmlPatterns(html: string): { items: ExtractedItem[]; contentType: "listicle" | "itinerary" | "guide" } {
-  const content = getMainContent(html)
+const EXTRACTION_PROMPT = `Extract all specific named places, businesses, restaurants, hotels, attractions, and landmarks mentioned in this travel article.
 
-  // Try Layer 2a: Repeated container detection (most publisher-agnostic)
-  const containerResult = extractFromRepeatedContainers(content)
-  if (containerResult.length >= 2) {
-    return { items: containerResult, contentType: detectContentType(containerResult) }
+Rules:
+- Only extract SPECIFIC named places (e.g., "Da Dong Roast Duck Restaurant", "Forbidden City", "Temple of Heaven")
+- Do NOT extract cities, countries, provinces, or regions as items (e.g., do NOT extract "Beijing", "China", "Yunnan Province")
+- Do NOT extract people, tour companies, airlines, or services
+- Do NOT extract generic descriptions (e.g., "a small restaurant", "the local market")
+- For each place, include the city/region where it's located based on context in the article
+- If a place has an address mentioned in the article, include it
+
+Return ONLY a JSON array, no other text. If no specific places are found, return [].
+
+Return format:
+[
+  {
+    "name": "Da Dong Roast Duck Restaurant",
+    "category": "restaurant",
+    "location_name": "Beijing, China",
+    "description": "Beijing's best spot for non-fatty duck"
+  }
+]
+
+Category must be one of: restaurant, activity, hotel, transit, general
+
+`
+
+/** Prepare page text for LLM: strip HTML, collapse whitespace, truncate */
+function prepareTextForLLM(html: string, maxChars = 12000): string {
+  // Strip non-content elements
+  let text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<nav[\s\S]*?<\/nav>/gi, "")
+    .replace(/<footer[\s\S]*?<\/footer>/gi, "")
+    .replace(/<header[\s\S]*?<\/header>/gi, "")
+    .replace(/<aside[\s\S]*?<\/aside>/gi, "")
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+    .replace(/<svg[\s\S]*?<\/svg>/gi, "")
+
+  // Strip all remaining HTML tags
+  text = text.replace(/<[^>]*>/g, " ")
+
+  // Decode HTML entities
+  text = decodeHtml(text)
+
+  // Collapse whitespace
+  text = text.replace(/\s+/g, " ").trim()
+
+  // Truncate: if too long, take first half + last half
+  if (text.length > maxChars) {
+    const half = Math.floor(maxChars / 2)
+    text = text.slice(0, half) + "\n\n[...]\n\n" + text.slice(-half)
   }
 
-  // Try Layer 2b: Same-class heading sequences
-  const sameClassResult = extractFromSameClassHeadings(content)
-  if (sameClassResult.length >= 2) {
-    return { items: sameClassResult, contentType: detectContentType(sameClassResult) }
-  }
-
-  // Try Layer 2c: Heading sequences (h2/h3/h4, numbered or non-numbered)
-  const headingResult = extractFromHeadingSequences(content)
-  if (headingResult.length >= 2) {
-    return { items: headingResult, contentType: detectContentType(headingResult) }
-  }
-
-  return { items: [], contentType: "guide" }
+  return text
 }
 
-/** Layer 2a: Find repeated container elements (same class, each with heading + paragraph) */
-function extractFromRepeatedContainers(content: string): ExtractedItem[] {
-  const items: ExtractedItem[] = []
+/** Parse LLM response, extracting JSON array even if there's preamble text */
+function parseLLMResponse(responseText: string): ExtractedItem[] {
+  // Try direct parse first
+  try {
+    const parsed = JSON.parse(responseText)
+    if (Array.isArray(parsed)) return mapLLMItems(parsed)
+  } catch { /* not pure JSON */ }
 
-  // Find class names that appear 3+ times on container-like elements (div, section, article, li)
-  const containerPattern = /<(div|section|article|li)\s+[^>]*class="([^"]+)"[^>]*>([\s\S]*?)<\/\1>/gi
-  const classBuckets = new Map<string, Array<{ html: string }>>()
-  let match: RegExpExecArray | null
-
-  while ((match = containerPattern.exec(content)) !== null) {
-    const cls = match[2]
-    // Skip very generic or utility classes
-    if (cls.length < 5 || /^(container|wrapper|row|col|flex|grid|block|section)$/i.test(cls)) continue
-
-    const bucket = classBuckets.get(cls) ?? []
-    bucket.push({ html: match[3] })
-    classBuckets.set(cls, bucket)
+  // Try to extract JSON array from response text
+  const jsonMatch = responseText.match(/\[[\s\S]*\]/)
+  if (jsonMatch) {
+    try {
+      const parsed = JSON.parse(jsonMatch[0])
+      if (Array.isArray(parsed)) return mapLLMItems(parsed)
+    } catch { /* malformed JSON */ }
   }
 
-  // Find the largest bucket with 3+ items that each contain a heading + paragraph
-  let bestBucket: Array<{ html: string }> = []
-  for (const [, bucket] of classBuckets) {
-    if (bucket.length < 3) continue
-    // Verify each container has a heading and substantial text
-    const valid = bucket.filter(b => {
-      const hasHeading = /<h[1-6][^>]*>[^<]{2,}/i.test(b.html)
-      const hasText = /<p[^>]*>[^<]{50,}/i.test(b.html) || stripTags(b.html).length > 80
-      return hasHeading && hasText
+  return []
+}
+
+/** Map raw LLM output to ExtractedItem format */
+function mapLLMItems(items: unknown[]): ExtractedItem[] {
+  const validCategories = new Set(["restaurant", "activity", "hotel", "transit", "general"])
+  return items
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .map((item, i) => ({
+      name: String(item.name || "").trim(),
+      category: validCategories.has(String(item.category || "")) ? String(item.category) : "general",
+      location_name: item.location_name ? String(item.location_name).trim() : null,
+      description: item.description ? truncate(String(item.description), 200) : null,
+      source_order: i + 1,
+    }))
+    .filter(item => item.name.length >= 2)
+    .slice(0, MAX_ITEMS)
+}
+
+/** Call Claude Haiku to extract places from article text */
+async function extractWithLLM(html: string, articleTitle: string): Promise<ExtractedItem[]> {
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY")
+  if (!apiKey) {
+    console.log("[multi-extract] No ANTHROPIC_API_KEY — skipping LLM extraction")
+    return []
+  }
+
+  const pageText = prepareTextForLLM(html)
+  if (pageText.length < 100) {
+    console.log("[multi-extract] Page text too short for LLM extraction")
+    return []
+  }
+
+  try {
+    const prompt = EXTRACTION_PROMPT + `Article title: ${articleTitle}\n\nArticle text:\n${pageText}`
+
+    console.log(`[multi-extract] Calling Haiku with ${pageText.length} chars of text`)
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 2000,
+        messages: [{
+          role: "user",
+          content: prompt,
+        }],
+      }),
+      signal: AbortSignal.timeout(30000), // 30s timeout
     })
-    if (valid.length >= 3 && valid.length > bestBucket.length) {
-      bestBucket = valid
+
+    if (!response.ok) {
+      console.error(`[multi-extract] Haiku API error: HTTP ${response.status}`)
+      return []
     }
-  }
 
-  for (const container of bestBucket) {
-    const headingMatch = container.html.match(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/i)
-    if (!headingMatch) continue
-    const name = stripTags(headingMatch[1])
-      .replace(/^\d+[\.\)\-\s:]+/, "")
-      .replace(/^\s*[\-–—]\s*/, "")
-      .trim()
-    if (!name || name.length < 2) continue
-
-    const pMatch = container.html.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
-    const description = pMatch ? truncate(stripTags(pMatch[1]), 200) : null
-    const locationName = extractLocationFromBlock(container.html)
-
-    items.push({
-      name,
-      category: guessCategoryFromText(name, description || ""),
-      location_name: locationName,
-      description,
-      source_order: items.length + 1,
-    })
-  }
-
-  return items.slice(0, MAX_ITEMS)
-}
-
-/** Layer 2b: Find 3+ headings sharing the same CSS class */
-function extractFromSameClassHeadings(content: string): ExtractedItem[] {
-  const items: ExtractedItem[] = []
-
-  // Find all headings with their classes
-  const headingPattern = /<(h[2-4])\s+[^>]*class="([^"]+)"[^>]*>([\s\S]*?)<\/\1>/gi
-  const classBuckets = new Map<string, Array<{ text: string; index: number; level: string }>>()
-  let match: RegExpExecArray | null
-
-  while ((match = headingPattern.exec(content)) !== null) {
-    const cls = match[2]
-    const text = stripTags(match[3]).trim()
-    if (text.length < 2 || text.length > 200) continue
-
-    const bucket = classBuckets.get(cls) ?? []
-    bucket.push({ text, index: match.index, level: match[1] })
-    classBuckets.set(cls, bucket)
-  }
-
-  // Find the largest class bucket with 3+ headings
-  let bestClass = ""
-  let bestCount = 0
-  for (const [cls, bucket] of classBuckets) {
-    if (bucket.length >= 3 && bucket.length > bestCount) {
-      // Verify substantial text between headings (filter out nav menus)
-      let hasSubstantialGaps = true
-      for (let i = 0; i < Math.min(bucket.length - 1, 5); i++) {
-        const gapStart = bucket[i].index + bucket[i].text.length
-        const gapEnd = bucket[i + 1].index
-        const gap = content.slice(gapStart, gapEnd)
-        if (stripTags(gap).trim().length < 50) {
-          hasSubstantialGaps = false
-          break
-        }
-      }
-      if (hasSubstantialGaps) {
-        bestClass = cls
-        bestCount = bucket.length
-      }
+    const data = await response.json() as {
+      content?: Array<{ type: string; text?: string }>
     }
-  }
 
-  if (!bestClass) return items
-
-  const headings = classBuckets.get(bestClass)!
-  for (let i = 0; i < headings.length; i++) {
-    const heading = headings[i]
-    const nextIdx = i + 1 < headings.length ? headings[i + 1].index : content.length
-    const blockHtml = content.slice(heading.index, nextIdx)
-
-    const name = heading.text
-      .replace(/^\d+[\.\)\-\s:]+/, "")
-      .replace(/^\s*[\-–—]\s*/, "")
-      .trim()
-    if (!name || name.length < 2) continue
-
-    const pMatch = blockHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
-    const description = pMatch ? truncate(stripTags(pMatch[1]), 200) : null
-    const locationName = extractLocationFromBlock(blockHtml)
-
-    items.push({
-      name,
-      category: guessCategoryFromText(name, description || ""),
-      location_name: locationName,
-      description,
-      source_order: items.length + 1,
-    })
-  }
-
-  return items.slice(0, MAX_ITEMS)
-}
-
-/** Layer 2c: Heading sequences at h2/h3/h4 (expanded from original h2/h3 only) */
-function extractFromHeadingSequences(content: string): ExtractedItem[] {
-  const items: ExtractedItem[] = []
-
-  // Include h4 in the pattern (was h2/h3 only)
-  const headingPattern = /<(h[234])[^>]*>([\s\S]*?)<\/\1>/gi
-  const headings: Array<{ level: string; text: string; index: number }> = []
-  let hMatch: RegExpExecArray | null
-
-  while ((hMatch = headingPattern.exec(content)) !== null) {
-    const text = stripTags(hMatch[2]).trim()
-    if (text.length > 2 && text.length < 200) {
-      headings.push({ level: hMatch[1], text, index: hMatch.index })
+    const textContent = data.content?.find(c => c.type === "text")?.text
+    if (!textContent) {
+      console.log("[multi-extract] Haiku returned no text content")
+      return []
     }
+
+    const items = parseLLMResponse(textContent)
+    console.log(`[multi-extract] Haiku extracted ${items.length} items`)
+    return items
+
+  } catch (err) {
+    console.error(`[multi-extract] Haiku extraction failed: ${(err as Error).message}`)
+    return []
   }
-
-  // Find the heading level with the most instances (need 3+)
-  const counts: Record<string, number> = {}
-  for (const h of headings) {
-    counts[h.level] = (counts[h.level] || 0) + 1
-  }
-  const targetLevel = Object.entries(counts)
-    .filter(([, c]) => c >= 3)
-    .sort(([, a], [, b]) => b - a)[0]?.[0] ?? null
-
-  if (!targetLevel) return items
-
-  const targetHeadings = headings.filter(h => h.level === targetLevel)
-
-  // Verify substantial text between headings (filter out nav/menu headings)
-  let validCount = 0
-  for (let i = 0; i < Math.min(targetHeadings.length - 1, 5); i++) {
-    const gapStart = targetHeadings[i].index + targetHeadings[i].text.length
-    const gapEnd = targetHeadings[i + 1].index
-    const gap = content.slice(gapStart, gapEnd)
-    if (stripTags(gap).trim().length >= 50) validCount++
-  }
-  if (validCount < 2) return items // Most gaps too short — probably nav
-
-  for (let i = 0; i < targetHeadings.length; i++) {
-    const heading = targetHeadings[i]
-    const nextHeadingIdx = i + 1 < targetHeadings.length ? targetHeadings[i + 1].index : content.length
-    const blockHtml = content.slice(heading.index, nextHeadingIdx)
-
-    const name = heading.text
-      .replace(/^\d+[\.\)\-\s:]+/, "")
-      .replace(/^\s*[\-–—]\s*/, "")
-      .replace(/^\d+\s+OF\s+\d+\s*/i, "") // Fodor's "1 OF 25" pattern
-      .trim()
-    if (!name || name.length < 2) continue
-
-    const pMatch = blockHtml.match(/<p[^>]*>([\s\S]*?)<\/p>/i)
-    const description = pMatch ? truncate(stripTags(pMatch[1]), 200) : null
-    const locationName = extractLocationFromBlock(blockHtml)
-
-    items.push({
-      name,
-      category: guessCategoryFromText(name, description || ""),
-      location_name: locationName,
-      description,
-      source_order: items.length + 1,
-    })
-  }
-
-  return items.slice(0, MAX_ITEMS)
-}
-
-/** Detect content type from extracted items */
-function detectContentType(items: ExtractedItem[]): "listicle" | "itinerary" | "guide" {
-  const dayPattern = /^(?:day\s*\d|week\s*\d|\d+\s*(?:st|nd|rd|th)\s*day|monday|tuesday|wednesday|thursday|friday|saturday|sunday)/i
-  const hasDays = items.some(it => dayPattern.test(it.name))
-  return hasDays ? "itinerary" : "listicle"
-}
-
-function extractLocationFromBlock(blockHtml: string): string | null {
-  // Look for Google Maps links
-  const mapsMatch = blockHtml.match(/href=["'][^"']*google\.com\/maps[^"']*["']/i)
-  if (mapsMatch) {
-    const qMatch = mapsMatch[0].match(/[?&]q=([^&"']+)/)
-    if (qMatch) return decodeURIComponent(qMatch[1]).replace(/\+/g, " ")
-  }
-
-  // Look for address-like patterns in plain text
-  const blockText = stripTags(blockHtml)
-  // Simple heuristic: look for "Address:" or "Location:" followed by text
-  const addrMatch = blockText.match(/(?:address|location|where)\s*[:]\s*([^.]+)/i)
-  if (addrMatch) return addrMatch[1].trim().slice(0, 100)
-
-  return null
 }
 
 // ── Category guessing ────────────────────────────────────────────────────────
 
-/** Run all extraction layers on HTML. Returns items + contentType. */
-function runExtraction(html: string): { items: ExtractedItem[]; contentType: "listicle" | "itinerary" | "guide" } {
+/** Run structured extraction layers on HTML. Returns items + contentType. */
+function runStructuredExtraction(html: string): { items: ExtractedItem[]; contentType: "listicle" | "itinerary" | "guide" } {
   let items: ExtractedItem[] = []
-  let contentType: "listicle" | "itinerary" | "guide" = "listicle"
+  const contentType: "listicle" | "itinerary" | "guide" = "listicle"
 
   // Layer 1a: JSON-LD / schema.org
   items = extractFromJsonLd(html)
@@ -669,13 +577,6 @@ function runExtraction(html: string): { items: ExtractedItem[]; contentType: "li
   if (items.length >= 2) {
     console.log(`[multi-extract] Layer 1b (Condé Nast) found ${items.length} items`)
     return { items, contentType }
-  }
-
-  // Layer 2: HTML pattern matching
-  const htmlResult = extractFromHtmlPatterns(html)
-  if (htmlResult.items.length >= 2) {
-    console.log(`[multi-extract] Layer 2 (HTML) found ${htmlResult.items.length} items (${htmlResult.contentType})`)
-    return { items: htmlResult.items, contentType: htmlResult.contentType }
   }
 
   return { items: [], contentType: "guide" }
@@ -749,18 +650,30 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    const sourceTitle = getTitle(html)
+    const sourceTitle = getTitle(html) ?? "Untitled"
 
-    // Run extraction on the fetched HTML
-    let { items, contentType } = runExtraction(html)
+    // ── Extraction pipeline ──
+    // Layer 1: Structured data (JSON-LD, Condé Nast embedded JSON)
+    let { items, contentType } = runStructuredExtraction(html)
 
-    // If standard fetch found nothing, try Cloud Run headless browser as fallback
+    // Layer 3: Haiku LLM extraction (when structured data isn't available)
+    if (items.length < 2) {
+      console.log(`[multi-extract] Structured extraction found ${items.length} items, trying Haiku`)
+      const llmItems = await extractWithLLM(html, sourceTitle)
+      if (llmItems.length >= 2) {
+        items = llmItems
+        contentType = "listicle"
+        console.log(`[multi-extract] Haiku found ${items.length} items`)
+      }
+    }
+
+    // Cloud Run fallback: if standard HTML fetch was blocked/empty, try headless browser + re-extract
     if (items.length < 2) {
       const resolverEndpoint = Deno.env.get("URL_RESOLVER_ENDPOINT")
       const resolverApiKey = Deno.env.get("URL_RESOLVER_API_KEY")
       if (resolverEndpoint && resolverApiKey) {
         try {
-          console.log(`[multi-extract] Standard extraction found ${items.length} items, trying Cloud Run fallback`)
+          console.log(`[multi-extract] Trying Cloud Run fallback for rendered HTML`)
           const crResponse = await fetch(`${resolverEndpoint}/fetch-html`, {
             method: "POST",
             headers: {
@@ -768,16 +681,26 @@ Deno.serve(async (req: Request) => {
               "x-api-key": resolverApiKey,
             },
             body: JSON.stringify({ url }),
-            signal: AbortSignal.timeout(20000), // 20s timeout for headless render
+            signal: AbortSignal.timeout(20000),
           })
           if (crResponse.ok) {
             const crData = await crResponse.json() as { success: boolean; html?: string; elapsed_ms?: number }
             if (crData.success && crData.html) {
               console.log(`[multi-extract] Cloud Run returned ${crData.html.length} bytes in ${crData.elapsed_ms}ms`)
-              const crResult = runExtraction(crData.html)
-              if (crResult.items.length >= 2) {
-                items = crResult.items
-                contentType = crResult.contentType
+              // Try structured extraction on rendered HTML
+              const crStructured = runStructuredExtraction(crData.html)
+              if (crStructured.items.length >= 2) {
+                items = crStructured.items
+                contentType = crStructured.contentType
+              } else {
+                // Try Haiku on rendered HTML
+                const crLLM = await extractWithLLM(crData.html, sourceTitle)
+                if (crLLM.length >= 2) {
+                  items = crLLM
+                  contentType = "listicle"
+                }
+              }
+              if (items.length >= 2) {
                 console.log(`[multi-extract] Cloud Run extraction found ${items.length} items`)
               }
             }
