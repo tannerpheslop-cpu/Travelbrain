@@ -652,6 +652,35 @@ function extractLocationFromBlock(blockHtml: string): string | null {
 
 // ── Category guessing ────────────────────────────────────────────────────────
 
+/** Run all extraction layers on HTML. Returns items + contentType. */
+function runExtraction(html: string): { items: ExtractedItem[]; contentType: "listicle" | "itinerary" | "guide" } {
+  let items: ExtractedItem[] = []
+  let contentType: "listicle" | "itinerary" | "guide" = "listicle"
+
+  // Layer 1a: JSON-LD / schema.org
+  items = extractFromJsonLd(html)
+  if (items.length >= 2) {
+    console.log(`[multi-extract] Layer 1a (JSON-LD) found ${items.length} items`)
+    return { items, contentType }
+  }
+
+  // Layer 1b: Condé Nast data-item JSON
+  items = extractFromCondeNastDataItems(html)
+  if (items.length >= 2) {
+    console.log(`[multi-extract] Layer 1b (Condé Nast) found ${items.length} items`)
+    return { items, contentType }
+  }
+
+  // Layer 2: HTML pattern matching
+  const htmlResult = extractFromHtmlPatterns(html)
+  if (htmlResult.items.length >= 2) {
+    console.log(`[multi-extract] Layer 2 (HTML) found ${htmlResult.items.length} items (${htmlResult.contentType})`)
+    return { items: htmlResult.items, contentType: htmlResult.contentType }
+  }
+
+  return { items: [], contentType: "guide" }
+}
+
 function guessCategoryFromText(name: string, description: string): string {
   const text = (name + " " + description).toLowerCase()
 
@@ -722,31 +751,42 @@ Deno.serve(async (req: Request) => {
 
     const sourceTitle = getTitle(html)
 
-    // Extraction layers — first to return 2+ items wins
-    let items: ExtractedItem[] = []
-    let contentType: "listicle" | "itinerary" | "guide" = "listicle"
+    // Run extraction on the fetched HTML
+    let { items, contentType } = runExtraction(html)
 
-    // Layer 1a: JSON-LD / schema.org (Eater, The Infatuation, etc.)
-    items = extractFromJsonLd(html)
-    if (items.length >= 2) {
-      console.log(`[multi-extract] Layer 1a (JSON-LD) found ${items.length} items`)
-    }
-
-    // Layer 1b: Condé Nast data-item JSON (CN Traveler, Bon Appétit)
+    // If standard fetch found nothing, try Cloud Run headless browser as fallback
     if (items.length < 2) {
-      items = extractFromCondeNastDataItems(html)
-      if (items.length >= 2) {
-        console.log(`[multi-extract] Layer 1b (Condé Nast) found ${items.length} items`)
-      }
-    }
-
-    // Layer 2: HTML pattern matching (containers, same-class headings, heading sequences)
-    if (items.length < 2) {
-      const htmlResult = extractFromHtmlPatterns(html)
-      if (htmlResult.items.length >= 2) {
-        items = htmlResult.items
-        contentType = htmlResult.contentType
-        console.log(`[multi-extract] Layer 2 (HTML) found ${items.length} items (${contentType})`)
+      const resolverEndpoint = Deno.env.get("URL_RESOLVER_ENDPOINT")
+      const resolverApiKey = Deno.env.get("URL_RESOLVER_API_KEY")
+      if (resolverEndpoint && resolverApiKey) {
+        try {
+          console.log(`[multi-extract] Standard extraction found ${items.length} items, trying Cloud Run fallback`)
+          const crResponse = await fetch(`${resolverEndpoint}/fetch-html`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": resolverApiKey,
+            },
+            body: JSON.stringify({ url }),
+            signal: AbortSignal.timeout(20000), // 20s timeout for headless render
+          })
+          if (crResponse.ok) {
+            const crData = await crResponse.json() as { success: boolean; html?: string; elapsed_ms?: number }
+            if (crData.success && crData.html) {
+              console.log(`[multi-extract] Cloud Run returned ${crData.html.length} bytes in ${crData.elapsed_ms}ms`)
+              const crResult = runExtraction(crData.html)
+              if (crResult.items.length >= 2) {
+                items = crResult.items
+                contentType = crResult.contentType
+                console.log(`[multi-extract] Cloud Run extraction found ${items.length} items`)
+              }
+            }
+          } else {
+            console.log(`[multi-extract] Cloud Run fallback failed: HTTP ${crResponse.status}`)
+          }
+        } catch (err) {
+          console.log(`[multi-extract] Cloud Run fallback error: ${(err as Error).message}`)
+        }
       }
     }
 
