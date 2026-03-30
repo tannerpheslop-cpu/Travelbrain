@@ -473,34 +473,23 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     }
 
     // Fire-and-forget: multi-item extraction for URL saves
-    console.log('[EXTRACT-DEBUG] sourceType:', sourceType, 'source_url:', savedItem.source_url, 'id:', savedItem.id)
     if (sourceType === 'url' && savedItem.source_url) {
-      console.log('[EXTRACT-DEBUG] Condition passed, launching extraction')
-      // Use setTimeout(0) to ensure this runs on the next microtask,
-      // completely detached from this component's lifecycle
       setTimeout(async () => {
         try {
-          console.log('[EXTRACT-DEBUG] setTimeout fired, fetching existing titles')
           const { data: existingItems } = await supabase
             .from('saved_items')
             .select('title')
             .eq('user_id', user.id)
             .neq('id', savedItem.id)
           const existingTitles = (existingItems ?? []).map((i: { title: string }) => i.title)
-          console.log('[EXTRACT-DEBUG] Got', existingTitles.length, 'existing titles, calling trigger')
           await triggerMultiItemExtraction(savedItem, user.id, existingTitles)
-          console.log('[EXTRACT-DEBUG] triggerMultiItemExtraction completed')
         } catch (e) {
-          console.error('[EXTRACT-DEBUG] trigger failed:', e)
+          console.error('[extract-multi-items] trigger failed:', e)
         }
       }, 0)
-    } else {
-      console.log('[EXTRACT-DEBUG] Skipped — sourceType:', sourceType, 'has source_url:', !!savedItem.source_url)
     }
 
-    console.log('[SaveSheet] Calling onSaved for:', savedItem.id)
     onSaved(savedItem)
-    console.log('[SaveSheet] onSaved completed')
 
     setSaving(false)
     setSaved(true)
