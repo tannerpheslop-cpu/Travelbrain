@@ -65,6 +65,12 @@ export interface ExtractedItem {
   location_name: string | null
   description: string | null
   source_order: number
+  enriched?: boolean
+  place_id?: string
+  photo_url?: string | null
+  latitude?: number
+  longitude?: number
+  formatted_address?: string
 }
 
 /** A pending extraction result awaiting user review. */
