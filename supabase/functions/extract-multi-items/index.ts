@@ -15,8 +15,9 @@ interface ExtractedItem {
   location_name: string | null
   description: string | null
   source_order: number
-  // Enrichment fields (populated when Places enrichment succeeds)
+  // Validation + enrichment fields
   enriched?: boolean
+  validated?: boolean
   place_id?: string
   photo_url?: string | null
   latitude?: number
@@ -76,9 +77,35 @@ async function generateQueryHash(name: string, lat: number | null, lng: number |
   return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("")
 }
 
-async function enrichItem(item: ExtractedItem): Promise<ExtractedItem> {
+/** Extract country code from a formatted address string (last segment is usually the country). */
+function extractCountryFromAddress(address: string | null | undefined): string | null {
+  if (!address) return null
+  const parts = address.split(",").map(s => s.trim())
+  const last = parts[parts.length - 1]
+  // Common country name → code mapping for validation
+  const COUNTRY_CODES: Record<string, string> = {
+    "china": "CN", "japan": "JP", "taiwan": "TW", "south korea": "KR", "korea": "KR",
+    "thailand": "TH", "vietnam": "VN", "indonesia": "ID", "singapore": "SG",
+    "malaysia": "MY", "philippines": "PH", "cambodia": "KH", "india": "IN",
+    "united states": "US", "usa": "US", "united kingdom": "UK", "france": "FR",
+    "germany": "DE", "italy": "IT", "spain": "ES", "australia": "AU",
+    "mexico": "MX", "brazil": "BR", "turkey": "TR", "greece": "GR",
+    "portugal": "PT", "morocco": "MA", "egypt": "EG", "peru": "PE",
+  }
+  return COUNTRY_CODES[last.toLowerCase()] ?? null
+}
+
+/**
+ * Validate and enrich a single item via Google Places.
+ * Returns the enriched item if it's a real specific POI, or null if validation fails.
+ * Items that fail validation are DISCARDED — not stored.
+ */
+async function validateItem(
+  item: ExtractedItem,
+  expectedCountry: string | null,
+): Promise<ExtractedItem | null> {
   const apiKey = Deno.env.get("GOOGLE_API_KEY")
-  if (!apiKey || !item.name || item.name.length < 3) return { ...item, enriched: false }
+  if (!apiKey || !item.name || item.name.length < 3) return null
 
   try {
     const admin = getAdminClient()
@@ -95,12 +122,19 @@ async function enrichItem(item: ExtractedItem): Promise<ExtractedItem> {
         .maybeSingle()
 
       if (cached) {
+        // Country check on cached result
+        const cachedCountry = extractCountryFromAddress(cached.formatted_address)
+        if (expectedCountry && cachedCountry && cachedCountry !== expectedCountry) {
+          console.log(`[validate] Discarding "${item.name}" — cached in ${cachedCountry}, expected ${expectedCountry}`)
+          return null
+        }
         return {
           ...item,
           name: cached.place_name,
           category: cached.category ?? item.category,
           location_name: cached.formatted_address ?? item.location_name,
           enriched: true,
+          validated: true,
           place_id: cached.place_id,
           photo_url: cached.photo_url,
           latitude: cached.latitude,
@@ -113,7 +147,7 @@ async function enrichItem(item: ExtractedItem): Promise<ExtractedItem> {
     // Places Text Search
     const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`
     const res = await fetch(url, { signal: AbortSignal.timeout(6000) })
-    if (!res.ok) return { ...item, enriched: false }
+    if (!res.ok) return null
 
     const data = await res.json() as {
       results?: Array<{
@@ -125,12 +159,20 @@ async function enrichItem(item: ExtractedItem): Promise<ExtractedItem> {
     }
 
     const place = data.results?.[0]
-    if (!place?.name || !place.geometry?.location || !place.place_id) return { ...item, enriched: false }
+    if (!place?.name || !place.geometry?.location || !place.place_id) return null
 
     // Confidence check: must be a specific POI
     const types = place.types ?? []
     if (types.every(t => BROAD_TYPES.has(t)) || !types.some(t => SPECIFIC_TYPES.has(t))) {
-      return { ...item, enriched: false }
+      console.log(`[validate] Discarding "${item.name}" — Places returned broad type: ${types.join(",")}`)
+      return null
+    }
+
+    // Wrong-country check
+    const resultCountry = extractCountryFromAddress(place.formatted_address)
+    if (expectedCountry && resultCountry && resultCountry !== expectedCountry) {
+      console.log(`[validate] Discarding "${item.name}" — in ${resultCountry}, expected ${expectedCountry}`)
+      return null
     }
 
     // Photo
@@ -166,6 +208,7 @@ async function enrichItem(item: ExtractedItem): Promise<ExtractedItem> {
       category,
       location_name: place.formatted_address ?? item.location_name,
       enriched: true,
+      validated: true,
       place_id: place.place_id,
       photo_url: photoUrl,
       latitude: place.geometry.location.lat,
@@ -173,21 +216,64 @@ async function enrichItem(item: ExtractedItem): Promise<ExtractedItem> {
       formatted_address: place.formatted_address ?? undefined,
     }
   } catch (err) {
-    console.log(`[multi-extract] Enrichment failed for "${item.name}": ${err}`)
-    return { ...item, enriched: false }
+    console.log(`[validate] Failed for "${item.name}": ${err}`)
+    return null
   }
 }
 
-/** Enrich items sequentially with 500ms delay between calls to avoid rate limits. */
-async function enrichItems(items: ExtractedItem[]): Promise<ExtractedItem[]> {
-  const enriched: ExtractedItem[] = []
+/**
+ * Validate and enrich items sequentially. Discards items that fail validation.
+ * Uses majority-country detection for wrong-country filtering.
+ */
+async function validateAndEnrichItems(items: ExtractedItem[]): Promise<ExtractedItem[]> {
+  // Determine expected country from candidate location_names (majority vote)
+  const countryCounts = new Map<string, number>()
+  for (const item of items) {
+    if (item.location_name) {
+      const parts = item.location_name.split(",").map(s => s.trim())
+      const last = parts[parts.length - 1]
+      if (last.length >= 2) {
+        const key = last.toLowerCase()
+        countryCounts.set(key, (countryCounts.get(key) ?? 0) + 1)
+      }
+    }
+  }
+  let expectedCountry: string | null = null
+  if (countryCounts.size > 0) {
+    const sorted = [...countryCounts.entries()].sort((a, b) => b[1] - a[1])
+    // Only use majority country if it represents at least 40% of candidates
+    if (sorted[0][1] >= items.length * 0.4) {
+      const COUNTRY_CODES: Record<string, string> = {
+        "china": "CN", "japan": "JP", "taiwan": "TW", "south korea": "KR",
+        "thailand": "TH", "vietnam": "VN", "indonesia": "ID", "singapore": "SG",
+        "malaysia": "MY", "philippines": "PH", "india": "IN",
+        "united states": "US", "usa": "US", "france": "FR", "germany": "DE",
+        "italy": "IT", "spain": "ES", "australia": "AU", "mexico": "MX",
+        "united kingdom": "UK", "brazil": "BR", "turkey": "TR",
+      }
+      expectedCountry = COUNTRY_CODES[sorted[0][0]] ?? null
+      if (expectedCountry) {
+        console.log(`[validate] Expected country: ${sorted[0][0]} (${expectedCountry}), ${sorted[0][1]}/${items.length} candidates`)
+      }
+    }
+  }
+
+  const validated: ExtractedItem[] = []
+  let discarded = 0
   for (let i = 0; i < items.length; i++) {
-    enriched.push(await enrichItem(items[i]))
+    const result = await validateItem(items[i], expectedCountry)
+    if (result) {
+      validated.push(result)
+    } else {
+      discarded++
+    }
     if (i < items.length - 1) {
       await new Promise(r => setTimeout(r, 500))
     }
   }
-  return enriched
+
+  console.log(`[validate] ${validated.length} validated, ${discarded} discarded out of ${items.length} candidates`)
+  return validated
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -720,19 +806,26 @@ Deno.serve(async (req: Request) => {
       })
     }
 
-    // Enrich each extracted item with Google Places data
+    // Validate + enrich each candidate through Google Places
+    // Only validated items survive — non-POIs and wrong-country results are discarded
     const truncated = items.slice(0, MAX_ITEMS)
-    console.log(`[multi-extract] Enriching ${truncated.length} items...`)
-    const enrichedItems = await enrichItems(truncated)
-    const enrichedCount = enrichedItems.filter(i => i.enriched).length
-    console.log(`[multi-extract] Enriched ${enrichedCount}/${truncated.length} items`)
+    console.log(`[multi-extract] Validating ${truncated.length} candidates through Google Places...`)
+    const validatedItems = await validateAndEnrichItems(truncated)
+
+    // If 0 candidates survive validation, treat as no multi-item content
+    if (validatedItems.length < 2) {
+      console.log(`[multi-extract] Only ${validatedItems.length} items survived validation — treating as single-item`)
+      return new Response(JSON.stringify({ success: false, reason: "single_item" } as ExtractionResult), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
 
     const result: ExtractionResult = {
       success: true,
       content_type: contentType,
       source_title: sourceTitle ?? undefined,
-      item_count: enrichedItems.length,
-      items: enrichedItems,
+      item_count: validatedItems.length,
+      items: validatedItems,
     }
 
     return new Response(JSON.stringify(result), {
