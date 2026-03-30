@@ -66,6 +66,7 @@ export interface ExtractedItem {
   description: string | null
   source_order: number
   enriched?: boolean
+  validated?: boolean
   place_id?: string
   photo_url?: string | null
   latitude?: number
