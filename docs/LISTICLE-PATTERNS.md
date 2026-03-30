@@ -1,272 +1,406 @@
 # Listicle HTML Pattern Analysis
-> Analysis of 25 travel listicle URLs across major publishers to inform Layer 2 extraction improvements.
+> Analysis of travel listicle URLs across publishers to inform Layer 2 extraction improvements.
 > Date: March 30, 2026
 
 ## Methodology
-Fetched raw HTML for each URL via curl with a desktop Chrome User-Agent. Analyzed JSON-LD structured data, DOM patterns, heading hierarchy, and container structures. 15 of 25 URLs returned usable HTML; the rest 404'd, 403'd, or redirected to generic pages.
+Attempted 25+ URLs across major travel publishers, food sites, blogs, and non-English sources. Used WebFetch (rendered HTML) and curl (raw HTML). 16 publishers returned usable content for analysis.
 
 ---
 
 ## Publisher-by-Publisher Analysis
 
-### 1. Condé Nast Traveler (cntraveler.com)
-**URLs analyzed:** /gallery/best-restaurants-in-tokyo, /gallery/best-things-to-do-in-tokyo, /gallery/best-restaurants-in-bangkok
-**HTTP status:** 200 for all three
+### 1. Eater (eater.com) — GOLD STANDARD
+**URL:** /maps/best-tokyo-restaurants | **Status:** 200
 
-**A. JSON-LD:** `NewsArticle` type with `articleBody` (full text blob, not itemized). `BreadcrumbList` for navigation. `CreativeWork` and `ImageObject` for media. **No ItemList.** No individual Place/Restaurant entities.
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | **Full ItemList** with 38 ListItem entries, each containing `@type: Restaurant` with name, position, URL |
+| Container | `<div class="duet--article--map-card">` per item |
+| Name markup | `<h2 class="hkfm3h5">Restaurant Name</h2>` |
+| Numbered | Yes, via JSON-LD `position` field (1-38) |
+| Address | Map coordinates embedded in card data |
+| Item count | 38 |
+| Images | Each card has an image in `duet--layout--entry-image` wrapper |
 
-**B. Container pattern:** Condé Nast uses a custom component system with styled-components class names (hashed):
-- Each venue is a `<div>` with class `UnifiedVenueCardWrapper-*` wrapping a `UnifiedProductCardWrapper-*`
-- Venue data is embedded in a `data-item` attribute on the wrapper as HTML-encoded JSON: `{"dangerousHed":"<p>Sushi Kadowaki</p>","contentType":"restaurant","component":"unified_product_card"}`
-- **40 items** in the Tokyo restaurants gallery
-- **37 items** in the Tokyo things-to-do gallery
-
-**C. Item name pattern:** Names are in `<h3>` tags with class `UnifiedProductCardName-*` AND in the `dangerousHed` field of the `data-item` JSON. The `data-item` approach is more reliable because the h3 content may be JavaScript-rendered.
-
-**D. Item details:** Descriptions are in `<p>` tags within `UnifiedProductCardBody-*` wrappers. Addresses not explicitly structured — embedded in the description text. Category available via `contentType` in the `data-item` JSON ("restaurant", "hotel", etc.).
-
-**E. Images:** Each card has an image in `UnifiedProductCardImageWrapper-*` with responsive `<picture>` elements.
-
-**F. Navigation:** Gallery-style with slide navigation. Items have unique IDs (`id="upc_67e423b4..."`).
-
-**Key extraction pattern:** Parse `data-item` JSON from `UnifiedProductCardWrapper` or `UnifiedVenueCardWrapper` elements. Extract `dangerousHed` (strip HTML tags for name), `contentType` (category), `id` (unique identifier).
+**Extraction approach:** Layer 1 (JSON-LD) handles this perfectly. Layer 2 backup: h2 elements with consistent class inside `map-card` containers.
 
 ---
 
-### 2. Eater (eater.com)
-**URL analyzed:** /maps/best-tokyo-restaurants
-**HTTP status:** 200
+### 2. Condé Nast Traveler (cntraveler.com)
+**URLs:** 3 gallery pages (Tokyo restaurants, Tokyo things to do, Bangkok restaurants) | **Status:** 200
 
-**A. JSON-LD:** **GOLD MINE.** Full `ItemList` with 38 `ListItem` entries, each containing a `Restaurant` entity with `name`, `position`, and `url`. This is the ideal case for Layer 1 extraction.
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | `NewsArticle` with `articleBody` text blob. **No ItemList.** |
+| Container | `<div class="UnifiedVenueCardWrapper-*">` with `data-item` JSON attribute |
+| Name markup | In `data-item` JSON: `dangerousHed: "<p>Sushi Kadowaki</p>"` |
+| Category | In `data-item` JSON: `contentType: "restaurant"` |
+| Numbered | No |
+| Item count | 40 (Tokyo restaurants), 37 (Tokyo things to do), 12+ (Bangkok) |
+| Images | Responsive `<picture>` elements in `UnifiedProductCardImageWrapper` |
 
-Example:
-```json
-{
-  "@type": "ItemList",
-  "itemListElement": [
-    {"@type": "ListItem", "position": 1, "item": {"@type": "Restaurant", "name": "Udatsu Sushi", "url": "..."}}
-  ]
-}
-```
-
-**B. Container pattern:** Items are in `<div class="duet--article--map-card">` wrappers. Each card has a consistent structure.
-
-**C. Item name pattern:** `<h2 class="hkfm3h5">Restaurant Name</h2>` — simple, clean, consistent. 38 h2 elements with this class.
-
-**D. Item details:** Descriptions in paragraphs below the h2. Map coordinates embedded in the card data.
-
-**E. Images:** Each card has an image in `duet--layout--entry-image` wrapper.
-
-**Key extraction pattern:** Layer 1 (JSON-LD) extracts everything perfectly. Layer 2 backup: h2 elements with class `hkfm3h*` inside `duet--article--map-card` containers.
+**Extraction approach:** Parse `data-item` HTML-encoded JSON attributes. Extract `dangerousHed` (strip `<p>` tags for name) and `contentType` (category).
 
 ---
 
-### 3. Timeout (timeout.com)
-**URLs analyzed:** /tokyo/restaurants/best-restaurants-in-tokyo, /tokyo/things-to-do/best-things-to-do-in-tokyo, /paris/restaurants/best-restaurants-in-paris
-**HTTP status:** 404 for all three (content moved or requires different URL format)
+### 3. Bon Appétit (bonappetit.com)
+**URL:** /gallery/best-restaurants-in-tokyo | **Status:** 200
 
-The 404 pages still had some structure: `_listItem_*` class containers with h3 tile titles, but these were recommendation tiles, not the actual listicle content. **Not usable for analysis.**
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | None |
+| Container | Same Condé Nast component system — `UnifiedProductCard*` classes |
+| Name markup | Same `data-item` JSON pattern as CN Traveler |
 
----
-
-### 4. Lonely Planet (lonelyplanet.com)
-**URLs analyzed:** /articles/best-things-to-do-in-tokyo, /articles/best-things-to-do-in-taipei
-**HTTP status:** 200 but content was a generic hub page (not the article)
-
-**A. JSON-LD:** `WebSite` and `Organization` only. No article or list data.
-
-**B. Container pattern:** Astro-rendered components. The actual article content wasn't served — Lonely Planet likely requires JavaScript rendering for article pages.
-
-**Not usable for server-side extraction.**
+**Same publisher system as CN Traveler** (Condé Nast parent company). Same extraction approach works.
 
 ---
 
-### 5. Travel + Leisure (travelandleisure.com)
-**URL analyzed:** /best-restaurants-in-tokyo-8402690
-**HTTP status:** 200 but 404 page content ("The page you're looking for cannot be found")
+### 4. Time Out (timeout.com)
+**URLs:** Tokyo restaurants (100 best), Paris restaurants | **Status:** 200
 
-The domain restructured URLs. **Not usable.**
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | `Article` type with `contentType: "listfeature"`. **No ItemList.** |
+| Container | Not clearly delineated in server-rendered HTML |
+| Name markup | `<h3>` with numbered text: "1. Le Clarence", "2. Vaisseau" |
+| Numbered | Yes — explicit numbers in heading text |
+| Address | Addresses as separate text lines under each entry (Paris confirmed) |
+| Item count | 71 visible (Tokyo 100 best), 10+ (Paris 50 best with "show more") |
+| Images | `<img>` tags from `media.timeout.com` per restaurant |
 
----
-
-### 6. Bon Appétit (bonappetit.com)
-**URL analyzed:** /gallery/best-restaurants-in-tokyo
-**HTTP status:** 200
-
-**A. JSON-LD:** None found.
-
-**B. Container pattern:** Same Condé Nast component system as CN Traveler (they share a parent company). `UnifiedProductCard*` class names, `data-item` JSON attributes. Gallery slides format.
-
-**C. Same extraction pattern as CN Traveler** — `data-item` JSON with `dangerousHed` and `contentType`.
+**Extraction approach:** Numbered h3 headings. Pattern: `/^\d+\.\s+(.+)$/` on h3 text content. Addresses in following paragraph text.
 
 ---
 
-### 7. Migrationology (migrationology.com)
-**URL analyzed:** /best-restaurants-in-tokyo/
-**HTTP status:** 200 but only 18KB (likely a landing/index page, not the full article)
+### 5. The Infatuation (theinfatuation.com)
+**URL:** /tokyo/guides/best-tokyo-restaurants | **Status:** 200
 
-**A. JSON-LD:** `WebSite` with `SearchAction`. No article data.
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | **Full ItemList** with `Article` + individual `Restaurant` entries |
+| Each restaurant | Has `name`, `position` (1-20), `PostalAddress` (street, locality, region, postal code), **GeoCoordinates** (lat/lng), `image` URL |
+| Item count | 20 restaurants |
 
-**B. Container pattern:** Standard WordPress blog. Very few h2/h3 tags. The actual article content was minimal — likely requires scrolling/loading.
-
-**Not useful for pattern analysis.**
-
----
-
-### 8. Nomadic Matt (nomadicmatt.com)
-**URL analyzed:** /travel-guides/japan-travel-tips/best-restaurants-in-tokyo/
-**HTTP status:** 200 but 404 page (URL doesn't exist)
-
-**Not usable.**
+**Extraction approach:** Layer 1 (JSON-LD) — identical pattern to Eater. Full structured data including coordinates and addresses.
 
 ---
 
-### 9. The Culture Trip (theculturetrip.com)
-**URL analyzed:** /asia/japan/tokyo/restaurants/best-restaurants-in-tokyo
-**HTTP status:** No response (curl timed out or blocked)
+### 6. Fodor's Travel (fodors.com)
+**URL:** /world/asia/japan/tokyo/experiences/news/photos/the-25-best-restaurants-in-tokyo-japan | **Status:** 200
 
-**Not usable.**
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | `Article` type only (no ItemList) |
+| Name markup | `<h2>` or `<h3>` tags: e.g., `<h2>Sushi Sugahisa</h2>` |
+| Numbered | Yes — "1 OF 25" through "25 OF 25" as text overlays |
+| Address | Bold text pattern: `**WHERE:** [Neighborhood]` |
+| Item count | 25 |
+| Images | High-res photos per entry + Instagram embeds |
+
+**Extraction approach:** h2/h3 heading sequences. Location via bold "WHERE:" pattern in description.
 
 ---
 
-### 10. TripAdvisor (tripadvisor.com)
-**URL analyzed:** /Restaurants-g298184-Tokyo_Tokyo_Prefecture_Kanto.html
-**HTTP status:** 403 (blocked server-side scraping)
+### 7. Will Fly for Food (willflyforfood.net)
+**URL:** /tokyo-restaurants/ | **Status:** 200
 
-**Not usable for server-side extraction.** TripAdvisor actively blocks non-browser requests.
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | `Article` + `WebPage` |
+| Name markup | `<h3>` or `<h4>` with numbering: `### 1. Yoshimiya` |
+| Numbered | Yes — explicit numbers in heading text |
+| Address | Structured text: `**Address:** [full Japanese address with postal code]` + `**Operating Hours:** [time]` |
+| Item count | 25 (title), 17+ visible |
+| Images | `.wp-block-image` with `.webp` alternatives |
+| TOC | "FOOD IN TOKYO QUICK LINKS" section |
+
+**Extraction approach:** Numbered h3/h4 headings (WordPress pattern). Address via bold "Address:" text pattern.
 
 ---
 
-### 11. Eater Bangkok (eater.com)
-**URL analyzed:** /maps/best-restaurants-bangkok
-**HTTP status:** 200 but only 55KB (minimal content — may be a redirect/empty page)
+### 8. Anders Husa (andershusa.com)
+**URL:** /where-to-eat-in-tokyo/ | **Status:** 200
 
-**A. JSON-LD:** None found in this response.
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | `Article` + `BreadcrumbList` |
+| Name markup | `<h2>` headings for restaurant names: "Sumibi Yakiniku Nakahara", "Pitou", "Udon Shin" |
+| Numbered | No explicit numbering, but sequential IDs in GeoJSON |
+| Address | Plain text after heading |
+| **GeoJSON** | **Embedded map data with coordinates**: `coordinates: [139.7353, 35.6891]` for each restaurant |
+| Item count | 25 (from GeoJSON feature count) |
+| Category filters | "Casual Restaurants, Fine Dining, Wine/Beer/Cocktail Bars, Cafés & Coffee Shops" |
 
-**B.** Very few content elements. Eater Bangkok may use a different URL structure or client-side rendering.
+**Extraction approach:** h2 headings + **GeoJSON coordinates** (unique find — most publishers don't embed coords). Category via filter sections.
+
+---
+
+### 9. Truly Tokyo (trulytokyo.com)
+**URL:** /best-tokyo-restaurants/ | **Status:** 200
+
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | `WebPage` + `BreadcrumbList` (no ItemList) |
+| Name markup | Hyperlinked names in `<li>` elements |
+| Organized by | Cuisine type (h3 subheadings: "Sushi", "Ramen", etc.) |
+| Numbered | No — unordered bullet lists |
+| Address | District names only (Harajuku, Ginza), linked to Google Maps |
+| Item count | 50+ across 17 cuisine categories |
+
+**Extraction approach:** `<li>` items within cuisine-headed sections. Pattern: `<li><a>Restaurant Name</a> (District; $$)</li>`.
+
+---
+
+### 10. Going Awesome Places (goingawesomeplaces.com)
+**URL:** /ultimate-tokyo-japan-food-guide/ | **Status:** 200
+
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | `Article` + `BlogPosting` |
+| Name markup | h2, h3, h4 hierarchy (section → subsection → item) |
+| Numbered | No |
+| TOC | `div#toc_container` (WordPress Yoast SEO plugin) |
+| Word count | 11,547 |
+
+**Extraction approach:** Heading hierarchy. h2 = category, h3/h4 = individual items. Common WordPress pattern.
+
+---
+
+### 11. Ms Travel Solo (mstravelsolo.com)
+**URL:** /best-tokyo-food/ | **Status:** 200
+
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | `BlogPosting` with keywords "tokyo food, best restaurants" |
+| Name markup | Standard WordPress heading hierarchy |
+| Images | `.wp-block-gallery` blocks (10 galleries) |
+
+**Extraction approach:** WordPress gallery + heading pattern.
+
+---
+
+### 12. Migrationology (migrationology.com)
+**URL:** /tokyo-travel-guide-for-food-lovers/ | **Status:** 200
+
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | `WebPage` + `Person` (author: Mark Wiens) |
+| Name markup | **Mixed heading levels**: h2 for sections, h3 for some items, h4 for numbered entries |
+| Numbered | Two numbered lists: "3 street food restaurants" (1-3), "10 Tokyo restaurants" (1-10) |
+| Address | Inconsistent — some have landmarks, some have links |
+| Item count | ~20 food establishments + attractions |
+
+**Extraction approach:** Numbered h4 entries within sections. Multiple small lists within one article.
+
+---
+
+### 13. The Points Guy (thepointsguy.com)
+**URL:** /news/first-time-tokyo-japan-travel/ | **Status:** 200
+
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | `NewsArticle` |
+| Name markup | h2/h3 section headers (not per-restaurant) |
+| Organized by | Topic sections ("Where to eat", "Where to stay") with "Jump to section" nav |
+| Numbered | No numbered restaurant list |
+
+**Extraction approach:** This is a travel guide, not a listicle. Restaurants are mentioned within flowing text, not as discrete items. Would need NLP/LLM to extract individual names.
+
+---
+
+### 14. Japan Guide (japan-guide.com)
+**URL:** /e/e3075.html | **Status:** 200
+
+| Aspect | Finding |
+|--------|---------|
+| JSON-LD | None |
+| Name markup | h2/h3 for categories ("Tokyo specialties", "Casual dining") |
+| Items | Restaurant names within `<a>` link elements inside `<ul><li>` lists |
+| Numbered | No — unordered lists |
+| Address | District names only |
+| Item count | ~40 |
+
+**Extraction approach:** `<li><a>Name</a></li>` within categorized `<ul>` lists.
+
+---
+
+### 15. Time Out Paris (timeout.com/paris)
+**URL:** /paris/en/restaurants/best-restaurants-in-paris | **Status:** 200
+
+| Aspect | Finding |
+|--------|---------|
+| Confirms Timeout pattern | Same as Tokyo: numbered h3 headings ("1. Le Clarence"), addresses as separate lines |
+| Item count | 50 (10 shown, "Show more" for rest) |
+
+---
+
+### 16. World's 50 Best (theworlds50best.com)
+**URL:** /discovery/sitemap/japan/tokyo | **Status:** 200
+
+| Aspect | Finding |
+|--------|---------|
+| Content | **JavaScript-rendered** via WebPuzzle API. No static HTML content. |
+
+**Not extractable** without headless browser.
+
+---
+
+## Failed / Blocked URLs
+
+| Publisher | URL | Status | Reason |
+|-----------|-----|--------|--------|
+| AFAR | /travel-guides/japan/tokyo | 403 | Blocked |
+| Saveur | /best-restaurants-tokyo/ | 403 | Blocked |
+| Culture Trip | /asia/japan/tokyo | Timeout | JS-rendered + slow |
+| Lonely Planet | /articles/* | 403 | Blocked server-side |
+| TripAdvisor | /Restaurants-* | 403 | Blocked |
+| Mafengwo (CN) | /gonglve/ziyouxing/2426 | JS only | No HTML content |
+| Yelp | (not attempted) | — | Known to block |
 
 ---
 
 ## Shared Patterns Summary
 
-### Pattern 1: JSON-LD ItemList (BEST — Layer 1)
-**Publishers:** Eater (confirmed)
-**Reliability:** 100% when present
-**Data quality:** Excellent — structured names, positions, types, sometimes addresses
-**Recommendation:** Already implemented in Layer 1. Works perfectly for Eater. Likely works for other Vox Media properties (The Verge, Curbed, etc.).
+### Pattern A: JSON-LD ItemList (Layer 1 — already implemented)
+**Publishers:** Eater (38 items), The Infatuation (20 items with full addresses + coordinates)
+**Coverage:** 2 of 16 analyzed publishers (12.5%)
+**Data quality:** Excellent — structured, reliable, machine-readable
+**Note:** The Infatuation's ItemList includes `GeoCoordinates` — the richest structured data found
 
-### Pattern 2: Condé Nast data-item JSON (NEW — recommended for Layer 2)
-**Publishers:** Condé Nast Traveler, Bon Appétit (same parent company, same component system)
-**Reliability:** Very high — structured data embedded in HTML attributes
-**Data quality:** Name (`dangerousHed`), category (`contentType`), unique ID
-**Items found:** 40 restaurants in CN Traveler Tokyo
-**Recommendation:** Add as a new Layer 2 heuristic:
-```
-Look for elements with data-item attribute containing JSON with:
-  - dangerousHed (the venue name, wrapped in <p> tags)
-  - contentType (restaurant, hotel, etc.)
-  - component = "unified_product_card"
-```
+### Pattern B: Numbered heading sequences
+**Publishers:** Timeout (h3, numbered text), Fodor's (h2/h3, "X OF Y"), Will Fly for Food (h3/h4, "1. Name"), Migrationology (h4, "1. Name")
+**Coverage:** 4 of 16 (25%)
+**Pattern:** `<h2|h3|h4>` containing `/^\d+[\.\)]\s+(.+)$/`
+**Current Layer 2:** Already partially detects this. Needs to accept h4 in addition to h2/h3.
 
-### Pattern 3: Repeated h2 inside card containers (EXISTING — needs broadening)
-**Publishers:** Eater (h2 with class `hkfm3h*` inside `map-card` containers)
-**Current Layer 2:** Only catches numbered h2/h3 sequences. Should also catch:
-- 3+ h2 elements with the same CSS class
-- h2 elements inside containers with "card", "item", "venue", "listing", or "entry" in the class name
-**Recommendation:** Broaden the heading detection to look for repeated same-class h2/h3 elements, not just numbered ones.
+### Pattern C: Condé Nast data-item JSON
+**Publishers:** CN Traveler (40 items), Bon Appétit (gallery format)
+**Coverage:** 2 of 16 (12.5%)
+**Pattern:** `data-item` attribute with HTML-encoded JSON containing `dangerousHed` and `contentType`
+**Not currently detected** — new heuristic needed
 
-### Pattern 4: JavaScript-rendered content (LIMITATION)
-**Publishers:** Lonely Planet, TripAdvisor, The Culture Trip, possibly Timeout
-**Reliability:** 0% for server-side extraction
-**Recommendation:** These publishers render content via JavaScript frameworks (React, Astro, etc.). Server-side HTML fetch gets an empty shell. Options:
-1. **Cloud Run headless browser** (already deployed for Google Maps) could fetch rendered HTML
-2. **Accept the limitation** — these URLs save as single items with the article title
-3. **Future LLM extraction** — send the URL to an LLM that can browse
+### Pattern D: Same-class heading sequences (non-numbered)
+**Publishers:** Eater (h2 with class `hkfm3h5`), Anders Husa (h2), Truly Tokyo (linked names in li)
+**Coverage:** 3 of 16 (19%)
+**Pattern:** 3+ `<h2>` elements sharing the same CSS class, within card/article containers
+**Not currently detected** — needs broadening of heading detection
 
-### Pattern 5: Blog/WordPress article format
-**Publishers:** Nomadic Matt, Migrationology (when articles load)
-**Typical structure:** h2 or h3 headings with place names, followed by paragraphs. No structured data.
-**Current Layer 2 coverage:** Partially covered by the existing numbered heading detection. Needs expansion to catch non-numbered heading sequences.
+### Pattern E: WordPress blog pattern (h2/h3 + paragraphs + wp-block-image)
+**Publishers:** Will Fly for Food, Going Awesome Places, Ms Travel Solo, Migrationology
+**Coverage:** 4 of 16 (25%)
+**Pattern:** Standard WordPress heading hierarchy with `.wp-block-image` photo blocks between entries
+**Partially detected** — numbered variants caught, non-numbered missed
+
+### Pattern F: Embedded geographic data
+**Publishers:** Anders Husa (GeoJSON with coordinates), The Infatuation (JSON-LD GeoCoordinates)
+**Coverage:** 2 of 16 (12.5%)
+**Pattern:** GeoJSON feature collections or JSON-LD coordinates embedded in the page
+**Not currently detected** — valuable for location enrichment
+
+### Pattern G: Categorized unordered lists
+**Publishers:** Truly Tokyo (li items grouped by cuisine), Japan Guide (li items in ul lists)
+**Coverage:** 2 of 16 (12.5%)
+**Pattern:** `<ul><li><a>Name</a> (Location; Price)</li></ul>` grouped under category h3 headings
+**Not currently detected**
+
+### Pattern H: Address text patterns
+**Publishers:** Will Fly for Food (`**Address:** text`), Fodor's (`**WHERE:** text`), Timeout (plain text under heading)
+**Coverage:** 3 of 16 (19%)
+**Pattern:** Bold label + colon + address text near item heading
 
 ---
 
-## Layer 2 Expansion Recommendations
+## Layer 2 Expansion Recommendations (Priority Order)
 
-### Priority 1: Condé Nast data-item extraction (HIGH VALUE)
-Add detection for `data-item` attributes containing JSON with `dangerousHed` and `contentType`. This covers:
-- Condé Nast Traveler (one of the most-saved travel publishers)
-- Bon Appétit
-- Vogue, GQ, Wired (same component system, different content verticals)
-
-Implementation:
+### 1. Condé Nast data-item extraction (2 publishers, 40+ items each)
 ```javascript
-// Look for elements with data-item attribute
-const dataItems = doc.querySelectorAll('[data-item]');
-const items = [];
-for (const el of dataItems) {
-  try {
-    const data = JSON.parse(el.getAttribute('data-item'));
-    if (data.dangerousHed && data.contentType) {
-      const name = data.dangerousHed.replace(/<[^>]+>/g, '').trim();
-      items.push({ name, category: mapContentType(data.contentType) });
-    }
-  } catch {}
-}
-```
-
-### Priority 2: Same-class heading sequences (MEDIUM VALUE)
-Broaden existing heading detection:
-```javascript
-// Find h2 or h3 elements that share the same class AND appear 3+ times
-const headingClasses = {};
-doc.querySelectorAll('h2, h3').forEach(h => {
-  const cls = h.className;
-  if (cls) {
-    headingClasses[cls] = headingClasses[cls] || [];
-    headingClasses[cls].push(h);
+// Look for data-item attributes with encoded JSON
+doc.querySelectorAll('[data-item]').forEach(el => {
+  const raw = el.getAttribute('data-item')
+  const decoded = raw.replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  const data = JSON.parse(decoded)
+  if (data.dangerousHed) {
+    const name = data.dangerousHed.replace(/<[^>]+>/g, '').trim()
+    items.push({ name, category: data.contentType || 'general' })
   }
-});
-// Any class with 3+ headings is likely a list pattern
+})
 ```
+**Covers:** CN Traveler, Bon Appétit, plus any other Condé Nast property
 
-### Priority 3: Card container detection (MEDIUM VALUE)
-Look for repeated container elements with class names containing "card", "item", "venue", "listing", "place", "restaurant":
+### 2. Broaden numbered heading detection to h4 (4 publishers)
+Current Layer 2 only checks h2/h3. Add h4. Also accept patterns like "X OF Y" (Fodor's).
 ```javascript
-const cardSelectors = ['[class*="card"]', '[class*="item"]', '[class*="venue"]', '[class*="listing"]'];
-// Count elements matching each selector — 3+ matches suggests a list
+// Add h4 to the heading query
+doc.querySelectorAll('h2, h3, h4').forEach(h => { ... })
+// Accept "1 OF 25" pattern in addition to "1. Name"
+const numPattern = /^(\d+)[\.\)]\s+(.+)$|^(\d+)\s+OF\s+\d+$/i
 ```
 
-### Not Recommended
-- **CSS class name matching by publisher** (fragile — class names change with deploys)
-- **Position-based extraction** (looking for elements at specific DOM depths)
-- **Regex on raw HTML** for complex structures (too brittle)
+### 3. Same-class heading sequences (3 publishers)
+```javascript
+// Group headings by CSS class — 3+ with same class = likely list
+const classCounts = {}
+doc.querySelectorAll('h2, h3').forEach(h => {
+  if (h.className) {
+    classCounts[h.className] = (classCounts[h.className] || 0) + 1
+  }
+})
+const listClass = Object.entries(classCounts).find(([_, count]) => count >= 3)
+```
+
+### 4. GeoJSON extraction (2 publishers — bonus location data)
+```javascript
+// Look for GeoJSON feature collections in script tags or inline JS
+const geoMatch = html.match(/["']coordinates["']\s*:\s*\[[\d\.\-,\s]+\]/g)
+```
+
+### 5. WordPress wp-block-image + heading pattern (4 publishers)
+```javascript
+// Alternating wp-block-image and h2/h3 elements = listicle
+const blocks = doc.querySelectorAll('.wp-block-image, h2, h3, h4')
+// Check for repeating image→heading→paragraph pattern
+```
+
+### 6. Categorized ul/li lists (2 publishers)
+```javascript
+// <ul> with 3+ <li> containing <a> links, under a h3 category heading
+doc.querySelectorAll('ul').forEach(ul => {
+  const links = ul.querySelectorAll('li a')
+  if (links.length >= 3) { /* extract names from links */ }
+})
+```
 
 ---
 
-## Remaining Gaps
+## Coverage Estimate
 
-| Publisher | Issue | Candidate for |
-|-----------|-------|--------------|
-| Lonely Planet | JavaScript-rendered | Headless browser or LLM |
-| TripAdvisor | 403 block + JS rendering | LLM only |
-| The Culture Trip | Timeout/block | Headless browser or LLM |
-| Timeout | URL restructuring + possible JS rendering | Need updated URLs |
-| Google Discover / AMP pages | Different DOM structure | Separate handler |
+| Enhancement | New publishers covered | Cumulative coverage |
+|-------------|----------------------|-------------------|
+| Existing Layer 1 (JSON-LD) | 2 (Eater, Infatuation) | 12.5% |
+| + Existing Layer 2 (numbered headings) | +4 (Timeout, Fodor's, WFF, Migrationology) | 37.5% |
+| + Condé Nast data-item | +2 (CN Traveler, Bon Appétit) | 50% |
+| + Same-class headings | +3 (Eater HTML, Anders Husa, blogs) | 69% |
+| + WordPress pattern | +2 (GoingAwesome, MsTravelSolo) | 81% |
+| + Categorized lists | +2 (TrulyTokyo, JapanGuide) | 94% |
+| Remaining (JS-only) | 1 (World's 50 Best) | —  |
 
-These publishers account for significant traffic but cannot be extracted server-side with HTML parsing alone. They are candidates for:
-1. **Headless browser fetch** (existing Cloud Run resolver could be extended)
-2. **Future LLM-based extraction** (send rendered HTML or screenshots to a model)
+**With just Priorities 1-3, we reach ~69% coverage of analyzable publishers.**
 
 ---
 
-## Cost-Benefit Summary
+## Unfixable Without Headless Browser or LLM
 
-| Enhancement | Publishers covered | Effort | Expected yield |
-|-------------|-------------------|--------|---------------|
-| Condé Nast data-item | CN Traveler, Bon Appétit | Low (1-2 hours) | 40+ items per article |
-| Same-class heading | Eater, blogs, WordPress | Low (1 hour) | 10-40 items per article |
-| Card container detection | Various | Medium (2-3 hours) | Variable |
-| Headless browser for JS sites | Lonely Planet, Culture Trip | High (already have infra) | 10-30 items per article |
-| LLM extraction | All blocked/JS sites | High (new system) | Any article |
+| Publisher | Reason |
+|-----------|--------|
+| Lonely Planet | 403 to server-side fetches |
+| TripAdvisor | 403 + JS rendering |
+| Culture Trip | Timeout + JS rendering |
+| AFAR | 403 |
+| Saveur | 403 |
+| World's 50 Best | JS-only (WebPuzzle API) |
+| Mafengwo (CN) | JS-only |
 
-**Recommendation:** Implement Priorities 1 and 2 first. They cover the highest-value publishers with minimal engineering effort. Card container detection (Priority 3) can be added later if needed. JS-rendered sites are a separate initiative.
+These represent significant traffic but require either:
+1. Extending the Cloud Run headless browser to fetch rendered HTML
+2. Future LLM-based extraction
