@@ -143,22 +143,29 @@ export default function SelectionOverlay({
         .filter(({ i }) => selected.has(i))
         .map(({ item, i }) => {
           const display = getItemDisplay(item, i)
+          // Use enrichment data if available, fall back to manual edits / raw data
+          const lat = display.location?.lat ?? item.latitude ?? null
+          const lng = display.location?.lng ?? item.longitude ?? null
+          const placeId = display.location?.place_id ?? item.place_id ?? null
+          const hasPrecise = !!display.location || !!item.enriched
+
           return {
             user_id: userId,
             source_type: 'manual' as const,
             source_url: sourceUrl,
             title: display.name,
             category: display.category,
-            location_name: display.location?.name ?? display.location_name,
-            location_lat: display.location?.lat ?? null,
-            location_lng: display.location?.lng ?? null,
-            location_place_id: display.location?.place_id ?? null,
+            location_name: display.location?.name ?? display.location_name ?? item.formatted_address ?? null,
+            location_lat: lat,
+            location_lng: lng,
+            location_place_id: placeId,
             location_country: display.location?.country ?? null,
             location_country_code: display.location?.country_code ?? null,
             location_locked: !!display.location,
-            location_precision: display.location ? 'precise' as const : null,
+            location_precision: hasPrecise ? 'precise' as const : null,
             description: item.description,
-            image_display: 'none' as const,
+            image_url: item.photo_url ?? null,
+            image_display: item.photo_url ? 'thumbnail' as const : 'none' as const,
             has_pending_extraction: false,
           }
         })
@@ -290,6 +297,28 @@ export default function SelectionOverlay({
                       </svg>
                     )}
                   </button>
+
+                  {/* Thumbnail (from Places enrichment or placeholder) */}
+                  {item.photo_url ? (
+                    <img
+                      src={item.photo_url}
+                      alt=""
+                      style={{
+                        width: 36, height: 36, borderRadius: 6, objectFit: 'cover',
+                        flexShrink: 0, background: '#f1efe8',
+                      }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: 36, height: 36, borderRadius: 6, flexShrink: 0,
+                      background: '#f1efe8', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b4b2a9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                    </div>
+                  )}
 
                   {/* Content (tappable to expand) */}
                   <button

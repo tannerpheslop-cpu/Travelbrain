@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts"
+import { createClient } from "jsr:@supabase/supabase-js@2"
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,6 +15,13 @@ interface ExtractedItem {
   location_name: string | null
   description: string | null
   source_order: number
+  // Enrichment fields (populated when Places enrichment succeeds)
+  enriched?: boolean
+  place_id?: string
+  photo_url?: string | null
+  latitude?: number
+  longitude?: number
+  formatted_address?: string
 }
 
 interface ExtractionResult {
@@ -23,6 +31,163 @@ interface ExtractionResult {
   item_count?: number
   items?: ExtractedItem[]
   reason?: "fetch_failed" | "parse_failed" | "single_item" | "timeout"
+}
+
+// ── Places enrichment (compact, mirrors extract-metadata logic) ──────────────
+
+const PLACES_CATEGORY_MAP: Record<string, string> = {
+  restaurant: "restaurant", cafe: "restaurant", bar: "restaurant",
+  bakery: "restaurant", meal_takeaway: "restaurant", food: "restaurant",
+  tourist_attraction: "activity", museum: "activity", art_gallery: "activity",
+  park: "activity", natural_feature: "activity", point_of_interest: "activity",
+  lodging: "hotel", hotel: "hotel", hostel: "hotel", motel: "hotel",
+  hiking_area: "activity", campground: "activity",
+}
+
+const SPECIFIC_TYPES = new Set([
+  "restaurant", "cafe", "bar", "bakery", "food", "meal_takeaway",
+  "tourist_attraction", "museum", "art_gallery", "park", "natural_feature",
+  "point_of_interest", "lodging", "hotel", "hostel", "hiking_area",
+  "campground", "church", "hindu_temple", "mosque", "synagogue",
+  "airport", "train_station", "shopping_mall", "zoo", "aquarium",
+  "amusement_park", "stadium", "university", "spa", "establishment", "premise", "store",
+])
+
+const BROAD_TYPES = new Set([
+  "locality", "administrative_area_level_1", "administrative_area_level_2",
+  "country", "continent", "sublocality", "neighborhood", "postal_code",
+  "political", "geocode", "route", "colloquial_area",
+])
+
+function getAdminClient() {
+  const url = Deno.env.get("SUPABASE_URL")
+  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+  if (!url || !key) return null
+  return createClient(url, key)
+}
+
+async function generateQueryHash(name: string, lat: number | null, lng: number | null): Promise<string> {
+  const normalized = name.toLowerCase().trim()
+  const key = lat !== null && lng !== null
+    ? `${normalized}|${lat.toFixed(2)}|${lng.toFixed(2)}`
+    : normalized
+  const encoded = new TextEncoder().encode(key)
+  const buf = await crypto.subtle.digest("SHA-256", encoded)
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("")
+}
+
+async function enrichItem(item: ExtractedItem): Promise<ExtractedItem> {
+  const apiKey = Deno.env.get("GOOGLE_API_KEY")
+  if (!apiKey || !item.name || item.name.length < 3) return { ...item, enriched: false }
+
+  try {
+    const admin = getAdminClient()
+    const query = item.location_name ? `${item.name} ${item.location_name}` : item.name
+
+    // Cache check
+    if (admin) {
+      const hash = await generateQueryHash(query, null, null)
+      const { data: cached } = await admin
+        .from("place_enrichment_cache")
+        .select("*")
+        .eq("query_hash", hash)
+        .gt("expires_at", new Date().toISOString())
+        .maybeSingle()
+
+      if (cached) {
+        return {
+          ...item,
+          name: cached.place_name,
+          category: cached.category ?? item.category,
+          location_name: cached.formatted_address ?? item.location_name,
+          enriched: true,
+          place_id: cached.place_id,
+          photo_url: cached.photo_url,
+          latitude: cached.latitude,
+          longitude: cached.longitude,
+          formatted_address: cached.formatted_address,
+        }
+      }
+    }
+
+    // Places Text Search
+    const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&key=${apiKey}`
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) })
+    if (!res.ok) return { ...item, enriched: false }
+
+    const data = await res.json() as {
+      results?: Array<{
+        name?: string; formatted_address?: string;
+        geometry?: { location?: { lat: number; lng: number } };
+        place_id?: string; types?: string[]; rating?: number;
+        photos?: Array<{ photo_reference: string; html_attributions?: string[] }>;
+      }>
+    }
+
+    const place = data.results?.[0]
+    if (!place?.name || !place.geometry?.location || !place.place_id) return { ...item, enriched: false }
+
+    // Confidence check: must be a specific POI
+    const types = place.types ?? []
+    if (types.every(t => BROAD_TYPES.has(t)) || !types.some(t => SPECIFIC_TYPES.has(t))) {
+      return { ...item, enriched: false }
+    }
+
+    // Photo
+    let photoUrl: string | null = null
+    let photoAttribution: string | null = null
+    if (place.photos?.length) {
+      photoUrl = `https://maps.googleapis.com/maps/api/place/photo?photoreference=${place.photos[0].photo_reference}&maxwidth=400&key=${apiKey}`
+      photoAttribution = place.photos[0].html_attributions?.join(", ") ?? null
+    }
+
+    // Map category
+    let category = item.category
+    for (const t of types) {
+      if (PLACES_CATEGORY_MAP[t]) { category = PLACES_CATEGORY_MAP[t]; break }
+    }
+
+    // Cache write (fire and forget)
+    if (admin) {
+      const hash = await generateQueryHash(query, null, null)
+      admin.from("place_enrichment_cache").upsert({
+        query_hash: hash, place_id: place.place_id, place_name: place.name,
+        category, latitude: place.geometry.location.lat, longitude: place.geometry.location.lng,
+        formatted_address: place.formatted_address, photo_url: photoUrl,
+        photo_attribution: photoAttribution, rating: place.rating ?? null,
+        place_types: types,
+        expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+      }, { onConflict: "query_hash" }).then(() => {})
+    }
+
+    return {
+      ...item,
+      name: place.name,
+      category,
+      location_name: place.formatted_address ?? item.location_name,
+      enriched: true,
+      place_id: place.place_id,
+      photo_url: photoUrl,
+      latitude: place.geometry.location.lat,
+      longitude: place.geometry.location.lng,
+      formatted_address: place.formatted_address ?? undefined,
+    }
+  } catch (err) {
+    console.log(`[multi-extract] Enrichment failed for "${item.name}": ${err}`)
+    return { ...item, enriched: false }
+  }
+}
+
+/** Enrich items sequentially with 500ms delay between calls to avoid rate limits. */
+async function enrichItems(items: ExtractedItem[]): Promise<ExtractedItem[]> {
+  const enriched: ExtractedItem[] = []
+  for (let i = 0; i < items.length; i++) {
+    enriched.push(await enrichItem(items[i]))
+    if (i < items.length - 1) {
+      await new Promise(r => setTimeout(r, 500))
+    }
+  }
+  return enriched
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -380,12 +545,19 @@ Deno.serve(async (req: Request) => {
       })
     }
 
+    // Enrich each extracted item with Google Places data
+    const truncated = items.slice(0, MAX_ITEMS)
+    console.log(`[multi-extract] Enriching ${truncated.length} items...`)
+    const enrichedItems = await enrichItems(truncated)
+    const enrichedCount = enrichedItems.filter(i => i.enriched).length
+    console.log(`[multi-extract] Enriched ${enrichedCount}/${truncated.length} items`)
+
     const result: ExtractionResult = {
       success: true,
       content_type: contentType,
       source_title: sourceTitle ?? undefined,
-      item_count: items.length,
-      items: items.slice(0, MAX_ITEMS),
+      item_count: enrichedItems.length,
+      items: enrichedItems,
     }
 
     return new Response(JSON.stringify(result), {
