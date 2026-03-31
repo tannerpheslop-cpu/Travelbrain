@@ -10,7 +10,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
 import { getInboxClusters } from '../lib/clusters'
-import type { SavedItem, Trip, TripDestination, TripRoute, ItemTag, TagType } from '../types'
+import type { SavedItem, Trip, TripDestination, TripRoute, ItemTag, TagType, Route } from '../types'
 import type { LocationSelection } from '../components/LocationAutocomplete'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -121,11 +121,31 @@ export async function fetchTripDestinations(tripId: string) {
 
 // ── Queries ───────────────────────────────────────────────────────────────────
 
-/** All saved items for the current user (Horizon page). */
+/** All saved items for the current user (Horizon page). Excludes saves absorbed by Routes. */
 export function useSavedItems() {
   const { user } = useAuth()
   return useQuery({
     queryKey: queryKeys.savedItems(user?.id ?? ''),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('saved_items')
+        .select('*')
+        .eq('user_id', user!.id)
+        .eq('is_archived', false)
+        .is('route_id', null)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return (data ?? []) as SavedItem[]
+    },
+    enabled: !!user,
+  })
+}
+
+/** All saved items including those in Routes (for graph, counts, etc.) */
+export function useAllSavedItems() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['all-saved-items', user?.id ?? ''],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('saved_items')
@@ -137,6 +157,42 @@ export function useSavedItems() {
       return (data ?? []) as SavedItem[]
     },
     enabled: !!user,
+  })
+}
+
+/** All routes for the current user with their items. */
+export function useRoutes() {
+  const { user } = useAuth()
+  return useQuery({
+    queryKey: ['routes', user?.id ?? ''],
+    queryFn: async () => {
+      const { data: routes, error } = await supabase
+        .from('routes')
+        .select('*')
+        .eq('user_id', user!.id)
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      return (routes ?? []) as Route[]
+    },
+    enabled: !!user,
+  })
+}
+
+/** Saves belonging to a specific Route. */
+export function useRouteItems(routeId: string | null) {
+  return useQuery({
+    queryKey: ['route-items', routeId ?? ''],
+    queryFn: async () => {
+      if (!routeId) return []
+      const { data, error } = await supabase
+        .from('route_items')
+        .select('saved_item_id, route_order, saved_items(*)')
+        .eq('route_id', routeId)
+        .order('route_order', { ascending: true })
+      if (error) throw error
+      return (data ?? []) as unknown as Array<{ saved_item_id: string; route_order: number; saved_items: SavedItem }>
+    },
+    enabled: !!routeId,
   })
 }
 

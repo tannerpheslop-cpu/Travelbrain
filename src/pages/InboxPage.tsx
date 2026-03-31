@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { useSavedItems, useTripsQuery, useTripItemMappings, useTripLinkCounts, usePendingExtractionCounts, useUserCustomTags, queryKeys, fetchTrips } from '../hooks/queries'
+import { useSavedItems, useAllSavedItems, useRoutes, useTripsQuery, useTripItemMappings, useTripLinkCounts, usePendingExtractionCounts, useUserCustomTags, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
 import { useToast } from '../components/Toast'
 import PillSheet from '../components/PillSheet'
@@ -18,7 +18,7 @@ import TravelGraph from '../components/horizon/TravelGraph'
 import DraggableSheet from '../components/map/DraggableSheet'
 import ImageWithFade from '../components/ImageWithFade'
 import { getPlacePhoto } from '../components/SavedItemImage'
-import type { SavedItem, Category } from '../types'
+import type { SavedItem, Category, Route } from '../types'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -156,11 +156,26 @@ export default function InboxPage() {
 
   // ── React Query data ───────────────────────────────────────────────────
   const { data: items = [], isLoading: itemsLoading, error: itemsError } = useSavedItems()
+  const { data: allItems = [] } = useAllSavedItems()
+  const { data: routes = [] } = useRoutes()
   const { data: tripsWithDests = [] } = useTripsQuery()
 
   const { data: allTripItems = [] } = useTripItemMappings()
   const tripLinkCounts = useTripLinkCounts()
   const extractionCounts = usePendingExtractionCounts()
+
+  // Build a map of route_id → saves for Route card filtering
+  const routeSavesMap = useMemo(() => {
+    const map = new Map<string, SavedItem[]>()
+    for (const item of allItems) {
+      if (item.route_id) {
+        const arr = map.get(item.route_id) ?? []
+        arr.push(item)
+        map.set(item.route_id, arr)
+      }
+    }
+    return map
+  }, [allItems])
 
   const loading = itemsLoading
   const error = itemsError ? 'Could not load your saves. Tap to retry.' : null
@@ -449,6 +464,39 @@ export default function InboxPage() {
     return groupMode === 'city' ? groupByCity(groupItems) : groupByCountry(groupItems)
   }, [filtered, recentlyAddedIds, groupMode])
 
+  // Filter routes based on search and selected filters
+  const filteredRoutes = useMemo(() => {
+    if (!routes.length) return []
+    return routes.filter(route => {
+      const saves = routeSavesMap.get(route.id) ?? []
+      // Search: match route name or any save title within the route
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase()
+        const nameMatch = route.name.toLowerCase().includes(q)
+        const saveMatch = saves.some(s => s.title?.toLowerCase().includes(q))
+        if (!nameMatch && !saveMatch) return false
+      }
+      if (selectedFilters.length > 0) {
+        // Category filter
+        const catFilters = selectedFilters.filter((f: string) => Object.values(categoryLabel).includes(f as never))
+        if (catFilters.length > 0) {
+          const reverseCatMap: Record<string, string> = {}
+          for (const [k, v] of Object.entries(categoryLabel)) reverseCatMap[v] = k
+          const catValues = catFilters.map((f: string) => reverseCatMap[f]).filter(Boolean)
+          const hasMatchingCat = saves.some(s => catValues.includes(s.category))
+          if (!hasMatchingCat) return false
+        }
+        // Country filter
+        const countryFilters = selectedFilters.filter((f: string) => countryList.includes(f))
+        if (countryFilters.length > 0) {
+          const hasMatchingCountry = saves.some(s => s.location_country && countryFilters.includes(s.location_country))
+          if (!hasMatchingCountry) return false
+        }
+      }
+      return true
+    })
+  }, [routes, routeSavesMap, searchQuery, selectedFilters, countryList])
+
   // Preload first-screen gallery images
   useEffect(() => {
     if (filtered.length === 0) return
@@ -497,11 +545,11 @@ export default function InboxPage() {
   return (
     <>
     {/* ── Background layer: sunset + graph (fixed, top 50%) ── */}
-    <SunsetBackground saveCount={items.length} />
-    {items.length > 0 && (
+    <SunsetBackground saveCount={allItems.length} />
+    {allItems.length > 0 && (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: `${skyHeight}px`, zIndex: 1, transition: 'height 300ms ease' }}>
         <TravelGraph
-          savedItems={items}
+          savedItems={allItems}
           claimedItemIds={assignedItemIds}
           height={skyHeight}
           onNodeSelect={(item) => {
@@ -810,6 +858,23 @@ export default function InboxPage() {
         </section>
       )}
 
+      {/* ── Route Cards ── */}
+      {filteredRoutes.length > 0 && (
+        viewMode === 'grid' ? (
+          <div className="grid grid-cols-2" style={{ gap: 8, marginBottom: 16 }}>
+            {filteredRoutes.map(route => (
+              <RouteGridCard key={route.id} route={route} />
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col" style={{ marginBottom: 16 }}>
+            {filteredRoutes.map(route => (
+              <RouteListRow key={route.id} route={route} />
+            ))}
+          </div>
+        )
+      )}
+
       {/* ── Country-Grouped Content ── */}
       {!loading && !error && filtered.length > 0 && (() => {
         let gridIndex = 0
@@ -1064,6 +1129,157 @@ function TripCountPill({ count, variant }: { count: number; variant: 'image' | '
     >
       {label}
     </span>
+  )
+}
+
+// ─── Route Card (grid view) ─────────────────────────────────────────────────
+
+function RouteGridCard({ route }: { route: Route }) {
+  const thumbnail = route.source_thumbnail
+  return (
+    <Link
+      to={`/route/${route.id}`}
+      style={{ textDecoration: 'none', position: 'relative' }}
+      data-testid={`route-card-${route.id}`}
+    >
+      {/* Stacked card effect: shadow card behind */}
+      <div style={{
+        position: 'absolute', top: 3, left: 3, right: -3, bottom: -3,
+        borderRadius: 10, background: '#e8e6e1', opacity: 0.4, zIndex: 0,
+      }} />
+      <div style={{
+        position: 'relative', zIndex: 1,
+        borderRadius: 10, overflow: 'hidden',
+        background: thumbnail ? '#1a1d27' : '#f1efe8',
+      }}>
+        {/* Thumbnail */}
+        {thumbnail ? (
+          <div style={{ position: 'relative', paddingTop: '65%' }}>
+            <img
+              src={optimizedImageUrl(thumbnail, 'gallery-card') ?? thumbnail}
+              alt=""
+              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 30%, rgba(0,0,0,0.6))' }} />
+            {/* Count badge */}
+            <span style={{
+              position: 'absolute', top: 6, right: 6, zIndex: 2,
+              background: '#c45a2d', color: '#fff',
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
+              padding: '2px 8px', borderRadius: 999,
+            }}>
+              {route.item_count} places
+            </span>
+            {/* Name on image */}
+            <div style={{ position: 'absolute', bottom: 8, left: 8, right: 8, zIndex: 2 }}>
+              <p style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+                color: '#fff', margin: 0,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                textShadow: '0 1px 3px rgba(0,0,0,0.5)',
+              }}>
+                {route.name}
+              </p>
+              {route.location_scope && (
+                <p style={{
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 10,
+                  color: 'rgba(255,255,255,0.7)', margin: '2px 0 0',
+                }}>
+                  {route.location_scope}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div style={{ padding: '14px 12px' }}>
+            <span style={{
+              position: 'absolute', top: 6, right: 6,
+              background: '#c45a2d', color: '#fff',
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
+              padding: '2px 8px', borderRadius: 999,
+            }}>
+              {route.item_count} places
+            </span>
+            <p style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+              color: '#1a1d27', margin: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {route.name}
+            </p>
+            {route.location_scope && (
+              <p style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 11,
+                color: '#888780', margin: '4px 0 0',
+              }}>
+                {route.location_scope}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </Link>
+  )
+}
+
+// ─── Route Card (list view) ─────────────────────────────────────────────────
+
+function RouteListRow({ route }: { route: Route }) {
+  return (
+    <Link
+      to={`/route/${route.id}`}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '10px 0', textDecoration: 'none',
+        borderBottom: '0.5px solid #f1efe8',
+      }}
+      data-testid={`route-row-${route.id}`}
+    >
+      {/* Thumbnail */}
+      <div style={{ position: 'relative', flexShrink: 0 }}>
+        {/* Stacked effect */}
+        <div style={{
+          position: 'absolute', top: 2, left: 2,
+          width: 44, height: 44, borderRadius: 6,
+          background: '#e8e6e1', opacity: 0.4,
+        }} />
+        <div style={{
+          width: 44, height: 44, borderRadius: 6, overflow: 'hidden',
+          background: route.source_thumbnail ? '#1a1d27' : '#f1efe8',
+          position: 'relative', zIndex: 1,
+        }}>
+          {route.source_thumbnail ? (
+            <img
+              src={optimizedImageUrl(route.source_thumbnail, 'grid-thumbnail') ?? route.source_thumbnail}
+              alt=""
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            />
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b4b2a9" strokeWidth="1.5">
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+            </div>
+          )}
+        </div>
+      </div>
+      {/* Text */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{
+          fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
+          color: '#1a1d27', margin: 0,
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {route.name}
+        </p>
+        <p style={{
+          fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#888780',
+          margin: '2px 0 0',
+        }}>
+          {route.location_scope ? `${route.location_scope} · ` : ''}{route.item_count} place{route.item_count !== 1 ? 's' : ''}
+        </p>
+      </div>
+    </Link>
   )
 }
 
