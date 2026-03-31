@@ -99,3 +99,9 @@ input, textarea, select {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* Extraction processing shimmer — translucent gradient sweep */
+@keyframes extraction-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
