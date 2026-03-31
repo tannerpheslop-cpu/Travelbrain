@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest'
 import type { SavedItem } from '../../types'
 
-// Reproduce the filtering logic from InboxPage
+// Reproduce the filtering logic from InboxPage (24h expiry, no cap, exclude Route items)
 function getRecentlyAdded(
   items: SavedItem[],
   tripLinkCounts: Map<string, number>,
@@ -13,14 +13,14 @@ function getRecentlyAdded(
   return items
     .filter((item) => {
       if (item.left_recent) return false
+      if (item.route_id) return false // In a Route — Route card shows instead
       const ageHours = (now - new Date(item.created_at).getTime()) / (1000 * 60 * 60)
-      const isRecent = ageHours <= 48
+      const isRecent = ageHours <= 24
       const notViewed = !item.first_viewed_at
       const notInTrip = (tripLinkCounts.get(item.id) || 0) === 0
       return isRecent && notViewed && notInTrip
     })
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-    .slice(0, 5)
 }
 
 function makeItem(overrides: Partial<SavedItem> & { id: string }): SavedItem {
@@ -100,7 +100,7 @@ describe('Recently Added logic', () => {
     expect(result).toHaveLength(0)
   })
 
-  it('limits to 5 items', () => {
+  it('shows all qualifying items (no hard cap)', () => {
     const items = Array.from({ length: 8 }, (_, i) =>
       makeItem({
         id: `item-${i}`,
@@ -109,7 +109,27 @@ describe('Recently Added logic', () => {
       }),
     )
     const result = getRecentlyAdded(items, new Map())
-    expect(result).toHaveLength(5)
+    expect(result).toHaveLength(8)
+  })
+
+  it('excludes items in a Route', () => {
+    const items = [
+      makeItem({ id: '1', created_at: new Date().toISOString(), route_id: 'route-1' }),
+      makeItem({ id: '2', created_at: new Date().toISOString(), route_id: null }),
+    ]
+    const result = getRecentlyAdded(items, new Map())
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('2')
+  })
+
+  it('uses 24h expiry (not 48h)', () => {
+    const items = [
+      makeItem({ id: 'old', created_at: new Date(Date.now() - 30 * 3600000).toISOString() }), // 30h ago
+      makeItem({ id: 'new', created_at: new Date(Date.now() - 12 * 3600000).toISOString() }), // 12h ago
+    ]
+    const result = getRecentlyAdded(items, new Map())
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('new')
   })
 
   it('sorts by created_at descending (newest first)', () => {
@@ -152,24 +172,17 @@ describe('Recently Added logic', () => {
     expect(result[0].id).toBe('2')
   })
 
-  it('REGRESSION: deleted item does not cause graduated item to re-enter', () => {
-    // 6 qualifying items — only 5 shown, item-5 is bumped
-    const items = Array.from({ length: 6 }, (_, i) =>
-      makeItem({
-        id: `item-${i}`,
-        title: `Item ${i}`,
-        created_at: new Date(Date.now() - i * 60000).toISOString(),
-      }),
-    )
-    const first5 = getRecentlyAdded(items, new Map())
-    expect(first5).toHaveLength(5)
-    expect(first5.map(i => i.id)).not.toContain('item-5')
-
-    // Now simulate: item-0 is deleted, but item-5 has left_recent = true (was bumped)
+  it('REGRESSION: left_recent items never re-enter regardless of other deletions', () => {
+    const items = [
+      makeItem({ id: 'item-0', created_at: new Date().toISOString() }),
+      makeItem({ id: 'item-1', created_at: new Date().toISOString(), left_recent: true }),
+    ]
+    const result = getRecentlyAdded(items, new Map())
+    expect(result).toHaveLength(1)
+    expect(result[0].id).toBe('item-0')
+    // Even after item-0 is deleted, item-1 doesn't come back
     const afterDelete = items.filter(i => i.id !== 'item-0')
-    afterDelete.find(i => i.id === 'item-5')!.left_recent = true
     const afterResult = getRecentlyAdded(afterDelete, new Map())
-    expect(afterResult).toHaveLength(4) // Only 4 remaining qualify
-    expect(afterResult.map(i => i.id)).not.toContain('item-5') // Must NOT re-enter
+    expect(afterResult).toHaveLength(0)
   })
 })
