@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useToast } from './Toast'
@@ -46,6 +46,64 @@ const CATEGORY_PILLS: { value: Category; label: string }[] = [
   { value: 'general', label: 'General' },
 ]
 
+/** Auto-suggest a Route name from the items and source context. */
+function suggestRouteName(
+  items: Array<ExtractedItem & { likely_duplicate?: boolean }>,
+  sourceTitle: string | null,
+): string {
+  // Collect cities and categories from selected items
+  const cities = new Map<string, number>()
+  const categories = new Map<string, number>()
+  const countries = new Map<string, number>()
+
+  for (const item of items) {
+    if (item.location_name) {
+      const parts = item.location_name.split(',').map(s => s.trim())
+      if (parts.length >= 1) {
+        const city = parts[0]
+        cities.set(city, (cities.get(city) ?? 0) + 1)
+      }
+      if (parts.length >= 2) {
+        const country = parts[parts.length - 1]
+        countries.set(country, (countries.get(country) ?? 0) + 1)
+      }
+    }
+    const cat = item.category
+    if (cat && cat !== 'general') {
+      categories.set(cat, (categories.get(cat) ?? 0) + 1)
+    }
+  }
+
+  // All items share a city?
+  if (cities.size === 1) {
+    const city = [...cities.keys()][0]
+    const topCat = [...categories.entries()].sort((a, b) => b[1] - a[1])[0]
+    if (topCat && topCat[1] >= items.length * 0.5) {
+      const catLabel = topCat[0] === 'restaurant' ? 'Restaurants'
+        : topCat[0] === 'activity' ? 'Activities'
+        : topCat[0] === 'hotel' ? 'Hotels'
+        : ''
+      if (catLabel) return `${city} ${catLabel}`
+    }
+    return `${city} Travel`
+  }
+
+  // Items span cities but share a country?
+  if (countries.size === 1) {
+    const country = [...countries.keys()][0]
+    return `${country} Travel`
+  }
+
+  // Fallback: source article title
+  if (sourceTitle) {
+    return sourceTitle.length > 50 ? sourceTitle.slice(0, 47) + '...' : sourceTitle
+  }
+
+  return 'My Route'
+}
+
+const MAX_OVERLAY_ITEMS = 30
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function SelectionOverlay({
@@ -62,11 +120,17 @@ export default function SelectionOverlay({
   const [visible, setVisible] = useState(false)
   const [saving, setSaving] = useState(false)
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
+  const [saveMode, setSaveMode] = useState<'choose' | 'route-naming'>('choose')
+  const [routeName, setRouteName] = useState('')
+  const routeNameInputRef = useRef<HTMLInputElement>(null)
+
+  // Cap at MAX_OVERLAY_ITEMS
+  const cappedItems = useMemo(() => items.slice(0, MAX_OVERLAY_ITEMS), [items])
 
   // Selection state: pre-select all non-duplicates
   const [selected, setSelected] = useState<Set<number>>(() => {
     const s = new Set<number>()
-    items.forEach((item, i) => {
+    cappedItems.forEach((item, i) => {
       if (!item.likely_duplicate) s.add(i)
     })
     return s
@@ -120,8 +184,8 @@ export default function SelectionOverlay({
   }, [])
 
   const selectAll = useCallback(() => {
-    setSelected(new Set(items.map((_, i) => i)))
-  }, [items])
+    setSelected(new Set(cappedItems.map((_, i) => i)))
+  }, [cappedItems])
 
   const deselectAll = useCallback(() => {
     setSelected(new Set())
@@ -133,43 +197,62 @@ export default function SelectionOverlay({
 
   const selectedCount = selected.size
 
-  const handleSave = useCallback(async () => {
+  /** Build save rows from selected items. */
+  const buildSaveRows = useCallback(() => {
+    return cappedItems
+      .map((item, i) => ({ item, i }))
+      .filter(({ i }) => selected.has(i))
+      .map(({ item, i }) => {
+        const display = getItemDisplay(item, i)
+        const lat = display.location?.lat ?? item.latitude ?? null
+        const lng = display.location?.lng ?? item.longitude ?? null
+        const placeId = display.location?.place_id ?? item.place_id ?? null
+        const hasPrecise = !!display.location || !!item.enriched
+
+        return {
+          user_id: userId,
+          source_type: 'manual' as const,
+          source_url: sourceUrl,
+          title: display.name,
+          category: display.category,
+          location_name: display.location?.name ?? display.location_name ?? item.formatted_address ?? null,
+          location_lat: lat,
+          location_lng: lng,
+          location_place_id: placeId,
+          location_country: display.location?.country ?? null,
+          location_country_code: display.location?.country_code ?? null,
+          location_locked: !!display.location,
+          location_precision: hasPrecise ? 'precise' as const : null,
+          description: item.description,
+          image_url: item.photo_url ?? null,
+          image_display: item.photo_url ? 'thumbnail' as const : 'none' as const,
+          has_pending_extraction: false,
+          route_id: null as string | null,
+        }
+      })
+  }, [cappedItems, selected, userId, sourceUrl, getItemDisplay])
+
+  /** Derive source platform from URL. */
+  const sourcePlatform = useMemo(() => {
+    if (!sourceUrl) return null
+    try {
+      const h = new URL(sourceUrl).hostname.replace(/^www\./, '')
+      if (h.includes('youtube') || h === 'youtu.be') return 'youtube'
+      if (h.includes('instagram')) return 'instagram'
+      if (h.includes('tiktok')) return 'tiktok'
+      if (h.includes('pinterest')) return 'pinterest'
+      if (h.includes('reddit')) return 'reddit'
+      return 'web'
+    } catch { return 'web' }
+  }, [sourceUrl])
+
+  /** Save as individual items (no Route). */
+  const handleSaveIndividually = useCallback(async () => {
     if (selectedCount === 0 || saving) return
     setSaving(true)
 
     try {
-      const rows = items
-        .map((item, i) => ({ item, i }))
-        .filter(({ i }) => selected.has(i))
-        .map(({ item, i }) => {
-          const display = getItemDisplay(item, i)
-          // Use enrichment data if available, fall back to manual edits / raw data
-          const lat = display.location?.lat ?? item.latitude ?? null
-          const lng = display.location?.lng ?? item.longitude ?? null
-          const placeId = display.location?.place_id ?? item.place_id ?? null
-          const hasPrecise = !!display.location || !!item.enriched
-
-          return {
-            user_id: userId,
-            source_type: 'manual' as const,
-            source_url: sourceUrl,
-            title: display.name,
-            category: display.category,
-            location_name: display.location?.name ?? display.location_name ?? item.formatted_address ?? null,
-            location_lat: lat,
-            location_lng: lng,
-            location_place_id: placeId,
-            location_country: display.location?.country ?? null,
-            location_country_code: display.location?.country_code ?? null,
-            location_locked: !!display.location,
-            location_precision: hasPrecise ? 'precise' as const : null,
-            description: item.description,
-            image_url: item.photo_url ?? null,
-            image_display: item.photo_url ? 'thumbnail' as const : 'none' as const,
-            has_pending_extraction: false,
-          }
-        })
-
+      const rows = buildSaveRows()
       const { error } = await supabase.from('saved_items').insert(rows)
       if (error) {
         console.error('[SelectionOverlay] Insert failed:', error.message)
@@ -177,11 +260,7 @@ export default function SelectionOverlay({
         return
       }
 
-      await supabase
-        .from('pending_extractions')
-        .update({ status: 'reviewed' })
-        .eq('id', extractionId)
-
+      await supabase.from('pending_extractions').update({ status: 'reviewed' }).eq('id', extractionId)
       queryClient.invalidateQueries({ queryKey: ['saved-items'] })
       queryClient.invalidateQueries({ queryKey: ['pending-extraction-counts'] })
 
@@ -191,7 +270,77 @@ export default function SelectionOverlay({
       console.error('[SelectionOverlay] Save error:', (err as Error).message)
       setSaving(false)
     }
-  }, [items, selected, selectedCount, saving, userId, sourceUrl, extractionId, queryClient, toast, handleClose, getItemDisplay])
+  }, [selectedCount, saving, buildSaveRows, extractionId, queryClient, toast, handleClose])
+
+  /** Save as a Route. */
+  const handleSaveAsRoute = useCallback(async () => {
+    if (selectedCount === 0 || saving || !routeName.trim()) return
+    setSaving(true)
+
+    try {
+      // 1. Create the Route
+      const { data: route, error: routeError } = await supabase
+        .from('routes')
+        .insert({
+          user_id: userId,
+          name: routeName.trim(),
+          source_url: sourceUrl,
+          source_title: sourceTitle,
+          source_platform: sourcePlatform,
+          item_count: selectedCount,
+        })
+        .select('id')
+        .single()
+
+      if (routeError || !route) {
+        console.error('[SelectionOverlay] Route creation failed:', routeError?.message)
+        setSaving(false)
+        return
+      }
+
+      // 2. Create saved_items with route_id
+      const rows = buildSaveRows().map(r => ({ ...r, route_id: route.id }))
+      const { data: savedItems, error: itemsError } = await supabase
+        .from('saved_items')
+        .insert(rows)
+        .select('id')
+
+      if (itemsError || !savedItems) {
+        console.error('[SelectionOverlay] Items insert failed:', itemsError?.message)
+        setSaving(false)
+        return
+      }
+
+      // 3. Create route_items junction entries
+      const routeItems = savedItems.map((si: { id: string }, idx: number) => ({
+        route_id: route.id,
+        saved_item_id: si.id,
+        route_order: idx + 1,
+      }))
+      await supabase.from('route_items').insert(routeItems)
+
+      // 4. Mark extraction as reviewed
+      await supabase.from('pending_extractions').update({ status: 'reviewed' }).eq('id', extractionId)
+
+      queryClient.invalidateQueries({ queryKey: ['saved-items'] })
+      queryClient.invalidateQueries({ queryKey: ['pending-extraction-counts'] })
+      queryClient.invalidateQueries({ queryKey: ['routes'] })
+
+      toast(`Saved Route with ${selectedCount} item${selectedCount !== 1 ? 's' : ''}`)
+      handleClose()
+    } catch (err) {
+      console.error('[SelectionOverlay] Route save error:', (err as Error).message)
+      setSaving(false)
+    }
+  }, [selectedCount, saving, routeName, userId, sourceUrl, sourceTitle, sourcePlatform, buildSaveRows, extractionId, queryClient, toast, handleClose])
+
+  /** Enter route naming mode. */
+  const startRouteMode = useCallback(() => {
+    const selectedItems = cappedItems.filter((_, i) => selected.has(i))
+    setRouteName(suggestRouteName(selectedItems, sourceTitle))
+    setSaveMode('route-naming')
+    setTimeout(() => routeNameInputRef.current?.focus(), 100)
+  }, [cappedItems, selected, sourceTitle])
 
   return (
     <>
@@ -224,7 +373,7 @@ export default function SelectionOverlay({
           padding: '16px 16px 8px', borderBottom: '0.5px solid #e8e6e1', flexShrink: 0,
         }}>
           <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600, color: '#1a1d27' }}>
-            {selectedCount} of {items.length} selected
+            {selectedCount} of {cappedItems.length} selected
           </span>
           <button type="button" onClick={handleClose} aria-label="Close" style={{
             width: 32, height: 32, borderRadius: 8, background: '#f1efe8',
@@ -256,7 +405,7 @@ export default function SelectionOverlay({
           flex: 1, overflowY: 'auto', overflowX: 'hidden',
           overscrollBehavior: 'contain', padding: '4px 0',
         }}>
-          {items.map((item, i) => {
+          {cappedItems.map((item, i) => {
             const isSelected = selected.has(i)
             const isDuplicate = item.likely_duplicate
             const isExpanded = expandedIndex === i
@@ -386,22 +535,92 @@ export default function SelectionOverlay({
           padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
           borderTop: '0.5px solid #e8e6e1', flexShrink: 0,
         }}>
-          <button
-            type="button"
-            data-testid="save-selected-btn"
-            onClick={handleSave}
-            disabled={selectedCount === 0 || saving}
-            style={{
-              width: '100%', padding: '14px 0',
-              background: selectedCount > 0 ? '#c45a2d' : '#d3d1c7', color: '#fff',
-              fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
-              border: 'none', borderRadius: 12,
-              cursor: selectedCount > 0 ? 'pointer' : 'default',
-              opacity: saving ? 0.7 : 1,
-            }}
-          >
-            {saving ? 'Saving...' : `Save ${selectedCount} item${selectedCount !== 1 ? 's' : ''} to Horizon`}
-          </button>
+          {saveMode === 'route-naming' ? (
+            <>
+              {/* Route name input */}
+              <input
+                ref={routeNameInputRef}
+                type="text"
+                value={routeName}
+                onChange={(e) => setRouteName(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleSaveAsRoute() }}
+                placeholder="Route name"
+                style={{
+                  width: '100%', padding: '10px 14px', marginBottom: 10,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500,
+                  color: '#1a1d27', background: '#f1efe8',
+                  border: '0.5px solid #e8e6e1', borderRadius: 8,
+                  outline: 'none',
+                }}
+                data-testid="route-name-input"
+              />
+              <button
+                type="button"
+                data-testid="save-route-btn"
+                onClick={handleSaveAsRoute}
+                disabled={selectedCount === 0 || saving || !routeName.trim()}
+                style={{
+                  width: '100%', padding: '14px 0',
+                  background: selectedCount > 0 && routeName.trim() ? '#c45a2d' : '#d3d1c7',
+                  color: '#fff',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
+                  border: 'none', borderRadius: 12,
+                  cursor: selectedCount > 0 ? 'pointer' : 'default',
+                  opacity: saving ? 0.7 : 1,
+                }}
+              >
+                {saving ? 'Saving...' : `Save (${selectedCount} item${selectedCount !== 1 ? 's' : ''})`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSaveMode('choose')}
+                style={{
+                  display: 'block', width: '100%', marginTop: 8, padding: '8px 0',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#888780',
+                  textAlign: 'center',
+                }}
+              >
+                Back
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Primary: Save as Route */}
+              <button
+                type="button"
+                data-testid="save-as-route-btn"
+                onClick={startRouteMode}
+                disabled={selectedCount === 0 || saving}
+                style={{
+                  width: '100%', padding: '14px 0',
+                  background: selectedCount > 0 ? '#c45a2d' : '#d3d1c7', color: '#fff',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
+                  border: 'none', borderRadius: 12,
+                  cursor: selectedCount > 0 ? 'pointer' : 'default',
+                  opacity: saving ? 0.7 : 1,
+                }}
+              >
+                {saving ? 'Saving...' : `Save as Route (${selectedCount} item${selectedCount !== 1 ? 's' : ''})`}
+              </button>
+              {/* Secondary: Save individually */}
+              <button
+                type="button"
+                data-testid="save-individually-btn"
+                onClick={handleSaveIndividually}
+                disabled={selectedCount === 0 || saving}
+                style={{
+                  display: 'block', width: '100%', marginTop: 8, padding: '8px 0',
+                  background: 'none', border: 'none',
+                  cursor: selectedCount > 0 ? 'pointer' : 'default',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#888780',
+                  textAlign: 'center',
+                }}
+              >
+                Save individually
+              </button>
+            </>
+          )}
         </div>
       </div>
     </>
