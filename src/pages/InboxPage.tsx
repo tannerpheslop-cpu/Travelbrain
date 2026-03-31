@@ -220,6 +220,120 @@ export default function InboxPage() {
   const [showPillSheet, setShowPillSheet] = useState(false)
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
+  // ── Multi-select state ──
+  const [multiSelectMode, setMultiSelectMode] = useState(false)
+  const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set())
+  const [showMergeInput, setShowMergeInput] = useState(false)
+  const [mergeRouteName, setMergeRouteName] = useState('')
+  const mergeNameInputRef = useRef<HTMLInputElement>(null)
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const toggleMultiSelect = useCallback((itemId: string) => {
+    setMultiSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(itemId)) next.delete(itemId)
+      else next.add(itemId)
+      return next
+    })
+  }, [])
+
+  const exitMultiSelect = useCallback(() => {
+    setMultiSelectMode(false)
+    setMultiSelected(new Set())
+    setShowMergeInput(false)
+    setMergeRouteName('')
+  }, [])
+
+  const startLongPress = useCallback((itemId: string) => {
+    longPressTimer.current = setTimeout(() => {
+      setMultiSelectMode(true)
+      setMultiSelected(new Set([itemId]))
+    }, 500)
+  }, [])
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current)
+      longPressTimer.current = null
+    }
+  }, [])
+
+  const startMerge = useCallback(() => {
+    // Auto-suggest name from selected items
+    const selectedItems = items.filter(i => multiSelected.has(i.id))
+    const cities = new Map<string, number>()
+    const countries = new Map<string, number>()
+    const categories = new Map<string, number>()
+    for (const item of selectedItems) {
+      if (item.location_name) {
+        const city = item.location_name.split(',')[0].trim()
+        cities.set(city, (cities.get(city) ?? 0) + 1)
+        if (item.location_country) countries.set(item.location_country, (countries.get(item.location_country) ?? 0) + 1)
+      }
+      if (item.category && item.category !== 'general') categories.set(item.category, (categories.get(item.category) ?? 0) + 1)
+    }
+
+    let name = 'My Route'
+    if (cities.size === 1) {
+      const city = [...cities.keys()][0]
+      const topCat = [...categories.entries()].sort((a, b) => b[1] - a[1])[0]
+      if (topCat && topCat[0] === 'restaurant') name = `${city} Restaurants`
+      else if (topCat && topCat[0] === 'activity') name = `${city} Activities`
+      else name = `${city} Travel`
+    } else if (countries.size === 1) {
+      name = `${[...countries.keys()][0]} Travel`
+    }
+
+    setMergeRouteName(name)
+    setShowMergeInput(true)
+    setTimeout(() => mergeNameInputRef.current?.focus(), 100)
+  }, [items, multiSelected])
+
+  const handleMerge = useCallback(async () => {
+    if (!user || multiSelected.size < 2 || !mergeRouteName.trim()) return
+
+    try {
+      // Create route
+      const { data: route, error: routeErr } = await supabase
+        .from('routes')
+        .insert({
+          user_id: user.id,
+          name: mergeRouteName.trim(),
+          item_count: multiSelected.size,
+        })
+        .select('id')
+        .single()
+
+      if (routeErr || !route) {
+        console.error('Route creation failed:', routeErr?.message)
+        return
+      }
+
+      // Link items
+      const ids = [...multiSelected]
+      const routeItemRows = ids.map((itemId, idx) => ({
+        route_id: route.id,
+        saved_item_id: itemId,
+        route_order: idx + 1,
+      }))
+      await supabase.from('route_items').insert(routeItemRows)
+
+      // Set route_id on each save
+      for (const itemId of ids) {
+        await supabase.from('saved_items').update({ route_id: route.id }).eq('id', itemId)
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['saved-items'] })
+      queryClient.invalidateQueries({ queryKey: ['all-saved-items'] })
+      queryClient.invalidateQueries({ queryKey: ['routes'] })
+
+      toast(`Created Route with ${ids.length} items`)
+      exitMultiSelect()
+    } catch (err) {
+      console.error('Merge failed:', (err as Error).message)
+    }
+  }, [user, multiSelected, mergeRouteName, queryClient, toast, exitMultiSelect])
+
   // Tick state to force re-render for shimmer timeout (every 10s)
   const [, setTick] = useState(0)
   useEffect(() => {
@@ -977,14 +1091,72 @@ export default function InboxPage() {
                 <div className="grid grid-cols-2" style={{ gap: 8 }}>
                   {group.items.map((item) => {
                     const idx = gridIndex++
-                    return <GridCard key={item.id} item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} extractionCount={extractionCounts.get(item.id)} eager={idx < 6} />
+                    const isSelected = multiSelected.has(item.id)
+                    return (
+                      <div
+                        key={item.id}
+                        style={{ position: 'relative' }}
+                        onPointerDown={() => !multiSelectMode && startLongPress(item.id)}
+                        onPointerUp={cancelLongPress}
+                        onPointerLeave={cancelLongPress}
+                        onClick={multiSelectMode ? (e) => { e.preventDefault(); e.stopPropagation(); toggleMultiSelect(item.id) } : undefined}
+                      >
+                        {multiSelectMode && (
+                          <div style={{
+                            position: 'absolute', top: 6, left: 6, zIndex: 10,
+                            width: 22, height: 22, borderRadius: 11,
+                            border: isSelected ? 'none' : '2px solid rgba(255,255,255,0.7)',
+                            background: isSelected ? '#c45a2d' : 'rgba(0,0,0,0.2)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            pointerEvents: 'none',
+                          }}>
+                            {isSelected && (
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </div>
+                        )}
+                        <div style={{ pointerEvents: multiSelectMode ? 'none' : 'auto' }}>
+                          <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} extractionCount={extractionCounts.get(item.id)} eager={idx < 6} />
+                        </div>
+                      </div>
+                    )
                   })}
                 </div>
               ) : (
                 <div className="flex flex-col">
-                  {group.items.map((item) => (
-                    <ListRow key={item.id} item={item} extractionCount={extractionCounts.get(item.id)} />
-                  ))}
+                  {group.items.map((item) => {
+                    const isSelected = multiSelected.has(item.id)
+                    return (
+                      <div
+                        key={item.id}
+                        style={{ display: 'flex', alignItems: 'center' }}
+                        onPointerDown={() => !multiSelectMode && startLongPress(item.id)}
+                        onPointerUp={cancelLongPress}
+                        onPointerLeave={cancelLongPress}
+                        onClick={multiSelectMode ? (e) => { e.preventDefault(); e.stopPropagation(); toggleMultiSelect(item.id) } : undefined}
+                      >
+                        {multiSelectMode && (
+                          <div style={{
+                            width: 22, height: 22, borderRadius: 11, flexShrink: 0, marginRight: 8,
+                            border: isSelected ? 'none' : '2px solid #d3d1c7',
+                            background: isSelected ? '#c45a2d' : 'transparent',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            {isSelected && (
+                              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                                <path d="M2.5 6L5 8.5L9.5 3.5" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </div>
+                        )}
+                        <div style={{ flex: 1, pointerEvents: multiSelectMode ? 'none' : 'auto' }}>
+                          <ListRow item={item} extractionCount={extractionCounts.get(item.id)} />
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
               )}
               </div>
@@ -1022,6 +1194,97 @@ export default function InboxPage() {
           queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user.id) })
         }}
       />
+    )}
+
+    {/* Multi-select bottom toolbar */}
+    {multiSelectMode && (
+      <>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 45 }} onClick={exitMultiSelect} />
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+          background: '#fff', borderTop: '0.5px solid #e8e6e1',
+          padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
+          boxShadow: '0 -2px 12px rgba(0,0,0,0.08)',
+        }}>
+          {showMergeInput ? (
+            <>
+              <input
+                ref={mergeNameInputRef}
+                type="text"
+                value={mergeRouteName}
+                onChange={e => setMergeRouteName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleMerge() }}
+                placeholder="Route name"
+                style={{
+                  width: '100%', padding: '10px 14px', marginBottom: 10,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500,
+                  color: '#1a1d27', background: '#f1efe8',
+                  border: '0.5px solid #e8e6e1', borderRadius: 8, outline: 'none',
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowMergeInput(false)}
+                  style={{
+                    flex: 1, padding: '12px 0',
+                    background: 'none', border: '1px solid #e8e6e1', borderRadius: 10,
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
+                    color: '#888780', cursor: 'pointer',
+                  }}
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={handleMerge}
+                  disabled={!mergeRouteName.trim()}
+                  style={{
+                    flex: 2, padding: '12px 0',
+                    background: mergeRouteName.trim() ? '#c45a2d' : '#d3d1c7', color: '#fff',
+                    border: 'none', borderRadius: 10,
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
+                    cursor: mergeRouteName.trim() ? 'pointer' : 'default',
+                  }}
+                >
+                  Create Route
+                </button>
+              </div>
+            </>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button
+                type="button"
+                onClick={exitMultiSelect}
+                style={{
+                  padding: '10px 16px', background: 'none', border: '1px solid #e8e6e1',
+                  borderRadius: 8, fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                  color: '#888780', cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#888780', flex: 1 }}>
+                {multiSelected.size} selected
+              </span>
+              <button
+                type="button"
+                onClick={startMerge}
+                disabled={multiSelected.size < 2}
+                style={{
+                  padding: '10px 20px',
+                  background: multiSelected.size >= 2 ? '#c45a2d' : '#d3d1c7', color: '#fff',
+                  border: 'none', borderRadius: 8,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+                  cursor: multiSelected.size >= 2 ? 'pointer' : 'default',
+                }}
+              >
+                Merge into Route
+              </button>
+            </div>
+          )}
+        </div>
+      </>
     )}
 
     {/* Scroll to top — positioned above the FAB */}
