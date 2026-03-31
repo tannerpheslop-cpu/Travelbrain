@@ -55,6 +55,7 @@ export interface SavedItem {
   source_platform: string | null
   enrichment_source: string | null
   photo_attribution: string | null
+  route_id: string | null
   created_at: string
 }
 
@@ -189,5 +190,30 @@ export interface ItemTag {
   tag_name: string
   tag_type: TagType
   user_id: string
+  created_at: string
+}
+
+/** A Route — an ordered collection of saves with its own identity. */
+export interface Route {
+  id: string
+  user_id: string
+  name: string
+  description: string | null
+  source_url: string | null
+  source_title: string | null
+  source_platform: string | null
+  source_thumbnail: string | null
+  location_scope: string | null
+  item_count: number
+  created_at: string
+  updated_at: string
+}
+
+/** Junction: a save within a Route, with ordering. */
+export interface RouteItem {
+  id: string
+  route_id: string
+  saved_item_id: string
+  route_order: number
   created_at: string
 }

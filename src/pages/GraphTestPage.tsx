@@ -32,6 +32,7 @@ function mockItem(
     first_viewed_at: null, left_recent: false,
     location_locked: false, location_precision: city ? 'city' : null,
     has_pending_extraction: false,
+    route_id: null,
     source_title: null,
     source_thumbnail: null,
     source_author: null,

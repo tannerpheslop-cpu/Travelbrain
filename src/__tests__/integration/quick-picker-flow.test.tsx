@@ -79,6 +79,7 @@ const needsLocationItem: SavedItem = {
   location_name_en: null, location_name_local: null,
   location_locked: false, location_precision: 'city',
   has_pending_extraction: false,
+    route_id: null,
   source_title: null,
   source_thumbnail: null,
   source_author: null,

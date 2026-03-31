@@ -25,6 +25,7 @@ function makeItem(overrides: Partial<SavedItem> = {}): SavedItem {
     location_locked: false,
     location_precision: 'precise',
     has_pending_extraction: false,
+    route_id: null,
     source_title: null,
     source_thumbnail: null,
     source_author: null,
