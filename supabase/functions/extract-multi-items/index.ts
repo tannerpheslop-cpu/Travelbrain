@@ -516,9 +516,8 @@ Category must be one of: restaurant, activity, hotel, transit, general
 
 `
 
-/** Prepare page text for LLM: strip HTML, collapse whitespace, truncate */
-function prepareTextForLLM(html: string, maxChars = 12000): string {
-  // Strip non-content elements
+/** Clean HTML to plain text: strip non-content elements, tags, decode entities. */
+function cleanHtmlToText(html: string): string {
   let text = html
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -529,22 +528,53 @@ function prepareTextForLLM(html: string, maxChars = 12000): string {
     .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
     .replace(/<svg[\s\S]*?<\/svg>/gi, "")
 
+  // Convert block elements to paragraph breaks before stripping tags
+  text = text.replace(/<\/(p|div|section|article|h[1-6]|li|tr|br\s*\/?)>/gi, "\n\n")
+  text = text.replace(/<br\s*\/?>/gi, "\n")
+
   // Strip all remaining HTML tags
   text = text.replace(/<[^>]*>/g, " ")
 
   // Decode HTML entities
   text = decodeHtml(text)
 
-  // Collapse whitespace
-  text = text.replace(/\s+/g, " ").trim()
-
-  // Truncate: if too long, take first half + last half
-  if (text.length > maxChars) {
-    const half = Math.floor(maxChars / 2)
-    text = text.slice(0, half) + "\n\n[...]\n\n" + text.slice(-half)
-  }
+  // Collapse runs of whitespace (but preserve paragraph breaks)
+  text = text.replace(/[^\S\n]+/g, " ")
+  text = text.replace(/\n\s*\n/g, "\n\n")
+  text = text.trim()
 
   return text
+}
+
+const CHUNK_SIZE = 10000
+const MAX_CHUNKS = 5
+
+/** Split cleaned text into chunks at paragraph boundaries. */
+function chunkText(text: string, chunkSize = CHUNK_SIZE, maxChunks = MAX_CHUNKS): string[] {
+  if (text.length <= chunkSize) return [text]
+
+  const paragraphs = text.split("\n\n")
+  const chunks: string[] = []
+  let current = ""
+
+  for (const para of paragraphs) {
+    if (chunks.length >= maxChunks - 1) {
+      // Last chunk gets everything remaining
+      current += (current ? "\n\n" : "") + para
+      continue
+    }
+
+    if (current.length + para.length + 2 > chunkSize && current.length > 0) {
+      chunks.push(current.trim())
+      current = para
+    } else {
+      current += (current ? "\n\n" : "") + para
+    }
+  }
+
+  if (current.trim()) chunks.push(current.trim())
+
+  return chunks.slice(0, maxChunks)
 }
 
 /** Parse LLM response, extracting JSON array even if there's preamble text */
@@ -583,7 +613,61 @@ function mapLLMItems(items: unknown[]): ExtractedItem[] {
     .slice(0, MAX_ITEMS)
 }
 
-/** Call Claude Haiku to extract places from article text */
+/** Call Haiku for a single chunk of text. */
+async function callHaiku(
+  apiKey: string,
+  articleTitle: string,
+  chunkText: string,
+  chunkLabel: string,
+): Promise<ExtractedItem[]> {
+  const prompt = EXTRACTION_PROMPT
+    + `Article title: ${articleTitle}\n${chunkLabel}\n\nArticle text:\n${chunkText}`
+
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 2000,
+      messages: [{ role: "user", content: prompt }],
+    }),
+    signal: AbortSignal.timeout(30000),
+  })
+
+  if (!response.ok) {
+    console.error(`[multi-extract] Haiku API error: HTTP ${response.status}`)
+    return []
+  }
+
+  const data = await response.json() as {
+    content?: Array<{ type: string; text?: string }>
+  }
+
+  const textContent = data.content?.find(c => c.type === "text")?.text
+  if (!textContent) return []
+
+  return parseLLMResponse(textContent)
+}
+
+/** Deduplicate items by name (case-insensitive). First occurrence wins. */
+function deduplicateItems(items: ExtractedItem[]): ExtractedItem[] {
+  const seen = new Set<string>()
+  const unique: ExtractedItem[] = []
+  for (const item of items) {
+    const key = item.name.toLowerCase().trim()
+    if (!seen.has(key)) {
+      seen.add(key)
+      unique.push(item)
+    }
+  }
+  return unique
+}
+
+/** Call Claude Haiku to extract places from article text. Uses chunked extraction for long articles. */
 async function extractWithLLM(html: string, articleTitle: string): Promise<ExtractedItem[]> {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY")
   if (!apiKey) {
@@ -591,52 +675,39 @@ async function extractWithLLM(html: string, articleTitle: string): Promise<Extra
     return []
   }
 
-  const pageText = prepareTextForLLM(html)
+  const pageText = cleanHtmlToText(html)
   if (pageText.length < 100) {
     console.log("[multi-extract] Page text too short for LLM extraction")
     return []
   }
 
   try {
-    const prompt = EXTRACTION_PROMPT + `Article title: ${articleTitle}\n\nArticle text:\n${pageText}`
+    const chunks = chunkText(pageText)
+    console.log(`[multi-extract] ${pageText.length} chars → ${chunks.length} chunk(s)`)
 
-    console.log(`[multi-extract] Calling Haiku with ${pageText.length} chars of text`)
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 2000,
-        messages: [{
-          role: "user",
-          content: prompt,
-        }],
-      }),
-      signal: AbortSignal.timeout(30000), // 30s timeout
-    })
-
-    if (!response.ok) {
-      console.error(`[multi-extract] Haiku API error: HTTP ${response.status}`)
-      return []
+    if (chunks.length === 1) {
+      // Short article: single call
+      console.log(`[multi-extract] Calling Haiku with ${chunks[0].length} chars (single chunk)`)
+      const items = await callHaiku(apiKey, articleTitle, chunks[0], "")
+      console.log(`[multi-extract] Haiku extracted ${items.length} items`)
+      return items
     }
 
-    const data = await response.json() as {
-      content?: Array<{ type: string; text?: string }>
+    // Long article: chunked extraction
+    const allItems: ExtractedItem[] = []
+    for (let i = 0; i < chunks.length; i++) {
+      const label = `This is part ${i + 1} of ${chunks.length} of the article. Extract all specific named places from this section.`
+      console.log(`[multi-extract] Calling Haiku for chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)`)
+      const chunkItems = await callHaiku(apiKey, articleTitle, chunks[i], label)
+      console.log(`[multi-extract] Chunk ${i + 1} → ${chunkItems.length} items`)
+      allItems.push(...chunkItems)
     }
 
-    const textContent = data.content?.find(c => c.type === "text")?.text
-    if (!textContent) {
-      console.log("[multi-extract] Haiku returned no text content")
-      return []
-    }
+    const deduplicated = deduplicateItems(allItems)
+    console.log(`[multi-extract] Total: ${allItems.length} raw → ${deduplicated.length} after dedup`)
 
-    const items = parseLLMResponse(textContent)
-    console.log(`[multi-extract] Haiku extracted ${items.length} items`)
-    return items
+    // Re-number source_order
+    return deduplicated.map((item, i) => ({ ...item, source_order: i + 1 }))
 
   } catch (err) {
     console.error(`[multi-extract] Haiku extraction failed: ${(err as Error).message}`)
