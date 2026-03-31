@@ -510,6 +510,7 @@ Rules:
 - Do NOT extract generic descriptions (e.g., "a small restaurant", "the local market")
 - For each place, include the city/region where it's located based on context in the article
 - If a place has an address mentioned in the article, include it
+- For each place, include a "context" field capturing what the article specifically says about this place — why it's recommended, any tips, what makes it special. Keep to 1-2 sentences. Use the article's perspective, not generic descriptions.
 
 Return ONLY a JSON array, no other text. If no specific places are found, return [].
 
@@ -519,7 +520,7 @@ Return format:
     "name": "Da Dong Roast Duck Restaurant",
     "category": "restaurant",
     "location_name": "Beijing, China",
-    "description": "Beijing's best spot for non-fatty duck"
+    "context": "Recommended for Peking duck dinner — the author notes it serves Beijing's best relatively non-fatty duck."
   }
 ]
 
@@ -623,7 +624,7 @@ function mapLLMItems(items: unknown[]): ExtractedItem[] {
       name: String(item.name || "").trim(),
       category: validCategories.has(String(item.category || "")) ? String(item.category) : "general",
       location_name: item.location_name ? String(item.location_name).trim() : null,
-      description: item.description ? truncate(String(item.description), 200) : null,
+      description: item.context ? truncate(String(item.context), 200) : (item.description ? truncate(String(item.description), 200) : null),
       source_order: i + 1,
     }))
     .filter(item => item.name.length >= 2)

@@ -518,6 +518,15 @@ export default function SelectionOverlay({
                     }}>
                       {display.category}{display.location_name ? ` · ${display.location_name}` : ''}
                     </p>
+                    {item.description && !isExpanded && (
+                      <p style={{
+                        fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#b4b2a9',
+                        margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap', fontStyle: 'italic',
+                      }}>
+                        {item.description}
+                      </p>
+                    )}
                   </button>
                 </div>
 
