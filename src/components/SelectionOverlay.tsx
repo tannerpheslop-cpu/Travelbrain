@@ -31,6 +31,23 @@ function extractDomain(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
 }
 
+/** Extract just the city name from a formatted address or location_name string. */
+function extractCity(location: string | null | undefined): string | null {
+  if (!location) return null
+  // formatted_address: "1-22-7 Jinnan, Shibuya City, Tokyo 150-0041, Japan"
+  // location_name: "Shibuya, Tokyo, Japan" or "Beijing, China"
+  const parts = location.split(',').map(p => p.trim())
+  // Skip parts that look like addresses (start with numbers), postal codes, or country names
+  for (const part of parts) {
+    if (/^\d/.test(part)) continue // street address
+    if (/\d{3,}/.test(part)) continue // postal code
+    if (part.length < 2) continue
+    // Return the first non-address part (usually the city or district)
+    return part
+  }
+  return parts[0] ?? null
+}
+
 const VALID_CATEGORIES: Category[] = [
   'restaurant', 'hotel', 'museum', 'temple', 'park', 'hike',
   'historical', 'shopping', 'nightlife', 'entertainment',
@@ -415,21 +432,47 @@ export default function SelectionOverlay({
           </div>
         </div>
 
-        {/* Item list (scrollable) */}
+        {/* Item list (scrollable) — grouped by country if multi-country */}
         <div style={{
           flex: 1, overflowY: 'auto', overflowX: 'hidden',
           overscrollBehavior: 'contain', padding: '4px 0',
         }}>
-          {cappedItems.map((item, i) => {
-            const isSelected = selected.has(i)
-            const isDuplicate = item.likely_duplicate
-            const isExpanded = expandedIndex === i
-            const display = getItemDisplay(item, i)
+          {(() => {
+            // Group items by country for multi-country articles
+            const countryMap = new Map<string, number[]>()
+            cappedItems.forEach((item, i) => {
+              const addr = item.formatted_address ?? item.location_name ?? ''
+              const parts = addr.split(',').map(p => p.trim())
+              const country = parts[parts.length - 1] || 'Unknown'
+              const arr = countryMap.get(country) ?? []
+              arr.push(i)
+              countryMap.set(country, arr)
+            })
+            const showHeaders = countryMap.size > 1
 
-            return (
-              <div
-                key={i}
-                data-testid={`extraction-item-${i}`}
+            return [...countryMap.entries()].map(([country, indices]) => (
+              <div key={country}>
+                {showHeaders && (
+                  <div style={{
+                    padding: '8px 16px 4px',
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                    letterSpacing: 1, color: '#888780',
+                  }}>
+                    {country}
+                  </div>
+                )}
+                {indices.map(i => {
+                  const item = cappedItems[i]
+                  const isSelected = selected.has(i)
+                  const isDuplicate = item.likely_duplicate
+                  const isExpanded = expandedIndex === i
+                  const display = getItemDisplay(item, i)
+
+                  return (
+                    <div
+                      key={i}
+                      data-testid={`extraction-item-${i}`}
                 style={{
                   borderBottom: '0.5px solid #f1efe8',
                   borderTop: isExpanded ? '0.5px solid #e8e6e1' : 'none',
@@ -468,13 +511,13 @@ export default function SelectionOverlay({
                       src={item.photo_url}
                       alt=""
                       style={{
-                        width: 36, height: 36, borderRadius: 6, objectFit: 'cover',
+                        width: 40, height: 40, borderRadius: 6, objectFit: 'cover',
                         flexShrink: 0, background: '#f1efe8',
                       }}
                     />
                   ) : (
                     <div style={{
-                      width: 36, height: 36, borderRadius: 6, flexShrink: 0,
+                      width: 40, height: 40, borderRadius: 6, flexShrink: 0,
                       background: '#f1efe8', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b4b2a9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -512,12 +555,27 @@ export default function SelectionOverlay({
                         </span>
                       )}
                     </div>
-                    <p style={{
-                      fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#888780',
-                      margin: '1px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    }}>
-                      {display.category}{display.location_name ? ` · ${display.location_name}` : ''}
-                    </p>
+                    <div style={{ display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
+                      <span style={{
+                        fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
+                        color: '#888780', background: '#f1efe8', padding: '1px 6px',
+                        borderRadius: 4, whiteSpace: 'nowrap',
+                      }}>
+                        {display.category}
+                      </span>
+                      {(() => {
+                        const city = extractCity(item.formatted_address ?? display.location_name)
+                        return city ? (
+                          <span style={{
+                            fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
+                            color: '#888780', background: '#f1efe8', padding: '1px 6px',
+                            borderRadius: 4, whiteSpace: 'nowrap',
+                          }}>
+                            {city}
+                          </span>
+                        ) : null
+                      })()}
+                    </div>
                     {item.description && !isExpanded && (
                       <p style={{
                         fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#b4b2a9',
@@ -550,8 +608,11 @@ export default function SelectionOverlay({
                   )}
                 </div>
               </div>
-            )
-          })}
+                  )
+                })}
+              </div>
+            ))
+          })()}
         </div>
 
         {/* Bottom save bar */}

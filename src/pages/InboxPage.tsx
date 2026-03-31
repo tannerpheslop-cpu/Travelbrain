@@ -537,26 +537,20 @@ export default function InboxPage() {
   // ── Recently Added: entries < 48h old, not viewed, not in a trip ────────
   const recentlyAdded = useMemo(() => {
     const now = Date.now()
+    // No hard cap — show all qualifying items (24h expiry or until opened)
     const allQualifying = filtered
       .filter((item) => {
         if (item.left_recent) return false // Permanently excluded
+        if (item.route_id) return false // In a Route — Route card shows instead
         const ageHours = (now - new Date(item.created_at).getTime()) / (1000 * 60 * 60)
-        const isRecent = ageHours <= 48
+        const isRecent = ageHours <= 24
         const notViewed = !item.first_viewed_at
         const notInTrip = (tripLinkCounts.get(item.id) || 0) === 0
         return isRecent && notViewed && notInTrip
       })
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-    const shown = allQualifying.slice(0, 5)
-    const bumped = allQualifying.slice(5)
-
-    // Mark bumped items so they never return to Recently Added
-    if (bumped.length > 0) {
-      bumped.forEach((item) => {
-        void supabase.from('saved_items').update({ left_recent: true }).eq('id', item.id)
-      })
-    }
+    const shown = allQualifying // No cap — show all qualifying
 
     // Mark aged-out items (> 48h) that haven't been flagged yet
     filtered.forEach((item) => {
