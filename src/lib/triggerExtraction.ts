@@ -38,9 +38,10 @@ export async function triggerMultiItemExtraction(
     }
 
     const result = await response.json()
+    console.log(`[extract-multi-items] Result: success=${result.success} items=${result.items?.length ?? 0} reason=${result.reason ?? 'none'}`)
 
     if (!result.success || !result.items || result.items.length < 2) {
-      // Single item or extraction failed — nothing to do
+      console.log('[extract-multi-items] Skipping — not enough items')
       return
     }
 
@@ -71,12 +72,19 @@ export async function triggerMultiItemExtraction(
       console.error('[extract-multi-items] Failed to store extraction:', insertError.message)
       return
     }
+    console.log(`[extract-multi-items] Stored ${itemsWithDuplicateFlag.length} items in pending_extractions`)
 
     // Flag the source entry
-    await supabase
+    const { error: flagError } = await supabase
       .from('saved_items')
       .update({ has_pending_extraction: true })
       .eq('id', savedItem.id)
+
+    if (flagError) {
+      console.error('[extract-multi-items] Failed to set has_pending_extraction:', flagError.message)
+    } else {
+      console.log('[extract-multi-items] Set has_pending_extraction=true on', savedItem.id)
+    }
 
   } catch (err) {
     console.error('[extract-multi-items] Extraction failed:', (err as Error).message)
