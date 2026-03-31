@@ -1,6 +1,11 @@
 export type SourceType = 'url' | 'screenshot' | 'manual'
 
-export type Category = 'restaurant' | 'activity' | 'hotel' | 'transit' | 'general'
+export type Category =
+  | 'restaurant' | 'hotel' | 'museum' | 'temple' | 'park'
+  | 'hike' | 'historical' | 'shopping' | 'nightlife'
+  | 'entertainment' | 'transport' | 'spa' | 'beach' | 'other'
+  // Legacy categories (still in database, mapped on display)
+  | 'activity' | 'transit' | 'general'
 
 export type TripStatus = 'aspirational' | 'planning' | 'scheduled'
 

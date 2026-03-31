@@ -10,25 +10,59 @@ import type { Category } from '../types'
 
 export const categoryLabel: Record<Category, string> = {
   restaurant: 'Food',
-  activity: 'Activity',
   hotel: 'Stay',
+  museum: 'Museum',
+  temple: 'Temple',
+  park: 'Park',
+  hike: 'Hike',
+  historical: 'Historical',
+  shopping: 'Shopping',
+  nightlife: 'Nightlife',
+  entertainment: 'Entertainment',
+  transport: 'Transport',
+  spa: 'Spa',
+  beach: 'Beach',
+  other: 'Other',
+  // Legacy
+  activity: 'Activity',
   transit: 'Transit',
   general: 'General',
 }
 
 export const categoryFromLabel: Record<string, Category> = {
   'Food': 'restaurant',
-  'Activity': 'activity',
   'Stay': 'hotel',
+  'Museum': 'museum',
+  'Temple': 'temple',
+  'Park': 'park',
+  'Hike': 'hike',
+  'Historical': 'historical',
+  'Shopping': 'shopping',
+  'Nightlife': 'nightlife',
+  'Entertainment': 'entertainment',
+  'Transport': 'transport',
+  'Spa': 'spa',
+  'Beach': 'beach',
+  'Other': 'other',
+  // Legacy
+  'Activity': 'activity',
   'Transit': 'transit',
   'General': 'general',
 }
 
-/** The category labels shown as pills (excludes General) */
-export const CATEGORY_TAG_LABELS = ['Food', 'Activity', 'Stay', 'Transit'] as const
+/** The category labels shown as filter pills */
+export const CATEGORY_TAG_LABELS = [
+  'Food', 'Stay', 'Museum', 'Temple', 'Park', 'Hike',
+  'Historical', 'Shopping', 'Nightlife', 'Entertainment',
+  'Transport', 'Spa', 'Beach',
+] as const
 
-/** All category values (excludes general) */
-export const CATEGORY_VALUES: Category[] = ['restaurant', 'activity', 'hotel', 'transit']
+/** All current category values */
+export const CATEGORY_VALUES: Category[] = [
+  'restaurant', 'hotel', 'museum', 'temple', 'park', 'hike',
+  'historical', 'shopping', 'nightlife', 'entertainment',
+  'transport', 'spa', 'beach', 'other',
+]
 
 /**
  * Check if a tag label is a category tag (vs custom tag).
@@ -42,7 +76,7 @@ export function isCategoryTag(tagName: string): boolean {
  */
 export function displayTagName(tagName: string): string {
   const cat = tagName as Category
-  if (cat in categoryLabel && cat !== 'general') {
+  if (cat in categoryLabel && cat !== 'general' && cat !== 'other') {
     return categoryLabel[cat]
   }
   return tagName
@@ -81,7 +115,7 @@ export function getItemDisplayTags(
   // Fallback to old columns
   const tags: DisplayTag[] = []
 
-  if (fallbackCategory && fallbackCategory !== 'general') {
+  if (fallbackCategory && fallbackCategory !== 'general' && fallbackCategory !== 'other') {
     tags.push({
       name: categoryLabel[fallbackCategory],
       type: 'category',

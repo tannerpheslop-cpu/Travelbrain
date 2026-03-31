@@ -38,7 +38,9 @@ describe('isCategoryTag', () => {
 
   it('identifies category values', () => {
     expect(isCategoryTag('restaurant')).toBe(true)
-    expect(isCategoryTag('activity')).toBe(true)
+    expect(isCategoryTag('museum')).toBe(true)
+    expect(isCategoryTag('temple')).toBe(true)
+    expect(isCategoryTag('park')).toBe(true)
   })
 
   it('returns false for custom tags', () => {
@@ -55,10 +57,14 @@ describe('categoryFromLabel', () => {
 })
 
 describe('CATEGORY_TAG_LABELS', () => {
-  it('excludes General', () => {
+  it('excludes General/Other and includes all new categories', () => {
     expect(CATEGORY_TAG_LABELS).not.toContain('General')
+    expect(CATEGORY_TAG_LABELS).not.toContain('Other')
     expect(CATEGORY_TAG_LABELS).toContain('Food')
-    expect(CATEGORY_TAG_LABELS).toHaveLength(4)
+    expect(CATEGORY_TAG_LABELS).toContain('Museum')
+    expect(CATEGORY_TAG_LABELS).toContain('Temple')
+    expect(CATEGORY_TAG_LABELS).toContain('Park')
+    expect(CATEGORY_TAG_LABELS).toHaveLength(13)
   })
 })
 

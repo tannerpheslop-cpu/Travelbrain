@@ -728,11 +728,21 @@ const HANDLER_REGISTRY: Array<{ match: (url: URL) => boolean; handler: Handler }
 const PLACES_CATEGORY_MAP: Record<string, string> = {
   restaurant: "restaurant", cafe: "restaurant", bar: "restaurant",
   bakery: "restaurant", meal_takeaway: "restaurant", food: "restaurant",
-  tourist_attraction: "activity", museum: "activity", art_gallery: "activity",
-  park: "activity", natural_feature: "activity", point_of_interest: "activity",
   lodging: "hotel", hotel: "hotel", hostel: "hotel", motel: "hotel",
-  hiking_area: "activity", ski_resort: "activity", stadium: "activity",
-  gym: "activity", campground: "activity",
+  museum: "museum", art_gallery: "museum",
+  hindu_temple: "temple", church: "temple", mosque: "temple",
+  synagogue: "temple", place_of_worship: "temple",
+  park: "park", national_park: "park",
+  hiking_area: "hike", campground: "hike",
+  shopping_mall: "shopping", store: "shopping", clothing_store: "shopping",
+  night_club: "nightlife", casino: "nightlife",
+  amusement_park: "entertainment", zoo: "entertainment", aquarium: "entertainment",
+  stadium: "entertainment", movie_theater: "entertainment",
+  airport: "transport", train_station: "transport", bus_station: "transport",
+  subway_station: "transport", transit_station: "transport",
+  spa: "spa", beauty_salon: "spa",
+  tourist_attraction: "historical", natural_feature: "park",
+  point_of_interest: "other",
 }
 
 function mapPlaceTypes(types: string[]): string {
@@ -740,7 +750,7 @@ function mapPlaceTypes(types: string[]): string {
     const mapped = PLACES_CATEGORY_MAP[t]
     if (mapped) return mapped
   }
-  return "general"
+  return "other"
 }
 
 // ── Filler word lists for keyword extraction ─────────────────────────────────

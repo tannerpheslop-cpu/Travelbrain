@@ -39,10 +39,21 @@ interface ExtractionResult {
 const PLACES_CATEGORY_MAP: Record<string, string> = {
   restaurant: "restaurant", cafe: "restaurant", bar: "restaurant",
   bakery: "restaurant", meal_takeaway: "restaurant", food: "restaurant",
-  tourist_attraction: "activity", museum: "activity", art_gallery: "activity",
-  park: "activity", natural_feature: "activity", point_of_interest: "activity",
   lodging: "hotel", hotel: "hotel", hostel: "hotel", motel: "hotel",
-  hiking_area: "activity", campground: "activity",
+  museum: "museum", art_gallery: "museum",
+  hindu_temple: "temple", church: "temple", mosque: "temple",
+  synagogue: "temple", place_of_worship: "temple",
+  park: "park", national_park: "park",
+  hiking_area: "hike", campground: "hike",
+  shopping_mall: "shopping", store: "shopping", clothing_store: "shopping",
+  night_club: "nightlife", casino: "nightlife",
+  amusement_park: "entertainment", zoo: "entertainment", aquarium: "entertainment",
+  stadium: "entertainment", movie_theater: "entertainment",
+  airport: "transport", train_station: "transport", bus_station: "transport",
+  subway_station: "transport", transit_station: "transport",
+  spa: "spa", beauty_salon: "spa",
+  tourist_attraction: "historical", natural_feature: "park",
+  point_of_interest: "other",
 }
 
 const SPECIFIC_TYPES = new Set([
@@ -512,7 +523,7 @@ Return format:
   }
 ]
 
-Category must be one of: restaurant, activity, hotel, transit, general
+Category must be one of: restaurant, hotel, museum, temple, park, hike, historical, shopping, nightlife, entertainment, transport, spa, beach, other
 
 `
 
@@ -599,7 +610,13 @@ function parseLLMResponse(responseText: string): ExtractedItem[] {
 
 /** Map raw LLM output to ExtractedItem format */
 function mapLLMItems(items: unknown[]): ExtractedItem[] {
-  const validCategories = new Set(["restaurant", "activity", "hotel", "transit", "general"])
+  const validCategories = new Set([
+    "restaurant", "hotel", "museum", "temple", "park", "hike",
+    "historical", "shopping", "nightlife", "entertainment",
+    "transport", "spa", "beach", "other",
+    // Legacy
+    "activity", "transit", "general",
+  ])
   return items
     .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
     .map((item, i) => ({
@@ -742,32 +759,21 @@ function runStructuredExtraction(html: string): { items: ExtractedItem[]; conten
 function guessCategoryFromText(name: string, description: string): string {
   const text = (name + " " + description).toLowerCase()
 
-  // Restaurant signals
-  if (/\b(?:restaurant|eat|food|ramen|sushi|cafe|coffee|bar|pub|bakery|bistro|dining|brunch|lunch|dinner|noodle|dumpling|pizza|burger|taco|curry|bbq|grill)\b/.test(text)) {
-    return "restaurant"
-  }
+  if (/\b(?:restaurant|eat|food|ramen|sushi|cafe|coffee|bar|pub|bakery|bistro|dining|brunch|lunch|dinner|noodle|dumpling|pizza|burger|taco|curry|bbq|grill)\b/.test(text)) return "restaurant"
+  if (/\b(?:hotel|hostel|stay|accommodation|airbnb|resort|lodge|inn|guesthouse|ryokan|pension|bnb)\b/.test(text)) return "hotel"
+  if (/\b(?:museum|gallery|exhibit)\b/.test(text)) return "museum"
+  if (/\b(?:temple|shrine|church|cathedral|mosque|monastery|pagoda|basilica)\b/.test(text)) return "temple"
+  if (/\b(?:park|garden|botanical|nature reserve|national park)\b/.test(text)) return "park"
+  if (/\b(?:hike|trek|trail|climb|camp|summit|ridge|gorge|canyon)\b/.test(text)) return "hike"
+  if (/\b(?:palace|castle|fort|fortress|ruins|monument|landmark|historical)\b/.test(text)) return "historical"
+  if (/\b(?:shop|mall|market|bazaar|store|boutique)\b/.test(text)) return "shopping"
+  if (/\b(?:nightlife|club|disco|casino|cocktail|lounge)\b/.test(text)) return "nightlife"
+  if (/\b(?:amusement|zoo|aquarium|stadium|theater|cinema|theme park)\b/.test(text)) return "entertainment"
+  if (/\b(?:airport|train|bus|ferry|metro|subway|taxi|transfer|flight|station)\b/.test(text)) return "transport"
+  if (/\b(?:spa|onsen|hot spring|sauna|wellness|massage)\b/.test(text)) return "spa"
+  if (/\b(?:beach|coast|shore|seaside|island)\b/.test(text)) return "beach"
 
-  // Accommodation signals
-  if (/\b(?:hotel|hostel|stay|accommodation|airbnb|resort|lodge|inn|guesthouse|ryokan|pension|bnb)\b/.test(text)) {
-    return "hotel"
-  }
-
-  // Activity signals
-  if (/\b(?:hike|trek|tour|walk|trail|snorkel|dive|surf|kayak|climb|bike|cycle|ski|camp)\b/.test(text)) {
-    return "activity"
-  }
-
-  // Attraction/sight signals
-  if (/\b(?:temple|shrine|museum|palace|castle|church|cathedral|monument|park|garden|bridge|tower|ruins|market|bazaar|gallery)\b/.test(text)) {
-    return "activity"
-  }
-
-  // Transit signals
-  if (/\b(?:airport|train|bus|ferry|metro|subway|taxi|transfer|flight)\b/.test(text)) {
-    return "transit"
-  }
-
-  return "general"
+  return "other"
 }
 
 // ── Main handler ─────────────────────────────────────────────────────────────
