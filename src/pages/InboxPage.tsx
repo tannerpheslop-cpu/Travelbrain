@@ -212,6 +212,41 @@ export default function InboxPage() {
   // ── Custom tags data ─────────────────────────────────────────────────────
   const { data: customTags = [] } = useUserCustomTags(user?.id)
 
+  // ── Extraction shimmer tracking ──
+  const [extractingIds, setExtractingIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    const onStart = (e: Event) => {
+      const id = (e as CustomEvent).detail?.itemId
+      if (id) {
+        setExtractingIds(prev => new Set(prev).add(id))
+        // Timeout: clear after 60s if extraction doesn't finish
+        setTimeout(() => {
+          setExtractingIds(prev => {
+            const next = new Set(prev)
+            next.delete(id)
+            return next
+          })
+        }, 60000)
+      }
+    }
+    const onEnd = (e: Event) => {
+      const id = (e as CustomEvent).detail?.itemId
+      if (id) {
+        setExtractingIds(prev => {
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
+      }
+    }
+    window.addEventListener('youji-extraction-start', onStart)
+    window.addEventListener('youji-extraction-end', onEnd)
+    return () => {
+      window.removeEventListener('youji-extraction-start', onStart)
+      window.removeEventListener('youji-extraction-end', onEnd)
+    }
+  }, [])
+
   // ── Local UI state ─────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('')
   const [searchExpanded, setSearchExpanded] = useState(false)
@@ -950,8 +985,20 @@ export default function InboxPage() {
               }}
             >
               {recentlyAdded.map((item) => (
-                <div key={item.id} style={{ width: 170, flexShrink: 0 }}>
+                <div key={item.id} style={{ width: 170, flexShrink: 0, position: 'relative' }}>
                   <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} extractionCount={extractionCounts.get(item.id)} eager showShimmer={!item.location_name && (Date.now() - new Date(item.created_at).getTime()) < 30000} />
+                  {extractingIds.has(item.id) && (
+                    <div style={{
+                      position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+                      borderRadius: '8px 8px 0 0', overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        width: '40%', height: '100%',
+                        background: 'linear-gradient(90deg, transparent, rgba(196,90,45,0.3), transparent)',
+                        animation: 'extraction-shimmer 1.5s ease-in-out infinite',
+                      }} />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -1112,7 +1159,21 @@ export default function InboxPage() {
                           </div>
                         )}
                         <div style={{ pointerEvents: multiSelectMode ? 'none' : 'auto' }}>
-                          <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} extractionCount={extractionCounts.get(item.id)} eager={idx < 6} />
+                          <div style={{ position: 'relative' }}>
+                            <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} extractionCount={extractionCounts.get(item.id)} eager={idx < 6} />
+                            {extractingIds.has(item.id) && (
+                              <div style={{
+                                position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+                                borderRadius: '8px 8px 0 0', overflow: 'hidden',
+                              }}>
+                                <div style={{
+                                  width: '40%', height: '100%',
+                                  background: 'linear-gradient(90deg, transparent, rgba(196,90,45,0.3), transparent)',
+                                  animation: 'extraction-shimmer 1.5s ease-in-out infinite',
+                                }} />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )
@@ -1146,7 +1207,21 @@ export default function InboxPage() {
                           </div>
                         )}
                         <div style={{ flex: 1, pointerEvents: multiSelectMode ? 'none' : 'auto' }}>
-                          <ListRow item={item} extractionCount={extractionCounts.get(item.id)} />
+                          <div style={{ position: 'relative' }}>
+                            <ListRow item={item} extractionCount={extractionCounts.get(item.id)} />
+                            {extractingIds.has(item.id) && (
+                              <div style={{
+                                position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+                                overflow: 'hidden',
+                              }}>
+                                <div style={{
+                                  width: '40%', height: '100%',
+                                  background: 'linear-gradient(90deg, transparent, rgba(196,90,45,0.3), transparent)',
+                                  animation: 'extraction-shimmer 1.5s ease-in-out infinite',
+                                }} />
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )

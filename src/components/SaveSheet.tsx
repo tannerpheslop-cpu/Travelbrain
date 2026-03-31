@@ -484,10 +484,14 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
             .eq('user_id', user.id)
             .neq('id', savedItem.id)
           const existingTitles = (existingItems ?? []).map((i: { title: string }) => i.title)
+          // Signal extraction started
+          window.dispatchEvent(new CustomEvent('youji-extraction-start', { detail: { itemId: savedItem.id } }))
           await triggerMultiItemExtraction(savedItem, user.id, existingTitles)
           // Invalidate caches so the badge and count appear on Horizon
           queryClient.invalidateQueries({ queryKey: ['saved-items'] })
           queryClient.invalidateQueries({ queryKey: ['pending-extraction-counts'] })
+          // Signal extraction completed
+          window.dispatchEvent(new CustomEvent('youji-extraction-end', { detail: { itemId: savedItem.id } }))
         } catch (e) {
           console.error('[extract-multi-items] trigger failed:', e)
         }
