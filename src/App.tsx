@@ -19,6 +19,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { ToastProvider } from './components/Toast'
 import NotFoundPage from './pages/NotFoundPage'
 import DevLoginPage from './pages/DevLoginPage'
+import RouteDetailPage from './pages/RouteDetailPage'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,6 +41,7 @@ function AppLayout() {
             <Route path="/inbox" element={<InboxPage />} />
             <Route path="/trips" element={<TripsPage />} />
             <Route path="/item/:id" element={<ItemDetailPage />} />
+            <Route path="/route/:id" element={<RouteDetailPage />} />
             <Route path="/trip/:id" element={<TripOverviewPage />} />
             <Route path="/trip/:id/dest/:destId" element={<TripOverviewPage />} />
             <Route path="/trip/:id/route/:routeId" element={<RouteOverviewPage />} />
