@@ -31,19 +31,34 @@ function extractDomain(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
 }
 
-const VALID_CATEGORIES: Category[] = ['restaurant', 'activity', 'hotel', 'transit', 'general']
+const VALID_CATEGORIES: Category[] = [
+  'restaurant', 'hotel', 'museum', 'temple', 'park', 'hike',
+  'historical', 'shopping', 'nightlife', 'entertainment',
+  'transport', 'spa', 'beach', 'other',
+  // Legacy
+  'activity', 'transit', 'general',
+]
 
 function normalizeCategory(cat: string): Category {
   if (VALID_CATEGORIES.includes(cat as Category)) return cat as Category
-  return 'general'
+  return 'other'
 }
 
 const CATEGORY_PILLS: { value: Category; label: string }[] = [
   { value: 'restaurant', label: 'Food' },
-  { value: 'activity', label: 'Activity' },
   { value: 'hotel', label: 'Stay' },
-  { value: 'transit', label: 'Transit' },
-  { value: 'general', label: 'General' },
+  { value: 'museum', label: 'Museum' },
+  { value: 'temple', label: 'Temple' },
+  { value: 'park', label: 'Park' },
+  { value: 'hike', label: 'Hike' },
+  { value: 'historical', label: 'Historical' },
+  { value: 'shopping', label: 'Shopping' },
+  { value: 'nightlife', label: 'Nightlife' },
+  { value: 'entertainment', label: 'Entertainment' },
+  { value: 'transport', label: 'Transport' },
+  { value: 'spa', label: 'Spa' },
+  { value: 'beach', label: 'Beach' },
+  { value: 'other', label: 'Other' },
 ]
 
 /** Auto-suggest a Route name from the items and source context. */

@@ -31,11 +31,13 @@ function getDistrict(item: SavedItem): string | null {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  restaurant: 'Restaurant',
-  activity: 'Activity',
-  hotel: 'Hotel',
-  transit: 'Transit',
-  general: 'General',
+  restaurant: 'Restaurant', hotel: 'Hotel', museum: 'Museum',
+  temple: 'Temple', park: 'Park', hike: 'Hike',
+  historical: 'Historical', shopping: 'Shopping', nightlife: 'Nightlife',
+  entertainment: 'Entertainment', transport: 'Transport', spa: 'Spa',
+  beach: 'Beach', other: 'Other',
+  // Legacy
+  activity: 'Activity', transit: 'Transit', general: 'General',
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
