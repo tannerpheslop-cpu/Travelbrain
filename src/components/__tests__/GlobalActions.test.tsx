@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, act } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import GlobalActions from '../GlobalActions'
 
@@ -63,48 +63,75 @@ describe('GlobalActions FAB visibility', () => {
   })
 })
 
-describe('GlobalActions FAB opens unified save sheet', () => {
-  it('opens SaveSheet directly when FAB is tapped (not a menu)', () => {
+describe('GlobalActions FAB menu', () => {
+  it('opens two-option menu when FAB is tapped', () => {
     renderAtRoute('/inbox')
-
-    // Verify save sheet is NOT visible before clicking
-    expect(screen.queryByTestId('save-sheet')).not.toBeInTheDocument()
-
-    // Click FAB
     fireEvent.click(screen.getByRole('button', { name: 'Add save' }))
 
-    // Verify save sheet opens directly — input field visible, not a menu
-    expect(screen.getByTestId('save-sheet')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Type a note, paste a link...')).toBeInTheDocument()
+    expect(screen.getByText('Quick save')).toBeInTheDocument()
+    expect(screen.getByText('Unpack')).toBeInTheDocument()
   })
 
-  it('does NOT show "Save a link", "Photo", or "Add places" menu options', () => {
+  it('shows descriptions for both options', () => {
     renderAtRoute('/inbox')
     fireEvent.click(screen.getByRole('button', { name: 'Add save' }))
 
-    // These old menu options should NOT exist
+    expect(screen.getByText('Save a link, note, or photo')).toBeInTheDocument()
+    expect(screen.getByText('Extract places from an article or video')).toBeInTheDocument()
+  })
+
+  it('"Quick save" opens the existing SaveSheet', async () => {
+    vi.useFakeTimers()
+    renderAtRoute('/inbox')
+
+    // Open menu
+    fireEvent.click(screen.getByRole('button', { name: 'Add save' }))
+    expect(screen.getByText('Quick save')).toBeInTheDocument()
+
+    // Tap Quick save
+    fireEvent.click(screen.getByText('Quick save'))
+
+    // Wait for the setTimeout delay
+    act(() => { vi.advanceTimersByTime(100) })
+
+    // Save sheet should now be open
+    expect(screen.getByTestId('save-sheet')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Type a note, paste a link...')).toBeInTheDocument()
+
+    vi.useRealTimers()
+  })
+
+  it('"Unpack" logs to console (placeholder)', () => {
+    const consoleSpy = vi.spyOn(console, 'log')
+    renderAtRoute('/inbox')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add save' }))
+    fireEvent.click(screen.getByText('Unpack'))
+
+    expect(consoleSpy).toHaveBeenCalledWith('Unpack tapped')
+    consoleSpy.mockRestore()
+  })
+
+  it('does NOT show old menu options (Save a link, Photo, Add places)', () => {
+    renderAtRoute('/inbox')
+    fireEvent.click(screen.getByRole('button', { name: 'Add save' }))
+
     expect(screen.queryByText('Save a link')).not.toBeInTheDocument()
     expect(screen.queryByText('Photo')).not.toBeInTheDocument()
     expect(screen.queryByText('Add places')).not.toBeInTheDocument()
   })
 
-  it('changes FAB aria-label to Close when sheet is open', () => {
-    renderAtRoute('/inbox')
-    fireEvent.click(screen.getByRole('button', { name: 'Add save' }))
-
-    // FAB label should change — use aria-label which is on the FAB specifically
-    expect(screen.getByLabelText('Close')).toBeInTheDocument()
-  })
-
-  it('closes save sheet when FAB is tapped again', () => {
+  it('FAB closes menu when tapped again', () => {
     renderAtRoute('/inbox')
 
-    // Open
+    // Open menu
     fireEvent.click(screen.getByRole('button', { name: 'Add save' }))
-    expect(screen.getByTestId('save-sheet')).toBeInTheDocument()
+    expect(screen.getByText('Quick save')).toBeInTheDocument()
 
-    // Close via FAB toggle (use aria-label to target the FAB specifically)
+    // Tap FAB again (now shows Close label)
     fireEvent.click(screen.getByLabelText('Close'))
-    expect(screen.queryByTestId('save-sheet')).not.toBeInTheDocument()
+
+    // Menu should be gone
+    expect(screen.queryByText('Quick save')).not.toBeInTheDocument()
   })
 })

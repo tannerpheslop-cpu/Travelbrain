@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Plus, X } from 'lucide-react'
+import { Plus, Bookmark, PackageOpen } from 'lucide-react'
 import SaveSheet from './SaveSheet'
 
 /** FAB is ONLY visible on the Horizon page (/inbox) */
@@ -9,7 +9,49 @@ const FAB_VISIBLE_PATHS = ['/inbox']
 export default function GlobalActions() {
   const location = useLocation()
   const showFab = FAB_VISIBLE_PATHS.includes(location.pathname)
+  const [showMenu, setShowMenu] = useState(false)
+  const [menuVisible, setMenuVisible] = useState(false)
   const [showSaveSheet, setShowSaveSheet] = useState(false)
+
+  // Animate menu in
+  useEffect(() => {
+    if (showMenu) {
+      requestAnimationFrame(() => setMenuVisible(true))
+    } else {
+      setMenuVisible(false)
+    }
+  }, [showMenu])
+
+  const handleFabTap = useCallback(() => {
+    if (showSaveSheet) {
+      setShowSaveSheet(false)
+      return
+    }
+    if (showMenu) {
+      setShowMenu(false)
+      return
+    }
+    setShowMenu(true)
+  }, [showMenu, showSaveSheet])
+
+  const handleQuickSave = useCallback(() => {
+    setShowMenu(false)
+    setMenuVisible(false)
+    // Small delay so menu closes before sheet opens
+    setTimeout(() => setShowSaveSheet(true), 50)
+  }, [])
+
+  const handleUnpack = useCallback(() => {
+    console.log('Unpack tapped')
+    setShowMenu(false)
+    setMenuVisible(false)
+    // Placeholder — real flow built in Unpack-3
+  }, [])
+
+  const dismissMenu = useCallback(() => {
+    setMenuVisible(false)
+    setTimeout(() => setShowMenu(false), 200)
+  }, [])
 
   return (
     <>
@@ -21,23 +63,134 @@ export default function GlobalActions() {
         >
           <button
             type="button"
-            onClick={() => setShowSaveSheet((v) => !v)}
+            onClick={handleFabTap}
             className="pointer-events-auto w-13 h-13 rounded-full bg-accent text-white shadow-lg shadow-accent/25 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
-            aria-label={showSaveSheet ? 'Close' : 'Add save'}
+            aria-label={showSaveSheet || showMenu ? 'Close' : 'Add save'}
           >
-            <div className="transition-transform duration-200">
-              {showSaveSheet ? <X className="w-6 h-6" /> : <Plus className="w-6 h-6" />}
+            <div className="transition-transform duration-200" style={{ transform: showMenu || showSaveSheet ? 'rotate(45deg)' : 'none' }}>
+              <Plus className="w-6 h-6" />
             </div>
           </button>
         </div>
       )}
 
-      {/* Unified save sheet — opens directly from FAB, no menu */}
+      {/* FAB Menu — two options */}
+      {showMenu && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40"
+            style={{
+              background: menuVisible ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)',
+              transition: 'background 200ms ease',
+            }}
+            onClick={dismissMenu}
+          />
+
+          {/* Menu sheet */}
+          <div
+            className="fixed inset-x-0 bottom-0 z-50"
+            style={{
+              transform: menuVisible ? 'translateY(0)' : 'translateY(100%)',
+              transition: 'transform 200ms ease-out',
+            }}
+          >
+            <div
+              style={{
+                background: 'var(--color-surface, #141828)',
+                borderRadius: '16px 16px 0 0',
+                padding: '8px 0',
+                paddingBottom: 'calc(8px + env(safe-area-inset-bottom))',
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Quick save option */}
+              <button
+                type="button"
+                onClick={handleQuickSave}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  width: '100%', padding: '14px 20px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12,
+                  background: 'rgba(196, 90, 45, 0.12)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <Bookmark size={20} color="#c45a2d" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 500,
+                    color: 'var(--color-text-primary, #e4e8f0)',
+                  }}>
+                    Quick save
+                  </div>
+                  <div style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                    color: 'var(--color-text-secondary, #8088a0)',
+                    marginTop: 1,
+                  }}>
+                    Save a link, note, or photo
+                  </div>
+                </div>
+              </button>
+
+              {/* Divider */}
+              <div style={{
+                height: 0.5, margin: '0 20px',
+                background: 'var(--color-surface-elevated, #1c2035)',
+              }} />
+
+              {/* Unpack option */}
+              <button
+                type="button"
+                onClick={handleUnpack}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  width: '100%', padding: '14px 20px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  textAlign: 'left',
+                }}
+              >
+                <div style={{
+                  width: 44, height: 44, borderRadius: 12,
+                  background: 'rgba(196, 90, 45, 0.12)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <PackageOpen size={20} color="#c45a2d" />
+                </div>
+                <div>
+                  <div style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 500,
+                    color: 'var(--color-text-primary, #e4e8f0)',
+                  }}>
+                    Unpack
+                  </div>
+                  <div style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                    color: 'var(--color-text-secondary, #8088a0)',
+                    marginTop: 1,
+                  }}>
+                    Extract places from an article or video
+                  </div>
+                </div>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Unified save sheet — opens from Quick Save menu option */}
       {showSaveSheet && (
         <SaveSheet
           onClose={() => setShowSaveSheet(false)}
           onSaved={() => {
-            // Dispatch event so InboxPage can react (invalidate queries, etc.)
             window.dispatchEvent(new CustomEvent('horizon-item-created'))
           }}
         />
