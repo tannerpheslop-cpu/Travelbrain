@@ -299,9 +299,23 @@ export default function SelectionOverlay({
           image_display: item.photo_url ? 'thumbnail' as const : 'none' as const,
           has_pending_extraction: false,
           route_id: null as string | null,
+          // Source attribution
+          source_title: sourceTitle,
+          source_platform: (() => {
+            if (!sourceUrl) return null
+            try {
+              const h = new URL(sourceUrl).hostname.replace(/^www\./, '')
+              if (h.includes('youtube') || h === 'youtu.be') return 'youtube'
+              if (h.includes('instagram')) return 'instagram'
+              if (h.includes('tiktok')) return 'tiktok'
+              if (h.includes('pinterest')) return 'pinterest'
+              if (h.includes('reddit')) return 'reddit'
+              return 'web'
+            } catch { return 'web' }
+          })(),
         }
       })
-  }, [cappedItems, selected, userId, sourceUrl, getItemDisplay])
+  }, [cappedItems, selected, userId, sourceUrl, sourceTitle, getItemDisplay])
 
   /** Derive source platform from URL. */
   const sourcePlatform = useMemo(() => {

@@ -265,15 +265,15 @@ export default function ItemDetailPage() {
 
   if (loading) {
     return (
-      <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+      <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))', background: '#faf8f4', minHeight: '100vh' }}>
         <div className="animate-pulse">
-          <div className="h-5 w-14 bg-bg-pill-dark rounded-full mb-6" />
-          <div className="h-56 bg-bg-muted rounded-2xl" />
-          <div className="mt-5 space-y-3">
-            <div className="h-6 bg-bg-pill-dark rounded-full w-3/4" />
-            <div className="h-4 bg-bg-muted rounded-full w-1/3" />
-            <div className="h-11 bg-bg-muted rounded-xl mt-4" />
-            <div className="h-24 bg-bg-muted rounded-xl" />
+          <div style={{ height: 20, width: 56, background: '#e8e6e1', borderRadius: 10, marginBottom: 24 }} />
+          <div style={{ height: 224, background: '#f1efe8', borderRadius: 16 }} />
+          <div style={{ marginTop: 20 }}>
+            <div style={{ height: 24, background: '#e8e6e1', borderRadius: 10, width: '75%' }} />
+            <div style={{ height: 16, background: '#f1efe8', borderRadius: 10, width: '33%', marginTop: 12 }} />
+            <div style={{ height: 44, background: '#f1efe8', borderRadius: 12, marginTop: 16 }} />
+            <div style={{ height: 96, background: '#f1efe8', borderRadius: 12, marginTop: 12 }} />
           </div>
         </div>
       </div>
@@ -407,15 +407,56 @@ export default function ItemDetailPage() {
         className="w-full mt-4 text-xl font-bold text-text-primary placeholder:text-text-faint focus:outline-none"
       />
 
-      {/* Source Link */}
-      {item.source_url && (
+      {/* Source preview card */}
+      {item.source_url && (item.source_title || item.site_name) && (
+        <a
+          href={item.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: '10px 12px', marginTop: 10,
+            background: '#f5f3ef', borderRadius: 8,
+            border: '0.5px solid #e8e6e1',
+            textDecoration: 'none',
+          }}
+        >
+          {item.source_thumbnail && (
+            <img
+              src={item.source_thumbnail}
+              alt=""
+              style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+            />
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
+              color: '#1a1d27', margin: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {item.source_title || item.site_name}
+            </p>
+            <p style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+              color: '#888780', margin: '2px 0 0',
+            }}>
+              {(() => { try { return new URL(item.source_url!).hostname.replace(/^www\./, '') } catch { return '' } })()}
+            </p>
+          </div>
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#c45a2d', flexShrink: 0 }}>
+            Open
+          </span>
+        </a>
+      )}
+      {/* Simple source link fallback (no source_title) */}
+      {item.source_url && !item.source_title && !item.site_name && (
         <a
           href={item.source_url}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-1.5 mt-2 text-sm text-accent hover:text-accent transition-colors"
         >
-          {item.site_name || 'Source'}
+          Source
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
             <path d="M6.22 8.72a.75.75 0 001.06 1.06l5.22-5.22v1.69a.75.75 0 001.5 0v-3.5a.75.75 0 00-.75-.75h-3.5a.75.75 0 000 1.5h1.69L6.22 8.72z" />
             <path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 007 4H4.75A2.75 2.75 0 002 6.75v4.5A2.75 2.75 0 004.75 14h4.5A2.75 2.75 0 0012 11.25V9a.75.75 0 00-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5z" />

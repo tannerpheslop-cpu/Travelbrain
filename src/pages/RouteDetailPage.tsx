@@ -7,7 +7,7 @@ import { useRouteItems } from '../hooks/queries'
 import { useToast } from '../components/Toast'
 import { ConfirmDeleteModal } from '../components/ui'
 import { optimizedImageUrl } from '../lib/optimizedImage'
-import { ChevronLeft, MoreHorizontal, ExternalLink, Trash2, Unlink } from 'lucide-react'
+import { ChevronLeft, MoreHorizontal, Trash2, Unlink } from 'lucide-react'
 import {
   DndContext,
   closestCenter,
@@ -372,24 +372,24 @@ export default function RouteDetailPage() {
             <img
               src={optimizedImageUrl(route.source_thumbnail, 'grid-thumbnail') ?? route.source_thumbnail}
               alt=""
-              style={{ width: 48, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+              style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
             />
           )}
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
+              fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
               color: '#1a1d27', margin: 0,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {route.source_title ?? 'Source article'}
             </p>
             <p style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 10, color: '#888780', margin: '2px 0 0',
+              fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#888780', margin: '2px 0 0',
             }}>
-              {route.source_platform ?? 'web'}
+              {(() => { try { return new URL(route.source_url!).hostname.replace(/^www\./, '') } catch { return route.source_platform ?? 'web' } })()}
             </p>
           </div>
-          <ExternalLink size={14} color="#b4b2a9" />
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#c45a2d', flexShrink: 0 }}>Open</span>
         </a>
       )}
 
