@@ -278,7 +278,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
     setUrlLoading(true)
     setUrlError('')
     try {
-      const fetched = await invokeEdgeFunction<Metadata>('extract-metadata', { url })
+      const fetched = await invokeEdgeFunction<Metadata>('extract-metadata', { url, user_id: user?.id })
       setMetadata({ ...fetched, url })
       if (fetched.title && !title) setTitle(fetched.title)
       setImageFailed(false)

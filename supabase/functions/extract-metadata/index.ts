@@ -981,6 +981,25 @@ function getAdminClient() {
   return createClient(url, key)
 }
 
+const DAILY_ENRICHMENT_CAP = 100
+
+/** Count enrichment calls for a user in the last 24 hours. */
+async function getEnrichmentCount(userId: string): Promise<number> {
+  const admin = getAdminClient()
+  if (!admin || !userId) return 0
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { count, error } = await admin
+      .from("saved_items")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("enrichment_source", "google_places")
+      .gte("created_at", since)
+    if (error) return 0
+    return count ?? 0
+  } catch { return 0 }
+}
+
 async function enrichWithGooglePlaces(
   placeName: string,
   lat: number | null,
@@ -1292,7 +1311,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { url } = await req.json()
+    const { url, user_id } = await req.json() as { url: string; user_id?: string }
     if (!url || typeof url !== "string") {
       return new Response(JSON.stringify({ error: "Missing or invalid 'url' field" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -1335,6 +1354,11 @@ Deno.serve(async (req) => {
     const resultLng = (result as Record<string, unknown>).longitude as number | null ?? null
     const hasDetectedLocation = (resultLat !== null && resultLng !== null) || isGoogleMaps
     if (result.title && shouldEnrich(result, isGoogleMaps, hasDetectedLocation)) {
+      // Check daily enrichment cap
+      const enrichCount = user_id ? await getEnrichmentCount(user_id) : 0
+      if (enrichCount >= DAILY_ENRICHMENT_CAP) {
+        console.log(`[extract-metadata] Daily enrichment cap reached (${enrichCount}/${DAILY_ENRICHMENT_CAP}), skipping`)
+      } else {
       // Extract place keywords from the title
       const keywords = extractPlaceKeywords(result.title)
       const query = keywords.length >= 2 ? keywords : result.title
@@ -1373,6 +1397,7 @@ Deno.serve(async (req) => {
       } else if (enriched) {
         console.log(`[extract-metadata] Enrichment skipped — result is too broad (${enriched.place_types.join(", ")})`)
       }
+      } // close else (cap check)
     }
 
     console.log(`[extract-metadata] FINAL RESULT ${JSON.stringify(result)}`)
