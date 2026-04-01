@@ -53,7 +53,43 @@ const PLACES_CATEGORY_MAP: Record<string, string> = {
   subway_station: "transport", transit_station: "transport",
   spa: "spa", beauty_salon: "spa",
   tourist_attraction: "historical", natural_feature: "park",
-  point_of_interest: "other",
+  // point_of_interest intentionally omitted — too generic, use Haiku fallback
+}
+
+/** Extract a clean city name from a formatted address. */
+function extractCityFromAddress(address: string | null | undefined): string | null {
+  if (!address) return null
+  const parts = address.split(",").map(s => s.trim()).filter(s => s.length > 0)
+  if (parts.length < 2) return null
+
+  // Walk from second-to-last backwards, skip country (last), find first city-like segment
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const seg = parts[i]
+    // Reject Plus Codes (e.g., "GJH9+MP7")
+    if (/^[A-Z0-9]{4,}\+[A-Z0-9]+$/i.test(seg)) continue
+    // Reject pure number strings (postal codes, street numbers)
+    if (/^\d+$/.test(seg)) continue
+    // Reject very short segments (state codes like "CA")
+    if (seg.length < 3) continue
+    // Reject segments that look like street addresses (start with a number)
+    if (/^\d+\s/.test(seg)) continue
+    // This is likely the city or district
+    return seg
+  }
+  return parts[0] // fallback to first segment
+}
+
+/** Map Google types to category, falling back to Haiku category for generic types. */
+function mapCategory(googleTypes: string[], haikuCategory: string): string {
+  // Try specific Google types first
+  for (const t of googleTypes) {
+    const mapped = PLACES_CATEGORY_MAP[t]
+    if (mapped) return mapped
+  }
+  // Google returned only generic types (point_of_interest, establishment)
+  // Use Haiku's category as fallback if it's not "other"
+  if (haikuCategory && haikuCategory !== "other") return haikuCategory
+  return "other"
 }
 
 const SPECIFIC_TYPES = new Set([
@@ -139,11 +175,15 @@ async function validateItem(
           console.log(`[validate] Discarding "${item.name}" — cached in ${cachedCountry}, expected ${expectedCountry}`)
           return null
         }
+        // Use clean city name instead of full address
+        const cityName = extractCityFromAddress(cached.formatted_address)
+          ?? item.location_name?.split(",")[0]?.trim()
+          ?? null
         return {
           ...item,
           name: cached.place_name,
-          category: cached.category ?? item.category,
-          location_name: cached.formatted_address ?? item.location_name,
+          category: cached.category && cached.category !== "other" ? cached.category : item.category,
+          location_name: cityName,
           enriched: true,
           validated: true,
           place_id: cached.place_id,
@@ -194,11 +234,15 @@ async function validateItem(
       photoAttribution = place.photos[0].html_attributions?.join(", ") ?? null
     }
 
-    // Map category
-    let category = item.category
-    for (const t of types) {
-      if (PLACES_CATEGORY_MAP[t]) { category = PLACES_CATEGORY_MAP[t]; break }
-    }
+    // Map category: specific Google type > Haiku category > "other"
+    const category = mapCategory(types, item.category)
+
+    console.log(`[validate] Place: "${place.name}" | Google types: ${types.join(",")} | Haiku cat: ${item.category} | Final: ${category}`)
+
+    // Extract clean city name
+    const cityName = extractCityFromAddress(place.formatted_address)
+      ?? item.location_name?.split(",")[0]?.trim()
+      ?? null
 
     // Cache write (fire and forget)
     if (admin) {
@@ -217,7 +261,7 @@ async function validateItem(
       ...item,
       name: place.name,
       category,
-      location_name: place.formatted_address ?? item.location_name,
+      location_name: cityName,
       enriched: true,
       validated: true,
       place_id: place.place_id,
@@ -569,6 +613,7 @@ Rules:
 - If a place has an address mentioned in the article, include it
 - For each place, include a "context" field capturing what the article specifically says about this place — why it's recommended, any tips, what makes it special. Keep to 1-2 sentences. Use the article's perspective, not generic descriptions.
 - IMPORTANT: Do not extract the same place more than once, even if it is mentioned multiple times in the article. If a place is mentioned in multiple sections, combine the context into one entry. Use the most complete version of the place's name.
+- IMPORTANT: The "name" field must be the proper name of a business, landmark, or place — never an address, a number, a Plus Code, or a generic description.
 
 Return ONLY a JSON array, no other text. If no specific places are found, return [].
 
