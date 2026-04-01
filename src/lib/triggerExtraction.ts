@@ -29,7 +29,12 @@ export async function triggerMultiItemExtraction(
         'Authorization': `Bearer ${session.access_token}`,
         'apikey': anonKey,
       },
-      body: JSON.stringify({ url: savedItem.source_url, user_id: userId }),
+      body: JSON.stringify({
+        url: savedItem.source_url,
+        user_id: userId,
+        source_content: savedItem.source_content ?? null,
+        entry_id: savedItem.id,
+      }),
     })
 
     if (!response.ok) {

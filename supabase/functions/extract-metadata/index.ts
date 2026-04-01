@@ -13,6 +13,8 @@ interface MetadataResult {
   description: string | null
   site_name: string | null
   url: string
+  // Platform text content (YouTube description, Reddit selftext, etc.)
+  source_content?: string | null
   // Enrichment fields (populated when Google Places enrichment succeeds)
   enriched?: boolean
   place_id?: string
@@ -69,12 +71,36 @@ async function handleYouTube(url: URL): Promise<MetadataResult | null> {
       image = data.thumbnail_url ?? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
     }
 
+    // Fetch full video description via YouTube Data API v3
+    let sourceContent: string | null = null
+    const apiKey = Deno.env.get("GOOGLE_API_KEY")
+    if (apiKey && videoId) {
+      try {
+        const dataApiUrl = `https://www.googleapis.com/youtube/v3/videos?id=${videoId}&part=snippet&key=${apiKey}`
+        const dataRes = await fetch(dataApiUrl, { signal: AbortSignal.timeout(5000) })
+        if (dataRes.ok) {
+          const dataJson = await dataRes.json() as {
+            items?: Array<{ snippet?: { description?: string } }>
+          }
+          const desc = dataJson.items?.[0]?.snippet?.description
+          if (desc && desc.length > 20) {
+            sourceContent = desc
+            console.log(`[extract-metadata] YouTube Data API: got description (${desc.length} chars)`)
+          }
+        }
+      } catch (err) {
+        console.log(`[extract-metadata] YouTube Data API failed (non-fatal): ${err}`)
+        // Non-fatal — continue without description
+      }
+    }
+
     return {
       title: data.title ?? null,
       image,
       description: data.author_name ? `Video by ${data.author_name} on YouTube` : null,
       site_name: "YouTube",
       url: url.href,
+      source_content: sourceContent,
     }
   } catch (err) {
     console.log(`[extract-metadata] YouTube handler failed: ${err}`)
@@ -491,6 +517,7 @@ async function handleTwitter(url: URL): Promise<MetadataResult | null> {
               description: screenName ? `@${screenName} on X` : null,
               site_name: "X",
               url: fullUrl.href,
+              source_content: data.text, // Full tweet text (original only, no replies)
             }
           }
         }
@@ -570,12 +597,15 @@ async function handlePinterest(url: URL): Promise<MetadataResult | null> {
       author_name?: string
     }
 
+    // Store full description as source_content if substantial (>50 chars)
+    const fullDesc = data.description ?? null
     return {
       title: data.title || data.description || "Pinterest Pin",
       image: data.thumbnail_url ?? null,
-      description: data.description ?? null,
+      description: fullDesc,
       site_name: "Pinterest",
       url: fullUrl.href,
+      source_content: fullDesc && fullDesc.length > 50 ? fullDesc : null,
     }
   } catch (err) {
     console.log(`[extract-metadata] Pinterest handler failed: ${err}`)
@@ -623,16 +653,18 @@ async function handleReddit(url: URL): Promise<MetadataResult | null> {
             : null
 
           const subreddit = post.subreddit ? `r/${post.subreddit}` : null
-          const selftext = post.selftext
-            ? (post.selftext.length > 200 ? post.selftext.slice(0, 200) + "..." : post.selftext)
+          const fullSelftext = typeof post.selftext === "string" && post.selftext.length > 0 ? post.selftext : null
+          const shortSelftext = fullSelftext
+            ? (fullSelftext.length > 200 ? fullSelftext.slice(0, 200) + "..." : fullSelftext)
             : null
 
           return {
             title: post.title ?? "Reddit Post",
             image: thumbnail,
-            description: selftext || (subreddit ? `Posted in ${subreddit}` : null),
+            description: shortSelftext || (subreddit ? `Posted in ${subreddit}` : null),
             site_name: subreddit ? `${subreddit} · Reddit` : "Reddit",
             url: fullUrl.href,
+            source_content: fullSelftext,
           }
         }
       }
