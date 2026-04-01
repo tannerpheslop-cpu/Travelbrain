@@ -236,6 +236,63 @@ async function validateItem(
  * Validate and enrich items sequentially. Discards items that fail validation.
  * Uses majority-country detection for wrong-country filtering.
  */
+/** Pre-enrichment: deduplicate by normalized name to save API calls. */
+function deduplicateByName(items: ExtractedItem[]): ExtractedItem[] {
+  const seen = new Map<string, number>() // normalized name → index in result
+  const result: ExtractedItem[] = []
+
+  for (const item of items) {
+    const normalized = item.name.toLowerCase().trim().replace(/[^\p{L}\p{N}\s]/gu, "")
+    const existingIdx = seen.get(normalized)
+    if (existingIdx !== undefined) {
+      // Merge context
+      const existing = result[existingIdx]
+      if (item.description && existing.description && !existing.description.includes(item.description)) {
+        existing.description = existing.description + " | " + item.description
+      }
+      console.log(`[dedup] Name dedup: merged "${item.name}" into "${existing.name}"`)
+    } else {
+      seen.set(normalized, result.length)
+      result.push({ ...item })
+    }
+  }
+
+  if (result.length < items.length) {
+    console.log(`[dedup] Name dedup: ${items.length} → ${result.length} items`)
+  }
+  return result
+}
+
+/** Post-enrichment: deduplicate by place_id (same physical place, different names). */
+function deduplicateByPlaceId(items: ExtractedItem[]): ExtractedItem[] {
+  const seen = new Map<string, number>() // place_id → index in result
+  const result: ExtractedItem[] = []
+
+  for (const item of items) {
+    if (!item.place_id) {
+      result.push(item)
+      continue
+    }
+    const existingIdx = seen.get(item.place_id)
+    if (existingIdx !== undefined) {
+      // Merge context
+      const existing = result[existingIdx]
+      if (item.description && existing.description && !existing.description.includes(item.description)) {
+        existing.description = existing.description + " | " + item.description
+      }
+      console.log(`[dedup] Place ID dedup: merged "${item.name}" (${item.place_id}) into "${existing.name}"`)
+    } else {
+      seen.set(item.place_id, result.length)
+      result.push(item)
+    }
+  }
+
+  if (result.length < items.length) {
+    console.log(`[dedup] Place ID dedup: ${items.length} → ${result.length} items`)
+  }
+  return result
+}
+
 async function validateAndEnrichItems(items: ExtractedItem[]): Promise<ExtractedItem[]> {
   // Determine expected country from candidate location_names (majority vote)
   const countryCounts = new Map<string, number>()
@@ -511,6 +568,7 @@ Rules:
 - For each place, include the city/region where it's located based on context in the article
 - If a place has an address mentioned in the article, include it
 - For each place, include a "context" field capturing what the article specifically says about this place — why it's recommended, any tips, what makes it special. Keep to 1-2 sentences. Use the article's perspective, not generic descriptions.
+- IMPORTANT: Do not extract the same place more than once, even if it is mentioned multiple times in the article. If a place is mentioned in multiple sections, combine the context into one entry. Use the most complete version of the place's name.
 
 Return ONLY a JSON array, no other text. If no specific places are found, return [].
 
@@ -884,11 +942,17 @@ Deno.serve(async (req: Request) => {
       })
     }
 
+    // Pre-enrichment: deduplicate by name to save API calls
+    const truncated = items.slice(0, MAX_ITEMS)
+    const nameDeduped = deduplicateByName(truncated)
+
     // Validate + enrich each candidate through Google Places
     // Only validated items survive — non-POIs and wrong-country results are discarded
-    const truncated = items.slice(0, MAX_ITEMS)
-    console.log(`[multi-extract] Validating ${truncated.length} candidates through Google Places...`)
-    const validatedItems = await validateAndEnrichItems(truncated)
+    console.log(`[multi-extract] Validating ${nameDeduped.length} candidates through Google Places...`)
+    let validatedItems = await validateAndEnrichItems(nameDeduped)
+
+    // Post-enrichment: deduplicate by place_id (same place, different names)
+    validatedItems = deduplicateByPlaceId(validatedItems)
 
     // If 0 candidates survive validation, treat as no multi-item content
     if (validatedItems.length < 2) {
