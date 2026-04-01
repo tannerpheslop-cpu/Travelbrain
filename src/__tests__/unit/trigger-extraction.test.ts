@@ -27,7 +27,7 @@ function makeItem(overrides: Partial<SavedItem> = {}): SavedItem {
     first_viewed_at: null, left_recent: false,
     location_locked: false, location_precision: null,
     has_pending_extraction: false,
-    route_id: null,
+    route_id: null, source_content: null,
     source_title: null,
     source_thumbnail: null,
     source_author: null,
@@ -72,7 +72,7 @@ describe('triggerMultiItemExtraction', () => {
       'https://test.supabase.co/functions/v1/extract-multi-items',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ url: 'https://example.com/best-ramen', user_id: 'u1' }),
+        body: JSON.stringify({ url: 'https://example.com/best-ramen', user_id: 'u1', source_content: null, entry_id: 'item-1' }),
       }),
     )
   })

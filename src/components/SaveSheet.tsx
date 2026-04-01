@@ -32,6 +32,7 @@ interface Metadata {
   source_thumbnail?: string
   source_author?: string
   source_platform?: string
+  source_content?: string | null
 }
 
 const categoryPills: { value: Category; label: string }[] = [
@@ -391,6 +392,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       ...corePayload,
       location_name_en: location?.name_en ?? null,
       location_name_local: location?.name_local ?? null,
+      // Platform content text (YouTube description, Reddit selftext, etc.)
+      ...(metadata?.source_content ? { source_content: metadata.source_content } : {}),
       // Source attribution (when Google Places enrichment ran)
       ...(metadata?.enriched ? {
         source_title: metadata.source_title ?? null,

@@ -45,6 +45,7 @@ function makeItem(overrides: Partial<SavedItem> & { id: string }): SavedItem {
     location_locked: false, location_precision: 'city',
     has_pending_extraction: false,
     route_id: null,
+    source_content: null,
     source_title: null,
     source_thumbnail: null,
     source_author: null,

@@ -909,7 +909,9 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { url, user_id } = await req.json() as { url: string; user_id?: string }
+    const { url, user_id, source_content, entry_id } = await req.json() as {
+      url: string; user_id?: string; source_content?: string; entry_id?: string
+    }
     if (!url) {
       return new Response(JSON.stringify({ success: false, reason: "parse_failed" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -943,6 +945,18 @@ Deno.serve(async (req: Request) => {
     // ── Extraction pipeline ──
     // Layer 1: Structured data (JSON-LD, Condé Nast embedded JSON)
     let { items, contentType } = runStructuredExtraction(html)
+
+    // Layer 2: Platform text content (YouTube description, Reddit selftext, etc.)
+    // Preferred over page HTML — cleaner, no ads/nav, more likely to contain actual travel content
+    if (items.length < 2 && source_content && source_content.length > 50) {
+      console.log(`[multi-extract] Trying Haiku on stored source_content (${source_content.length} chars)`)
+      const contentItems = await extractWithLLM(source_content, sourceTitle)
+      if (contentItems.length >= 2) {
+        items = contentItems
+        contentType = "listicle"
+        console.log(`[multi-extract] Source content extraction found ${items.length} items`)
+      }
+    }
 
     // Layer 3: Haiku LLM extraction (when structured data isn't available)
     if (items.length < 2) {

@@ -61,6 +61,7 @@ export interface SavedItem {
   enrichment_source: string | null
   photo_attribution: string | null
   route_id: string | null
+  source_content: string | null
   created_at: string
 }
 
