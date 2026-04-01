@@ -10,6 +10,7 @@ import type { ExtractedItem, Category } from '../types'
 
 interface SelectionOverlayProps {
   extractionId: string
+  sourceEntryId?: string
   sourceTitle: string | null
   sourceUrl: string
   contentType: 'listicle' | 'itinerary' | 'guide'
@@ -140,6 +141,7 @@ const MAX_OVERLAY_ITEMS = 30
 
 export default function SelectionOverlay({
   extractionId,
+  sourceEntryId,
   sourceTitle,
   sourceUrl,
   contentType,
@@ -156,8 +158,29 @@ export default function SelectionOverlay({
   const [routeName, setRouteName] = useState('')
   const routeNameInputRef = useRef<HTMLInputElement>(null)
 
-  // Cap at MAX_OVERLAY_ITEMS
-  const cappedItems = useMemo(() => items.slice(0, MAX_OVERLAY_ITEMS), [items])
+  // Cap at MAX_OVERLAY_ITEMS + merge display duplicates by place_id
+  const cappedItems = useMemo(() => {
+    const capped = items.slice(0, MAX_OVERLAY_ITEMS)
+    // Merge items sharing the same place_id
+    const seen = new Map<string, number>() // place_id → index
+    const result: typeof capped = []
+    for (const item of capped) {
+      if (item.place_id) {
+        const existingIdx = seen.get(item.place_id)
+        if (existingIdx !== undefined) {
+          // Merge context
+          const existing = result[existingIdx]
+          if (item.description && existing.description && !existing.description.includes(item.description)) {
+            existing.description = existing.description + ' | ' + item.description
+          }
+          continue // Skip duplicate
+        }
+        seen.set(item.place_id, result.length)
+      }
+      result.push({ ...item })
+    }
+    return result
+  }, [items])
 
   // Selection state: pre-select all non-duplicates
   const [selected, setSelected] = useState<Set<number>>(() => {
@@ -203,8 +226,24 @@ export default function SelectionOverlay({
 
   const handleClose = useCallback(() => {
     setVisible(false)
+    // Dismiss the pending extraction permanently
+    supabase
+      .from('pending_extractions')
+      .update({ status: 'dismissed' })
+      .eq('id', extractionId)
+      .then(() => {})
+    // Clear the badge on the source saved_item
+    if (sourceEntryId) {
+      supabase
+        .from('saved_items')
+        .update({ has_pending_extraction: false })
+        .eq('id', sourceEntryId)
+        .then(() => {})
+    }
+    queryClient.invalidateQueries({ queryKey: ['saved-items'] })
+    queryClient.invalidateQueries({ queryKey: ['pending-extraction-counts'] })
     setTimeout(onClose, 300)
-  }, [onClose])
+  }, [onClose, extractionId, sourceEntryId, queryClient])
 
   const toggleItem = useCallback((index: number) => {
     setSelected(prev => {
@@ -483,7 +522,7 @@ export default function SelectionOverlay({
                 {/* Collapsed row */}
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: 12,
-                  padding: isExpanded ? '10px 16px 6px' : '10px 16px',
+                  padding: isExpanded ? '12px 16px 6px' : '12px 16px',
                   opacity: isDuplicate && !isSelected ? 0.5 : 1,
                 }}>
                   {/* Checkbox */}
@@ -511,16 +550,16 @@ export default function SelectionOverlay({
                       src={item.photo_url}
                       alt=""
                       style={{
-                        width: 40, height: 40, borderRadius: 6, objectFit: 'cover',
+                        width: 56, height: 56, borderRadius: 8, objectFit: 'cover',
                         flexShrink: 0, background: '#f1efe8',
                       }}
                     />
                   ) : (
                     <div style={{
-                      width: 40, height: 40, borderRadius: 6, flexShrink: 0,
+                      width: 56, height: 56, borderRadius: 8, flexShrink: 0,
                       background: '#f1efe8', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b4b2a9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b4b2a9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
                         <circle cx="12" cy="10" r="3" />
                       </svg>
@@ -579,8 +618,9 @@ export default function SelectionOverlay({
                     {item.description && !isExpanded && (
                       <p style={{
                         fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#b4b2a9',
-                        margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap', fontStyle: 'italic',
+                        margin: '3px 0 0', overflow: 'hidden', textOverflow: 'ellipsis',
+                        display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                        lineHeight: 1.4, fontStyle: 'italic',
                       }}>
                         {item.description}
                       </p>
@@ -671,39 +711,43 @@ export default function SelectionOverlay({
             </>
           ) : (
             <>
-              {/* Primary: Save as Route */}
-              <button
-                type="button"
-                data-testid="save-as-route-btn"
-                onClick={startRouteMode}
-                disabled={selectedCount === 0 || saving}
-                style={{
-                  width: '100%', padding: '14px 0',
-                  background: selectedCount > 0 ? '#c45a2d' : '#d3d1c7', color: '#fff',
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
-                  border: 'none', borderRadius: 12,
-                  cursor: selectedCount > 0 ? 'pointer' : 'default',
-                  opacity: saving ? 0.7 : 1,
-                }}
-              >
-                {saving ? 'Saving...' : `Save as Route (${selectedCount} item${selectedCount !== 1 ? 's' : ''})`}
-              </button>
-              {/* Secondary: Save individually */}
-              <button
-                type="button"
-                data-testid="save-individually-btn"
-                onClick={handleSaveIndividually}
-                disabled={selectedCount === 0 || saving}
-                style={{
-                  display: 'block', width: '100%', marginTop: 8, padding: '8px 0',
-                  background: 'none', border: 'none',
-                  cursor: selectedCount > 0 ? 'pointer' : 'default',
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#888780',
-                  textAlign: 'center',
-                }}
-              >
-                Save individually
-              </button>
+              {/* Two equal-weight buttons side by side */}
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  data-testid="save-as-route-btn"
+                  onClick={startRouteMode}
+                  disabled={selectedCount === 0 || saving}
+                  style={{
+                    flex: 1, padding: '14px 0',
+                    background: selectedCount > 0 ? '#c45a2d' : '#d3d1c7', color: '#fff',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
+                    border: 'none', borderRadius: 10,
+                    cursor: selectedCount > 0 ? 'pointer' : 'default',
+                    opacity: saving ? 0.7 : 1,
+                  }}
+                >
+                  {saving ? 'Saving...' : `Save as group`}
+                </button>
+                <button
+                  type="button"
+                  data-testid="save-individually-btn"
+                  onClick={handleSaveIndividually}
+                  disabled={selectedCount === 0 || saving}
+                  style={{
+                    flex: 1, padding: '14px 0',
+                    background: 'transparent',
+                    border: selectedCount > 0 ? '1.5px solid #c45a2d' : '1.5px solid #d3d1c7',
+                    color: selectedCount > 0 ? '#c45a2d' : '#888780',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
+                    borderRadius: 10,
+                    cursor: selectedCount > 0 ? 'pointer' : 'default',
+                    opacity: saving ? 0.7 : 1,
+                  }}
+                >
+                  Save individually
+                </button>
+              </div>
             </>
           )}
         </div>

@@ -443,6 +443,7 @@ export default function ItemDetailPage() {
       {showSelectionOverlay && pendingExtraction && item && user && (
         <SelectionOverlay
           extractionId={pendingExtraction.id}
+          sourceEntryId={item.id}
           sourceTitle={item.title}
           sourceUrl={item.source_url ?? ''}
           contentType={pendingExtraction.content_type as 'listicle' | 'itinerary' | 'guide'}
