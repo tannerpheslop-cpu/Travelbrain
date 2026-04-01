@@ -392,6 +392,27 @@ async function validateAndEnrichItems(items: ExtractedItem[]): Promise<Extracted
 
 const FETCH_TIMEOUT = 10_000
 const MAX_ITEMS = 50
+const DAILY_ENRICHMENT_CAP = 100
+
+/** Count enrichment calls for a user in the last 24 hours. */
+async function getEnrichmentCount(userId: string): Promise<number> {
+  const admin = getAdminClient()
+  if (!admin || !userId) return 0
+  try {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+    const { count, error } = await admin
+      .from("saved_items")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("enrichment_source", "google_places")
+      .gte("created_at", since)
+    if (error) { console.log(`[cap] Count query failed: ${error.message}`); return 0 }
+    return count ?? 0
+  } catch (err) {
+    console.log(`[cap] Count error: ${err}`)
+    return 0
+  }
+}
 
 // Schema.org type → Youji category mapping
 const SCHEMA_CATEGORY_MAP: Record<string, string> = {
@@ -888,7 +909,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { url } = await req.json() as { url: string }
+    const { url, user_id } = await req.json() as { url: string; user_id?: string }
     if (!url) {
       return new Response(JSON.stringify({ success: false, reason: "parse_failed" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -991,10 +1012,27 @@ Deno.serve(async (req: Request) => {
     const truncated = items.slice(0, MAX_ITEMS)
     const nameDeduped = deduplicateByName(truncated)
 
-    // Validate + enrich each candidate through Google Places
-    // Only validated items survive — non-POIs and wrong-country results are discarded
-    console.log(`[multi-extract] Validating ${nameDeduped.length} candidates through Google Places...`)
-    let validatedItems = await validateAndEnrichItems(nameDeduped)
+    // Check daily enrichment cap
+    let validatedItems: ExtractedItem[]
+    const existingCount = user_id ? await getEnrichmentCount(user_id) : 0
+    const remaining = DAILY_ENRICHMENT_CAP - existingCount
+
+    if (remaining <= 0) {
+      console.log(`[multi-extract] Daily enrichment cap reached (${existingCount}/${DAILY_ENRICHMENT_CAP}), skipping validation`)
+      // Store candidates without Places validation
+      validatedItems = nameDeduped.map(item => ({ ...item, enriched: false, validated: false }))
+    } else if (remaining < nameDeduped.length) {
+      console.log(`[multi-extract] Enrichment budget: ${remaining}/${nameDeduped.length} candidates`)
+      // Validate only up to the budget, store rest as unenriched
+      const toValidate = nameDeduped.slice(0, remaining)
+      const unenriched = nameDeduped.slice(remaining).map(item => ({ ...item, enriched: false, validated: false }))
+      const validated = await validateAndEnrichItems(toValidate)
+      validatedItems = [...validated, ...unenriched]
+    } else {
+      // Full budget available
+      console.log(`[multi-extract] Validating ${nameDeduped.length} candidates (budget: ${remaining})`)
+      validatedItems = await validateAndEnrichItems(nameDeduped)
+    }
 
     // Post-enrichment: deduplicate by place_id (same place, different names)
     validatedItems = deduplicateByPlaceId(validatedItems)

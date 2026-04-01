@@ -72,7 +72,7 @@ describe('triggerMultiItemExtraction', () => {
       'https://test.supabase.co/functions/v1/extract-multi-items',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ url: 'https://example.com/best-ramen' }),
+        body: JSON.stringify({ url: 'https://example.com/best-ramen', user_id: 'u1' }),
       }),
     )
   })
