@@ -186,11 +186,11 @@ export function useRouteItems(routeId: string | null) {
       if (!routeId) return []
       const { data, error } = await supabase
         .from('route_items')
-        .select('saved_item_id, route_order, saved_items(*)')
+        .select('saved_item_id, route_order, section_label, section_order, saved_items(*)')
         .eq('route_id', routeId)
         .order('route_order', { ascending: true })
       if (error) throw error
-      return (data ?? []) as unknown as Array<{ saved_item_id: string; route_order: number; saved_items: SavedItem }>
+      return (data ?? []) as unknown as Array<{ saved_item_id: string; route_order: number; section_label: string | null; section_order: number; saved_items: SavedItem }>
     },
     enabled: !!routeId,
   })
