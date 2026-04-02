@@ -77,7 +77,7 @@ describe('GlobalActions FAB menu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add save' }))
 
     expect(screen.getByText('Save a link, note, or photo')).toBeInTheDocument()
-    expect(screen.getByText('Extract places from an article or video')).toBeInTheDocument()
+    expect(screen.getByText('Turn any travel article into a list of places to visit')).toBeInTheDocument()
   })
 
   it('"Quick save" opens the existing SaveSheet', async () => {

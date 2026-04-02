@@ -724,6 +724,8 @@ Rules:
 - Do NOT extract the same place twice. If a place is mentioned in multiple sections, include it only in the section where it FIRST appears. Combine context from all mentions into one entry.
 - For each place, include what the article specifically says about it — why it's recommended, tips, what makes it special. This is the "context" field. Keep it to 1-3 sentences using the article's perspective.
 - Detect the article's organizational structure. If it's organized by days, use day labels. If by cities, use city labels. If by category (restaurants, attractions), use those. If no clear structure, use "Places" as the single section label.
+- For location_name, use the MOST SPECIFIC location mentioned for each place — the actual town, city, or district name. Do NOT use the article's general region for every item. For example, if an item is in Tagong, use "Tagong, Sichuan" not "Western Sichuan". If no specific town is mentioned, use the nearest city.
+- Mountains, peaks, mountain passes, valleys, gorges, and mountain trails should be categorized as "hike", not "historical" or "other".
 
 Category must be one of: restaurant, hotel, museum, temple, park, hike, historical, shopping, nightlife, entertainment, transport, spa, beach, other
 

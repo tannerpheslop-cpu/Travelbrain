@@ -185,7 +185,7 @@ export default function GlobalActions() {
                     color: 'var(--color-text-secondary, #8088a0)',
                     marginTop: 1,
                   }}>
-                    Extract places from an article or video
+                    Turn any travel article into a list of places to visit
                   </div>
                 </div>
               </button>
