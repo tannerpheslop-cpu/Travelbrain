@@ -10,7 +10,7 @@ import PillSheet from '../components/PillSheet'
 import type { PillGroup } from '../components/PillSheet'
 import { categoryLabel } from '../utils/categoryIcons'
 import { optimizedImageUrl } from '../lib/optimizedImage'
-import { LayoutGrid, List, SlidersHorizontal, Search, X, ChevronDown, ChevronRight } from 'lucide-react'
+import { LayoutGrid, List, SlidersHorizontal, Search, X, ChevronDown, ChevronRight, CheckSquare } from 'lucide-react'
 import { CategoryPill, CountryCodeBadge, SourceIcon, PrimaryButton, DashedCard, ConfirmDeleteModal } from '../components/ui'
 import ScrollToTop from '../components/ScrollToTop'
 import SunsetBackground from '../components/horizon/SunsetBackground'
@@ -848,6 +848,19 @@ export default function InboxPage() {
               aria-label="Filter"
             >
               <SlidersHorizontal className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => multiSelectMode ? exitMultiSelect() : setMultiSelectMode(true)}
+              className="flex items-center justify-center"
+              style={{
+                width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer',
+                color: multiSelectMode ? '#c45a2d' : '#888780',
+                background: multiSelectMode ? 'rgba(196,90,45,0.08)' : 'none',
+              }}
+              aria-label={multiSelectMode ? 'Cancel selection' : 'Select items'}
+            >
+              {multiSelectMode ? <X className="w-4 h-4" /> : <CheckSquare className="w-4 h-4" />}
             </button>
           </div>
 
