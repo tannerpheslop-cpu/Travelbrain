@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -313,6 +313,29 @@ export default function RouteDetailPage() {
     .map(itemId => routeItems.find(i => i.id === itemId))
     .filter(Boolean) as SavedItem[]
 
+  // Group items by section (from route_items metadata)
+  const sectionGroups = useMemo(() => {
+    const groups: Array<{ label: string; order: number; items: SavedItem[] }> = []
+    const sectionMap = new Map<string, { label: string; order: number; items: SavedItem[] }>()
+
+    for (const ri of routeItemsData) {
+      const label = ri.section_label ?? 'Places'
+      const order = ri.section_order ?? 0
+      if (!sectionMap.has(label)) {
+        const group = { label, order, items: [] as SavedItem[] }
+        sectionMap.set(label, group)
+        groups.push(group)
+      }
+      sectionMap.get(label)!.items.push(ri.saved_items)
+    }
+
+    // Sort groups by section_order
+    groups.sort((a, b) => a.order - b.order)
+    return groups
+  }, [routeItemsData])
+
+  const hasSections = sectionGroups.length > 1 || (sectionGroups.length === 1 && sectionGroups[0].label !== 'Places')
+
   if (loading) {
     return <div style={{ padding: 20, color: '#888780' }}>Loading...</div>
   }
@@ -471,17 +494,42 @@ export default function RouteDetailPage() {
         </a>
       )}
 
-      {/* Item list (sortable) */}
+      {/* Item list (with section headers if available) */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={orderedIds} strategy={verticalListSortingStrategy}>
-          {sortedItems.map(item => (
-            <SortableItemRow
-              key={item.id}
-              item={item}
-              onRemove={() => handleRemoveItem(item.id)}
-              enrichedPhoto={enrichedPhotos.get(item.id)}
-            />
-          ))}
+          {hasSections ? (
+            /* Grouped by section */
+            sectionGroups.map(group => (
+              <div key={group.label}>
+                <div style={{
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
+                  textTransform: 'uppercase', letterSpacing: '0.04em',
+                  color: '#888780', paddingBottom: 6, marginTop: 16,
+                  borderBottom: '0.5px solid #f1efe8',
+                }}>
+                  {group.label}
+                </div>
+                {group.items.map(item => (
+                  <SortableItemRow
+                    key={item.id}
+                    item={item}
+                    onRemove={() => handleRemoveItem(item.id)}
+                    enrichedPhoto={enrichedPhotos.get(item.id)}
+                  />
+                ))}
+              </div>
+            ))
+          ) : (
+            /* Flat list */
+            sortedItems.map(item => (
+              <SortableItemRow
+                key={item.id}
+                item={item}
+                onRemove={() => handleRemoveItem(item.id)}
+                enrichedPhoto={enrichedPhotos.get(item.id)}
+              />
+            ))
+          )}
         </SortableContext>
       </DndContext>
 

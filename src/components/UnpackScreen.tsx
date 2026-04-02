@@ -580,7 +580,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                     <div key={`${label}-${i}`} style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0',
                       borderBottom: '0.5px solid rgba(255,255,255,0.06)',
-                      animation: 'fadeSlideIn 200ms ease forwards',
+                      animation: 'fadeSlideIn 300ms ease-out forwards',
                       opacity: showCheckbox && !isChecked ? 0.4 : 1,
                       transition: 'opacity 150ms ease',
                     }}>
@@ -718,7 +718,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           to { transform: translateY(0); opacity: 1; }
         }
         @keyframes fadeSlideIn {
-          from { transform: translateY(8px); opacity: 0; }
+          from { transform: translateY(12px); opacity: 0; }
           to { transform: translateY(0); opacity: 1; }
         }
         @keyframes pulse {
