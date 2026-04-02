@@ -84,7 +84,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
   const [, setEntryId] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const pollStartRef = useRef<number>(0)
-  const POLL_TIMEOUT_MS = 30000
+  const POLL_TIMEOUT_MS = 45000 // 45s — allows time for Edge Function cold start + row creation
 
   // Animate in
   useEffect(() => {
