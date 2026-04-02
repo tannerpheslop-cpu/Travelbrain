@@ -31,7 +31,12 @@ function suggestRouteName(
   items: ExtractedItem[],
   sourceTitle: string | null,
 ): string {
-  // Count cities and categories
+  // Priority 1: Source article title (always most meaningful for Unpack)
+  if (sourceTitle && sourceTitle !== 'Untitled' && sourceTitle.length > 3) {
+    return sourceTitle.length > 50 ? sourceTitle.slice(0, 47) + '...' : sourceTitle
+  }
+
+  // Priority 2: City + category heuristic (for manual merge, no article)
   const cities = new Map<string, number>()
   const countries = new Map<string, number>()
   const categories = new Map<string, number>()
@@ -50,7 +55,6 @@ function suggestRouteName(
     }
   }
 
-  // All items share a city → "[City] [Category]"
   if (cities.size === 1) {
     const city = [...cities.keys()][0]
     const topCat = [...categories.entries()].sort((a, b) => b[1] - a[1])[0]
@@ -68,18 +72,11 @@ function suggestRouteName(
     return `${city} Places`
   }
 
-  // Items span cities, share country → "[Country] Travel"
   if (countries.size === 1) {
     return `${[...countries.keys()][0]} Travel`
   }
 
-  // Otherwise → source article title
-  if (sourceTitle && sourceTitle !== 'Untitled') {
-    // Truncate long titles
-    return sourceTitle.length > 40 ? sourceTitle.slice(0, 37) + '...' : sourceTitle
-  }
-
-  return 'Imported Places'
+  return 'Untitled group'
 }
 
 /** Determine location_scope from extracted items. */

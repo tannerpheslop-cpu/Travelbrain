@@ -331,22 +331,38 @@ export default function TravelGraph({
     enabled: dimensions.width > 0 && dimensions.height > 0,
   })
 
-  // ── Detect new saves ──
+  // ── Detect new saves (single or batch) ──
+  const newNodeIdsRef = useRef<Map<string, number>>(new Map()) // id → stagger time
   useEffect(() => {
     const currentIds = new Set(savedItems.map(i => i.id))
     const prevIds = prevItemIdsRef.current
 
-    if (prevIds.size > 0 && currentIds.size === prevIds.size + 1) {
-      // Exactly one new item
+    if (prevIds.size > 0 && currentIds.size > prevIds.size) {
+      const newIds: string[] = []
       for (const id of currentIds) {
-        if (!prevIds.has(id)) {
-          newNodeIdRef.current = id
-          newNodeTimeRef.current = Date.now()
-          // Find the new node and add it to simulation
-          const newNode = nodes.find(n => n.id === id)
-          if (newNode && addNode) addNode(newNode)
-          break
+        if (!prevIds.has(id)) newIds.push(id)
+      }
+
+      if (newIds.length > 0) {
+        const baseTime = Date.now()
+        const BATCH_STAGGER_MS = 120 // 120ms between each new star
+
+        for (let i = 0; i < newIds.length; i++) {
+          newNodeIdsRef.current.set(newIds[i], baseTime + i * BATCH_STAGGER_MS)
+          // For single new node, also set the legacy ref for backward compat
+          if (newIds.length === 1) {
+            newNodeIdRef.current = newIds[0]
+            newNodeTimeRef.current = baseTime
+          }
         }
+
+        // Add first new node to simulation (triggers warm restart)
+        const firstNew = nodes.find(n => n.id === newIds[0])
+        if (firstNew && addNode) addNode(firstNew)
+
+        // Restart animation loop
+        mountTimeRef.current = baseTime
+        setFadeProgress(0.99) // Trigger re-render for animation
       }
     }
 
@@ -469,8 +485,13 @@ export default function TravelGraph({
     // Stagger fade-in
     let fadeAlpha = 1
     if (fadeProgress < 1) {
-      // Check if this is the new node (special handling)
-      if (nodeId === newNodeIdRef.current) {
+      // Check if this is a batch-staggered new node
+      const batchTime = newNodeIdsRef.current.get(nodeId)
+      if (batchTime) {
+        const elapsed = Date.now() - batchTime
+        fadeAlpha = Math.min(1, elapsed / GRAPH.NEW_FADE)
+      } else if (nodeId === newNodeIdRef.current) {
+        // Legacy single-node handling
         const newElapsed = Date.now() - newNodeTimeRef.current
         fadeAlpha = Math.min(1, newElapsed / GRAPH.NEW_FADE)
       } else {
