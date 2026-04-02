@@ -28,11 +28,8 @@ interface ExtractedDisplayItem {
 interface UnpackScreenProps {
   onClose: () => void
   onComplete: (extractionId: string, entryId: string) => void
-  /** Pre-fill URL (when launching from an existing save) */
   initialUrl?: string
-  /** Pre-fill preview (when launching from an existing save) */
   initialPreview?: { title: string | null; image: string | null; site_name: string | null }
-  /** Existing entry ID (when scanning an existing save — skip quick-save) */
   sourceEntryId?: string
 }
 
@@ -51,21 +48,22 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 function extractCity(locationName: string | null): string | null {
   if (!locationName) return null
-  const parts = locationName.split(',')
-  return parts[0]?.trim() || null
+  return locationName.split(',')[0]?.trim() || null
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
+
+type Step = 'input' | 'processing' | 'done'
+type Status = 'reading' | 'extracting' | 'complete' | 'error'
 
 export default function UnpackScreen({ onClose, onComplete, initialUrl, initialPreview, sourceEntryId }: UnpackScreenProps) {
   const { user } = useAuth()
   const { toast } = useToast()
 
-  // Step state
-  const [step, setStep] = useState<'input' | 'processing'>('input')
+  const [step, setStep] = useState<Step>('input')
   const [visible, setVisible] = useState(false)
 
-  // Step 1 state
+  // Step 1
   const [urlInput, setUrlInput] = useState(initialUrl ?? '')
   const [preview, setPreview] = useState<OgPreview | null>(
     initialPreview ? { title: initialPreview.title, image: initialPreview.image, description: null, site_name: initialPreview.site_name } : null
@@ -74,17 +72,14 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
   const [starting, setStarting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // Step 2 state
+  // Step 2 + 3
   const [items, setItems] = useState<ExtractedDisplayItem[]>([])
   const [itemCount, setItemCount] = useState(0)
   const [prevCount, setPrevCount] = useState(0)
-  const [status, setStatus] = useState<'reading' | 'extracting' | 'complete' | 'failed' | 'error'>('reading')
+  const [status, setStatus] = useState<Status>('reading')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const [extractionId, setExtractionId] = useState<string | null>(null)
-  const [, setEntryId] = useState<string | null>(null)
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const pollStartRef = useRef<number>(0)
-  const POLL_TIMEOUT_MS = 45000 // 45s — allows time for Edge Function cold start + row creation
+  const [entryId, setEntryId] = useState<string | null>(sourceEntryId ?? null)
+  const cancelledRef = useRef(false)
 
   // Animate in
   useEffect(() => {
@@ -93,21 +88,16 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
   }, [])
 
   const handleClose = useCallback(() => {
-    // Cancel polling
-    if (pollRef.current) clearInterval(pollRef.current)
-    // If processing, mark as cancelled
-    if (extractionId) {
-      supabase.from('pending_extractions').update({ status: 'cancelled' }).eq('id', extractionId).then(() => {})
-    }
+    cancelledRef.current = true
     setVisible(false)
     setTimeout(onClose, 200)
-  }, [extractionId, onClose])
+  }, [onClose])
 
-  // ── Step 1: OG preview fetch ──
+  // ── Step 1: OG preview ──
   useEffect(() => {
     if (!urlInput || urlInput.length < 10) { setPreview(null); return }
     let isUrl = false
-    try { new URL(urlInput); isUrl = true } catch { /* not a URL */ }
+    try { new URL(urlInput); isUrl = true } catch { /* */ }
     if (!isUrl) { setPreview(null); return }
 
     const timer = setTimeout(async () => {
@@ -121,19 +111,16 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
     return () => clearTimeout(timer)
   }, [urlInput, user?.id])
 
-  // ── Step 1: Start extraction ──
+  // ── Start: client-orchestrated extraction ──
   const handleStart = useCallback(async () => {
     if (!urlInput || !user || starting) return
     setStarting(true)
+    cancelledRef.current = false
 
     try {
-      let entryIdToUse: string
-
-      if (sourceEntryId) {
-        // Launching from an existing save — don't create a new entry
-        entryIdToUse = sourceEntryId
-      } else {
-        // Quick-save the URL as a regular entry
+      // Quick-save the URL if no existing entry
+      let currentEntryId = entryId
+      if (!currentEntryId) {
         const { data: entry, error } = await supabase.from('saved_items').insert({
           user_id: user.id,
           source_type: 'url',
@@ -148,126 +135,169 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
         }).select('id').single()
 
         if (error || !entry) {
-          console.error('[unpack] Save failed:', error?.message)
           toast('Failed to save URL')
           setStarting(false)
           return
         }
-        entryIdToUse = entry.id
+        currentEntryId = entry.id
+        setEntryId(entry.id)
       }
 
-      setEntryId(entryIdToUse)
-
-      // Call Edge Function — fire and monitor (don't await completion)
-      const session = (await supabase.auth.getSession()).data.session
-      if (!session) { setStarting(false); return }
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
-
-      // Transition to processing immediately
+      // Transition to processing
       setStep('processing')
       setStatus('reading')
       setErrorMessage(null)
 
-      // Launch fetch in background — monitor for failure without blocking
-      fetch(`${supabaseUrl}/functions/v1/extract-multi-items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': anonKey,
-        },
-        body: JSON.stringify({
-          url: urlInput,
-          user_id: user.id,
-          entry_id: entryIdToUse,
-          source_content: preview?.source_content || null,
-        }),
-        signal: AbortSignal.timeout(120000), // 2min max
-      }).then(response => {
-        if (!response.ok) {
-          console.error(`[unpack] Edge Function returned HTTP ${response.status}`)
-          // Only set error if not already complete
-          setStatus(prev => prev === 'complete' ? prev : 'error')
-          setErrorMessage("Server error. Please try again.")
-          if (pollRef.current) clearInterval(pollRef.current)
-        }
-      }).catch(err => {
-        console.error('[unpack] Edge Function call failed:', err)
-        setStatus(prev => prev === 'complete' ? prev : 'error')
-        setErrorMessage("Couldn't reach the server. Please try again.")
-        if (pollRef.current) clearInterval(pollRef.current)
-      })
+      // Step 1: Prepare — get chunks from Edge Function
+      const session = (await supabase.auth.getSession()).data.session
+      if (!session) { setStarting(false); return }
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': anonKey,
+      }
 
-      // Start polling immediately (don't wait for fetch to complete)
-      // Use a ref for the last known count to avoid stale closure
-      let lastKnownCount = 0
-      let foundRow = false
-      pollStartRef.current = Date.now()
+      let prepareRes: Response
+      try {
+        prepareRes = await fetch(`${supabaseUrl}/functions/v1/prepare-extraction`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ url: urlInput, source_content: preview?.source_content || null }),
+          signal: AbortSignal.timeout(20000),
+        })
+      } catch (err) {
+        console.error('[unpack] prepare-extraction failed:', err)
+        setStatus('error')
+        setErrorMessage("Couldn't read the article. Please try again.")
+        return
+      }
 
-      pollRef.current = setInterval(async () => {
+      if (!prepareRes.ok) {
+        setStatus('error')
+        setErrorMessage("Couldn't read the article. Please try again.")
+        return
+      }
+
+      const prepareData = await prepareRes.json() as {
+        success: boolean; chunks?: string[]; title?: string; thumbnail?: string; domain?: string; error?: string
+      }
+
+      if (!prepareData.success || !prepareData.chunks?.length) {
+        setStatus('error')
+        setErrorMessage(prepareData.error === 'content_too_short' ? 'Article is too short to extract places from.' : "Couldn't read the article.")
+        return
+      }
+
+      const { chunks, title: articleTitle } = prepareData
+      // Update preview with fetched metadata if we didn't have it
+      if (!preview?.title && articleTitle) {
+        setPreview(prev => prev ? { ...prev, title: articleTitle } : { title: articleTitle, image: prepareData.thumbnail ?? null, description: null, site_name: null })
+      }
+
+      setStatus('extracting')
+
+      // Step 2: Extract each chunk sequentially
+      const allItems: ExtractedDisplayItem[] = []
+      const seenNames = new Set<string>()
+
+      for (let i = 0; i < chunks.length; i++) {
+        if (cancelledRef.current) return
+
         try {
-          const { data } = await supabase
-            .from('pending_extractions')
-            .select('id, status, item_count, extracted_items')
-            .eq('source_entry_id', entryIdToUse)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle()
+          const chunkRes = await fetch(`${supabaseUrl}/functions/v1/extract-chunk`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              chunk: chunks[i],
+              title: articleTitle ?? 'Untitled',
+              chunk_index: i,
+              total_chunks: chunks.length,
+            }),
+            signal: AbortSignal.timeout(45000),
+          })
 
-          // Timeout: if no row found within 30 seconds, show error
-          if (!data) {
-            if (!foundRow && Date.now() - pollStartRef.current > POLL_TIMEOUT_MS) {
-              if (pollRef.current) clearInterval(pollRef.current)
-              setStatus('error')
-              setErrorMessage('Something went wrong. Please try again.')
+          if (!chunkRes.ok) {
+            console.error(`[unpack] extract-chunk ${i + 1} failed: HTTP ${chunkRes.status}`)
+            continue // Skip this chunk, try the next
+          }
+
+          const chunkData = await chunkRes.json() as {
+            success: boolean; items?: ExtractedDisplayItem[]; item_count?: number
+          }
+
+          if (chunkData.success && chunkData.items?.length) {
+            // Deduplicate across chunks
+            const newItems: ExtractedDisplayItem[] = []
+            for (const item of chunkData.items) {
+              const key = item.name.toLowerCase().trim()
+              if (!seenNames.has(key)) {
+                seenNames.add(key)
+                newItems.push(item)
+              }
             }
-            return
-          }
 
-          foundRow = true
-          setExtractionId(data.id)
-
-          const newItems = Array.isArray(data.extracted_items) ? data.extracted_items as ExtractedDisplayItem[] : []
-          const newCount = data.item_count ?? newItems.length
-
-          if (newCount > lastKnownCount) {
-            const prev = lastKnownCount
-            lastKnownCount = newCount
-            setPrevCount(prev)
-            setItemCount(newCount)
-            setItems(newItems)
-            setStatus(s => s === 'reading' ? 'extracting' : s)
-          }
-
-          if (data.status === 'complete') {
-            setStatus('complete')
-            setItemCount(newCount)
-            setItems(newItems)
-            if (pollRef.current) clearInterval(pollRef.current)
-            setTimeout(() => onComplete(data.id, entryIdToUse), 1500)
-          }
-
-          if (data.status === 'failed') {
-            setStatus('failed')
-            setErrorMessage('Extraction failed. The article may not contain extractable places.')
-            if (pollRef.current) clearInterval(pollRef.current)
+            if (newItems.length > 0) {
+              allItems.push(...newItems)
+              // Update UI — items appear progressively
+              setPrevCount(itemCount)
+              setItemCount(allItems.length)
+              setItems([...allItems])
+            }
           }
         } catch (err) {
-          console.error('[unpack] Poll error:', err)
+          console.error(`[unpack] Chunk ${i + 1} error:`, err)
+          // Continue with next chunk
         }
-      }, 2000)
+
+        // Brief pause for animation
+        if (i < chunks.length - 1) {
+          await new Promise(r => setTimeout(r, 300))
+        }
+      }
+
+      if (cancelledRef.current) return
+
+      if (allItems.length === 0) {
+        setStatus('error')
+        setErrorMessage('No places found in this article.')
+        return
+      }
+
+      // Step 3: Done — show completion screen
+      setStatus('complete')
+      setStep('done')
 
     } catch (err) {
       console.error('[unpack] Start failed:', err)
-      toast('Something went wrong')
-      setStarting(false)
+      setStatus('error')
+      setErrorMessage('Something went wrong. Please try again.')
     }
-  }, [urlInput, user, starting, preview, toast, onComplete, extractionId, itemCount, status])
+  }, [urlInput, user, starting, preview, entryId, toast, itemCount])
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => { if (pollRef.current) clearInterval(pollRef.current) }
-  }, [])
+  // ── Save to Horizon (user taps button on completion screen) ──
+  const handleSave = useCallback(async () => {
+    if (!user || !entryId || items.length === 0) return
+
+    // Write to pending_extractions so createRouteFromExtraction can read it
+    const { data: extraction, error } = await supabase.from('pending_extractions').insert({
+      user_id: user.id,
+      source_entry_id: entryId,
+      source_url: urlInput,
+      extracted_items: items,
+      content_type: 'listicle',
+      status: 'complete',
+      item_count: items.length,
+    }).select('id').single()
+
+    if (error || !extraction) {
+      console.error('[unpack] Failed to store extraction:', error?.message)
+      toast('Failed to save')
+      return
+    }
+
+    onComplete(extraction.id, entryId)
+  }, [user, entryId, items, urlInput, toast, onComplete])
 
   // ── Render: group items by section ──
   const sections = items.reduce<Map<string, ExtractedDisplayItem[]>>((acc, item) => {
@@ -292,7 +322,6 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
       {step === 'input' ? (
         /* ── Step 1: URL Input + Preview ── */
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          {/* Top bar */}
           <div style={{
             display: 'flex', justifyContent: 'space-between', alignItems: 'center',
             padding: '12px 16px', paddingTop: 'calc(12px + env(safe-area-inset-top))',
@@ -301,18 +330,13 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               background: 'none', border: 'none', cursor: 'pointer',
               color: 'var(--color-text-secondary, #8088a0)',
               fontFamily: "'DM Sans', sans-serif", fontSize: 14,
-            }}>
-              Cancel
-            </button>
+            }}>Cancel</button>
             <span style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
               color: 'var(--color-text-tertiary, #4a5068)', textTransform: 'lowercase',
-            }}>
-              unpack
-            </span>
+            }}>unpack</span>
           </div>
 
-          {/* URL input */}
           <div style={{ padding: '24px 20px 0' }}>
             <input
               ref={inputRef}
@@ -331,7 +355,6 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             />
           </div>
 
-          {/* OG Preview */}
           {loadingPreview && (
             <div style={{ padding: '20px', textAlign: 'center' }}>
               <span style={{ color: 'var(--color-text-secondary)', fontSize: 13 }}>Loading preview...</span>
@@ -340,52 +363,34 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           {preview && !loadingPreview && (
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               {preview.image && (
-                <img
-                  src={preview.image}
-                  alt=""
-                  style={{ width: 200, maxWidth: '100%', borderRadius: 8, marginBottom: 12, objectFit: 'cover' }}
-                />
+                <img src={preview.image} alt="" style={{ width: 200, maxWidth: '100%', borderRadius: 8, marginBottom: 12, objectFit: 'cover' }} />
               )}
-              <div style={{
-                fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500,
-                color: 'var(--color-text-primary, #e4e8f0)',
-                textAlign: 'center', maxWidth: 300,
-              }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500, color: 'var(--color-text-primary, #e4e8f0)', textAlign: 'center', maxWidth: 300 }}>
                 {preview.title || urlInput}
               </div>
-              <div style={{
-                fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                color: 'var(--color-text-secondary, #8088a0)',
-                marginTop: 4,
-              }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-secondary, #8088a0)', marginTop: 4 }}>
                 {extractDomain(urlInput)}
               </div>
             </div>
           )}
 
-          {/* Start button */}
           {urlInput.length > 10 && (
             <div style={{ padding: '20px', marginTop: 'auto' }}>
-              <button
-                type="button"
-                onClick={handleStart}
-                disabled={starting}
-                style={{
-                  width: '100%', padding: '14px 0',
-                  background: starting ? '#8a4020' : '#c45a2d', color: '#fff',
-                  border: 'none', borderRadius: 12, cursor: starting ? 'default' : 'pointer',
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
-                }}
-              >
+              <button type="button" onClick={handleStart} disabled={starting} style={{
+                width: '100%', padding: '14px 0',
+                background: starting ? '#8a4020' : '#c45a2d', color: '#fff',
+                border: 'none', borderRadius: 12, cursor: starting ? 'default' : 'pointer',
+                fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
+              }}>
                 {starting ? 'Starting...' : 'Start'}
               </button>
             </div>
           )}
         </div>
       ) : (
-        /* ── Step 2: Processing ── */
+        /* ── Step 2 (processing) + Step 3 (done) ── */
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Top bar: cancel + compact article card */}
+          {/* Top bar */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '10px 16px', paddingTop: 'calc(10px + env(safe-area-inset-top))',
@@ -401,11 +406,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               <img src={preview.image} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{
-                fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
-                color: 'var(--color-text-primary, #e4e8f0)',
-                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-              }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary, #e4e8f0)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {preview?.title || urlInput}
               </div>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--color-text-secondary)' }}>
@@ -418,22 +419,13 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           <div style={{ textAlign: 'center', padding: '24px 0 16px' }}>
             <div style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 36, fontWeight: 500,
-              color: '#c45a2d', lineHeight: 1,
-              overflow: 'hidden', height: 40,
+              color: '#c45a2d', lineHeight: 1, overflow: 'hidden', height: 40,
             }}>
-              <div
-                key={itemCount}
-                style={{
-                  animation: itemCount > prevCount ? 'slideUp 200ms ease forwards' : 'none',
-                }}
-              >
+              <div key={itemCount} style={{ animation: itemCount > prevCount ? 'slideUp 200ms ease forwards' : 'none' }}>
                 {itemCount}
               </div>
             </div>
-            <div style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-              color: 'var(--color-text-secondary, #8088a0)', marginTop: 4,
-            }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-secondary, #8088a0)', marginTop: 4 }}>
               places found
             </div>
           </div>
@@ -442,7 +434,6 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px' }}>
             {[...sections.entries()].map(([label, sectionItems]) => (
               <div key={label} style={{ marginBottom: 16 }}>
-                {/* Section header */}
                 <div style={{
                   fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
                   textTransform: 'uppercase', letterSpacing: '0.04em',
@@ -452,23 +443,14 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                 }}>
                   {label}
                 </div>
-
-                {/* Items */}
                 {sectionItems.map((item, i) => (
-                  <div
-                    key={`${label}-${i}`}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 10,
-                      padding: '8px 0',
-                      borderBottom: '0.5px solid var(--color-surface-elevated, #1c2035)',
-                      animation: 'fadeSlideIn 200ms ease forwards',
-                    }}
-                  >
+                  <div key={`${label}-${i}`} style={{
+                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0',
+                    borderBottom: '0.5px solid var(--color-surface-elevated, #1c2035)',
+                    animation: 'fadeSlideIn 200ms ease forwards',
+                  }}>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
-                        color: 'var(--color-text-primary, #e4e8f0)',
-                      }}>
+                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary, #e4e8f0)' }}>
                         {item.name}
                       </div>
                       <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
@@ -490,7 +472,6 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                           </span>
                         )}
                       </div>
-                      {/* Context from article */}
                       {item.context && (
                         <div style={{
                           fontFamily: "'DM Sans', sans-serif", fontSize: 12,
@@ -503,95 +484,71 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                         </div>
                       )}
                     </div>
-                    <Check size={14} color="#5b8a72" style={{ flexShrink: 0, alignSelf: 'flex-start', marginTop: 4 }} />
+                    <Check size={14} color="#5b8a72" style={{ flexShrink: 0, marginTop: 4 }} />
                   </div>
                 ))}
               </div>
             ))}
           </div>
 
-          {/* Bottom status */}
+          {/* Bottom bar */}
           <div style={{
-            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
             padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
             borderTop: '0.5px solid var(--color-surface-elevated, #1c2035)',
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              {status !== 'complete' && status !== 'failed' && status !== 'error' && (
-                <div style={{
-                  width: 6, height: 6, borderRadius: '50%', background: '#c45a2d',
-                  animation: 'pulse 1.5s ease infinite',
-                }} />
-              )}
-              <span style={{
-                fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                color: status === 'complete' ? '#5b8a72'
-                  : (status === 'failed' || status === 'error') ? '#c44a3d'
-                  : 'var(--color-text-secondary, #8088a0)',
-              }}>
-                {status === 'reading' ? 'Reading article...'
-                  : status === 'extracting' ? 'Extracting places...'
-                  : status === 'complete' ? `Complete — ${itemCount} places found`
-                  : errorMessage ?? 'Extraction failed'}
-              </span>
-            </div>
-
-            {/* Retry + Cancel buttons on error/failure */}
-            {(status === 'error' || status === 'failed') && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  style={{
+            {status === 'error' ? (
+              /* Error state */
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#c44a3d' }}>
+                  {errorMessage ?? 'Something went wrong.'}
+                </span>
+                <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'center' }}>
+                  <button type="button" onClick={handleClose} style={{
                     padding: '8px 20px', background: 'none',
                     border: '1px solid var(--color-surface-elevated, #1c2035)',
                     borderRadius: 8, cursor: 'pointer',
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                    color: 'var(--color-text-secondary, #8088a0)',
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep('input')
-                    setStatus('reading')
-                    setErrorMessage(null)
-                    setItems([])
-                    setItemCount(0)
-                    setPrevCount(0)
-                    setExtractionId(null)
-                    setStarting(false)
-                  }}
-                  style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-secondary, #8088a0)',
+                  }}>Cancel</button>
+                  <button type="button" onClick={() => { setStep('input'); setStatus('reading'); setErrorMessage(null); setItems([]); setItemCount(0); setPrevCount(0); setStarting(false) }} style={{
                     padding: '8px 20px', background: '#c45a2d', color: '#fff',
                     border: 'none', borderRadius: 8, cursor: 'pointer',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
-                  }}
-                >
-                  Try again
-                </button>
+                  }}>Try again</button>
+                </div>
               </div>
-            )}
-
-            {/* View Route button on completion (seamless, no white page) */}
-            {status === 'complete' && (
-              <div style={{ width: '100%', padding: '4px 0 0' }}>
-                <div style={{
+            ) : step === 'done' ? (
+              /* Completion state — stays until user taps */
+              <div>
+                <button type="button" onClick={handleSave} style={{
+                  width: '100%', padding: '14px 0',
+                  background: '#c45a2d', color: '#fff',
+                  border: 'none', borderRadius: 12, cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
+                }}>
+                  Save to Horizon
+                </button>
+                <button type="button" onClick={handleClose} style={{
+                  width: '100%', padding: '10px 0', marginTop: 4,
+                  background: 'none', border: 'none', cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif", fontSize: 13,
                   color: 'var(--color-text-secondary, #8088a0)',
-                  textAlign: 'center', marginBottom: 8,
                 }}>
-                  Creating your group...
-                </div>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              /* Processing state */
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#c45a2d', animation: 'pulse 1.5s ease infinite' }} />
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-secondary, #8088a0)' }}>
+                  {status === 'reading' ? 'Reading article...' : 'Extracting places...'}
+                </span>
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* CSS animations */}
       <style>{`
         @keyframes slideUp {
           from { transform: translateY(100%); opacity: 0; }
