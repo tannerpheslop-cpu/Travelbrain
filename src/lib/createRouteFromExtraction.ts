@@ -115,7 +115,7 @@ export async function createRouteFromExtraction(
     // Read full extraction data
     const { data: extraction, error: fetchErr } = await supabase
       .from('pending_extractions')
-      .select('extracted_items')
+      .select('extracted_items, source_entry_id')
       .eq('id', extractionId)
       .single()
 
@@ -206,6 +206,14 @@ export async function createRouteFromExtraction(
       .from('pending_extractions')
       .update({ status: 'saved' })
       .eq('id', extractionId)
+
+    // Clear has_pending_extraction on the source entry
+    if (extraction.source_entry_id) {
+      await supabase
+        .from('saved_items')
+        .update({ has_pending_extraction: false })
+        .eq('id', extraction.source_entry_id)
+    }
 
     console.log(`[createRoute] Created Route "${routeName}" with ${savedItems.length} items`)
 

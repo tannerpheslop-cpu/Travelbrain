@@ -78,10 +78,13 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
   const [items, setItems] = useState<ExtractedDisplayItem[]>([])
   const [itemCount, setItemCount] = useState(0)
   const [prevCount, setPrevCount] = useState(0)
-  const [status, setStatus] = useState<'reading' | 'extracting' | 'complete' | 'failed'>('reading')
+  const [status, setStatus] = useState<'reading' | 'extracting' | 'complete' | 'failed' | 'error'>('reading')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [extractionId, setExtractionId] = useState<string | null>(null)
   const [, setEntryId] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollStartRef = useRef<number>(0)
+  const POLL_TIMEOUT_MS = 30000
 
   // Animate in
   useEffect(() => {
@@ -155,31 +158,48 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
       setEntryId(entryIdToUse)
 
-      // Call Edge Function (fire and forget — it writes to pending_extractions)
+      // Call Edge Function with failure detection
       const session = (await supabase.auth.getSession()).data.session
       if (!session) { setStarting(false); return }
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
 
-      fetch(`${supabaseUrl}/functions/v1/extract-multi-items`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': anonKey,
-        },
-        body: JSON.stringify({
-          url: urlInput,
-          user_id: user.id,
-          entry_id: entryIdToUse,
-          source_content: preview?.source_content || null,
-        }),
-      }).catch(err => console.error('[unpack] Edge Function call failed:', err))
-
-      // Transition to processing
+      // Transition to processing immediately
       setStep('processing')
       setStatus('reading')
+      setErrorMessage(null)
 
-      // Start polling
+      try {
+        const response = await fetch(`${supabaseUrl}/functions/v1/extract-multi-items`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+            'apikey': anonKey,
+          },
+          body: JSON.stringify({
+            url: urlInput,
+            user_id: user.id,
+            entry_id: entryIdToUse,
+            source_content: preview?.source_content || null,
+          }),
+          signal: AbortSignal.timeout(60000), // 60s max for the extraction call
+        })
+
+        if (!response.ok) {
+          console.error(`[unpack] Edge Function returned HTTP ${response.status}`)
+          setStatus('error')
+          setErrorMessage("Couldn't reach the server. Please try again.")
+          return
+        }
+      } catch (err) {
+        console.error('[unpack] Edge Function call failed:', err)
+        setStatus('error')
+        setErrorMessage("Couldn't reach the server. Please try again.")
+        return
+      }
+
+      // Start polling with timeout
+      pollStartRef.current = Date.now()
       pollRef.current = setInterval(async () => {
         const { data } = await supabase
           .from('pending_extractions')
@@ -189,7 +209,15 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           .limit(1)
           .maybeSingle()
 
-        if (!data) return
+        // Timeout: if no row found within 30 seconds, show error
+        if (!data) {
+          if (Date.now() - pollStartRef.current > POLL_TIMEOUT_MS) {
+            if (pollRef.current) clearInterval(pollRef.current)
+            setStatus('error')
+            setErrorMessage('Something went wrong. Please try again.')
+          }
+          return
+        }
 
         if (!extractionId) setExtractionId(data.id)
 
@@ -208,12 +236,12 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           setItemCount(newCount)
           setItems(newItems)
           if (pollRef.current) clearInterval(pollRef.current)
-          // Trigger Route creation after a moment
           setTimeout(() => onComplete(data.id, entryIdToUse), 1500)
         }
 
         if (data.status === 'failed') {
           setStatus('failed')
+          setErrorMessage('Extraction failed. The article may not contain extractable places.')
           if (pollRef.current) clearInterval(pollRef.current)
         }
       }, 2000)
@@ -461,27 +489,69 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
           {/* Bottom status */}
           <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
             padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
             borderTop: '0.5px solid var(--color-surface-elevated, #1c2035)',
           }}>
-            {status !== 'complete' && status !== 'failed' && (
-              <div style={{
-                width: 6, height: 6, borderRadius: '50%', background: '#c45a2d',
-                animation: 'pulse 1.5s ease infinite',
-              }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {status !== 'complete' && status !== 'failed' && status !== 'error' && (
+                <div style={{
+                  width: 6, height: 6, borderRadius: '50%', background: '#c45a2d',
+                  animation: 'pulse 1.5s ease infinite',
+                }} />
+              )}
+              <span style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                color: status === 'complete' ? '#5b8a72'
+                  : (status === 'failed' || status === 'error') ? '#c44a3d'
+                  : 'var(--color-text-secondary, #8088a0)',
+              }}>
+                {status === 'reading' ? 'Reading article...'
+                  : status === 'extracting' ? 'Extracting places...'
+                  : status === 'complete' ? `Complete — ${itemCount} places found`
+                  : errorMessage ?? 'Extraction failed'}
+              </span>
+            </div>
+
+            {/* Retry + Cancel buttons on error/failure */}
+            {(status === 'error' || status === 'failed') && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  style={{
+                    padding: '8px 20px', background: 'none',
+                    border: '1px solid var(--color-surface-elevated, #1c2035)',
+                    borderRadius: 8, cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                    color: 'var(--color-text-secondary, #8088a0)',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Reset state and restart
+                    setStep('input')
+                    setStatus('reading')
+                    setErrorMessage(null)
+                    setItems([])
+                    setItemCount(0)
+                    setPrevCount(0)
+                    setExtractionId(null)
+                    setStarting(false)
+                  }}
+                  style={{
+                    padding: '8px 20px', background: '#c45a2d', color: '#fff',
+                    border: 'none', borderRadius: 8, cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+                  }}
+                >
+                  Try again
+                </button>
+              </div>
             )}
-            <span style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-              color: status === 'complete' ? '#5b8a72'
-                : status === 'failed' ? '#c44a3d'
-                : 'var(--color-text-secondary, #8088a0)',
-            }}>
-              {status === 'reading' ? 'Reading article...'
-                : status === 'extracting' ? 'Extracting places...'
-                : status === 'complete' ? `Complete — ${itemCount} places found`
-                : 'Extraction failed'}
-            </span>
           </div>
         </div>
       )}
