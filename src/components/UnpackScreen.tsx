@@ -158,7 +158,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
       setEntryId(entryIdToUse)
 
-      // Call Edge Function with failure detection
+      // Call Edge Function — fire and monitor (don't await completion)
       const session = (await supabase.auth.getSession()).data.session
       if (!session) { setStarting(false); return }
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
@@ -168,81 +168,92 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
       setStatus('reading')
       setErrorMessage(null)
 
-      try {
-        const response = await fetch(`${supabaseUrl}/functions/v1/extract-multi-items`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-            'apikey': anonKey,
-          },
-          body: JSON.stringify({
-            url: urlInput,
-            user_id: user.id,
-            entry_id: entryIdToUse,
-            source_content: preview?.source_content || null,
-          }),
-          signal: AbortSignal.timeout(60000), // 60s max for the extraction call
-        })
-
+      // Launch fetch in background — monitor for failure without blocking
+      fetch(`${supabaseUrl}/functions/v1/extract-multi-items`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': anonKey,
+        },
+        body: JSON.stringify({
+          url: urlInput,
+          user_id: user.id,
+          entry_id: entryIdToUse,
+          source_content: preview?.source_content || null,
+        }),
+        signal: AbortSignal.timeout(120000), // 2min max
+      }).then(response => {
         if (!response.ok) {
           console.error(`[unpack] Edge Function returned HTTP ${response.status}`)
-          setStatus('error')
-          setErrorMessage("Couldn't reach the server. Please try again.")
-          return
+          // Only set error if not already complete
+          setStatus(prev => prev === 'complete' ? prev : 'error')
+          setErrorMessage("Server error. Please try again.")
+          if (pollRef.current) clearInterval(pollRef.current)
         }
-      } catch (err) {
+      }).catch(err => {
         console.error('[unpack] Edge Function call failed:', err)
-        setStatus('error')
+        setStatus(prev => prev === 'complete' ? prev : 'error')
         setErrorMessage("Couldn't reach the server. Please try again.")
-        return
-      }
+        if (pollRef.current) clearInterval(pollRef.current)
+      })
 
-      // Start polling with timeout
+      // Start polling immediately (don't wait for fetch to complete)
+      // Use a ref for the last known count to avoid stale closure
+      let lastKnownCount = 0
+      let foundRow = false
       pollStartRef.current = Date.now()
+
       pollRef.current = setInterval(async () => {
-        const { data } = await supabase
-          .from('pending_extractions')
-          .select('id, status, item_count, extracted_items')
-          .eq('source_entry_id', entryIdToUse)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
+        try {
+          const { data } = await supabase
+            .from('pending_extractions')
+            .select('id, status, item_count, extracted_items')
+            .eq('source_entry_id', entryIdToUse)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle()
 
-        // Timeout: if no row found within 30 seconds, show error
-        if (!data) {
-          if (Date.now() - pollStartRef.current > POLL_TIMEOUT_MS) {
-            if (pollRef.current) clearInterval(pollRef.current)
-            setStatus('error')
-            setErrorMessage('Something went wrong. Please try again.')
+          // Timeout: if no row found within 30 seconds, show error
+          if (!data) {
+            if (!foundRow && Date.now() - pollStartRef.current > POLL_TIMEOUT_MS) {
+              if (pollRef.current) clearInterval(pollRef.current)
+              setStatus('error')
+              setErrorMessage('Something went wrong. Please try again.')
+            }
+            return
           }
-          return
-        }
 
-        if (!extractionId) setExtractionId(data.id)
+          foundRow = true
+          setExtractionId(data.id)
 
-        const newItems = Array.isArray(data.extracted_items) ? data.extracted_items as ExtractedDisplayItem[] : []
-        const newCount = data.item_count ?? newItems.length
+          const newItems = Array.isArray(data.extracted_items) ? data.extracted_items as ExtractedDisplayItem[] : []
+          const newCount = data.item_count ?? newItems.length
 
-        if (newCount > itemCount) {
-          setPrevCount(itemCount)
-          setItemCount(newCount)
-          setItems(newItems)
-          if (status === 'reading') setStatus('extracting')
-        }
+          if (newCount > lastKnownCount) {
+            const prev = lastKnownCount
+            lastKnownCount = newCount
+            setPrevCount(prev)
+            setItemCount(newCount)
+            setItems(newItems)
+            setStatus(s => s === 'reading' ? 'extracting' : s)
+          }
 
-        if (data.status === 'complete') {
-          setStatus('complete')
-          setItemCount(newCount)
-          setItems(newItems)
-          if (pollRef.current) clearInterval(pollRef.current)
-          setTimeout(() => onComplete(data.id, entryIdToUse), 1500)
-        }
+          if (data.status === 'complete') {
+            setStatus('complete')
+            setItemCount(newCount)
+            setItems(newItems)
+            if (pollRef.current) clearInterval(pollRef.current)
+            setTimeout(() => onComplete(data.id, entryIdToUse), 1500)
+          }
 
-        if (data.status === 'failed') {
-          setStatus('failed')
-          setErrorMessage('Extraction failed. The article may not contain extractable places.')
-          if (pollRef.current) clearInterval(pollRef.current)
+          if (data.status === 'failed') {
+            setStatus('failed')
+            setErrorMessage('Extraction failed. The article may not contain extractable places.')
+            if (pollRef.current) clearInterval(pollRef.current)
+          }
+        } catch (err) {
+          console.error('[unpack] Poll error:', err)
         }
       }, 2000)
 
