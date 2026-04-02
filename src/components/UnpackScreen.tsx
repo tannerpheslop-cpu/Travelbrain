@@ -328,7 +328,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           }}>
             <button type="button" onClick={handleClose} style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--color-text-secondary, #8088a0)',
+              color: '#b8c8e0',
               fontFamily: "'DM Sans', sans-serif", fontSize: 14,
             }}>Cancel</button>
             <span style={{
@@ -343,16 +343,22 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               type="url"
               value={urlInput}
               onChange={e => setUrlInput(e.target.value)}
-              placeholder="Paste an article or video URL"
+              placeholder="Paste a link or article text"
               style={{
                 width: '100%', padding: '14px 16px',
-                background: 'var(--color-surface, #141828)',
-                border: '0.5px solid var(--color-surface-elevated, #1c2035)',
+                background: '#1c2035',
+                border: '0.5px solid rgba(255,255,255,0.1)',
                 borderRadius: 10, outline: 'none',
                 fontFamily: "'DM Sans', sans-serif", fontSize: 16,
-                color: 'var(--color-text-primary, #e4e8f0)',
+                color: '#e4e8f0',
               }}
             />
+            <div style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+              color: '#8088a0', marginTop: 8, textAlign: 'center',
+            }}>
+              Find restaurants, attractions, and more
+            </div>
           </div>
 
           {loadingPreview && (
