@@ -24,29 +24,127 @@ function decodeHtml(text: string): string {
     })
 }
 
-function cleanHtmlToText(html: string): string {
-  let text = html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/<nav[\s\S]*?<\/nav>/gi, "")
-    .replace(/<footer[\s\S]*?<\/footer>/gi, "")
-    .replace(/<header[\s\S]*?<\/header>/gi, "")
-    .replace(/<aside[\s\S]*?<\/aside>/gi, "")
-    .replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
-    .replace(/<svg[\s\S]*?<\/svg>/gi, "")
+// ── Boilerplate class/id patterns to strip ──────────────────────────────────
 
-  text = text.replace(/<\/(p|div|section|article|h[1-6]|li|tr|br\s*\/?)>/gi, "\n\n")
-  text = text.replace(/<br\s*\/?>/gi, "\n")
-  text = text.replace(/<[^>]*>/g, " ")
-  text = decodeHtml(text)
-  text = text.replace(/[^\S\n]+/g, " ")
-  text = text.replace(/\n\s*\n/g, "\n\n")
-  return text.trim()
+const BOILERPLATE_PATTERNS = [
+  "comment", "sidebar", "widget", "newsletter", "subscribe", "signup",
+  "cookie", "consent", "popup", "modal", "advertisement", "ad-", "ad_",
+  "sponsor", "related-post", "related_post", "share", "social",
+  "author-bio", "author_bio", "disqus", "footer-nav", "menu-item",
+  "breadcrumb", "pagination", "wp-block-group", "printfriendly",
+]
+
+function cleanHtmlToText(html: string): string {
+  let h = html
+
+  // 1. Remove non-content elements
+  h = h.replace(/<script[\s\S]*?<\/script>/gi, "")
+  h = h.replace(/<style[\s\S]*?<\/style>/gi, "")
+  h = h.replace(/<nav[\s\S]*?<\/nav>/gi, "")
+  h = h.replace(/<footer[\s\S]*?<\/footer>/gi, "")
+  h = h.replace(/<header[\s\S]*?<\/header>/gi, "")
+  h = h.replace(/<aside[\s\S]*?<\/aside>/gi, "")
+  h = h.replace(/<noscript[\s\S]*?<\/noscript>/gi, "")
+  h = h.replace(/<svg[\s\S]*?<\/svg>/gi, "")
+  h = h.replace(/<form[\s\S]*?<\/form>/gi, "")
+  h = h.replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
+
+  // 2. Remove elements with boilerplate class/id patterns
+  for (const pattern of BOILERPLATE_PATTERNS) {
+    // Match elements whose class or id contains the pattern
+    const regex = new RegExp(
+      `<(div|section|aside|article|ul|ol|p|span)[^>]*(class|id)="[^"]*${pattern}[^"]*"[^>]*>[\\s\\S]*?<\\/\\1>`,
+      "gi"
+    )
+    h = h.replace(regex, "")
+  }
+
+  // 3. Convert block elements to line breaks, strip remaining tags
+  h = h.replace(/<\/(p|div|section|article|h[1-6]|li|tr|br\s*\/?)>/gi, "\n\n")
+  h = h.replace(/<br\s*\/?>/gi, "\n")
+  h = h.replace(/<[^>]*>/g, " ")
+  h = decodeHtml(h)
+
+  // 4. Clean up whitespace
+  h = h.replace(/[^\S\n]+/g, " ")
+  h = h.replace(/\n\s*\n/g, "\n\n")
+
+  // 5. Remove boilerplate text patterns
+  const lines = h.split("\n")
+  const cleanLines = lines.filter(line => {
+    const trimmed = line.trim().toLowerCase()
+    if (!trimmed) return true // Keep blank lines
+
+    // Skip newsletter/subscribe prompts
+    if (/^(subscribe|sign up|enter your email|get our newsletter|join our|don't miss)/i.test(trimmed)) return false
+    // Skip affiliate disclaimers
+    if (/affiliate links?|contains? affiliate|sponsored post|disclosure:/i.test(trimmed)) return false
+    // Skip cookie notices
+    if (/^(we use cookies|we use your personal data|this site uses cookies)/i.test(trimmed)) return false
+    // Skip social share prompts
+    if (/^(pin for later|share on (facebook|twitter|pinterest)|follow us on|like us on)/i.test(trimmed)) return false
+    // Skip bare URLs
+    if (/^https?:\/\/\S+$/.test(trimmed) && trimmed.length < 200) return false
+    // Skip very short lines that look like UI labels
+    if (trimmed.length < 4 && !/^day/i.test(trimmed)) return false
+
+    return true
+  })
+
+  return cleanLines.join("\n").replace(/\n{3,}/g, "\n\n").trim()
 }
 
-function chunkText(text: string): string[] {
+// ── Section-aware chunking ───────────────────────────────────────────────────
+
+const DAY_MARKER_RE = /^(?:day\s*\d+|DAY\s*\d+|Day\s+(?:One|Two|Three|Four|Five|Six|Seven|Eight|Nine|Ten|\d+))\b/i
+
+function chunkText(text: string, articleTitle?: string): string[] {
   if (text.length <= CHUNK_SIZE) return [text]
 
+  // Try section-aware splitting first (at day markers)
+  const lines = text.split("\n")
+  const sectionBreaks: number[] = [0] // Start of each section (line index)
+
+  for (let i = 1; i < lines.length; i++) {
+    if (DAY_MARKER_RE.test(lines[i].trim())) {
+      sectionBreaks.push(i)
+    }
+  }
+
+  if (sectionBreaks.length >= 2) {
+    // Split at section boundaries
+    const sections: string[] = []
+    for (let i = 0; i < sectionBreaks.length; i++) {
+      const start = sectionBreaks[i]
+      const end = i + 1 < sectionBreaks.length ? sectionBreaks[i + 1] : lines.length
+      const sectionText = lines.slice(start, end).join("\n").trim()
+      if (sectionText.length > 50) sections.push(sectionText)
+    }
+
+    // Merge small sections to avoid too many tiny chunks
+    const merged: string[] = []
+    let current = ""
+    for (const section of sections) {
+      if (merged.length >= MAX_CHUNKS - 1) {
+        current += (current ? "\n\n" : "") + section
+        continue
+      }
+      if (current.length + section.length > CHUNK_SIZE * 1.2 && current.length > 500) {
+        merged.push(current.trim())
+        current = section
+      } else {
+        current += (current ? "\n\n" : "") + section
+      }
+    }
+    if (current.trim()) merged.push(current.trim())
+
+    if (merged.length >= 2) {
+      console.log(`[prepare] Section-aware split: ${merged.length} chunks from ${sectionBreaks.length} day markers`)
+      return merged.slice(0, MAX_CHUNKS)
+    }
+  }
+
+  // Fallback: paragraph-boundary splitting
   const paragraphs = text.split("\n\n")
   const chunks: string[] = []
   let current = ""
