@@ -11,7 +11,10 @@ import { SecondaryButton, ConfirmDeleteModal } from '../components/ui'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import type { SavedItem, Category, ExtractedItem } from '../types'
 import SelectionOverlay from '../components/SelectionOverlay'
-import { X } from 'lucide-react'
+import UnpackScreen from '../components/UnpackScreen'
+import { createRouteFromExtraction } from '../lib/createRouteFromExtraction'
+import { useToast } from '../components/Toast'
+import { X, Search } from 'lucide-react'
 
 const categoryPills: { value: Category; label: string }[] = [
   { value: 'restaurant', label: 'Food' },
@@ -71,7 +74,9 @@ export default function ItemDetailPage() {
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [showSelectionOverlay, setShowSelectionOverlay] = useState(false)
+  const [showUnpackScreen, setShowUnpackScreen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const { toast: globalToast } = useToast()
   const menuRef = useRef<HTMLDivElement>(null)
 
   const handleToast = (msg: string) => {
@@ -399,6 +404,39 @@ export default function ItemDetailPage() {
         </div>
       )}
 
+      {/* "Scan for places" — show on eligible URL saves */}
+      {item && item.source_type === 'url' && item.source_url && !item.route_id && !item.location_place_id && !pendingExtraction && (
+        <button
+          type="button"
+          onClick={() => setShowUnpackScreen(true)}
+          style={{
+            width: '100%', padding: '14px 16px', marginBottom: 12,
+            background: 'transparent',
+            border: '1px solid #e8e6e1',
+            borderRadius: 8, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 10,
+            textAlign: 'left',
+          }}
+        >
+          <div style={{
+            width: 36, height: 36, borderRadius: 8,
+            background: 'rgba(196, 90, 45, 0.08)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <Search size={16} color="#c45a2d" />
+          </div>
+          <div>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500, color: '#1a1d27', margin: 0 }}>
+              Scan for places
+            </p>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#888780', margin: '1px 0 0' }}>
+              Find restaurants, attractions, and more in this article
+            </p>
+          </div>
+        </button>
+      )}
+
       <input
         type="text"
         value={title}
@@ -645,6 +683,38 @@ export default function ItemDetailPage() {
         </div>
 
       </div>
+
+      {/* Unpack screen — launched from "Scan for places" */}
+      {showUnpackScreen && item && (
+        <UnpackScreen
+          initialUrl={item.source_url ?? undefined}
+          initialPreview={item.title && item.image_url ? {
+            title: item.title,
+            image: item.image_url,
+            site_name: item.site_name,
+          } : undefined}
+          sourceEntryId={item.id}
+          onClose={() => setShowUnpackScreen(false)}
+          onComplete={async (extractionId) => {
+            if (!user) return
+            const result = await createRouteFromExtraction(
+              extractionId,
+              user.id,
+              item.source_url ?? '',
+              item.title,
+              item.image_url,
+              item.site_name,
+            )
+            setShowUnpackScreen(false)
+            if (result) {
+              // Absorb original save into the Route
+              await supabase.from('saved_items').update({ route_id: result.routeId }).eq('id', item.id)
+              globalToast(`Created group with ${result.itemCount} places`)
+              navigate(`/route/${result.routeId}`)
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

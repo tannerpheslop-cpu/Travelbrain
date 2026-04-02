@@ -28,6 +28,12 @@ interface ExtractedDisplayItem {
 interface UnpackScreenProps {
   onClose: () => void
   onComplete: (extractionId: string, entryId: string) => void
+  /** Pre-fill URL (when launching from an existing save) */
+  initialUrl?: string
+  /** Pre-fill preview (when launching from an existing save) */
+  initialPreview?: { title: string | null; image: string | null; site_name: string | null }
+  /** Existing entry ID (when scanning an existing save — skip quick-save) */
+  sourceEntryId?: string
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -51,7 +57,7 @@ function extractCity(locationName: string | null): string | null {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export default function UnpackScreen({ onClose, onComplete }: UnpackScreenProps) {
+export default function UnpackScreen({ onClose, onComplete, initialUrl, initialPreview, sourceEntryId }: UnpackScreenProps) {
   const { user } = useAuth()
   const { toast } = useToast()
 
@@ -60,8 +66,10 @@ export default function UnpackScreen({ onClose, onComplete }: UnpackScreenProps)
   const [visible, setVisible] = useState(false)
 
   // Step 1 state
-  const [urlInput, setUrlInput] = useState('')
-  const [preview, setPreview] = useState<OgPreview | null>(null)
+  const [urlInput, setUrlInput] = useState(initialUrl ?? '')
+  const [preview, setPreview] = useState<OgPreview | null>(
+    initialPreview ? { title: initialPreview.title, image: initialPreview.image, description: null, site_name: initialPreview.site_name } : null
+  )
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [starting, setStarting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -116,28 +124,36 @@ export default function UnpackScreen({ onClose, onComplete }: UnpackScreenProps)
     setStarting(true)
 
     try {
-      // Quick-save the URL as a regular entry
-      const { data: entry, error } = await supabase.from('saved_items').insert({
-        user_id: user.id,
-        source_type: 'url',
-        source_url: urlInput,
-        title: preview?.title || urlInput,
-        image_url: preview?.image || null,
-        description: preview?.description || null,
-        site_name: preview?.site_name || null,
-        image_display: preview?.image ? 'thumbnail' : 'none',
-        source_content: preview?.source_content || null,
-        category: 'other' as Category,
-      }).select('id').single()
+      let entryIdToUse: string
 
-      if (error || !entry) {
-        console.error('[unpack] Save failed:', error?.message)
-        toast('Failed to save URL')
-        setStarting(false)
-        return
+      if (sourceEntryId) {
+        // Launching from an existing save — don't create a new entry
+        entryIdToUse = sourceEntryId
+      } else {
+        // Quick-save the URL as a regular entry
+        const { data: entry, error } = await supabase.from('saved_items').insert({
+          user_id: user.id,
+          source_type: 'url',
+          source_url: urlInput,
+          title: preview?.title || urlInput,
+          image_url: preview?.image || null,
+          description: preview?.description || null,
+          site_name: preview?.site_name || null,
+          image_display: preview?.image ? 'thumbnail' : 'none',
+          source_content: preview?.source_content || null,
+          category: 'other' as Category,
+        }).select('id').single()
+
+        if (error || !entry) {
+          console.error('[unpack] Save failed:', error?.message)
+          toast('Failed to save URL')
+          setStarting(false)
+          return
+        }
+        entryIdToUse = entry.id
       }
 
-      setEntryId(entry.id)
+      setEntryId(entryIdToUse)
 
       // Call Edge Function (fire and forget — it writes to pending_extractions)
       const session = (await supabase.auth.getSession()).data.session
@@ -154,7 +170,7 @@ export default function UnpackScreen({ onClose, onComplete }: UnpackScreenProps)
         body: JSON.stringify({
           url: urlInput,
           user_id: user.id,
-          entry_id: entry.id,
+          entry_id: entryIdToUse,
           source_content: preview?.source_content || null,
         }),
       }).catch(err => console.error('[unpack] Edge Function call failed:', err))
@@ -168,7 +184,7 @@ export default function UnpackScreen({ onClose, onComplete }: UnpackScreenProps)
         const { data } = await supabase
           .from('pending_extractions')
           .select('id, status, item_count, extracted_items')
-          .eq('source_entry_id', entry.id)
+          .eq('source_entry_id', entryIdToUse)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
@@ -193,7 +209,7 @@ export default function UnpackScreen({ onClose, onComplete }: UnpackScreenProps)
           setItems(newItems)
           if (pollRef.current) clearInterval(pollRef.current)
           // Trigger Route creation after a moment
-          setTimeout(() => onComplete(data.id, entry.id), 1500)
+          setTimeout(() => onComplete(data.id, entryIdToUse), 1500)
         }
 
         if (data.status === 'failed') {
