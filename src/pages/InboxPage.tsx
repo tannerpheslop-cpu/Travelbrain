@@ -374,11 +374,31 @@ export default function InboxPage() {
     if (!user || multiSelected.size === 0) return
     try {
       const ids = [...multiSelected]
+
+      // Find Routes that will be affected (before deleting items)
+      const { data: affectedRouteItems } = await supabase
+        .from('route_items')
+        .select('route_id')
+        .in('saved_item_id', ids)
+      const affectedRouteIds = new Set((affectedRouteItems ?? []).map(ri => ri.route_id))
+
       // Delete saved_items (cascade handles route_items)
       await supabase.from('saved_items').delete().in('id', ids)
 
-      // Check if any Routes lost all items → auto-delete empty Routes
-      // For simplicity, just invalidate and let the queries handle it
+      // Clean up empty Routes — check each affected Route's remaining item count
+      for (const routeId of affectedRouteIds) {
+        const { count } = await supabase
+          .from('route_items')
+          .select('*', { count: 'exact', head: true })
+          .eq('route_id', routeId)
+        if (count === 0) {
+          await supabase.from('routes').delete().eq('id', routeId)
+        } else {
+          // Update denormalized item_count
+          await supabase.from('routes').update({ item_count: count }).eq('id', routeId)
+        }
+      }
+
       queryClient.invalidateQueries({ queryKey: ['saved-items'] })
       queryClient.invalidateQueries({ queryKey: ['all-saved-items'] })
       queryClient.invalidateQueries({ queryKey: ['routes'] })

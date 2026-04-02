@@ -217,17 +217,20 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             signal: AbortSignal.timeout(45000),
           })
 
+          if (cancelledRef.current) return // Check after async
+
           if (!chunkRes.ok) {
             console.error(`[unpack] extract-chunk ${i + 1} failed: HTTP ${chunkRes.status}`)
-            continue // Skip this chunk, try the next
+            continue
           }
 
           const chunkData = await chunkRes.json() as {
             success: boolean; items?: ExtractedDisplayItem[]; item_count?: number
           }
 
+          if (cancelledRef.current) return // Check after async
+
           if (chunkData.success && chunkData.items?.length) {
-            // Deduplicate across chunks
             const newItems: ExtractedDisplayItem[] = []
             for (const item of chunkData.items) {
               const key = item.name.toLowerCase().trim()
@@ -239,20 +242,20 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
             if (newItems.length > 0) {
               allItems.push(...newItems)
-              // Update UI — items appear progressively
               setPrevCount(itemCount)
               setItemCount(allItems.length)
               setItems([...allItems])
             }
           }
         } catch (err) {
+          if (cancelledRef.current) return
           console.error(`[unpack] Chunk ${i + 1} error:`, err)
-          // Continue with next chunk
         }
 
-        // Brief pause for animation
+        if (cancelledRef.current) return // Check before delay
         if (i < chunks.length - 1) {
           await new Promise(r => setTimeout(r, 300))
+          if (cancelledRef.current) return // Check after delay
         }
       }
 
