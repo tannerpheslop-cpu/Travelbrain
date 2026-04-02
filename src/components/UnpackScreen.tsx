@@ -82,6 +82,10 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
   const cancelledRef = useRef(false)
   const [isSaving, setIsSaving] = useState(false)
 
+  // Completion checkboxes — all checked by default
+  const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set())
+  const allChecked = checkedItems.size === items.length && items.length > 0
+
   // Progressive reveal queue
   const [displayedItems, setDisplayedItems] = useState<ExtractedDisplayItem[]>([])
   const [displayedCount, setDisplayedCount] = useState(0)
@@ -295,6 +299,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
       // Step 3: Done — show completion screen
       setStatus('complete')
+      setCheckedItems(new Set(allItems.map((_, i) => i))) // All checked by default
       setStep('done')
 
     } catch (err) {
@@ -306,19 +311,20 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
   // ── Save to Horizon (user taps button on completion screen) ──
   const handleSave = useCallback(async () => {
-    if (!user || !entryId || items.length === 0 || isSaving) return
+    const selectedItems = items.filter((_, i) => checkedItems.has(i))
+    if (!user || !entryId || selectedItems.length === 0 || isSaving) return
     setIsSaving(true)
 
     try {
-      // Write to pending_extractions so createRouteFromExtraction can read it
+      // Write only checked items to pending_extractions
       const { data: extraction, error } = await supabase.from('pending_extractions').insert({
         user_id: user.id,
         source_entry_id: entryId,
         source_url: urlInput,
-        extracted_items: items,
+        extracted_items: selectedItems,
         content_type: 'listicle',
         status: 'complete',
-        item_count: items.length,
+        item_count: selectedItems.length,
       }).select('id').single()
 
       if (error || !extraction) {
@@ -335,7 +341,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
       toast('Failed to save')
       setIsSaving(false) // Re-enable on error for retry
     }
-  }, [user, entryId, items, urlInput, toast, onComplete, isSaving])
+  }, [user, entryId, items, checkedItems, urlInput, toast, onComplete, isSaving])
 
   // ── Render: group DISPLAYED items by section (progressive reveal) ──
   const sections = displayedItems.reduce<Map<string, ExtractedDisplayItem[]>>((acc, item) => {
@@ -351,7 +357,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 60,
-        background: 'var(--color-deep-bg, #080c18)',
+        background: '#080c18',
         opacity: visible ? 1 : 0,
         transition: 'opacity 200ms ease',
         display: 'flex', flexDirection: 'column',
@@ -371,7 +377,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             }}>Cancel</button>
             <span style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
-              color: 'var(--color-text-tertiary, #4a5068)', textTransform: 'lowercase',
+              color: '#8088a0', textTransform: 'lowercase',
             }}>unpack</span>
           </div>
 
@@ -401,7 +407,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
           {loadingPreview && (
             <div style={{ padding: '20px', textAlign: 'center' }}>
-              <span style={{ color: 'var(--color-text-secondary)', fontSize: 13 }}>Loading preview...</span>
+              <span style={{ color: '#b8c8e0', fontSize: 13 }}>Loading preview...</span>
             </div>
           )}
           {preview && !loadingPreview && (
@@ -409,10 +415,10 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               {preview.image && (
                 <img src={preview.image} alt="" style={{ width: 200, maxWidth: '100%', borderRadius: 8, marginBottom: 12, objectFit: 'cover' }} />
               )}
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500, color: 'var(--color-text-primary, #e4e8f0)', textAlign: 'center', maxWidth: 300 }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500, color: '#e4e8f0', textAlign: 'center', maxWidth: 300 }}>
                 {preview.title || urlInput}
               </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-secondary, #8088a0)', marginTop: 4 }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0', marginTop: 4 }}>
                 {extractDomain(urlInput)}
               </div>
             </div>
@@ -438,11 +444,11 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '10px 16px', paddingTop: 'calc(10px + env(safe-area-inset-top))',
-            borderBottom: '0.5px solid var(--color-surface-elevated, #1c2035)',
+            borderBottom: '0.5px solid rgba(255,255,255,0.06)',
           }}>
             <button type="button" onClick={handleClose} style={{
               background: 'none', border: 'none', cursor: 'pointer', padding: 4,
-              color: 'var(--color-text-secondary, #8088a0)',
+              color: '#b8c8e0',
             }}>
               <X size={20} />
             </button>
@@ -450,10 +456,10 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               <img src={preview.image} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: 'var(--color-text-primary, #e4e8f0)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: '#e4e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {preview?.title || urlInput}
               </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--color-text-secondary)' }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#b8c8e0' }}>
                 {extractDomain(urlInput)}
               </div>
             </div>
@@ -469,10 +475,25 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                 {displayedCount}
               </div>
             </div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-secondary, #8088a0)', marginTop: 4 }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0', marginTop: 4 }}>
               places found
             </div>
           </div>
+
+          {/* Select all / Deselect all — only in completion state */}
+          {step === 'done' && items.length > 0 && (
+            <div style={{ padding: '0 16px 8px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => {
+                if (allChecked) setCheckedItems(new Set())
+                else setCheckedItems(new Set(items.map((_, i) => i)))
+              }} style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#c45a2d',
+              }}>
+                {allChecked ? 'Deselect all' : 'Select all'}
+              </button>
+            </div>
+          )}
 
           {/* Item list */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px' }}>
@@ -481,56 +502,90 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                 <div style={{
                   fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
                   textTransform: 'uppercase', letterSpacing: '0.04em',
-                  color: 'var(--color-text-secondary, #8088a0)',
-                  paddingBottom: 6, borderBottom: '0.5px solid var(--color-surface-elevated, #1c2035)',
+                  color: '#8088a0',
+                  paddingBottom: 6, borderBottom: '0.5px solid rgba(255,255,255,0.06)',
                   marginBottom: 8, marginTop: 4,
                 }}>
                   {label}
                 </div>
-                {sectionItems.map((item, i) => (
-                  <div key={`${label}-${i}`} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0',
-                    borderBottom: '0.5px solid var(--color-surface-elevated, #1c2035)',
-                    animation: 'fadeSlideIn 200ms ease forwards',
-                  }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500, color: 'var(--color-text-primary, #e4e8f0)' }}>
-                        {item.name}
-                      </div>
-                      <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
-                        <span style={{
-                          fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
-                          background: 'rgba(196, 90, 45, 0.12)', color: '#c45a2d',
-                          padding: '2px 8px', borderRadius: 999,
+                {sectionItems.map((item, i) => {
+                  // Find the global index for checkbox state
+                  const globalIdx = items.findIndex(it => it.name === item.name && it.section_label === item.section_label)
+                  const isChecked = step === 'done' ? checkedItems.has(globalIdx) : true
+                  const showCheckbox = step === 'done'
+
+                  return (
+                    <div key={`${label}-${i}`} style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0',
+                      borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+                      animation: 'fadeSlideIn 200ms ease forwards',
+                      opacity: showCheckbox && !isChecked ? 0.4 : 1,
+                      transition: 'opacity 150ms ease',
+                    }}>
+                      {/* Checkbox — only in completion state */}
+                      {showCheckbox && (
+                        <button type="button" onClick={() => {
+                          setCheckedItems(prev => {
+                            const next = new Set(prev)
+                            if (next.has(globalIdx)) next.delete(globalIdx)
+                            else next.add(globalIdx)
+                            return next
+                          })
+                        }} style={{
+                          width: 22, height: 22, borderRadius: 11, flexShrink: 0, marginTop: 2,
+                          border: isChecked ? 'none' : '1.5px solid rgba(255,255,255,0.2)',
+                          background: isChecked ? '#c45a2d' : 'transparent',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'pointer', padding: 0,
                         }}>
-                          {CATEGORY_LABELS[item.category] || item.category}
-                        </span>
-                        {extractCity(item.location_name) && (
+                          {isChecked && (
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                              <path d="M2.5 6L5 8.5L9.5 3.5" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
+
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500, color: '#e4e8f0' }}>
+                          {item.name}
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
                           <span style={{
-                            fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
-                            background: 'rgba(255, 255, 255, 0.05)',
-                            color: 'var(--color-text-secondary, #8088a0)',
+                            fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
+                            background: 'rgba(196, 90, 45, 0.12)', color: '#c45a2d',
                             padding: '2px 8px', borderRadius: 999,
                           }}>
-                            {extractCity(item.location_name)}
+                            {CATEGORY_LABELS[item.category] || item.category}
                           </span>
+                          {extractCity(item.location_name) && (
+                            <span style={{
+                              fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
+                              background: 'rgba(255, 255, 255, 0.05)',
+                              color: '#b8c8e0',
+                              padding: '2px 8px', borderRadius: 999,
+                            }}>
+                              {extractCity(item.location_name)}
+                            </span>
+                          )}
+                        </div>
+                        {item.context && (
+                          <div style={{
+                            fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                            color: '#b8c8e0',
+                            marginTop: 3, lineHeight: 1.4,
+                            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+                            overflow: 'hidden',
+                          }}>
+                            {item.context}
+                          </div>
                         )}
                       </div>
-                      {item.context && (
-                        <div style={{
-                          fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-                          color: 'var(--color-text-secondary, #8088a0)',
-                          marginTop: 3, lineHeight: 1.4,
-                          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-                          overflow: 'hidden',
-                        }}>
-                          {item.context}
-                        </div>
-                      )}
+                      {/* Check icon during processing, hidden in completion (checkbox replaces it) */}
+                      {!showCheckbox && <Check size={14} color="#5b8a72" style={{ flexShrink: 0, marginTop: 4 }} />}
                     </div>
-                    <Check size={14} color="#5b8a72" style={{ flexShrink: 0, marginTop: 4 }} />
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             ))}
           </div>
@@ -538,7 +593,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           {/* Bottom bar */}
           <div style={{
             padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
-            borderTop: '0.5px solid var(--color-surface-elevated, #1c2035)',
+            borderTop: '0.5px solid rgba(255,255,255,0.06)',
           }}>
             {status === 'error' ? (
               /* Error state */
@@ -549,9 +604,9 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                 <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'center' }}>
                   <button type="button" onClick={handleClose} style={{
                     padding: '8px 20px', background: 'none',
-                    border: '1px solid var(--color-surface-elevated, #1c2035)',
+                    border: '1px solid rgba(255,255,255,0.06)',
                     borderRadius: 8, cursor: 'pointer',
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-secondary, #8088a0)',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0',
                   }}>Cancel</button>
                   <button type="button" onClick={() => { setStep('input'); setStatus('reading'); setErrorMessage(null); setItems([]); setItemCount(0); setPrevCount(0); setStarting(false) }} style={{
                     padding: '8px 20px', background: '#c45a2d', color: '#fff',
@@ -563,21 +618,21 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             ) : step === 'done' ? (
               /* Completion state — stays until user taps */
               <div>
-                <button type="button" onClick={handleSave} disabled={isSaving} style={{
+                <button type="button" onClick={handleSave} disabled={isSaving || checkedItems.size === 0} style={{
                   width: '100%', padding: '14px 0',
-                  background: isSaving ? '#8a4020' : '#c45a2d', color: '#fff',
+                  background: (isSaving || checkedItems.size === 0) ? '#8a4020' : '#c45a2d', color: '#fff',
                   border: 'none', borderRadius: 12,
-                  cursor: isSaving ? 'default' : 'pointer',
-                  opacity: isSaving ? 0.7 : 1,
+                  cursor: (isSaving || checkedItems.size === 0) ? 'default' : 'pointer',
+                  opacity: (isSaving || checkedItems.size === 0) ? 0.5 : 1,
                   fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
                 }}>
-                  {isSaving ? 'Saving...' : 'Save to Horizon'}
+                  {isSaving ? 'Saving...' : `Save to Horizon (${checkedItems.size} items)`}
                 </button>
                 <button type="button" onClick={handleClose} style={{
                   width: '100%', padding: '10px 0', marginTop: 4,
                   background: 'none', border: 'none', cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                  color: 'var(--color-text-secondary, #8088a0)',
+                  color: '#b8c8e0',
                 }}>
                   Cancel
                 </button>
@@ -586,7 +641,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               /* Processing state */
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                 <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#c45a2d', animation: 'pulse 1.5s ease infinite' }} />
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-secondary, #8088a0)' }}>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0' }}>
                   {status === 'reading' ? 'Reading article...' : 'Extracting places...'}
                 </span>
               </div>
