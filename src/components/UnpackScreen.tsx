@@ -444,11 +444,11 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               <div key={label} style={{ marginBottom: 16 }}>
                 {/* Section header */}
                 <div style={{
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
                   textTransform: 'uppercase', letterSpacing: '0.04em',
                   color: 'var(--color-text-secondary, #8088a0)',
                   paddingBottom: 6, borderBottom: '0.5px solid var(--color-surface-elevated, #1c2035)',
-                  marginBottom: 8,
+                  marginBottom: 8, marginTop: 4,
                 }}>
                   {label}
                 </div>
@@ -471,27 +471,39 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                       }}>
                         {item.name}
                       </div>
-                      <div style={{ display: 'flex', gap: 4, marginTop: 3 }}>
+                      <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
                         <span style={{
                           fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
-                          background: 'rgba(196, 90, 45, 0.15)', color: '#c45a2d',
-                          padding: '1px 6px', borderRadius: 4,
+                          background: 'rgba(196, 90, 45, 0.12)', color: '#c45a2d',
+                          padding: '2px 8px', borderRadius: 999,
                         }}>
                           {CATEGORY_LABELS[item.category] || item.category}
                         </span>
                         {extractCity(item.location_name) && (
                           <span style={{
-                            fontFamily: "'DM Sans', sans-serif", fontSize: 10,
-                            background: 'var(--color-surface-elevated, #1c2035)',
+                            fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
+                            background: 'rgba(255, 255, 255, 0.05)',
                             color: 'var(--color-text-secondary, #8088a0)',
-                            padding: '1px 6px', borderRadius: 4,
+                            padding: '2px 8px', borderRadius: 999,
                           }}>
                             {extractCity(item.location_name)}
                           </span>
                         )}
                       </div>
+                      {/* Context from article */}
+                      {item.context && (
+                        <div style={{
+                          fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                          color: 'var(--color-text-secondary, #8088a0)',
+                          marginTop: 3, lineHeight: 1.4,
+                          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+                          overflow: 'hidden',
+                        }}>
+                          {item.context}
+                        </div>
+                      )}
                     </div>
-                    <Check size={14} color="#5b8a72" style={{ flexShrink: 0 }} />
+                    <Check size={14} color="#5b8a72" style={{ flexShrink: 0, alignSelf: 'flex-start', marginTop: 4 }} />
                   </div>
                 ))}
               </div>
@@ -543,7 +555,6 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                 <button
                   type="button"
                   onClick={() => {
-                    // Reset state and restart
                     setStep('input')
                     setStatus('reading')
                     setErrorMessage(null)
@@ -561,6 +572,19 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                 >
                   Try again
                 </button>
+              </div>
+            )}
+
+            {/* View Route button on completion (seamless, no white page) */}
+            {status === 'complete' && (
+              <div style={{ width: '100%', padding: '4px 0 0' }}>
+                <div style={{
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                  color: 'var(--color-text-secondary, #8088a0)',
+                  textAlign: 'center', marginBottom: 8,
+                }}>
+                  Creating your group...
+                </div>
               </div>
             )}
           </div>
