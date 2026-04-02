@@ -51,9 +51,10 @@ function cleanHtmlToText(html: string): string {
 
   // 2. Remove elements with boilerplate class/id patterns
   for (const pattern of BOILERPLATE_PATTERNS) {
-    // Match elements whose class or id contains the pattern
+    // Escape regex metacharacters in pattern to prevent injection
+    const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     const regex = new RegExp(
-      `<(div|section|aside|article|ul|ol|p|span)[^>]*(class|id)="[^"]*${pattern}[^"]*"[^>]*>[\\s\\S]*?<\\/\\1>`,
+      `<(div|section|aside|article|ul|ol|p|span)[^>]*(class|id)="[^"]*${escaped}[^"]*"[^>]*>[\\s\\S]*?<\\/\\1>`,
       "gi"
     )
     h = h.replace(regex, "")
