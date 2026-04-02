@@ -101,15 +101,20 @@ describe('GlobalActions FAB menu', () => {
     vi.useRealTimers()
   })
 
-  it('"Unpack" logs to console (placeholder)', () => {
-    const consoleSpy = vi.spyOn(console, 'log')
+  it('"Unpack" closes menu (opens Unpack screen)', () => {
+    vi.useFakeTimers()
     renderAtRoute('/inbox')
 
     fireEvent.click(screen.getByRole('button', { name: 'Add save' }))
+    expect(screen.getByText('Unpack')).toBeInTheDocument()
+
     fireEvent.click(screen.getByText('Unpack'))
 
-    expect(consoleSpy).toHaveBeenCalledWith('Unpack tapped')
-    consoleSpy.mockRestore()
+    // Menu should close
+    act(() => { vi.advanceTimersByTime(100) })
+    expect(screen.queryByText('Quick save')).not.toBeInTheDocument()
+
+    vi.useRealTimers()
   })
 
   it('does NOT show old menu options (Save a link, Photo, Add places)', () => {

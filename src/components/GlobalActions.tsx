@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Plus, Bookmark, PackageOpen } from 'lucide-react'
 import SaveSheet from './SaveSheet'
+import UnpackScreen from './UnpackScreen'
 
 /** FAB is ONLY visible on the Horizon page (/inbox) */
 const FAB_VISIBLE_PATHS = ['/inbox']
@@ -12,6 +13,7 @@ export default function GlobalActions() {
   const [showMenu, setShowMenu] = useState(false)
   const [menuVisible, setMenuVisible] = useState(false)
   const [showSaveSheet, setShowSaveSheet] = useState(false)
+  const [showUnpack, setShowUnpack] = useState(false)
 
   // Animate menu in
   useEffect(() => {
@@ -23,6 +25,7 @@ export default function GlobalActions() {
   }, [showMenu])
 
   const handleFabTap = useCallback(() => {
+    if (showUnpack) return // Don't interfere with Unpack screen
     if (showSaveSheet) {
       setShowSaveSheet(false)
       return
@@ -32,7 +35,7 @@ export default function GlobalActions() {
       return
     }
     setShowMenu(true)
-  }, [showMenu, showSaveSheet])
+  }, [showMenu, showSaveSheet, showUnpack])
 
   const handleQuickSave = useCallback(() => {
     setShowMenu(false)
@@ -42,10 +45,9 @@ export default function GlobalActions() {
   }, [])
 
   const handleUnpack = useCallback(() => {
-    console.log('Unpack tapped')
     setShowMenu(false)
     setMenuVisible(false)
-    // Placeholder — real flow built in Unpack-3
+    setTimeout(() => setShowUnpack(true), 50)
   }, [])
 
   const dismissMenu = useCallback(() => {
@@ -192,6 +194,19 @@ export default function GlobalActions() {
           onClose={() => setShowSaveSheet(false)}
           onSaved={() => {
             window.dispatchEvent(new CustomEvent('horizon-item-created'))
+          }}
+        />
+      )}
+
+      {/* Unpack screen — full-screen extraction flow */}
+      {showUnpack && (
+        <UnpackScreen
+          onClose={() => setShowUnpack(false)}
+          onComplete={(extractionId, entryId) => {
+            setShowUnpack(false)
+            window.dispatchEvent(new CustomEvent('horizon-item-created'))
+            // Route creation will be handled in Unpack-4
+            console.log(`[unpack] Complete: extraction=${extractionId} entry=${entryId}`)
           }}
         />
       )}
