@@ -695,7 +695,6 @@ function chunkText(text: string, chunkSize = CHUNK_SIZE, maxChunks = MAX_CHUNKS)
 
   for (const para of paragraphs) {
     if (chunks.length >= maxChunks - 1) {
-      // Last chunk gets everything remaining
       current += (current ? "\n\n" : "") + para
       continue
     }
@@ -713,7 +712,173 @@ function chunkText(text: string, chunkSize = CHUNK_SIZE, maxChunks = MAX_CHUNKS)
   return chunks.slice(0, maxChunks)
 }
 
+// ── NEW STRUCTURED PROMPT ────────────────────────────────────────────────────
+
+const STRUCTURED_PROMPT = `You are extracting specific named places from a travel article. Your job is to identify every restaurant, hotel, museum, temple, park, landmark, market, theater, and other named destinations mentioned in the article.
+
+Rules:
+- Only extract SPECIFIC NAMED places (e.g., "Da Dong Roast Duck Restaurant", "Forbidden City", "Temple of Heaven")
+- Do NOT extract cities, countries, provinces, or regions as items (e.g., do NOT extract "Beijing", "China", "Yunnan Province")
+- Do NOT extract people, tour companies, airlines, or services
+- Do NOT extract generic unnamed descriptions (e.g., "a small restaurant", "the local market")
+- Do NOT extract the same place twice. If a place is mentioned in multiple sections, include it only in the section where it FIRST appears. Combine context from all mentions into one entry.
+- For each place, include what the article specifically says about it — why it's recommended, tips, what makes it special. This is the "context" field. Keep it to 1-3 sentences using the article's perspective.
+- Detect the article's organizational structure. If it's organized by days, use day labels. If by cities, use city labels. If by category (restaurants, attractions), use those. If no clear structure, use "Places" as the single section label.
+
+Category must be one of: restaurant, hotel, museum, temple, park, hike, historical, shopping, nightlife, entertainment, transport, spa, beach, other
+
+Return ONLY valid JSON, no other text. No markdown backticks. No preamble.
+
+Return format:
+{
+  "structure_type": "daily_itinerary",
+  "sections": [
+    {
+      "label": "Day 1 — Beijing",
+      "location": "Beijing, China",
+      "items": [
+        {
+          "name": "Da Dong Roast Duck Restaurant",
+          "category": "restaurant",
+          "location_name": "Beijing, China",
+          "context": "Recommended for Peking duck dinner. The author notes it serves Beijing's best relatively non-fatty duck.",
+          "address": "22 Dongsishitiao"
+        }
+      ]
+    }
+  ]
+}
+
+structure_type must be one of: "daily_itinerary", "city_sections", "category_sections", "flat_list"
+
+`
+
 /** Parse LLM response, extracting JSON array even if there's preamble text */
+// ── Structured item type for incremental writes ──────────────────────────────
+
+interface StructuredItem {
+  name: string
+  category: string
+  location_name: string | null
+  context: string | null
+  address: string | null
+  section_label: string
+  section_location: string | null
+  section_order: number
+  item_order: number
+}
+
+interface StructuredResponse {
+  structure_type: string
+  sections: Array<{
+    label: string
+    location?: string
+    items: Array<{
+      name: string
+      category?: string
+      location_name?: string
+      context?: string
+      address?: string
+    }>
+  }>
+}
+
+/** Parse the structured LLM response into flat items with section metadata. */
+function parseStructuredResponse(responseText: string): StructuredItem[] {
+  let data: StructuredResponse | null = null
+
+  // Try direct parse
+  try {
+    data = JSON.parse(responseText) as StructuredResponse
+  } catch { /* not pure JSON */ }
+
+  // Try extracting JSON object from response text
+  if (!data) {
+    const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+    if (jsonMatch) {
+      try { data = JSON.parse(jsonMatch[0]) as StructuredResponse } catch { /* malformed */ }
+    }
+  }
+
+  if (!data?.sections || !Array.isArray(data.sections)) {
+    // Fallback: try parsing as flat array (old format compatibility)
+    return parseFlatResponse(responseText)
+  }
+
+  const validCategories = new Set([
+    "restaurant", "hotel", "museum", "temple", "park", "hike",
+    "historical", "shopping", "nightlife", "entertainment",
+    "transport", "spa", "beach", "other",
+  ])
+
+  const items: StructuredItem[] = []
+  const seenNames = new Set<string>()
+
+  for (let si = 0; si < data.sections.length; si++) {
+    const section = data.sections[si]
+    if (!section.items || !Array.isArray(section.items)) continue
+
+    for (let ii = 0; ii < section.items.length; ii++) {
+      const item = section.items[ii]
+      if (!item.name || typeof item.name !== "string") continue
+      const name = item.name.trim()
+      if (name.length < 2) continue
+
+      // Deduplicate by name within this response
+      const nameKey = name.toLowerCase()
+      if (seenNames.has(nameKey)) continue
+      seenNames.add(nameKey)
+
+      items.push({
+        name,
+        category: validCategories.has(item.category ?? "") ? item.category! : "other",
+        location_name: item.location_name ? String(item.location_name).trim() : null,
+        context: item.context ? String(item.context).trim().slice(0, 500) : null,
+        address: item.address ? String(item.address).trim() : null,
+        section_label: section.label ?? "Places",
+        section_location: section.location ? String(section.location).trim() : null,
+        section_order: si,
+        item_order: ii,
+      })
+    }
+  }
+
+  return items
+}
+
+/** Fallback: parse a flat JSON array (old format from previous prompts). */
+function parseFlatResponse(responseText: string): StructuredItem[] {
+  let arr: unknown[] | null = null
+  try { arr = JSON.parse(responseText) as unknown[] } catch { /* */ }
+  if (!arr) {
+    const m = responseText.match(/\[[\s\S]*\]/)
+    if (m) try { arr = JSON.parse(m[0]) as unknown[] } catch { /* */ }
+  }
+  if (!Array.isArray(arr)) return []
+
+  const validCategories = new Set([
+    "restaurant", "hotel", "museum", "temple", "park", "hike",
+    "historical", "shopping", "nightlife", "entertainment",
+    "transport", "spa", "beach", "other",
+  ])
+
+  return arr
+    .filter((item): item is Record<string, unknown> => !!item && typeof item === "object")
+    .map((item, i) => ({
+      name: String(item.name || "").trim(),
+      category: validCategories.has(String(item.category || "")) ? String(item.category) : "other",
+      location_name: item.location_name ? String(item.location_name).trim() : null,
+      context: item.context ? String(item.context).trim().slice(0, 500) : (item.description ? String(item.description).trim().slice(0, 500) : null),
+      address: item.address ? String(item.address).trim() : null,
+      section_label: "Places",
+      section_location: null,
+      section_order: 0,
+      item_order: i,
+    }))
+    .filter(item => item.name.length >= 2)
+}
+
+// Keep legacy parseLLMResponse for backward compatibility with older code paths
 function parseLLMResponse(responseText: string): ExtractedItem[] {
   // Try direct parse first
   try {
@@ -756,14 +921,15 @@ function mapLLMItems(items: unknown[]): ExtractedItem[] {
 }
 
 /** Call Haiku for a single chunk of text. */
-async function callHaiku(
+/** Call Haiku with the structured prompt. Returns StructuredItem[]. */
+async function callHaikuStructured(
   apiKey: string,
   articleTitle: string,
-  chunkText: string,
+  text: string,
   chunkLabel: string,
-): Promise<ExtractedItem[]> {
-  const prompt = EXTRACTION_PROMPT
-    + `Article title: ${articleTitle}\n${chunkLabel}\n\nArticle text:\n${chunkText}`
+): Promise<StructuredItem[]> {
+  const prompt = STRUCTURED_PROMPT
+    + `Article title: ${articleTitle}\n${chunkLabel}\n\nArticle text:\n${text}`
 
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -774,7 +940,7 @@ async function callHaiku(
     },
     body: JSON.stringify({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 2000,
+      max_tokens: 4000,
       messages: [{ role: "user", content: prompt }],
     }),
     signal: AbortSignal.timeout(30000),
@@ -792,7 +958,38 @@ async function callHaiku(
   const textContent = data.content?.find(c => c.type === "text")?.text
   if (!textContent) return []
 
-  return parseLLMResponse(textContent)
+  return parseStructuredResponse(textContent)
+}
+
+/** Deduplicate structured items by name (case-insensitive). First occurrence wins. */
+function deduplicateStructuredItems(items: StructuredItem[]): StructuredItem[] {
+  const seen = new Set<string>()
+  const unique: StructuredItem[] = []
+  for (const item of items) {
+    const key = item.name.toLowerCase().trim()
+    if (!seen.has(key)) {
+      seen.add(key)
+      unique.push(item)
+    }
+  }
+  return unique
+}
+
+// Legacy callHaiku for backward compatibility
+async function callHaiku(
+  apiKey: string,
+  articleTitle: string,
+  chunkTextContent: string,
+  chunkLabel: string,
+): Promise<ExtractedItem[]> {
+  const structured = await callHaikuStructured(apiKey, articleTitle, chunkTextContent, chunkLabel)
+  return structured.map((s, i) => ({
+    name: s.name,
+    category: s.category,
+    location_name: s.location_name,
+    description: s.context,
+    source_order: i + 1,
+  }))
 }
 
 /** Deduplicate items by name (case-insensitive). First occurrence wins. */
@@ -809,7 +1006,128 @@ function deduplicateItems(items: ExtractedItem[]): ExtractedItem[] {
   return unique
 }
 
-/** Call Claude Haiku to extract places from article text. Uses chunked extraction for long articles. */
+/**
+ * Structured extraction with incremental DB writes.
+ * Creates a pending_extractions row, calls Haiku (chunked for long articles),
+ * writes items incrementally, and marks complete.
+ */
+async function extractStructuredWithLLM(
+  textContent: string,
+  articleTitle: string,
+  entryId: string,
+  userId: string,
+  sourceUrl: string,
+): Promise<StructuredItem[]> {
+  const apiKey = Deno.env.get("ANTHROPIC_API_KEY")
+  if (!apiKey) {
+    console.log("[multi-extract] No ANTHROPIC_API_KEY — skipping LLM extraction")
+    return []
+  }
+
+  const pageText = typeof textContent === "string" && textContent.includes("<")
+    ? cleanHtmlToText(textContent)
+    : textContent
+  if (pageText.length < 100) {
+    console.log("[multi-extract] Text too short for LLM extraction")
+    return []
+  }
+
+  const admin = getAdminClient()
+
+  // Create pending_extractions row with status 'processing'
+  let extractionId: string | null = null
+  if (admin && entryId) {
+    try {
+      const { data, error } = await admin.from("pending_extractions").insert({
+        user_id: userId,
+        source_entry_id: entryId,
+        source_url: sourceUrl,
+        extracted_items: [],
+        content_type: "listicle",
+        status: "processing",
+      }).select("id").single()
+
+      if (!error && data) {
+        extractionId = data.id
+        console.log(`[multi-extract] Created pending_extractions row: ${extractionId}`)
+        // Flag the source entry
+        await admin.from("saved_items").update({ has_pending_extraction: true }).eq("id", entryId)
+      }
+    } catch (err) {
+      console.log(`[multi-extract] Failed to create pending_extractions: ${err}`)
+    }
+  }
+
+  try {
+    const chunks = chunkText(pageText)
+    console.log(`[multi-extract] ${pageText.length} chars → ${chunks.length} chunk(s)`)
+
+    const allItems: StructuredItem[] = []
+
+    for (let i = 0; i < chunks.length; i++) {
+      const label = chunks.length > 1
+        ? `This is part ${i + 1} of ${chunks.length} of the article. Extract all specific named places from this section.`
+        : ""
+      console.log(`[multi-extract] Calling Haiku for chunk ${i + 1}/${chunks.length} (${chunks[i].length} chars)`)
+      const chunkItems = await callHaikuStructured(apiKey, articleTitle, chunks[i], label)
+      console.log(`[multi-extract] Chunk ${i + 1} → ${chunkItems.length} items`)
+
+      // Deduplicate across chunks
+      const newItems: StructuredItem[] = []
+      const existingNames = new Set(allItems.map(it => it.name.toLowerCase().trim()))
+      for (const item of chunkItems) {
+        const key = item.name.toLowerCase().trim()
+        if (!existingNames.has(key)) {
+          existingNames.add(key)
+          newItems.push(item)
+        }
+      }
+
+      allItems.push(...newItems)
+
+      // Incremental DB write — append new items to pending_extractions
+      if (admin && extractionId && newItems.length > 0) {
+        try {
+          await admin.from("pending_extractions").update({
+            extracted_items: allItems,
+            item_count: allItems.length,
+          }).eq("id", extractionId)
+          console.log(`[multi-extract] Wrote ${allItems.length} items to DB (chunk ${i + 1})`)
+        } catch (err) {
+          console.log(`[multi-extract] Incremental write failed: ${err}`)
+        }
+      }
+    }
+
+    // Mark complete
+    if (admin && extractionId) {
+      // Determine content type from structure
+      const firstSection = allItems[0]?.section_label ?? ""
+      let contentType: string = "listicle"
+      if (/day\s*\d|week\s*\d/i.test(firstSection)) contentType = "itinerary"
+      else if (allItems.some(it => it.section_location)) contentType = "guide"
+
+      await admin.from("pending_extractions").update({
+        status: "complete",
+        content_type: contentType,
+        extracted_items: allItems,
+        item_count: allItems.length,
+      }).eq("id", extractionId)
+      console.log(`[multi-extract] Marked complete: ${allItems.length} items`)
+    }
+
+    return allItems
+  } catch (err) {
+    console.error(`[multi-extract] Extraction failed: ${err}`)
+    // Mark failed
+    if (admin && extractionId) {
+      await admin.from("pending_extractions").update({ status: "failed" }).eq("id", extractionId)
+    }
+    return []
+  }
+}
+
+/** Legacy extractWithLLM for backward compatibility. */
 async function extractWithLLM(html: string, articleTitle: string): Promise<ExtractedItem[]> {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY")
   if (!apiKey) {
@@ -828,14 +1146,12 @@ async function extractWithLLM(html: string, articleTitle: string): Promise<Extra
     console.log(`[multi-extract] ${pageText.length} chars → ${chunks.length} chunk(s)`)
 
     if (chunks.length === 1) {
-      // Short article: single call
       console.log(`[multi-extract] Calling Haiku with ${chunks[0].length} chars (single chunk)`)
       const items = await callHaiku(apiKey, articleTitle, chunks[0], "")
       console.log(`[multi-extract] Haiku extracted ${items.length} items`)
       return items
     }
 
-    // Long article: chunked extraction
     const allItems: ExtractedItem[] = []
     for (let i = 0; i < chunks.length; i++) {
       const label = `This is part ${i + 1} of ${chunks.length} of the article. Extract all specific named places from this section.`
@@ -942,72 +1258,79 @@ Deno.serve(async (req: Request) => {
 
     const sourceTitle = getTitle(html) ?? "Untitled"
 
-    // ── Extraction pipeline ──
+    // ── UNPACK FLOW (explicit, with entry_id) ──
+    // Uses structured prompt, incremental DB writes, no enrichment
+    if (entry_id && user_id) {
+      console.log(`[multi-extract] Unpack flow for entry ${entry_id}`)
+      const textToExtract = source_content && source_content.length > 100 ? source_content : html
+      const structuredItems = await extractStructuredWithLLM(textToExtract, sourceTitle, entry_id, user_id, url)
+
+      const result: ExtractionResult = {
+        success: structuredItems.length >= 2,
+        content_type: "listicle",
+        source_title: sourceTitle,
+        item_count: structuredItems.length,
+        items: structuredItems.map((s, i) => ({
+          name: s.name,
+          category: s.category,
+          location_name: s.location_name,
+          description: s.context,
+          source_order: i + 1,
+        })),
+        reason: structuredItems.length < 2 ? "single_item" : undefined,
+      }
+
+      return new Response(JSON.stringify(result), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
+
+    // ── LEGACY FLOW (backward compatibility for any remaining callers) ──
     // Layer 1: Structured data (JSON-LD, Condé Nast embedded JSON)
     let { items, contentType } = runStructuredExtraction(html)
 
-    // Layer 2: Platform text content (YouTube description, Reddit selftext, etc.)
-    // Preferred over page HTML — cleaner, no ads/nav, more likely to contain actual travel content
+    // Layer 2: Platform text content
     if (items.length < 2 && source_content && source_content.length > 50) {
       console.log(`[multi-extract] Trying Haiku on stored source_content (${source_content.length} chars)`)
       const contentItems = await extractWithLLM(source_content, sourceTitle)
       if (contentItems.length >= 2) {
         items = contentItems
         contentType = "listicle"
-        console.log(`[multi-extract] Source content extraction found ${items.length} items`)
       }
     }
 
-    // Layer 3: Haiku LLM extraction (when structured data isn't available)
+    // Layer 3: Haiku LLM extraction
     if (items.length < 2) {
-      console.log(`[multi-extract] Structured extraction found ${items.length} items, trying Haiku`)
       const llmItems = await extractWithLLM(html, sourceTitle)
       if (llmItems.length >= 2) {
         items = llmItems
         contentType = "listicle"
-        console.log(`[multi-extract] Haiku found ${items.length} items`)
       }
     }
 
-    // Cloud Run fallback: if standard HTML fetch was blocked/empty, try headless browser + re-extract
+    // Cloud Run fallback
     if (items.length < 2) {
       const resolverEndpoint = Deno.env.get("URL_RESOLVER_ENDPOINT")
       const resolverApiKey = Deno.env.get("URL_RESOLVER_API_KEY")
       if (resolverEndpoint && resolverApiKey) {
         try {
-          console.log(`[multi-extract] Trying Cloud Run fallback for rendered HTML`)
           const crResponse = await fetch(`${resolverEndpoint}/fetch-html`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-api-key": resolverApiKey,
-            },
+            headers: { "Content-Type": "application/json", "x-api-key": resolverApiKey },
             body: JSON.stringify({ url }),
             signal: AbortSignal.timeout(20000),
           })
           if (crResponse.ok) {
-            const crData = await crResponse.json() as { success: boolean; html?: string; elapsed_ms?: number }
+            const crData = await crResponse.json() as { success: boolean; html?: string }
             if (crData.success && crData.html) {
-              console.log(`[multi-extract] Cloud Run returned ${crData.html.length} bytes in ${crData.elapsed_ms}ms`)
-              // Try structured extraction on rendered HTML
               const crStructured = runStructuredExtraction(crData.html)
               if (crStructured.items.length >= 2) {
-                items = crStructured.items
-                contentType = crStructured.contentType
+                items = crStructured.items; contentType = crStructured.contentType
               } else {
-                // Try Haiku on rendered HTML
                 const crLLM = await extractWithLLM(crData.html, sourceTitle)
-                if (crLLM.length >= 2) {
-                  items = crLLM
-                  contentType = "listicle"
-                }
-              }
-              if (items.length >= 2) {
-                console.log(`[multi-extract] Cloud Run extraction found ${items.length} items`)
+                if (crLLM.length >= 2) { items = crLLM; contentType = "listicle" }
               }
             }
-          } else {
-            console.log(`[multi-extract] Cloud Run fallback failed: HTTP ${crResponse.status}`)
           }
         } catch (err) {
           console.log(`[multi-extract] Cloud Run fallback error: ${(err as Error).message}`)

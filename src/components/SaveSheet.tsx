@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+// useQueryClient removed — was only used by auto-extraction trigger
 import { supabase, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
@@ -8,7 +8,7 @@ import { detectUrl } from '../lib/urlDetect'
 import { detectCategoriesFromText } from '../lib/detectCategory'
 import { writeItemTags } from '../hooks/queries'
 import { useRapidCapture } from '../hooks/useRapidCapture'
-import { triggerMultiItemExtraction } from '../lib/triggerExtraction'
+// triggerMultiItemExtraction removed — Unpack is now explicit only via FAB menu
 import { MapPin, Loader2 } from 'lucide-react'
 import ImageWithFade from './ImageWithFade'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
@@ -60,7 +60,7 @@ function sourceChar(siteName: string | null): string {
 
 export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   const { user } = useAuth()
-  const queryClient = useQueryClient()
+  // queryClient removed — was only used by auto-extraction trigger
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const bulkInputRef = useRef<HTMLTextAreaElement>(null)
@@ -477,29 +477,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       }
     }
 
-    // Fire-and-forget: multi-item extraction for URL saves
-    if (sourceType === 'url' && savedItem.source_url) {
-      setTimeout(async () => {
-        try {
-          const { data: existingItems } = await supabase
-            .from('saved_items')
-            .select('title')
-            .eq('user_id', user.id)
-            .neq('id', savedItem.id)
-          const existingTitles = (existingItems ?? []).map((i: { title: string }) => i.title)
-          // Signal extraction started
-          window.dispatchEvent(new CustomEvent('youji-extraction-start', { detail: { itemId: savedItem.id } }))
-          await triggerMultiItemExtraction(savedItem, user.id, existingTitles)
-          // Invalidate caches so the badge and count appear on Horizon
-          queryClient.invalidateQueries({ queryKey: ['saved-items'] })
-          queryClient.invalidateQueries({ queryKey: ['pending-extraction-counts'] })
-          // Signal extraction completed
-          window.dispatchEvent(new CustomEvent('youji-extraction-end', { detail: { itemId: savedItem.id } }))
-        } catch (e) {
-          console.error('[extract-multi-items] trigger failed:', e)
-        }
-      }, 0)
-    }
+    // Multi-item extraction removed from auto-trigger.
+    // Unpack is now explicit only — triggered via the FAB menu's "Unpack" option.
 
     onSaved(savedItem)
 
