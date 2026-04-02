@@ -102,7 +102,23 @@ export function useGraphData(
   claimedItemIds?: Set<string>,
 ): GraphData {
   return useMemo(() => {
-    const nodes: GraphNode[] = savedItems.map(item => ({
+    // Deduplicate by place_id: multiple saves of the same place → one star node
+    const placeIdMap = new Map<string, SavedItem>() // place_id → first item
+    const deduped: SavedItem[] = []
+
+    for (const item of savedItems) {
+      if (item.location_place_id) {
+        if (!placeIdMap.has(item.location_place_id)) {
+          placeIdMap.set(item.location_place_id, item)
+          deduped.push(item)
+        }
+        // Skip duplicate place_ids — first one represents all copies
+      } else {
+        deduped.push(item) // No place_id → always include
+      }
+    }
+
+    const nodes: GraphNode[] = deduped.map(item => ({
       id: item.id,
       title: item.title,
       city: extractCity(item.location_name),
@@ -127,7 +143,7 @@ export function useGraphData(
       nodes,
       edges,
       stats: {
-        saves: nodes.length,
+        saves: savedItems.length, // Total saves (not deduped)
         countries: countryCodes.size,
         cities: cities.size,
       },

@@ -86,6 +86,10 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set())
   const allChecked = checkedItems.size === items.length && items.length > 0
 
+  // Duplicate URL detection
+  const [duplicateRoute, setDuplicateRoute] = useState<{ id: string; name: string } | null>(null)
+  const skipDuplicateCheckRef = useRef(false)
+
   // Progressive reveal queue
   const [displayedItems, setDisplayedItems] = useState<ExtractedDisplayItem[]>([])
   const [displayedCount, setDisplayedCount] = useState(0)
@@ -144,9 +148,27 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
   const handleStart = useCallback(async () => {
     if (!urlInput || !user || starting) return
     setStarting(true)
+    setDuplicateRoute(null)
     cancelledRef.current = false
 
     try {
+      // Check for existing Route from this URL (unless user chose "Unpack again")
+      if (!skipDuplicateCheckRef.current) {
+        const { data: existingRoute } = await supabase
+          .from('routes')
+          .select('id, name')
+          .eq('user_id', user.id)
+          .eq('source_url', urlInput)
+          .maybeSingle()
+
+        if (existingRoute) {
+          setDuplicateRoute(existingRoute)
+          setStarting(false)
+          return
+        }
+      }
+      skipDuplicateCheckRef.current = false
+
       // Quick-save the URL if no existing entry
       let currentEntryId = entryId
       if (!currentEntryId) {
@@ -424,7 +446,47 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             </div>
           )}
 
-          {urlInput.length > 10 && (
+          {/* Duplicate URL warning */}
+          {duplicateRoute && (
+            <div style={{
+              margin: '16px 20px', padding: '14px 16px',
+              background: 'rgba(196, 90, 45, 0.08)',
+              border: '0.5px solid rgba(196, 90, 45, 0.2)',
+              borderRadius: 10,
+            }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#e4e8f0', marginBottom: 8 }}>
+                You've already unpacked this as <strong style={{ color: '#c45a2d' }}>{duplicateRoute.name}</strong>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button" onClick={() => {
+                  // Navigate to existing Route
+                  handleClose()
+                  window.location.href = `/route/${duplicateRoute.id}`
+                }} style={{
+                  flex: 1, padding: '8px 0',
+                  background: 'none', border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: 8, cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0',
+                }}>
+                  View existing
+                </button>
+                <button type="button" onClick={() => {
+                  setDuplicateRoute(null)
+                  skipDuplicateCheckRef.current = true
+                  handleStart()
+                }} style={{
+                  flex: 1, padding: '8px 0',
+                  background: '#c45a2d', color: '#fff',
+                  border: 'none', borderRadius: 8, cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+                }}>
+                  Unpack again
+                </button>
+              </div>
+            </div>
+          )}
+
+          {urlInput.length > 10 && !duplicateRoute && (
             <div style={{ padding: '20px', marginTop: 'auto' }}>
               <button type="button" onClick={handleStart} disabled={starting} style={{
                 width: '100%', padding: '14px 0',
