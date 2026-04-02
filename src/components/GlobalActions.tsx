@@ -1,14 +1,20 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { Plus, Bookmark, PackageOpen } from 'lucide-react'
 import SaveSheet from './SaveSheet'
 import UnpackScreen from './UnpackScreen'
+import { createRouteFromExtraction } from '../lib/createRouteFromExtraction'
+import { useAuth } from '../lib/auth'
+import { useToast } from './Toast'
 
 /** FAB is ONLY visible on the Horizon page (/inbox) */
 const FAB_VISIBLE_PATHS = ['/inbox']
 
 export default function GlobalActions() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const { toast } = useToast()
   const showFab = FAB_VISIBLE_PATHS.includes(location.pathname)
   const [showMenu, setShowMenu] = useState(false)
   const [menuVisible, setMenuVisible] = useState(false)
@@ -202,11 +208,36 @@ export default function GlobalActions() {
       {showUnpack && (
         <UnpackScreen
           onClose={() => setShowUnpack(false)}
-          onComplete={(extractionId, entryId) => {
+          onComplete={async (extractionId, entryId) => {
+            if (!user) return
+
+            // Read source metadata from the saved entry
+            const { data: entry } = await (await import('../lib/supabase')).supabase
+              .from('saved_items')
+              .select('source_url, title, image_url, site_name, source_content')
+              .eq('id', entryId)
+              .single()
+
+            // Create Route from extraction results
+            const result = await createRouteFromExtraction(
+              extractionId,
+              user.id,
+              entry?.source_url ?? '',
+              entry?.title ?? null,
+              entry?.image_url ?? null,
+              entry?.site_name ?? null,
+            )
+
             setShowUnpack(false)
             window.dispatchEvent(new CustomEvent('horizon-item-created'))
-            // Route creation will be handled in Unpack-4
-            console.log(`[unpack] Complete: extraction=${extractionId} entry=${entryId}`)
+
+            if (result) {
+              toast(`Created group with ${result.itemCount} places`)
+              // Navigate to Route detail
+              navigate(`/route/${result.routeId}`)
+            } else {
+              toast('Failed to create group')
+            }
           }}
         />
       )}
