@@ -11,7 +11,7 @@ import type { PillGroup } from '../components/PillSheet'
 import { categoryLabel } from '../utils/categoryIcons'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { LayoutGrid, List, SlidersHorizontal, Search, X, ChevronDown, ChevronRight } from 'lucide-react'
-import { CategoryPill, CountryCodeBadge, SourceIcon, PrimaryButton, DashedCard } from '../components/ui'
+import { CategoryPill, CountryCodeBadge, SourceIcon, PrimaryButton, DashedCard, ConfirmDeleteModal } from '../components/ui'
 import ScrollToTop from '../components/ScrollToTop'
 import SunsetBackground from '../components/horizon/SunsetBackground'
 import TravelGraph from '../components/horizon/TravelGraph'
@@ -259,6 +259,7 @@ export default function InboxPage() {
   const [multiSelectMode, setMultiSelectMode] = useState(false)
   const [multiSelected, setMultiSelected] = useState<Set<string>>(new Set())
   const [showMergeInput, setShowMergeInput] = useState(false)
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const [mergeRouteName, setMergeRouteName] = useState('')
   const mergeNameInputRef = useRef<HTMLInputElement>(null)
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -368,6 +369,27 @@ export default function InboxPage() {
       console.error('Merge failed:', (err as Error).message)
     }
   }, [user, multiSelected, mergeRouteName, queryClient, toast, exitMultiSelect])
+
+  const handleBulkDelete = useCallback(async () => {
+    if (!user || multiSelected.size === 0) return
+    try {
+      const ids = [...multiSelected]
+      // Delete saved_items (cascade handles route_items)
+      await supabase.from('saved_items').delete().in('id', ids)
+
+      // Check if any Routes lost all items → auto-delete empty Routes
+      // For simplicity, just invalidate and let the queries handle it
+      queryClient.invalidateQueries({ queryKey: ['saved-items'] })
+      queryClient.invalidateQueries({ queryKey: ['all-saved-items'] })
+      queryClient.invalidateQueries({ queryKey: ['routes'] })
+
+      toast(`Deleted ${ids.length} items`)
+      exitMultiSelect()
+      setShowBulkDeleteConfirm(false)
+    } catch (err) {
+      console.error('Bulk delete failed:', (err as Error).message)
+    }
+  }, [user, multiSelected, queryClient, toast, exitMultiSelect])
 
   // Tick state to force re-render for shimmer timeout (every 10s)
   const [, setTick] = useState(0)
@@ -1341,19 +1363,45 @@ export default function InboxPage() {
                 onClick={startMerge}
                 disabled={multiSelected.size < 2}
                 style={{
-                  padding: '10px 20px',
+                  padding: '10px 16px',
                   background: multiSelected.size >= 2 ? '#c45a2d' : '#d3d1c7', color: '#fff',
                   border: 'none', borderRadius: 8,
                   fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
                   cursor: multiSelected.size >= 2 ? 'pointer' : 'default',
                 }}
               >
-                Merge into Route
+                Merge
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                disabled={multiSelected.size === 0}
+                style={{
+                  padding: '10px 16px',
+                  background: 'none', color: '#c0392b',
+                  border: '1px solid rgba(192,57,43,0.3)', borderRadius: 8,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+                  cursor: multiSelected.size > 0 ? 'pointer' : 'default',
+                  opacity: multiSelected.size > 0 ? 1 : 0.4,
+                }}
+              >
+                Delete
               </button>
             </div>
           )}
         </div>
       </>
+    )}
+
+    {/* Bulk delete confirmation */}
+    {showBulkDeleteConfirm && (
+      <ConfirmDeleteModal
+        title={`Delete ${multiSelected.size} item${multiSelected.size !== 1 ? 's' : ''}?`}
+        description="This will permanently delete the selected items. This cannot be undone."
+        onCancel={() => setShowBulkDeleteConfirm(false)}
+        loading={false}
+        onConfirm={handleBulkDelete}
+      />
     )}
 
     {/* Scroll to top — positioned above the FAB */}

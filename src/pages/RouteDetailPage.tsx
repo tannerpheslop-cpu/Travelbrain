@@ -163,6 +163,7 @@ export default function RouteDetailPage() {
   const [nameDraft, setNameDraft] = useState('')
   const [showMenu, setShowMenu] = useState(false)
   const [showUnmergeConfirm, setShowUnmergeConfirm] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [enrichedPhotos, setEnrichedPhotos] = useState<Map<string, string | null>>(new Map())
   const enrichStarted = useRef(false)
 
@@ -281,6 +282,23 @@ export default function RouteDetailPage() {
     navigate('/inbox')
   }, [id, route, queryClient, toast, navigate])
 
+  const handleDeleteGroup = useCallback(async () => {
+    if (!id) return
+    // Delete all saved_items in this Route
+    const itemIds = routeItems.map(i => i.id)
+    if (itemIds.length > 0) {
+      await supabase.from('saved_items').delete().in('id', itemIds)
+    }
+    // Delete route_items + route (cascade handles route_items)
+    await supabase.from('routes').delete().eq('id', id)
+
+    queryClient.invalidateQueries({ queryKey: ['routes'] })
+    queryClient.invalidateQueries({ queryKey: ['saved-items'] })
+    queryClient.invalidateQueries({ queryKey: ['all-saved-items'] })
+    toast(`Deleted group and ${itemIds.length} items`)
+    navigate('/inbox')
+  }, [id, routeItems, queryClient, toast, navigate])
+
   const handleSaveName = useCallback(async () => {
     if (!id || !route || !nameDraft.trim()) return
     setEditingName(false)
@@ -356,10 +374,21 @@ export default function RouteDetailPage() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, width: '100%',
                     padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#1a1d27', textAlign: 'left',
+                  }}
+                >
+                  <Unlink size={15} /> Break apart
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setShowMenu(false); setShowDeleteConfirm(true) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                    padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#c0392b', textAlign: 'left',
                   }}
                 >
-                  <Unlink size={15} /> Unmerge Route
+                  <Trash2 size={15} /> Delete group
                 </button>
               </div>
             </>
@@ -463,14 +492,25 @@ export default function RouteDetailPage() {
         </div>
       )}
 
-      {/* Unmerge confirmation */}
+      {/* Break apart confirmation */}
       {showUnmergeConfirm && (
         <ConfirmDeleteModal
-          title="Unmerge Route?"
-          description={`This will separate all ${route.item_count} items into individual saves on your Horizon.`}
+          title="Break apart?"
+          description={`This will separate all ${route?.item_count ?? sortedItems.length} items into individual saves on your Horizon.`}
           onCancel={() => setShowUnmergeConfirm(false)}
           loading={false}
           onConfirm={handleUnmerge}
+        />
+      )}
+
+      {/* Delete group confirmation */}
+      {showDeleteConfirm && (
+        <ConfirmDeleteModal
+          title="Delete group?"
+          description={`This will permanently delete this group and all ${route?.item_count ?? sortedItems.length} items inside it. This cannot be undone.`}
+          onCancel={() => setShowDeleteConfirm(false)}
+          loading={false}
+          onConfirm={handleDeleteGroup}
         />
       )}
     </div>
