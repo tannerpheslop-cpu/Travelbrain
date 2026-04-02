@@ -75,16 +75,41 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
   // Step 2 + 3
   const [items, setItems] = useState<ExtractedDisplayItem[]>([])
   const [itemCount, setItemCount] = useState(0)
-  const [prevCount, setPrevCount] = useState(0)
+  const [, setPrevCount] = useState(0)
   const [status, setStatus] = useState<Status>('reading')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [entryId, setEntryId] = useState<string | null>(sourceEntryId ?? null)
   const cancelledRef = useRef(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  // Progressive reveal queue
+  const [displayedItems, setDisplayedItems] = useState<ExtractedDisplayItem[]>([])
+  const [displayedCount, setDisplayedCount] = useState(0)
+  const revealQueueRef = useRef<ExtractedDisplayItem[]>([])
+  const revealingRef = useRef(false)
 
   // Animate in
   useEffect(() => {
     requestAnimationFrame(() => setVisible(true))
     inputRef.current?.focus()
+  }, [])
+
+  // Progressive reveal: items appear one at a time with 200ms delay
+  const revealItems = useCallback(async (newItems: ExtractedDisplayItem[]) => {
+    revealQueueRef.current.push(...newItems)
+
+    if (revealingRef.current) return // Already processing queue
+    revealingRef.current = true
+
+    while (revealQueueRef.current.length > 0) {
+      if (cancelledRef.current) break
+      const item = revealQueueRef.current.shift()!
+      setDisplayedItems(prev => [...prev, item])
+      setDisplayedCount(prev => prev + 1)
+      await new Promise(r => setTimeout(r, 200))
+    }
+
+    revealingRef.current = false
   }, [])
 
   const handleClose = useCallback(() => {
@@ -242,9 +267,10 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
             if (newItems.length > 0) {
               allItems.push(...newItems)
-              setPrevCount(itemCount)
-              setItemCount(allItems.length)
+              // Keep items state for save (all items), but use progressive reveal for display
               setItems([...allItems])
+              // Queue items for progressive reveal (one at a time, 200ms apart)
+              revealItems(newItems)
             }
           }
         } catch (err) {
@@ -280,30 +306,39 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
   // ── Save to Horizon (user taps button on completion screen) ──
   const handleSave = useCallback(async () => {
-    if (!user || !entryId || items.length === 0) return
+    if (!user || !entryId || items.length === 0 || isSaving) return
+    setIsSaving(true)
 
-    // Write to pending_extractions so createRouteFromExtraction can read it
-    const { data: extraction, error } = await supabase.from('pending_extractions').insert({
-      user_id: user.id,
-      source_entry_id: entryId,
-      source_url: urlInput,
-      extracted_items: items,
-      content_type: 'listicle',
-      status: 'complete',
-      item_count: items.length,
-    }).select('id').single()
+    try {
+      // Write to pending_extractions so createRouteFromExtraction can read it
+      const { data: extraction, error } = await supabase.from('pending_extractions').insert({
+        user_id: user.id,
+        source_entry_id: entryId,
+        source_url: urlInput,
+        extracted_items: items,
+        content_type: 'listicle',
+        status: 'complete',
+        item_count: items.length,
+      }).select('id').single()
 
-    if (error || !extraction) {
-      console.error('[unpack] Failed to store extraction:', error?.message)
+      if (error || !extraction) {
+        console.error('[unpack] Failed to store extraction:', error?.message)
+        toast('Failed to save')
+        setIsSaving(false) // Re-enable only on error
+        return
+      }
+
+      onComplete(extraction.id, entryId)
+      // Do NOT re-enable button — user navigates away on success
+    } catch (err) {
+      console.error('[unpack] Save failed:', err)
       toast('Failed to save')
-      return
+      setIsSaving(false) // Re-enable on error for retry
     }
+  }, [user, entryId, items, urlInput, toast, onComplete, isSaving])
 
-    onComplete(extraction.id, entryId)
-  }, [user, entryId, items, urlInput, toast, onComplete])
-
-  // ── Render: group items by section ──
-  const sections = items.reduce<Map<string, ExtractedDisplayItem[]>>((acc, item) => {
+  // ── Render: group DISPLAYED items by section (progressive reveal) ──
+  const sections = displayedItems.reduce<Map<string, ExtractedDisplayItem[]>>((acc, item) => {
     const key = item.section_label || 'Places'
     const group = acc.get(key) ?? []
     group.push(item)
@@ -424,14 +459,14 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             </div>
           </div>
 
-          {/* Counter */}
+          {/* Counter — uses displayedCount for progressive reveal */}
           <div style={{ textAlign: 'center', padding: '24px 0 16px' }}>
             <div style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 36, fontWeight: 500,
               color: '#c45a2d', lineHeight: 1, overflow: 'hidden', height: 40,
             }}>
-              <div key={itemCount} style={{ animation: itemCount > prevCount ? 'slideUp 200ms ease forwards' : 'none' }}>
-                {itemCount}
+              <div key={displayedCount} style={{ animation: displayedCount > 0 ? 'slideUp 200ms ease forwards' : 'none' }}>
+                {displayedCount}
               </div>
             </div>
             <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-secondary, #8088a0)', marginTop: 4 }}>
@@ -528,13 +563,15 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             ) : step === 'done' ? (
               /* Completion state — stays until user taps */
               <div>
-                <button type="button" onClick={handleSave} style={{
+                <button type="button" onClick={handleSave} disabled={isSaving} style={{
                   width: '100%', padding: '14px 0',
-                  background: '#c45a2d', color: '#fff',
-                  border: 'none', borderRadius: 12, cursor: 'pointer',
+                  background: isSaving ? '#8a4020' : '#c45a2d', color: '#fff',
+                  border: 'none', borderRadius: 12,
+                  cursor: isSaving ? 'default' : 'pointer',
+                  opacity: isSaving ? 0.7 : 1,
                   fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
                 }}>
-                  Save to Horizon
+                  {isSaving ? 'Saving...' : 'Save to Horizon'}
                 </button>
                 <button type="button" onClick={handleClose} style={{
                   width: '100%', padding: '10px 0', marginTop: 4,
