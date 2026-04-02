@@ -100,6 +100,12 @@ input, textarea, select {
   100% { background-position: -200% 0; }
 }
 
+/* Generic fade-in for lazy-loaded content */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* Extraction processing shimmer — translucent gradient sweep */
 @keyframes extraction-shimmer {
   0% { transform: translateX(-100%); }

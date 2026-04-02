@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
@@ -7,7 +7,8 @@ import { useRouteItems } from '../hooks/queries'
 import { useToast } from '../components/Toast'
 import { ConfirmDeleteModal } from '../components/ui'
 import { optimizedImageUrl } from '../lib/optimizedImage'
-import { ChevronLeft, MoreHorizontal, Trash2, Unlink } from 'lucide-react'
+import { enrichRouteItems } from '../lib/enrichPhotoOnly'
+import { ChevronLeft, MoreHorizontal, Trash2, Unlink, UtensilsCrossed, Landmark, Mountain, Hotel, Palmtree, ShoppingBag, Music, Gamepad2, Train, Sparkles, Waves, MapPin } from 'lucide-react'
 import {
   DndContext,
   closestCenter,
@@ -26,14 +27,47 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { Route, SavedItem } from '../types'
 
+// ── Category icons + colors ──────────────────────────────────────────────────
+
+const CATEGORY_ICON: Record<string, { icon: typeof MapPin; color: string; bg: string }> = {
+  restaurant: { icon: UtensilsCrossed, color: '#c45a2d', bg: 'rgba(196, 90, 45, 0.08)' },
+  hotel: { icon: Hotel, color: '#6880a0', bg: 'rgba(104, 128, 160, 0.08)' },
+  museum: { icon: Landmark, color: '#8a6db0', bg: 'rgba(138, 109, 176, 0.08)' },
+  temple: { icon: Landmark, color: '#c49a2d', bg: 'rgba(196, 154, 45, 0.08)' },
+  park: { icon: Palmtree, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.08)' },
+  hike: { icon: Mountain, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.08)' },
+  historical: { icon: Landmark, color: '#8a6020', bg: 'rgba(138, 96, 32, 0.08)' },
+  shopping: { icon: ShoppingBag, color: '#c45a7d', bg: 'rgba(196, 90, 125, 0.08)' },
+  nightlife: { icon: Music, color: '#8a5ac4', bg: 'rgba(138, 90, 196, 0.08)' },
+  entertainment: { icon: Gamepad2, color: '#c45a7d', bg: 'rgba(196, 90, 125, 0.08)' },
+  transport: { icon: Train, color: '#6880a0', bg: 'rgba(104, 128, 160, 0.08)' },
+  spa: { icon: Sparkles, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.08)' },
+  beach: { icon: Waves, color: '#2d8ac4', bg: 'rgba(45, 138, 196, 0.08)' },
+}
+
+function CategoryPlaceholder({ category }: { category: string }) {
+  const config = CATEGORY_ICON[category] ?? { icon: MapPin, color: '#b4b2a9', bg: '#f1efe8' }
+  const Icon = config.icon
+  return (
+    <div style={{
+      width: 48, height: 48, borderRadius: 8, flexShrink: 0,
+      background: config.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+    }}>
+      <Icon size={20} color={config.color} />
+    </div>
+  )
+}
+
 // ── Sortable item row ────────────────────────────────────────────────────────
 
 function SortableItemRow({
   item,
   onRemove,
+  enrichedPhoto,
 }: {
   item: SavedItem
   onRemove: () => void
+  enrichedPhoto?: string | null
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
 
@@ -44,7 +78,7 @@ function SortableItemRow({
     zIndex: isDragging ? 10 : 0,
   }
 
-  const thumbnail = item.image_url ?? item.places_photo_url
+  const thumbnail = enrichedPhoto ?? item.image_url ?? item.places_photo_url
 
   return (
     <div
@@ -64,23 +98,18 @@ function SortableItemRow({
         </svg>
       </div>
 
-      {/* Thumbnail */}
+      {/* Thumbnail — with fade-in for lazy-enriched photos */}
       {thumbnail ? (
         <img
           src={optimizedImageUrl(thumbnail, 'grid-thumbnail') ?? thumbnail}
           alt=""
-          style={{ width: 44, height: 44, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+          style={{
+            width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0,
+            animation: enrichedPhoto ? 'fadeIn 300ms ease' : 'none',
+          }}
         />
       ) : (
-        <div style={{
-          width: 44, height: 44, borderRadius: 6, flexShrink: 0,
-          background: '#f1efe8', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b4b2a9" strokeWidth="1.5">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-            <circle cx="12" cy="10" r="3" />
-          </svg>
-        </div>
+        <CategoryPlaceholder category={item.category} />
       )}
 
       {/* Content — tappable to open item detail */}
@@ -134,6 +163,8 @@ export default function RouteDetailPage() {
   const [nameDraft, setNameDraft] = useState('')
   const [showMenu, setShowMenu] = useState(false)
   const [showUnmergeConfirm, setShowUnmergeConfirm] = useState(false)
+  const [enrichedPhotos, setEnrichedPhotos] = useState<Map<string, string | null>>(new Map())
+  const enrichStarted = useRef(false)
 
   const { data: routeItemsData = [] } = useRouteItems(id ?? null)
   const routeItems = routeItemsData.map(ri => ri.saved_items)
@@ -165,6 +196,24 @@ export default function RouteDetailPage() {
         setLoading(false)
       })
   }, [id, user])
+
+  // ── Lazy photo enrichment ──
+  useEffect(() => {
+    if (!user || routeItems.length === 0 || enrichStarted.current) return
+    const unenriched = routeItems.filter(i => !i.image_url && !i.places_photo_url)
+    if (unenriched.length === 0) return
+
+    enrichStarted.current = true
+    enrichRouteItems(
+      unenriched.map(i => ({ id: i.id, title: i.title, location_name: i.location_name, image_url: i.image_url })),
+      user.id,
+      (itemId, photoUrl) => {
+        setEnrichedPhotos(prev => new Map(prev).set(itemId, photoUrl))
+      },
+    ).then(count => {
+      if (count > 0) console.log(`[route-detail] Enriched ${count} items with photos`)
+    })
+  }, [user, routeItems])
 
   // DnD sensors
   const sensors = useSensors(
@@ -401,6 +450,7 @@ export default function RouteDetailPage() {
               key={item.id}
               item={item}
               onRemove={() => handleRemoveItem(item.id)}
+              enrichedPhoto={enrichedPhotos.get(item.id)}
             />
           ))}
         </SortableContext>
