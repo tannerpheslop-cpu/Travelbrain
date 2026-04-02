@@ -125,7 +125,7 @@ export default function GlobalActions() {
               >
                 <div style={{
                   width: 44, height: 44, borderRadius: 12,
-                  background: 'rgba(196, 90, 45, 0.12)',
+                  background: 'rgba(196, 90, 45, 0.15)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}>
@@ -134,13 +134,13 @@ export default function GlobalActions() {
                 <div>
                   <div style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 500,
-                    color: 'var(--color-text-primary, #e4e8f0)',
+                    color: '#e4e8f0',
                   }}>
                     Quick save
                   </div>
                   <div style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-                    color: 'var(--color-text-secondary, #8088a0)',
+                    color: '#b8c8e0',
                     marginTop: 1,
                   }}>
                     Save a link, note, or photo
@@ -167,7 +167,7 @@ export default function GlobalActions() {
               >
                 <div style={{
                   width: 44, height: 44, borderRadius: 12,
-                  background: 'rgba(196, 90, 45, 0.12)',
+                  background: 'rgba(196, 90, 45, 0.15)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}>
@@ -176,13 +176,13 @@ export default function GlobalActions() {
                 <div>
                   <div style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 500,
-                    color: 'var(--color-text-primary, #e4e8f0)',
+                    color: '#e4e8f0',
                   }}>
                     Unpack
                   </div>
                   <div style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-                    color: 'var(--color-text-secondary, #8088a0)',
+                    color: '#b8c8e0',
                     marginTop: 1,
                   }}>
                     Turn any travel article into a list of places to visit
