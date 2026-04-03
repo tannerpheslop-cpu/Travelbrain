@@ -445,7 +445,7 @@ export default function SelectionOverlay({
         data-testid="selection-overlay"
         style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 61,
-          background: '#0d1a2a', borderRadius: '16px 16px 0 0',
+          background: 'var(--bg-base)', borderRadius: '16px 16px 0 0',
           maxHeight: '92vh', display: 'flex', flexDirection: 'column',
           transform: visible ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 300ms ease',
@@ -455,32 +455,32 @@ export default function SelectionOverlay({
         {/* Top bar */}
         <div style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '16px 16px 8px', borderBottom: '0.5px solid #e8e6e1', flexShrink: 0,
+          padding: '16px 16px 8px', borderBottom: '0.5px solid rgba(118, 130, 142, 0.1)', flexShrink: 0,
         }}>
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600, color: '#1a1d27' }}>
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
             {selectedCount} of {cappedItems.length} selected
           </span>
           <button type="button" onClick={handleClose} aria-label="Close" style={{
-            width: 32, height: 32, borderRadius: 8, background: '#f1efe8',
+            width: 32, height: 32, borderRadius: 8, background: 'var(--bg-elevated-1)',
             border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <X size={16} style={{ color: '#888780' }} />
+            <X size={16} style={{ color: 'var(--text-tertiary)' }} />
           </button>
         </div>
 
         {/* Source info + select controls */}
         <div style={{ padding: '8px 16px 4px', flexShrink: 0 }}>
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#888780', margin: '0 0 8px' }}>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 8px' }}>
             From: {sourceTitle ?? 'Article'} · {extractDomain(sourceUrl)}
           </p>
           <div style={{ display: 'flex', gap: 12 }}>
             <button type="button" onClick={selectAll} style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600,
-              color: '#B8441E', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
             }}>Select all</button>
             <button type="button" onClick={deselectAll} style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600,
-              color: '#B8441E', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
             }}>Deselect all</button>
           </div>
         </div>
@@ -510,7 +510,7 @@ export default function SelectionOverlay({
                     padding: '8px 16px 4px',
                     fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                    letterSpacing: 1, color: '#888780',
+                    letterSpacing: 1, color: 'var(--text-tertiary)',
                   }}>
                     {country}
                   </div>
@@ -527,8 +527,8 @@ export default function SelectionOverlay({
                       key={i}
                       data-testid={`extraction-item-${i}`}
                 style={{
-                  borderBottom: '0.5px solid #f1efe8',
-                  borderTop: isExpanded ? '0.5px solid #e8e6e1' : 'none',
+                  borderBottom: '0.5px solid var(--bg-elevated-1)',
+                  borderTop: isExpanded ? '0.5px solid rgba(118, 130, 142, 0.1)' : 'none',
                   background: isExpanded ? '#f5f3ef' : 'transparent',
                   transition: 'background 200ms ease',
                 }}
@@ -545,8 +545,8 @@ export default function SelectionOverlay({
                     onClick={(e) => { e.stopPropagation(); toggleItem(i) }}
                     style={{
                       width: 20, height: 20, borderRadius: 4, flexShrink: 0,
-                      border: isSelected ? 'none' : '1.5px solid #d3d1c7',
-                      background: isSelected ? '#B8441E' : 'transparent',
+                      border: isSelected ? 'none' : '1.5px solid rgba(118, 130, 142, 0.3)',
+                      background: isSelected ? 'var(--accent-primary)' : 'transparent',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       cursor: 'pointer', padding: 0,
                     }}
@@ -565,13 +565,13 @@ export default function SelectionOverlay({
                       alt=""
                       style={{
                         width: 56, height: 56, borderRadius: 8, objectFit: 'cover',
-                        flexShrink: 0, background: '#f1efe8',
+                        flexShrink: 0, background: 'var(--bg-elevated-1)',
                       }}
                     />
                   ) : (
                     <div style={{
                       width: 56, height: 56, borderRadius: 8, flexShrink: 0,
-                      background: '#f1efe8', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: 'var(--bg-elevated-1)', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b4b2a9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
@@ -591,19 +591,19 @@ export default function SelectionOverlay({
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {contentType === 'itinerary' && (
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: '#B8441E' }}>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: 'var(--accent-primary)' }}>
                           {item.source_order}.
                         </span>
                       )}
                       <p style={{
                         fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
-                        color: '#1a1d27', margin: 0, overflow: 'hidden',
+                        color: 'var(--text-primary)', margin: 0, overflow: 'hidden',
                         textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>
                         {display.name}
                       </p>
                       {isDuplicate && (
-                        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500, color: '#888780', flexShrink: 0 }}>
+                        <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500, color: 'var(--text-tertiary)', flexShrink: 0 }}>
                           Already saved
                         </span>
                       )}
@@ -611,7 +611,7 @@ export default function SelectionOverlay({
                     <div style={{ display: 'flex', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
                       <span style={{
                         fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
-                        color: '#888780', background: '#f1efe8', padding: '1px 6px',
+                        color: 'var(--text-tertiary)', background: 'var(--bg-elevated-1)', padding: '1px 6px',
                         borderRadius: 4, whiteSpace: 'nowrap',
                       }}>
                         {display.category}
@@ -621,7 +621,7 @@ export default function SelectionOverlay({
                         return city ? (
                           <span style={{
                             fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
-                            color: '#888780', background: '#f1efe8', padding: '1px 6px',
+                            color: 'var(--text-tertiary)', background: 'var(--bg-elevated-1)', padding: '1px 6px',
                             borderRadius: 4, whiteSpace: 'nowrap',
                           }}>
                             {city}
@@ -672,7 +672,7 @@ export default function SelectionOverlay({
         {/* Bottom save bar */}
         <div style={{
           padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
-          borderTop: '0.5px solid #e8e6e1', flexShrink: 0,
+          borderTop: '0.5px solid rgba(118, 130, 142, 0.1)', flexShrink: 0,
         }}>
           {saveMode === 'route-naming' ? (
             <>
@@ -687,8 +687,8 @@ export default function SelectionOverlay({
                 style={{
                   width: '100%', padding: '10px 14px', marginBottom: 10,
                   fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500,
-                  color: '#1a1d27', background: '#f1efe8',
-                  border: '0.5px solid #e8e6e1', borderRadius: 8,
+                  color: 'var(--text-primary)', background: 'var(--bg-elevated-1)',
+                  border: '0.5px solid rgba(118, 130, 142, 0.1)', borderRadius: 8,
                   outline: 'none',
                 }}
                 data-testid="route-name-input"
@@ -700,7 +700,7 @@ export default function SelectionOverlay({
                 disabled={selectedCount === 0 || saving || !routeName.trim()}
                 style={{
                   width: '100%', padding: '14px 0',
-                  background: selectedCount > 0 && routeName.trim() ? '#B8441E' : '#d3d1c7',
+                  background: selectedCount > 0 && routeName.trim() ? 'var(--accent-primary)' : 'rgba(118, 130, 142, 0.3)',
                   color: '#fff',
                   fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
                   border: 'none', borderRadius: 12,
@@ -716,7 +716,7 @@ export default function SelectionOverlay({
                 style={{
                   display: 'block', width: '100%', marginTop: 8, padding: '8px 0',
                   background: 'none', border: 'none', cursor: 'pointer',
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#888780',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-tertiary)',
                   textAlign: 'center',
                 }}
               >
@@ -734,7 +734,7 @@ export default function SelectionOverlay({
                   disabled={selectedCount === 0 || saving}
                   style={{
                     flex: 1, padding: '14px 0',
-                    background: selectedCount > 0 ? '#B8441E' : '#d3d1c7', color: '#fff',
+                    background: selectedCount > 0 ? 'var(--accent-primary)' : 'rgba(118, 130, 142, 0.3)', color: '#fff',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
                     border: 'none', borderRadius: 10,
                     cursor: selectedCount > 0 ? 'pointer' : 'default',
@@ -751,8 +751,8 @@ export default function SelectionOverlay({
                   style={{
                     flex: 1, padding: '14px 0',
                     background: 'transparent',
-                    border: selectedCount > 0 ? '1.5px solid #B8441E' : '1.5px solid #d3d1c7',
-                    color: selectedCount > 0 ? '#B8441E' : '#888780',
+                    border: selectedCount > 0 ? '1.5px solid var(--accent-primary)' : '1.5px solid rgba(118, 130, 142, 0.3)',
+                    color: selectedCount > 0 ? 'var(--accent-primary)' : 'var(--text-tertiary)',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
                     borderRadius: 10,
                     cursor: selectedCount > 0 ? 'pointer' : 'default',
@@ -797,12 +797,12 @@ function ExpandedEditor({
         onChange={e => onNameChange(e.target.value)}
         style={{
           width: '100%', fontSize: 16, fontWeight: 500, padding: '8px 10px',
-          border: '1px solid #e8e6e1', borderRadius: 8, background: '#fff',
-          fontFamily: "'DM Sans', sans-serif", color: '#1a1d27',
+          border: '1px solid rgba(118, 130, 142, 0.1)', borderRadius: 8, background: '#fff',
+          fontFamily: "'DM Sans', sans-serif", color: 'var(--text-primary)',
           outline: 'none', boxSizing: 'border-box',
         }}
-        onFocus={e => e.target.style.borderColor = '#B8441E'}
-        onBlur={e => e.target.style.borderColor = '#e8e6e1'}
+        onFocus={e => e.target.style.borderColor = 'var(--accent-primary)'}
+        onBlur={e => e.target.style.borderColor = 'rgba(118, 130, 142, 0.1)'}
       />
 
       {/* Category pills */}
@@ -815,9 +815,9 @@ function ExpandedEditor({
             style={{
               padding: '4px 10px', borderRadius: 12, cursor: 'pointer',
               fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
-              border: display.category === pill.value ? 'none' : '1px solid #d3d1c7',
+              border: display.category === pill.value ? 'none' : '1px solid rgba(118, 130, 142, 0.3)',
               background: display.category === pill.value ? 'rgba(184,68,30,0.1)' : 'transparent',
-              color: display.category === pill.value ? '#B8441E' : '#888780',
+              color: display.category === pill.value ? 'var(--accent-primary)' : 'var(--text-tertiary)',
             }}
           >
             {pill.label}
@@ -842,7 +842,7 @@ function ExpandedEditor({
           onClick={onDone}
           style={{
             fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600,
-            color: '#B8441E', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0',
+            color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0',
           }}
         >
           Done

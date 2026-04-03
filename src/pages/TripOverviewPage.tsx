@@ -121,7 +121,7 @@ function ShareTripModal({ trip, onClose, onUpdated }: { trip: Trip; onClose: () 
               onClick={handleCopy}
               className="w-full flex items-center gap-2 bg-bg-page border border-border rounded-xl px-3 py-2.5 hover:border-accent/40 transition-colors cursor-pointer"
             >
-              <p className="flex-1 text-xs font-mono truncate text-left" style={{ color: copied ? 'var(--color-accent)' : 'var(--color-text-secondary)' }}>
+              <p className="flex-1 text-xs font-mono truncate text-left" style={{ color: copied ? 'var(--color-accent)' : 'var(--text-secondary)' }}>
                 {copied ? 'Copied!' : shareUrl}
               </p>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 shrink-0" style={{ color: copied ? 'var(--color-accent)' : 'var(--color-text-faint)' }}>
@@ -916,7 +916,7 @@ export default function TripOverviewPage() {
           <div className="fixed inset-0 z-40" onClick={() => setShowActionMenu(false)} />
           <div style={{
             position: 'relative', zIndex: 50, marginBottom: 8,
-            background: '#ffffff', border: '1px solid #e8e6e1', borderRadius: 10,
+            background: 'var(--bg-elevated-1)', border: '1px solid rgba(118, 130, 142, 0.15)', borderRadius: 10,
             boxShadow: '0 4px 20px rgba(0,0,0,0.1)', padding: '6px 0',
           }}>
             <button
@@ -930,10 +930,10 @@ export default function TripOverviewPage() {
               }}
               style={{
                 display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
-                fontSize: 14, color: '#2a2a28', cursor: 'pointer', border: 'none',
+                fontSize: 14, color: 'var(--text-primary)', cursor: 'pointer', border: 'none',
                 background: 'transparent', fontFamily: "'DM Sans', sans-serif",
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#f5f3f0')}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(118, 130, 142, 0.1)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >{trip?.is_favorited ? 'Unpin' : 'Pin to top'}</button>
             <button
@@ -941,10 +941,10 @@ export default function TripOverviewPage() {
               onClick={() => { setShowActionMenu(false); handleRefreshImages() }}
               style={{
                 display: 'block', width: '100%', textAlign: 'left', padding: '11px 16px',
-                fontSize: 14, color: '#2a2a28', cursor: 'pointer', border: 'none',
+                fontSize: 14, color: 'var(--text-primary)', cursor: 'pointer', border: 'none',
                 background: 'transparent', fontFamily: "'DM Sans', sans-serif",
               }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#f5f3f0')}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(118, 130, 142, 0.1)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
             >Refresh images</button>
             <button
@@ -968,7 +968,7 @@ export default function TripOverviewPage() {
           <div className="fixed inset-0 z-40" onClick={() => setDestMenuId(null)} />
           <div style={{
             position: 'fixed', top: 60, right: 14, zIndex: 50,
-            background: '#ffffff', border: '1px solid #e8e6e1', borderRadius: 10,
+            background: 'var(--bg-elevated-1)', border: '1px solid rgba(118, 130, 142, 0.15)', borderRadius: 10,
             boxShadow: '0 4px 20px rgba(0,0,0,0.1)', padding: '6px 0', minWidth: 180,
           }}>
             <button

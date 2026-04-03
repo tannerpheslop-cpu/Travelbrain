@@ -357,14 +357,14 @@ export default function DestinationMapView({
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
           <span style={{
             fontFamily: "'DM Sans', sans-serif", fontSize: 17, fontWeight: 600,
-            color: 'var(--color-text-primary)',
+            color: 'var(--text-primary)',
           }}>
             {destination.location_name.split(',')[0]}
           </span>
           {bilingualName && (
             <span style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-              color: 'var(--color-text-tertiary)',
+              color: 'var(--text-tertiary)',
             }}>
               {bilingualName}
             </span>
@@ -393,14 +393,14 @@ export default function DestinationMapView({
       {dateRange && (
         <div style={{
           fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-          color: 'var(--color-text-tertiary)', marginTop: 2,
+          color: 'var(--text-tertiary)', marginTop: 2,
         }}>
           {dateRange}
         </div>
       )}
       <div style={{
         fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-        color: 'var(--color-text-tertiary)', marginTop: 2,
+        color: 'var(--text-tertiary)', marginTop: 2,
       }}>
         {items.length} saves · {preciseItems.length} on map
       </div>
@@ -504,7 +504,7 @@ export default function DestinationMapView({
               data-testid="empty-state-all-precise"
               style={{
                 padding: '32px 16px', textAlign: 'center',
-                color: 'var(--color-text-tertiary)',
+                color: 'var(--text-tertiary)',
                 fontFamily: "'DM Sans', sans-serif", fontSize: 14,
               }}
             >
@@ -530,13 +530,13 @@ export default function DestinationMapView({
               </div>
               <p style={{
                 fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
-                color: 'var(--color-text-primary)', margin: '0 0 4px',
+                color: 'var(--text-primary)', margin: '0 0 4px',
               }}>
                 Add your first save
               </p>
               <p style={{
                 fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-                color: 'var(--color-text-tertiary)', margin: 0,
+                color: 'var(--text-tertiary)', margin: 0,
               }}>
                 Add places from your Horizon or search for new ones
               </p>

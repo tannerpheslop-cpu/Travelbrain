@@ -22,10 +22,10 @@ interface TravelGraphProps {
 type NodeState = 'dim' | 'default' | 'claimed' | 'bright'
 
 const NODE_COLORS: Record<NodeState, { fill: string; glowOpacity: number }> = {
-  dim:     { fill: '#b8c8e0', glowOpacity: 0.15 },
-  default: { fill: '#d4e0f0', glowOpacity: 0.25 },
-  claimed: { fill: '#B8441E', glowOpacity: 0.25 },
-  bright:  { fill: '#edf2fa', glowOpacity: 0.40 },
+  dim:     { fill: 'var(--star-dim)',     glowOpacity: 0.15 },
+  default: { fill: 'var(--star-default)', glowOpacity: 0.25 },
+  claimed: { fill: 'var(--accent-primary)', glowOpacity: 0.25 },
+  bright:  { fill: 'var(--star-bright)',  glowOpacity: 0.40 },
 }
 
 const EDGE_STYLES: Record<GraphEdge['type'], { width: number; opacity: number }> = {
@@ -206,7 +206,7 @@ function NodePreviewCard({ item }: { item: SavedItem }) {
         bottom: 8,
         left: 16,
         right: 16,
-        background: 'var(--color-surface, #0d1a2a)',
+        background: 'var(--bg-base, #15181c)',
         borderRadius: 10,
         padding: '10px 14px',
         display: 'flex',
@@ -226,7 +226,7 @@ function NodePreviewCard({ item }: { item: SavedItem }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
           fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
-          color: 'var(--color-text-primary, #e4e8f0)',
+          color: 'var(--text-primary, #e8eaed)',
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
           {item.title}
@@ -611,9 +611,9 @@ export default function TravelGraph({
 
             {/* Soft center dot gradients — diffuse edges for point-of-light effect */}
             <radialGradient id="dot-default">
-              <stop offset="0%" stopColor="#d4e0f0" stopOpacity="1" />
-              <stop offset="60%" stopColor="#d4e0f0" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#d4e0f0" stopOpacity="0.3" />
+              <stop offset="0%" stopColor="var(--star-default)" stopOpacity="1" />
+              <stop offset="60%" stopColor="var(--star-default)" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="var(--star-default)" stopOpacity="0.3" />
             </radialGradient>
             <radialGradient id="dot-claimed">
               <stop offset="0%" stopColor="#B8441E" stopOpacity="1" />
@@ -621,14 +621,14 @@ export default function TravelGraph({
               <stop offset="100%" stopColor="#B8441E" stopOpacity="0.3" />
             </radialGradient>
             <radialGradient id="dot-dim">
-              <stop offset="0%" stopColor="#b8c8e0" stopOpacity="0.8" />
-              <stop offset="60%" stopColor="#b8c8e0" stopOpacity="0.6" />
-              <stop offset="100%" stopColor="#b8c8e0" stopOpacity="0.15" />
+              <stop offset="0%" stopColor="var(--text-tertiary)" stopOpacity="0.8" />
+              <stop offset="60%" stopColor="var(--text-tertiary)" stopOpacity="0.6" />
+              <stop offset="100%" stopColor="var(--text-tertiary)" stopOpacity="0.15" />
             </radialGradient>
             <radialGradient id="dot-bright">
-              <stop offset="0%" stopColor="#edf2fa" stopOpacity="1" />
-              <stop offset="60%" stopColor="#edf2fa" stopOpacity="0.95" />
-              <stop offset="100%" stopColor="#edf2fa" stopOpacity="0.4" />
+              <stop offset="0%" stopColor="var(--text-primary)" stopOpacity="1" />
+              <stop offset="60%" stopColor="var(--text-primary)" stopOpacity="0.95" />
+              <stop offset="100%" stopColor="var(--text-primary)" stopOpacity="0.4" />
             </radialGradient>
           </defs>
 
@@ -639,7 +639,7 @@ export default function TravelGraph({
                 <line
                   key={`edge-${i}`}
                   x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2}
-                  stroke="#d4e0f0"
+                  stroke="var(--star-default)"
                   strokeWidth={getEdgeWidth(e.type)}
                   opacity={getEdgeOpacity(e)}
                   style={{ transition: 'opacity 300ms ease' }}
@@ -726,7 +726,7 @@ export default function TravelGraph({
                   fontWeight: label.level === 'country' ? 500 : 400,
                   textTransform: label.level === 'country' ? 'uppercase' : 'none',
                   letterSpacing: label.level === 'country' ? '1px' : '0.3px',
-                  fill: label.level === 'country' ? '#edf2fa' : '#b8c8e0',
+                  fill: label.level === 'country' ? 'var(--text-primary)' : 'var(--text-secondary)',
                   fillOpacity: label.level === 'country' ? 0.5 : 0.6,
                   pointerEvents: 'none',
                   userSelect: 'none',

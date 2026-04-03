@@ -9,7 +9,7 @@ export default function Card({ children, hoverable = true, className = '', ...pr
   return (
     <div
       {...props}
-      className={`bg-bg-card border border-border rounded-xl transition-all duration-150 ease-out ${
+      className={`bg-bg-card border border-border-light rounded-lg transition-all duration-150 ease-out ${
         hoverable
           ? 'hover:border-accent/25 hover:shadow-[0_4px_16px_rgba(0,0,0,0.05)] hover:-translate-y-0.5'
           : ''

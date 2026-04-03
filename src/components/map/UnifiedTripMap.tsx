@@ -640,10 +640,10 @@ export default function UnifiedTripMap({
     <div style={{ padding: '8px 16px 12px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, minWidth: 0 }}>
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 17, fontWeight: 600, color: 'var(--color-text-primary)' }}>
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 17, fontWeight: 600, color: 'var(--text-primary)' }}>
             {activeDest.location_name.split(',')[0]}
           </span>
-          {cityLocal && <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-tertiary)' }}>{cityLocal}</span>}
+          {cityLocal && <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-tertiary)' }}>{cityLocal}</span>}
         </div>
         <button type="button" data-testid="sheet-add-items-btn" onClick={() => setShowAddItems(true)}
           style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6,
@@ -653,11 +653,11 @@ export default function UnifiedTripMap({
         </button>
       </div>
       {activeDest.start_date && activeDest.end_date && (
-        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+        <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>
           {formatShortDate(activeDest.start_date)} – {formatShortDate(activeDest.end_date)}
         </div>
       )}
-      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-text-tertiary)', marginTop: 2 }}>
+      <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)', marginTop: 2 }}>
         {destItems.length} saves · {preciseItems.length} on map
       </div>
     </div>
@@ -666,7 +666,7 @@ export default function UnifiedTripMap({
   // ── Trip-level sheet header — tabs only (title/stats are on map overlay) ──
   const tripSheetHeader = (
     <div style={{ padding: '4px 16px 0' }}>
-      <div style={{ display: 'flex', gap: 0, borderBottom: '0.5px solid #f1efe8' }}>
+      <div style={{ display: 'flex', gap: 0, borderBottom: '0.5px solid rgba(118, 130, 142, 0.1)' }}>
         <TripSheetTab label="Destinations" active />
         <TripSheetTab label="Itinerary" />
         <TripSheetTab label="Logistics" />
@@ -692,12 +692,12 @@ export default function UnifiedTripMap({
               style={{
                 display: 'flex', alignItems: 'center', width: '100%', padding: '12px 16px',
                 background: 'none', border: 'none',
-                borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: '#f1efe8',
+                borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: 'rgba(118, 130, 142, 0.1)',
                 cursor: isCityLevel(d) ? 'pointer' : 'default', textAlign: 'left',
               }}
             >
               {/* Chapter number */}
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#f1efe8',
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--bg-elevated-1)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginRight: 12 }}>
                 <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 800, color: MAP_COLORS.accent }}>
                   {chapterNum}
@@ -705,26 +705,26 @@ export default function UnifiedTripMap({
               </div>
               {/* Name + dates/count */}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600, color: '#1a1d27', margin: 0, lineHeight: 1.3,
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', margin: 0, lineHeight: 1.3,
                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {cityName}
-                  {d.location_country && <span style={{ fontWeight: 400, color: '#888780', fontSize: 13 }}> · {d.location_country}</span>}
+                  {d.location_country && <span style={{ fontWeight: 400, color: 'var(--text-tertiary)', fontSize: 13 }}> · {d.location_country}</span>}
                 </p>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                   {d.start_date && d.end_date ? (
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#888780' }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)' }}>
                       {formatShortDate(d.start_date)} – {formatShortDate(d.end_date)}
                     </span>
                   ) : (
                     <button type="button" onClick={(e) => { e.stopPropagation(); onDatesTap?.(d.id) }}
                       data-testid={`add-dates-${d.id}`}
                       style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
-                        color: 'var(--color-copper)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+                        color: 'var(--accent-primary)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
                       + add dates
                     </button>
                   )}
                   <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b4b2a9' }}>·</span>
-                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#888780' }}>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)' }}>
                     {d._count} save{d._count !== 1 ? 's' : ''}
                   </span>
                 </div>
@@ -891,15 +891,15 @@ export default function UnifiedTripMap({
             {level === 'trip' ? (
               tripSheetContent
             ) : destItemsLoading ? (
-              <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13 }}>Loading...</div>
+              <div style={{ padding: '32px 16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>Loading...</div>
             ) : displayItems.length === 0 ? (
               <button type="button" data-testid="empty-state-add-items" onClick={() => setShowAddItems(true)}
                 style={{ display: 'block', width: '100%', padding: '32px 16px', textAlign: 'center', background: 'none', border: 'none', cursor: 'pointer' }}>
                 <div style={{ width: 48, height: 48, borderRadius: 12, background: 'var(--color-accent-light)', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <span style={{ fontSize: 20, color: 'var(--color-accent)' }}>+</span>
                 </div>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>Add your first save</p>
-                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-tertiary)', margin: 0 }}>Add places from your Horizon or search for new ones</p>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>Add your first save</p>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-tertiary)', margin: 0 }}>Add places from your Horizon or search for new ones</p>
               </button>
             ) : (
               displayItems.map(item => (
@@ -954,8 +954,8 @@ function TripSheetTab({ label, active = false }: { label: string; active?: boole
       fontFamily: "'DM Sans', sans-serif",
       fontSize: 13,
       fontWeight: active ? 600 : 400,
-      color: active ? 'var(--color-copper)' : '#888780',
-      borderBottom: active ? '2px solid var(--color-copper)' : '2px solid transparent',
+      color: active ? 'var(--accent-primary)' : 'var(--text-tertiary)',
+      borderBottom: active ? '2px solid var(--accent-primary)' : '2px solid transparent',
       cursor: active ? 'default' : 'not-allowed',
       opacity: active ? 1 : 0.5,
     }}>

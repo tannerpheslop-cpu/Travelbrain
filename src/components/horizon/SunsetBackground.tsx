@@ -3,7 +3,11 @@ import { useMemo } from 'react'
 /**
  * Dynamic sunset progression background for the Horizon page.
  * Transitions from golden hour (0 saves) to full night (30+ saves).
- * See /docs/BRAND-IDENTITY.md Section 3.
+ * See /docs/DESIGN-SYSTEM-V2.md Section 5.
+ *
+ * Two-layer model:
+ *   Layer 1 — CSS linear-gradient top → bottom (95% of the work)
+ *   Layer 2 — Radial overlay below the bottom edge (horizon curve / city glow)
  */
 
 interface SunsetBackgroundProps {
@@ -13,7 +17,14 @@ interface SunsetBackgroundProps {
 // ── Stage definitions ────────────────────────────────────────────────────────
 
 interface GradientStop { pos: number; color: string }
-interface RadialConfig { centerYOffset: number; radiusFactor: number; color: string; opacity: number }
+interface RadialStop   { pct: number; opacity: number }
+
+interface RadialConfig {
+  centerYOffset: number  // px below bottom edge
+  radiusFactor: number   // radius = height * radiusFactor → CSS: (factor*100)%
+  color: string          // hex — interpolated between stages
+  stops: RadialStop[]    // per-stop opacities per design spec
+}
 
 interface Stage {
   linearStops: GradientStop[]
@@ -24,56 +35,114 @@ const STAGES: Stage[] = [
   // Stage 0: Golden hour — 0 saves
   {
     linearStops: [
-      { pos: 0, color: '#1a1028' }, { pos: 30, color: '#3d1f3a' },
-      { pos: 55, color: '#7a2e3a' }, { pos: 75, color: '#c4582d' },
-      { pos: 90, color: '#d4863a' }, { pos: 100, color: '#e8a04a' },
+      { pos: 0,   color: '#1a1020' },
+      { pos: 30,  color: '#3a1f38' },
+      { pos: 55,  color: '#78303a' },
+      { pos: 75,  color: '#b8441e' },
+      { pos: 90,  color: '#c96830' },
+      { pos: 100, color: '#d4823c' },
     ],
-    radial: { centerYOffset: 60, radiusFactor: 1.3, color: '#e8a04a', opacity: 0.25 },
+    radial: {
+      centerYOffset: 60, radiusFactor: 1.3, color: '#d4823c',
+      stops: [
+        { pct: 0,   opacity: 0.25 },
+        { pct: 35,  opacity: 0.15 },
+        { pct: 70,  opacity: 0.05 },
+        { pct: 100, opacity: 0    },
+      ],
+    },
   },
-  // Stage 1: Sunset — 1-5 saves
+
+  // Stage 1: Sunset — 1–5 saves
   {
     linearStops: [
-      { pos: 0, color: '#0e1424' }, { pos: 25, color: '#1f1a35' },
-      { pos: 50, color: '#4a2040' }, { pos: 72, color: '#9a3833' },
-      { pos: 88, color: '#c4682d' }, { pos: 100, color: '#d4863a' },
+      { pos: 0,   color: '#121417' },
+      { pos: 25,  color: '#1a1830' },
+      { pos: 50,  color: '#3d1f38' },
+      { pos: 72,  color: '#8a3530' },
+      { pos: 88,  color: '#b8441e' },
+      { pos: 100, color: '#c96830' },
     ],
-    radial: { centerYOffset: 60, radiusFactor: 1.3, color: '#d4863a', opacity: 0.20 },
+    radial: {
+      centerYOffset: 60, radiusFactor: 1.3, color: '#c96830',
+      stops: [
+        { pct: 0,   opacity: 0.20 },
+        { pct: 35,  opacity: 0.10 },
+        { pct: 70,  opacity: 0.03 },
+        { pct: 100, opacity: 0    },
+      ],
+    },
   },
-  // Stage 2: Dusk — 6-15 saves
+
+  // Stage 2: Dusk — 6–15 saves
   {
     linearStops: [
-      { pos: 0, color: '#0A0C12' }, { pos: 20, color: '#0e1228' },
-      { pos: 50, color: '#1f1530' }, { pos: 75, color: '#5a2535' },
-      { pos: 92, color: '#8a4530' }, { pos: 100, color: '#a05a30' },
+      { pos: 0,   color: '#121417' },
+      { pos: 20,  color: '#141820' },
+      { pos: 50,  color: '#1a1830' },
+      { pos: 75,  color: '#4a2230' },
+      { pos: 92,  color: '#7a3820' },
+      { pos: 100, color: '#8a4220' },
     ],
-    radial: { centerYOffset: 60, radiusFactor: 1.3, color: '#a05a30', opacity: 0.15 },
+    radial: {
+      centerYOffset: 60, radiusFactor: 1.3, color: '#8a4220',
+      stops: [
+        { pct: 0,   opacity: 0.15 },
+        { pct: 35,  opacity: 0.07 },
+        { pct: 70,  opacity: 0.02 },
+        { pct: 100, opacity: 0    },
+      ],
+    },
   },
-  // Stage 3: Early night — 16-30 saves
+
+  // Stage 3: Early night — 16–30 saves
   {
     linearStops: [
-      { pos: 0, color: '#0A0C12' }, { pos: 25, color: '#0b0f20' },
-      { pos: 50, color: '#101428' }, { pos: 70, color: '#1a1530' },
-      { pos: 82, color: '#2a1d33' }, { pos: 92, color: '#3d2535' },
-      { pos: 100, color: '#4a2a35' },
+      { pos: 0,   color: '#121417' },
+      { pos: 25,  color: '#131518' },
+      { pos: 50,  color: '#15181e' },
+      { pos: 70,  color: '#181820' },
+      { pos: 82,  color: '#1e1a22' },
+      { pos: 92,  color: '#261820' },
+      { pos: 100, color: '#2c1c22' },
     ],
-    radial: { centerYOffset: 60, radiusFactor: 1.3, color: '#4a2a35', opacity: 0.10 },
+    radial: {
+      centerYOffset: 60, radiusFactor: 1.3, color: '#2c1c22',
+      stops: [
+        { pct: 0,   opacity: 0.10 },
+        { pct: 35,  opacity: 0.05 },
+        { pct: 70,  opacity: 0    },
+        { pct: 100, opacity: 0    },
+      ],
+    },
   },
+
   // Stage 4: Full night — 30+ saves
+  // Layer 2 becomes the city glow: compact, round, orange accent, NOT spreading
   {
     linearStops: [
-      { pos: 0, color: '#0A0C12' }, { pos: 40, color: '#090e1c' },
-      { pos: 70, color: '#0b1020' }, { pos: 90, color: '#0e1326' },
-      { pos: 100, color: '#0d1a2a' },
+      { pos: 0,   color: '#121417' },
+      { pos: 40,  color: '#131518' },
+      { pos: 70,  color: '#14171b' },
+      { pos: 90,  color: '#15181c' },
+      { pos: 100, color: '#15181c' },
     ],
-    // City glow: compact, round, copper
-    radial: { centerYOffset: 20, radiusFactor: 0.5, color: '#B8441E', opacity: 0.15 },
+    radial: {
+      centerYOffset: 20, radiusFactor: 0.5, color: '#B8441E',
+      stops: [
+        { pct: 0,   opacity: 0.15 },
+        { pct: 30,  opacity: 0.09 },
+        { pct: 60,  opacity: 0.04 },
+        { pct: 100, opacity: 0    },
+      ],
+    },
   },
 ]
 
-// Stage thresholds: [0, 1, 6, 16, 30]
+// Stage thresholds: save counts at which each stage begins
 const THRESHOLDS = [0, 1, 6, 16, 30]
 
-// ── Color interpolation ─────────────────────────────────────────────────────
+// ── Color interpolation ──────────────────────────────────────────────────────
 
 function hexToRgb(hex: string): [number, number, number] {
   const h = hex.replace('#', '')
@@ -85,7 +154,9 @@ function hexToRgb(hex: string): [number, number, number] {
 }
 
 function rgbToHex(r: number, g: number, b: number): string {
-  return '#' + [r, g, b].map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('')
+  return '#' + [r, g, b]
+    .map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0'))
+    .join('')
 }
 
 function lerpColor(a: string, b: string, t: number): string {
@@ -98,7 +169,7 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
 }
 
-// ── Compute the interpolated gradient for a given save count ─────────────────
+// ── Stage / progress lookup ──────────────────────────────────────────────────
 
 function getStageAndProgress(saveCount: number): { stageIdx: number; t: number } {
   if (saveCount <= 0) return { stageIdx: 0, t: 0 }
@@ -107,52 +178,64 @@ function getStageAndProgress(saveCount: number): { stageIdx: number; t: number }
   for (let i = THRESHOLDS.length - 1; i >= 1; i--) {
     if (saveCount >= THRESHOLDS[i]) {
       const rangeStart = THRESHOLDS[i]
-      const rangeEnd = i < THRESHOLDS.length - 1 ? THRESHOLDS[i + 1] : 30
+      const rangeEnd   = THRESHOLDS[i + 1] ?? 30
       const t = Math.min(1, (saveCount - rangeStart) / (rangeEnd - rangeStart))
       return { stageIdx: i, t }
     }
   }
 
-  // Between 0 and 1
+  // Between 0 and 1 saves
   return { stageIdx: 0, t: saveCount }
 }
+
+// ── Gradient computation ─────────────────────────────────────────────────────
 
 function computeGradient(saveCount: number): { linearGradient: string; radialGradient: string } {
   const { stageIdx, t } = getStageAndProgress(saveCount)
 
   const from = STAGES[stageIdx]
-  const to = stageIdx < STAGES.length - 1 ? STAGES[stageIdx + 1] : from
+  const to   = stageIdx < STAGES.length - 1 ? STAGES[stageIdx + 1] : from
 
-  // Interpolate linear stops
-  // Normalize stop count: use the longer array's positions, interpolate colors
+  // ── Layer 1: linear gradient ─────────────────────────────────────────────
   const maxStops = Math.max(from.linearStops.length, to.linearStops.length)
   const linearParts: string[] = []
   for (let i = 0; i < maxStops; i++) {
-    const fromStop = from.linearStops[Math.min(i, from.linearStops.length - 1)]
-    const toStop = to.linearStops[Math.min(i, to.linearStops.length - 1)]
-    const color = lerpColor(fromStop.color, toStop.color, t)
-    const pos = lerp(fromStop.pos, toStop.pos, t)
+    const fs = from.linearStops[Math.min(i, from.linearStops.length - 1)]
+    const ts = to.linearStops[Math.min(i, to.linearStops.length - 1)]
+    const color = lerpColor(fs.color, ts.color, t)
+    const pos   = lerp(fs.pos, ts.pos, t)
     linearParts.push(`${color} ${pos.toFixed(1)}%`)
   }
   const linearGradient = `linear-gradient(to bottom, ${linearParts.join(', ')})`
 
-  // Interpolate radial
+  // ── Layer 2: radial gradient ─────────────────────────────────────────────
   const radFrom = from.radial
-  const radTo = to.radial
-  const centerYOff = lerp(radFrom.centerYOffset, radTo.centerYOffset, t)
-  const radiusFactor = lerp(radFrom.radiusFactor, radTo.radiusFactor, t)
-  const radColor = lerpColor(radFrom.color, radTo.color, t)
-  const radOpacity = lerp(radFrom.opacity, radTo.opacity, t)
+  const radTo   = to.radial
 
-  // Build radial gradient
-  // The radial is centered below the bottom edge with a large radius
-  const opHex = Math.round(radOpacity * 255).toString(16).padStart(2, '0')
-  const op60 = Math.round(radOpacity * 0.6 * 255).toString(16).padStart(2, '0')
-  const op20 = Math.round(radOpacity * 0.2 * 255).toString(16).padStart(2, '0')
-  // radiusFactor controls how much of the viewport the radial covers
-  // At 1.3 (sunset), it's a huge spread. At 0.5 (city glow), it's compact.
+  const centerYOff  = lerp(radFrom.centerYOffset, radTo.centerYOffset, t)
+  const radiusFactor = lerp(radFrom.radiusFactor, radTo.radiusFactor, t)
+  const radColor    = lerpColor(radFrom.color, radTo.color, t)
+
+  // Interpolate per-stop opacities and positions
+  const numStops = Math.max(radFrom.stops.length, radTo.stops.length)
+  const interpStops: RadialStop[] = []
+  for (let i = 0; i < numStops; i++) {
+    const fs = radFrom.stops[Math.min(i, radFrom.stops.length - 1)]
+    const ts = radTo.stops[Math.min(i, radTo.stops.length - 1)]
+    interpStops.push({
+      pct:     lerp(fs.pct,     ts.pct,     t),
+      opacity: lerp(fs.opacity, ts.opacity, t),
+    })
+  }
+
+  // Build rgba() stop strings
+  const [r, g, b] = hexToRgb(radColor)
   const radiusPct = Math.round(radiusFactor * 100)
-  const radialGradient = `radial-gradient(${radiusPct}% ${radiusPct}% at 50% calc(100% + ${centerYOff}px), ${radColor}${opHex} 0%, ${radColor}${op60} 35%, ${radColor}${op20} 70%, transparent 100%)`
+  const stopStrings = interpStops.map(s => {
+    if (s.opacity < 0.002) return `transparent ${s.pct.toFixed(1)}%`
+    return `rgba(${r}, ${g}, ${b}, ${s.opacity.toFixed(3)}) ${s.pct.toFixed(1)}%`
+  })
+  const radialGradient = `radial-gradient(${radiusPct}% ${radiusPct}% at 50% calc(100% + ${centerYOff.toFixed(1)}px), ${stopStrings.join(', ')})`
 
   return { linearGradient, radialGradient }
 }
@@ -177,28 +260,20 @@ export default function SunsetBackground({ saveCount }: SunsetBackgroundProps) {
         bottom: 0,
         zIndex: 0,
         pointerEvents: 'none',
-        background: '#0A0C12', // deep-bg fills everything, gradient overlays the top
+        background: 'var(--bg-canvas)',
       }}
     >
-      {/* Gradient container — extends into safe area at top, overlaps sheet by 4px at bottom */}
+      {/* Gradient container — upper half of viewport, overlaps sheet by 4px */}
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 'calc(50vh + 4px)', overflow: 'hidden' }}>
         {/* Layer 1: Linear gradient */}
         <div
           data-testid="sunset-layer-1"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: linearGradient,
-          }}
+          style={{ position: 'absolute', inset: 0, background: linearGradient }}
         />
-        {/* Layer 2: Radial overlay */}
+        {/* Layer 2: Radial overlay (horizon curve) / city glow (Stage 4) */}
         <div
           data-testid="sunset-layer-2"
-          style={{
-            position: 'absolute',
-            inset: 0,
-            background: radialGradient,
-          }}
+          style={{ position: 'absolute', inset: 0, background: radialGradient }}
         />
       </div>
     </div>

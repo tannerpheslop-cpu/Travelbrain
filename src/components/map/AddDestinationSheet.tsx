@@ -79,14 +79,14 @@ export default function AddDestinationSheet({
             fontFamily: "'DM Sans', sans-serif",
             fontSize: 16,
             fontWeight: 600,
-            color: 'var(--color-text-primary)',
+            color: 'var(--text-primary)',
             margin: 0,
           }}>
             Add Destination
           </h3>
           <button type="button" onClick={handleClose} style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--color-text-tertiary)', padding: 4,
+            color: 'var(--text-tertiary)', padding: 4,
           }}>
             <X size={20} />
           </button>
@@ -110,7 +110,7 @@ export default function AddDestinationSheet({
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 9,
               fontWeight: 700,
-              color: 'var(--color-text-tertiary)',
+              color: 'var(--text-tertiary)',
               textTransform: 'uppercase',
               letterSpacing: 1,
               marginBottom: 8,
@@ -145,7 +145,7 @@ export default function AddDestinationSheet({
                   fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 10,
                   fontWeight: 700,
-                  color: 'var(--color-text-tertiary)',
+                  color: 'var(--text-tertiary)',
                   background: 'var(--color-bg-page)',
                   padding: '2px 5px',
                   borderRadius: 4,
@@ -156,7 +156,7 @@ export default function AddDestinationSheet({
                   fontFamily: "'DM Sans', sans-serif",
                   fontSize: 14,
                   fontWeight: 500,
-                  color: 'var(--color-text-primary)',
+                  color: 'var(--text-primary)',
                   flex: 1,
                 }}>
                   {s.label}
@@ -164,7 +164,7 @@ export default function AddDestinationSheet({
                 <span style={{
                   fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 11,
-                  color: 'var(--color-text-tertiary)',
+                  color: 'var(--text-tertiary)',
                 }}>
                   · {s.itemCount}
                 </span>

@@ -1,455 +1,444 @@
-# Youji — Visual Identity System v2
+# Youji — Design System V2
 
-> **Status:** Draft — April 2026
-> **Supersedes:** youji-brand-visual-identity-system.md (March 2026), DESIGN-SYSTEM.md
-> **Ship:** Dark mode first. Light mode tokens defined but not implemented.
+> **What this is:** The single canonical reference for Youji's visual identity and color system.
+> Hand to Builder instances when implementing any visual changes.
+> Reference across sessions for all design decisions.
 >
-> **This is NOT a Builder prompt.** This is a design spec for alignment before implementation.
+> **Status:** Locked — April 2026
+> **Supersedes:** All previous design references including youji-brand-visual-identity-system.md,
+> DESIGN-SYSTEM.md (v1), and the April 2026 v2 interim palette.
 
 ---
 
-## 1. The Palette
+## 1. The Night Sky
 
-Five colors. Every element in the app uses one of these.
+Youji's visual identity is built on a single metaphor: **the night sky.**
 
-| Hex       | Name         | Role                                           |
-|-----------|--------------|-------------------------------------------------|
-| #0A0C12   | Sky          | Deepest background, nav bar, Travel Graph canvas |
-| #0d1a2a   | Sheet        | Sheet surfaces, main content layer               |
-| #023661   | Deep Blue    | Category pills, selected states, toggle fills    |
-| #3F3A42   | Dark Gray    | Cards, elevated surfaces, source preview cards   |
-| #76828E   | Medium Gray  | Tertiary text, inactive icons, location pills    |
-| #B8441E   | Orange       | FAB, active nav, badges, primary buttons, restaurant pills |
+This isn't a theme applied to the product — it's the identity that emerged through the product's strongest design surface (the dark Mapbox trip map) and is now extended intentionally to every surface.
 
-Orange (#B8441E) replaces copper (#c45a2d) everywhere — FAB, markers, route lines, badges, active states.
+The metaphor maps structurally onto every phase of the user experience:
 
-Note: #023661 is used for pill fills and selected states, NOT as a surface color. The sheet surface is #0d1a2a (barely blue).
+- **Horizon is the night sky.** Saves are stars. They accumulate one by one, and constellations (clusters of related saves) form over time. The user looks at their sky and discovers patterns in their own curiosity.
+- **A trip is a constellation you choose to trace.** You see a cluster, you draw lines through it, and it becomes a plan. The trip map's orange route lines connect stars into journeys.
+- **The horizon is the boundary between the known and the unknown.** It's where you look when you're wondering what's out there — where stars meet the earth.
 
----
+### Why this metaphor wins
 
-## 2. Dark Mode Tokens (Ship First)
+- **Emotional, not organizational.** Nobody shares their notebook. People share their sky.
+- **Naturalizes sparsity.** A notebook with 3 entries feels empty. A sky with 3 stars feels like dusk.
+- **Compounds.** Each new star changes the whole sky. The 50th save shifts constellations.
+- **Visually distinctive.** Dark-canvas products in travel are rare. Youji is immediately recognizable.
 
-### Backgrounds
+### Brand attributes
 
-```
-Sky:              #0A0C12     Nav, page bg, Travel Graph, input fields
-Sheet:            #0d1a2a     Sheet surfaces, main content layer (barely blue)
-Cards:            #3F3A42     Elevated cards, source preview cards, photo placeholders
-Card hover:       #4a454e     Subtle lift on interaction
-```
-
-Three distinct depth layers: sky → sheet → cards. Every surface is clearly one of these three.
-
-### Text
-
-```
-Primary:          #e4e8f0     Titles, names, headings
-Secondary:        #a8c4dc     Descriptions, labels, metadata (warm blue tint)
-Tertiary:         #76828E     Hints, placeholders, inactive labels
-On accent:        #ffffff     Text on orange buttons and badges
-```
-
-### Accent
-
-```
-Orange:           #B8441E     FAB, active nav, primary buttons, restaurant pills, badges
-Orange muted:     rgba(184, 68, 30, 0.15)    Orange pill backgrounds
-Orange pressed:   #a03b1a     Tap/press state
-```
-
-### Stars (Travel Graph)
-
-```
-Dim:              #76828E     Faint stars
-Default:          #c8d0d8     Standard stars
-Bright:           #e4e8f0     Bright stars, selected
-Claimed:          #B8441E     Star claimed by a Trip (orange)
-```
-
-### Borders
-
-```
-Subtle:           rgba(118, 130, 142, 0.06)    Faintest dividers between list items
-Default:          rgba(118, 130, 142, 0.1)     Standard borders, section separators
-Strong:           rgba(118, 130, 142, 0.2)     Emphasized borders, pill outlines on blue bg
-```
-
-### Functional
-
-```
-Success:          #5b8a72
-Warning:          #B8441E     (orange doubles as warning)
-Error/Delete:     #c44a3d     Destructive actions
-```
+| Attribute | Description |
+|-----------|-------------|
+| Wonder | The feeling of looking up and realizing how vast your curiosity is |
+| Discovery | Patterns emerge that you didn't consciously create — the product reveals you to yourself |
+| Accumulation | Every save adds a star. The sky fills over time. The collection compounds in beauty and meaning |
+| Intention | Tracing constellations into trips. Moving from dreaming to planning to doing |
+| Personal | Your sky is unique. No two users' collections look alike. This is your travel identity rendered visually |
 
 ---
 
-## 3. Light Mode Tokens (Ship Later)
+## 2. The Dual Temperature System
+
+The product has two emotional registers, distinguished by color temperature:
+
+### Looking up — Horizon (cool)
+
+The user gazes upward at the night sky. The canvas is deep slate-blue. Stars are cool white-blue — distant, scattered, luminous. This is curiosity in its raw, undirected form. The color temperature is **cool**.
+
+### Looking down — Trips (warm)
+
+The user gazes downward at the earth from space. The map is dark, and cities glow warm ember-orange — human settlements alive with activity, connected by routes. This is curiosity grounded into a plan. The color temperature is **warm**.
+
+**Same sky, two perspectives.** Looking up = cool. Looking down = warm.
+
+This gives Horizon and Trips their own emotional registers while feeling like one coherent product. The orange accent bridges both — it appears subtly as city glow on Horizon and prominently as markers and route lines on Trips.
+
+---
+
+## 3. Design Philosophy
+
+**This system should feel like:**
+
+- Dark, but not cold
+- Structured, but not rigid
+- Expressive, but only in moments
+- Premium, not playful
+
+**Core principles:**
+
+- **Tinted neutral system, not a colored UI.** Slight slate-blue bias with micro warmth. Orange is the only high-signal color. Everything else is quiet, restrained, layered.
+- **Orange = meaning, not decoration.** At any moment, only 1–2 elements should be orange. It signals action, selection, and high-value state — nothing else.
+- **Depth through elevation, not color.** Use slightly lighter surfaces and stronger shadows to signal elevation. Avoid filling selected states with color — use surface lift + subtle border shift + faint orange glow.
+- **Cards = scan, not read.** Limit each card to: title, 1 metadata row, optional secondary info. Everything else belongs in the detail view.
+- **Borders should be barely visible.** Prefer layer separation over lines.
+
+---
+
+## 4. Color Palette
+
+### 4.1 CSS Token Map
+
+```css
+/* ─── Backgrounds & Surfaces ─────────────────────────────── */
+--bg-canvas:          #121417;   /* Deepest bg, nav bar, Travel Graph canvas */
+--bg-base:            #15181c;   /* Main content layer, draggable sheet */
+--bg-subtle:          #181c20;   /* Subtle surface lift */
+--bg-elevated-1:      #1c2126;   /* Cards, elevated surfaces */
+--bg-elevated-2:      #21262c;   /* Source preview cards, nested cards */
+--bg-elevated-3:      #262c33;   /* Tooltips, popovers */
+
+/* ─── Text ────────────────────────────────────────────────── */
+--text-primary:       #e8eaed;   /* Body, headings */
+--text-secondary:     #b9c0c7;   /* Metadata, labels */
+--text-tertiary:      #8d96a0;   /* Placeholder, inactive labels */
+--text-muted:         #6f7781;   /* Disabled text, ghost labels */
+--text-inverse:       #15181c;   /* Text on light surfaces (save sheet) */
+
+/* ─── Borders & Dividers ──────────────────────────────────── */
+--border-subtle:      #242a30;   /* Barely visible separation */
+--border-default:     #2c333a;   /* Standard card border */
+--border-strong:      #38414a;   /* Emphasized border, focus ring base */
+--divider:            #22272e;   /* Section dividers */
+--divider-soft:       #1c2127;   /* Very subtle content dividers */
+
+/* ─── Accent (Orange) ─────────────────────────────────────── */
+--accent-primary:     #B8441E;   /* FAB, active nav, badges, primary buttons */
+--accent-hover:       #C9521F;   /* Hover state */
+--accent-pressed:     #A33A1A;   /* Pressed/active state */
+--accent-soft:        rgba(184, 68, 30, 0.15);  /* Soft fill (restaurant pills) */
+--accent-glow:        rgba(184, 68, 30, 0.22);  /* Glow effect, city glow on Horizon */
+
+/* ─── Stars (cool register — Horizon only) ────────────────── */
+--star-dim:           #8d96a0;   /* Dim star nodes on Travel Graph */
+--star-default:       #b9c0c7;   /* Default star nodes */
+--star-bright:        #e8eaed;   /* Bright/active star nodes */
+
+/* ─── Interaction States ──────────────────────────────────── */
+--state-hover:        rgba(255, 255, 255, 0.04);
+--state-pressed:      rgba(255, 255, 255, 0.06);
+--state-selected:     rgba(184, 68, 30, 0.10);
+--focus-ring:         rgba(184, 68, 30, 0.42);
+--disabled-bg:        #1b1f24;
+--disabled-text:      #626a74;
+
+/* ─── Shadows ─────────────────────────────────────────────── */
+--shadow-sm:          0 1px 2px rgba(0, 0, 0, 0.18);
+--shadow-md:          0 6px 16px rgba(0, 0, 0, 0.24);
+--shadow-lg:          0 12px 28px rgba(0, 0, 0, 0.30);
+
+/* ─── Functional ──────────────────────────────────────────── */
+--color-success:      #5b8a72;
+--color-warning:      #c49a2d;
+--color-error:        #c44a3d;
+
+/* ─── Graph Edges ─────────────────────────────────────────── */
+--edge-strong:        rgba(184, 192, 199, 0.094);
+--edge-medium:        rgba(184, 192, 199, 0.063);
+--edge-weak:          rgba(184, 192, 199, 0.031);
+
+/* ─── Save Sheet (light surface) ──────────────────────────── */
+--surface-light:      #faf8f4;   /* Save sheet background — stays light always */
+```
+
+### 4.2 Surface depth stack
+
+Three canonical depth layers for all UI surfaces:
 
 ```
-Sky:              #0A0C12     Starry sky always stays dark
-Sheet:            #e8eaed     Light gray
-Cards:            #ffffff     White
-Primary text:     #0A0C12     Near black
-Secondary text:   #76828E     Medium gray
-Tertiary text:    #a0aab4     Light gray
-Accent:           #B8441E     Same orange
-Category pills:   #023661 / #76828E / #3F3A42 solid fills with light text
-Nav:              #f0f1f3
+canvas (#121417) → base (#15181c) → elevated-1 (#1c2126)
+```
+
+Each step is a small tonal lift (3–5%). No big jumps. Use `bg-subtle` and `bg-elevated-2/3` for intermediate moments (nested cards, tooltips). Do not invent new surface colors outside this stack.
+
+### 4.3 Semantic color usage
+
+| Element | Token | Meaning |
+|---------|-------|---------|
+| Horizon canvas + nav | `--bg-canvas` | Deepest layer — the sky |
+| DraggableSheet + main content | `--bg-base` | Content layer |
+| Cards, elevated surfaces | `--bg-elevated-1` | Items sitting on the content layer |
+| Source preview cards | `--bg-elevated-2` | Nested cards |
+| Star nodes (unselected) | `--star-default` | Curiosity — unstructured save |
+| Star nodes (claimed by trip) | `--accent-primary` | Intention — save has become a plan |
+| Graph edges | `--edge-*` | Relationships between saves |
+| City glow on Horizon (Stage 4) | `--accent-glow` | The world below, inviting you to plan |
+| Trip map markers | `--accent-primary` | Destinations you'll visit |
+| Trip route lines | `--accent-primary` | Journey connecting destinations |
+| FAB | `--accent-primary` | Action — save something new |
+| Active nav icon | `--accent-primary` | Current location |
+| Inactive nav icon | `--text-tertiary` | Quiet — not competing with content |
+| Selected filter pills | `--state-selected` fill + `--accent-primary` text | Active choice |
+| Category pills | `--bg-elevated-2` fill + `--text-secondary` text | Scannable metadata |
+| Restaurant pills | `--accent-soft` fill + `--accent-primary` text | Food category signal |
+| Location pills | `rgba(141,150,160,0.20)` fill + `--text-tertiary` text | Geographic context |
+| Primary CTA buttons | `--accent-primary` | Only one on screen at a time |
+| Save sheet | `--surface-light` | Intentional contrast — light stays light |
+
+### 4.4 Orange usage rules — CRITICAL
+
+Orange is meaningful only when it is rare. Enforce strictly:
+
+- **Allowed:** FAB, active nav indicator (small dot or icon only — not full tab), primary CTA button, badges on Route cards, selected state on pills/toggles, accent-soft fill on restaurant pills, star nodes claimed by a trip, map markers and route lines, city glow on Horizon (Stage 4 only, very low opacity).
+- **Not allowed:** Section headers, passive chips, decorative dividers, secondary labels, navigation bars as a whole, any element that is always visible and non-interactive.
+- At any moment, **maximum 1–2 orange elements** should be visible on screen.
+
+---
+
+## 5. The Sunset Progression
+
+Horizon's background is **dynamic** — it transitions from golden hour to full night as the user's save count increases. This solves the critical "0 to 30 saves" engagement problem by making the sparse state its own beautiful moment rather than a lesser version of the full state.
+
+The full night end state resolves to `--bg-canvas` (#121417) — the same slate-tinted dark that underlies the entire UI. This grounds the sky in the product's visual system rather than feeling like a detached special effect.
+
+### The two-layer rendering model
+
+The sky background is always two layers composited together:
+
+**Layer 1 — Linear gradient (top to bottom).** This does 95% of the work. It establishes the sky colors, the mid-tones, and the overall atmosphere.
+
+**Layer 2 — Subtle radial overlay (centered below bottom edge).** This adds a gentle curve to the warm horizon band so it doesn't read as a flat line. Uses a very large radius (~130% of canvas height) and low opacity (8–25%). In the final stage, this transitions to a compact round orange city glow.
+
+### Stage 0: Golden hour — 0 saves
+
+The sky is alive with warm light. The user's journey is just beginning.
+
+```
+Layer 1 — Linear gradient (top → bottom):
+  0%   — #1a1020    (deep slate-purple, nearly black)
+  30%  — #3a1f38    (dark violet-purple)
+  55%  — #78303a    (deep rose-burgundy)
+  75%  — #b8441e    (full orange — the accent color itself at horizon)
+  90%  — #c96830    (amber-orange)
+  100% — #d4823c    (warm amber at base)
+
+Layer 2 — Radial curve:
+  Center: (width/2, height + 60)   Radius: height * 1.3
+  Color: #d4823c   Max opacity: 25%
+  Stops: 0%→full | 35%→60% | 70%→20% | 100%→transparent
+```
+
+### Stage 1: Sunset — 1–5 saves
+
+The warm light begins to cool. Stars are becoming visible at the top.
+
+```
+Layer 1 — Linear gradient (top → bottom):
+  0%   — #121417    (canvas — the night already owns the top)
+  25%  — #1a1830    (very dark slate-purple)
+  50%  — #3d1f38    (deep violet)
+  72%  — #8a3530    (muted terracotta)
+  88%  — #b8441e    (orange — retreating to the horizon)
+  100% — #c96830    (amber base)
+
+Layer 2 — Radial curve:
+  Center: (width/2, height + 60)   Radius: height * 1.3
+  Color: #c96830   Max opacity: 20%
+```
+
+### Stage 2: Dusk — 6–15 saves
+
+Twilight. The warm band is narrow now. Cool tones dominate.
+
+```
+Layer 1 — Linear gradient (top → bottom):
+  0%   — #121417    (canvas)
+  20%  — #141820    (nearly canvas, very slight blue)
+  50%  — #1a1830    (dark slate-purple)
+  75%  — #4a2230    (muted rose-brown)
+  92%  — #7a3820    (dark amber-brown)
+  100% — #8a4220    (warm dark base)
+
+Layer 2 — Radial curve:
+  Center: (width/2, height + 60)   Radius: height * 1.3
+  Color: #8a4220   Max opacity: 15%
+```
+
+### Stage 3: Early night — 16–30 saves
+
+The sky is mostly dark. Just a hint of warmth remains at the base.
+
+```
+Layer 1 — Linear gradient (top → bottom):
+  0%   — #121417    (canvas)
+  25%  — #131518    (canvas + micro lift)
+  50%  — #15181e    (barely cooler than canvas)
+  70%  — #181820    (trace of slate)
+  82%  — #1e1a22    (faint violet undertone)
+  92%  — #261820    (last trace of warmth)
+  100% — #2c1c22    (very dark rose-brown at base)
+
+Layer 2 — Radial curve:
+  Center: (width/2, height + 60)   Radius: height * 1.3
+  Color: #2c1c22   Max opacity: 10%
+```
+
+### Stage 4: Full night — 30+ saves
+
+The sky is fully dark. The city glows below. This is what the product becomes when it's truly yours.
+
+```
+Layer 1 — Linear gradient (top → bottom):
+  0%   — #121417    (canvas — perfectly flat)
+  40%  — #131518    (imperceptibly lighter)
+  70%  — #14171b    (still essentially canvas)
+  90%  — #15181c    (base — barely distinguishable)
+  100% — #15181c    (base)
+
+Layer 2 — City glow (REPLACES the sunset curve):
+  Center: (width/2, height + 20)   Radius: height * 0.5
+  Stops:
+    0%   — rgba(184, 68, 30, 0.15)  (orange at 15%)
+    30%  — rgba(184, 68, 30, 0.09)  (orange at 9%)
+    60%  — rgba(184, 68, 30, 0.04)  (orange at 4%)
+    100% — transparent
+
+  CRITICAL: This is compact and round. It does NOT spread warmth
+  across the lower third. It pools at the very bottom center.
+  This is the --accent-glow color applied at low opacity.
+```
+
+### Implementation notes
+
+- Continuous interpolation between stages, NOT discrete if-else jumps
+- Transition thresholds: 0, 1, 6, 16, 30
+- The gradient only recalculates on page load or after a save action — not per frame
+- The Layer 2 transition from sunset curve to city glow happens during Stage 3→4: center drops, radius shrinks from 130% to 50%, color shifts from warm amber to orange (#B8441E)
+- The full-night state resolves naturally to `--bg-canvas` (#121417) — this is intentional and grounds the sky in the design system
+
+---
+
+## 6. Typography
+
+| Context | Font | Color Token | Weight / Size |
+|---------|------|-------------|---------------|
+| Body text | DM Sans | `--text-primary` | 400, 15–16px |
+| Metadata, labels | DM Sans | `--text-secondary` | 400, 13px |
+| Placeholder, inactive | DM Sans | `--text-tertiary` | 400, 13px |
+| Graph cluster labels | DM Sans | `--star-bright` | 500, 11px uppercase |
+| Horizon stats line | JetBrains Mono | `--star-default` | 400 |
+| Chapter numbers (trips) | JetBrains Mono | `--accent-primary` | 500 |
+| Counters, numerical data | JetBrains Mono | `--text-primary` | 400 |
+| Text on light (save sheet) | DM Sans | `--text-inverse` | 400 |
+
+**Hierarchy rule:** Use weight AND brightness together, not just size, to establish hierarchy. A `--text-primary` label at 500 weight reads as more important than the same size at `--text-secondary` 400 weight — use this intentionally.
+
+---
+
+## 7. Surface Application
+
+| Surface | Background Token | Text Palette | Notes |
+|---------|-----------------|--------------|-------|
+| Horizon page | Sunset progression gradient | Cool (star tokens) | Graph hero at top, cards below |
+| Travel Graph canvas | `--bg-canvas` | Star tokens | Rendered separately from gradient |
+| Trip map | Mapbox dark base | Warm (accent tokens) | Already correct |
+| Trip library | `--bg-canvas` | Cool palette | Atmospheric trip cards |
+| DraggableSheet | `--bg-base` | Primary/secondary text | Not white, not canvas |
+| Cards | `--bg-elevated-1` | Primary/secondary text | 8px radius |
+| Source preview cards | `--bg-elevated-2` | Secondary/tertiary text | Nested within cards |
+| Save sheet | `--surface-light` | `--text-inverse` | Stays light — intentional contrast with dark UI |
+| Bottom nav | `--bg-canvas` | Active: `--accent-primary` / Inactive: `--text-tertiary` | Subtle `--border-subtle` top border |
+| Toast notifications | `--bg-elevated-1` | `--text-primary` | `--shadow-md` |
+| FAB menu sheet | `--bg-base` | `--text-primary` | Compact, Spotify-style |
+
+---
+
+## 8. Component Specs
+
+### Cards
+- Background: `--bg-elevated-1`
+- Border: 1px `--border-subtle` (optional — prefer layer separation)
+- Border radius: **8px** everywhere — do not deviate
+- Internal padding: **12px**
+- Grid gap: **6px** (dense — preserves the "sky full of stars" feeling)
+- Photo gradient overlay: linear-gradient from transparent to rgba(18,20,23,0.85) for text legibility
+- Max content per card: title + 1 metadata row + optional secondary info
+
+### Pills
+- All pills: first letter capitalized ("Historical" not "historical")
+- Border radius: pill (9999px)
+- Category pills: `--bg-elevated-2` fill, `--text-secondary` text
+- Restaurant pills: `--accent-soft` fill, `--accent-primary` text
+- Location pills: `rgba(141, 150, 160, 0.20)` fill, `--text-tertiary` text
+- Selected pills: `--state-selected` fill, `--accent-primary` text
+
+### Buttons
+- Primary: `--accent-primary` background, white text, 16px radius (or pill)
+- Hover: `--accent-hover` background
+- Pressed: `--accent-pressed` background
+- Disabled: `--disabled-bg` background, `--disabled-text` text
+- Only one primary button should be visible on screen at a time
+
+### Navigation
+- Background: `--bg-canvas`
+- Active icon: `--accent-primary` (icon only — not background fill)
+- Inactive icon: `--text-tertiary`
+- Top border: 1px `--border-subtle`
+- Navigation should not compete with content — keep it quiet
+
+### Modals & Sheets
+- All modals: `fixed inset-x-0 bottom-0` pattern — never `flex items-end`
+- Sheet background: `--bg-base`
+- Border radius (top corners only): 24px
+- Handle indicator: `--border-strong`, 40px wide, 4px tall, centered
+
+### Shadows
+- Use `--shadow-sm` for cards on a surface
+- Use `--shadow-md` for sheets and toasts
+- Use `--shadow-lg` for modals and overlays
+- Soft, diffused only — no sharp elevation
+
+---
+
+## 9. Motion Principles
+
+- **Atmospheric surfaces move organically.** Soft easing (ease-out), gentle physics, drifting.
+- **Functional surfaces move decisively.** Quick, clean, purposeful (ease-in-out, 150–200ms).
+- **Nothing blinks, flashes, or demands attention.** The sky doesn't shout.
+- **Graph nodes fade in with stagger** (200–400ms) — stars appearing as eyes adjust.
+- **Sunset progression changes between visits**, not during a session. Imperceptible in real time.
+- **Sheet transitions:** 300ms ease-out for appearance, 250ms ease-in for dismissal.
+- **Card interactions:** 150ms ease-out scale(0.98) on press — subtle, physical.
+
+---
+
+## 10. What This System Is Not
+
+- **Not a colored UI.** The slate-blue tint is micro — invisible at a glance, felt as refinement.
+- **Not playful.** This is deliberate, atmospheric, premium. Corners stay at 8px on cards. Emoji are prohibited.
+- **Not noisy.** Remove unnecessary borders, extra dividers, secondary labels that repeat info, decorative color. Goal: calm canvas.
+- **Not orange-forward.** If you find yourself adding orange to a new element, stop and ask whether it belongs there.
+
+---
+
+## 11. Light Mode (Deferred)
+
+Light mode tokens are defined but not shipping yet. Ship after dark mode is stable and validated with real users.
+
+```css
+/* Light mode overrides (not active) */
+--bg-canvas:       #f0f2f5;
+--bg-base:         #e8eaed;
+--bg-elevated-1:   #ffffff;
+--text-primary:    #1a1d21;
+--text-secondary:  #4a5260;
+/* Starry sky canvas stays dark in both modes */
+/* --accent-primary stays #B8441E */
 ```
 
 ---
 
-## 4. Typography
-
-### Fonts
-
-```
-Body:             DM Sans            All UI text
-Monospace:        JetBrains Mono     Counters, stats, numerical data
-```
-
-No serif. All sans-serif throughout.
-
-### Scale
-
-```
-Page title:       18px, weight 500
-Card title:       11-12px, weight 500
-Body text:        13px, weight 400
-Description:      12px, weight 400
-Labels:           9-10px, weight 500, uppercase, letter-spacing 0.06-0.08em
-Pills:            8-9px, weight 500
-Counter numbers:  36px, weight 500, JetBrains Mono
-Stats:            10px, weight 400, JetBrains Mono
-```
-
-### Rules
-
-- Minimum font size: 16px on all input fields (iOS zoom prevention)
-- No emoji anywhere — use text labels, Lucide icons, or badges
-- Section headers: uppercase, letter-spaced, secondary color
-- Wordmark "youji": 15px, weight 500, primary text color
-
----
-
-## 5. Spacing and Density
-
-### Grid
-
-```
-Card grid gap:    6px         Tight density — 6 cards visible on screen
-Card padding:     8px         Internal padding within cards
-Section gap:      14px        Between section header and next section header
-List item gap:    6px padding Compact list rows
-Page padding:     12px        Sheet edge to content
-```
-
-### Rhythm
-
-```
-Between sections:         14px
-Between label and content: 8px
-Between card title and pills: 4px
-Between pills:            3px
-Sheet top padding:        12px
-```
-
----
-
-## 6. Corner Radii
-
-```
-Cards:            8px        Horizon gallery cards, source preview cards
-Sheet:            16px       Top corners of the sheet overlay
-Pills:            99px       Always fully rounded
-FAB:              50%        Circle
-Inputs:           8px        Text inputs, textareas
-Photos in cards:  0px        Photos bleed to card edges (top)
-Photos standalone: 6px       Thumbnails in list rows
-Buttons:          8px        Standard buttons
-```
-
----
-
-## 7. Pills
-
-**All pill text is capitalized** — first letter uppercase. "Historical" not "historical", "Restaurant" not "restaurant", "Beijing" not "beijing".
-
-### Category pills
-
-Solid fill using palette colors. On the dark sheet (#0d1a2a), blue pills need slight differentiation.
-
-```
-Default categories (temple, park, historical, hike, museum, etc.):
-  Background: #023661
-  Text:       #a8c4dc
-  Border:     none (sufficient contrast against #0d1a2a sheet)
-
-Restaurant / food:
-  Background: rgba(184, 68, 30, 0.15)
-  Text:       #B8441E
-  Border:     none
-
-Nightlife:
-  Background: rgba(184, 68, 30, 0.15)
-  Text:       #B8441E
-  Border:     none
-```
-
-Orange is reserved for food/nightlife categories. All other categories use the blue pill. This creates a simple two-tone system — blue for places, orange for food.
-
-### Location pills
-
-```
-Background: rgba(118, 130, 142, 0.2)
-Text:       #76828E
-Border:     none
-```
-
-### Pill sizing
-
-```
-Font:       8-9px, weight 500
-Padding:    1px 6px (in cards), 2px 8px (in detail views)
-Radius:     99px
-```
-
----
-
-## 8. Cards
-
-### Horizon gallery cards
-
-```
-Background:       #3F3A42
-Border radius:    8px
-Photo:            Top of card, no radius (bleeds to card edges), aspect ~1.1:1
-Title:            11px, weight 500, #e4e8f0
-Pills:            Below title, 4px gap from title, 3px gap between pills
-Card padding:     8px (below photo)
-```
-
-### Route cards (grouped saves)
-
-Same as gallery cards plus:
-```
-Badge:            Top-right corner, "12 places"
-                  Background: #B8441E, text: white, 8px font, 1px 6px padding, 99px radius
-Source line:       Below title, 8px font, #76828E (e.g., "cntraveler.com")
-```
-
-### Source preview cards (in detail views)
-
-```
-Background:       #3F3A42
-Border radius:    8px
-Padding:          10px
-Thumbnail:        36-40px square, 6px radius, left side
-Title:            11-12px, weight 500, #e4e8f0, 1 line ellipsis
-Domain:           9px, #76828E
-Link icon:        Right side, 12px, #76828E
-```
-
----
-
-## 9. Surfaces
-
-### Three-layer depth system
-
-```
-Layer 1 (sky):    #0A0C12    The deepest void. Nav bar. Travel Graph.
-Layer 2 (sheet):  #0d1a2a    The main content surface. Always visible below cards.
-Layer 3 (cards):  #3F3A42    Everything that sits ON the sheet — cards, inputs, previews.
-```
-
-This replaces the old system where the sheet was light cream (#faf8f4). ALL sheets are now dark.
-
-### Sheet behavior
-
-- Horizon: sheet overlays the Travel Graph, #0d1a2a background, 16px top radius
-- Trip page: sheet overlays the map, same #0d1a2a background
-- Save detail: full-screen #0d1a2a with #3F3A42 for cards within it
-- FAB menu: #0d1a2a background
-
-### Input fields
-
-```
-Background:       #0A0C12    (sky color — creates depth against the blue sheet)
-Border:           0.5px solid rgba(118, 130, 142, 0.15)
-Text:             #e4e8f0
-Placeholder:      #76828E
-Focus border:     rgba(168, 196, 220, 0.3)
-```
-
----
-
-## 10. Icons
-
-```
-Library:          Lucide
-Stroke weight:    2px (standard), 1.5px (dense contexts)
-Size:             16px default, 13-14px in toolbars, 20px in FAB menu
-Active color:     #B8441E
-Inactive color:   #76828E
-On blue surface:  #a8c4dc
-```
-
----
-
-## 11. Motion
-
-### Principles
-
-- Atmospheric surfaces (stars, graphs) move organically — soft easing, gentle drift
-- Functional surfaces (sheets, cards, buttons) move decisively — quick, clean
-- Nothing blinks, flashes, or demands attention
-- Progressive reveals: items appear one at a time with 200ms stagger
-
-### Timing
-
-```
-Sheet snap:       200ms ease-out
-Card tap:         100ms scale(0.98)
-Item slide-in:    300ms ease-out (translateY 12px → 0, opacity 0 → 1)
-Pill appear:      150ms fade
-Counter flip:     200ms per digit
-Star fade-in:     400ms, staggered 100-150ms between stars
-Section collapse: 200ms ease
-Photo lazy load:  200ms opacity fade
-```
-
-### Easing
-
-```
-Standard:         ease-out (for entrances)
-Bounce:           never
-Spring:           only for sheet snap physics
-```
-
----
-
-## 12. Bottom Navigation
-
-```
-Background:       #0A0C12 (sky)
-Border top:       0.5px solid rgba(118, 130, 142, 0.08)
-Height:           48px
-Icon size:        16px
-Label size:       8px
-Active:           #B8441E (icon + label)
-Inactive:         #76828E
-```
-
----
-
-## 13. Toast Notifications
-
-```
-Background:       #3F3A42
-Text:             #e4e8f0
-Border radius:    8px
-Padding:          10px 16px
-Position:         Top center, below status bar
-Auto-dismiss:     2 seconds
-```
-
----
-
-## 14. Buttons
-
-### Primary (copper/orange)
-
-```
-Background:       #B8441E
-Text:             #ffffff
-Border radius:    8px
-Padding:          12px 20px
-Font:             14px, weight 500
-Pressed:          #a03b1a
-Disabled:         opacity 0.5
-```
-
-### Secondary (outline)
-
-```
-Background:       transparent
-Border:           0.5px solid rgba(118, 130, 142, 0.2)
-Text:             #a8c4dc
-Border radius:    8px
-Pressed bg:       rgba(118, 130, 142, 0.1)
-```
-
-### Destructive
-
-```
-Background:       transparent
-Text:             #c44a3d
-Border:           0.5px solid rgba(196, 74, 61, 0.2)
-Pressed bg:       rgba(196, 74, 61, 0.1)
-```
-
----
-
-## 15. FAB
-
-```
-Size:             44px
-Shape:            Circle (border-radius: 50%)
-Background:       #B8441E
-Icon:             + (plus), white, 18px, stroke-width 2.5
-Position:         Bottom-right, 14px from edge, above nav bar
-```
-
----
-
-## 16. Surface Application Map
-
-| Surface              | Background | Text primary | Text secondary | Cards/elevated |
-|----------------------|------------|-------------|----------------|----------------|
-| Horizon page         | #0A0C12    | #e4e8f0     | #a8c4dc        | #3F3A42        |
-| Horizon sheet        | #0d1a2a    | #e4e8f0     | #a8c4dc        | #3F3A42        |
-| Trip map             | Mapbox dark| #e4e8f0     | #a8c4dc        | #3F3A42        |
-| Trip sheet           | #0d1a2a    | #e4e8f0     | #a8c4dc        | #3F3A42        |
-| Save detail          | #0d1a2a    | #e4e8f0     | #a8c4dc        | #3F3A42        |
-| Route detail         | #0d1a2a    | #e4e8f0     | #a8c4dc        | #3F3A42        |
-| Unpack flow          | #0A0C12    | #e4e8f0     | #a8c4dc        | #3F3A42        |
-| FAB menu             | #0d1a2a    | #e4e8f0     | #a8c4dc        | —              |
-| Bottom nav           | #0A0C12    | #B8441E (active) | #76828E (inactive) | —     |
-| Toast                | #3F3A42    | #e4e8f0     | —              | —              |
-
----
-
-## 17. What Changes From v1
-
-| Element              | v1 (March 2026)        | v2 (April 2026)         |
-|----------------------|------------------------|-------------------------|
-| Accent color         | Copper #c45a2d         | Orange #B8441E          |
-| Sheet background     | Light cream #faf8f4    | Dark navy #0d1a2a       |
-| Card background      | #1c2035                | #3F3A42                 |
-| Sky background       | #080c18                | #0A0C12                 |
-| Text secondary       | #8088a0                | #a8c4dc                 |
-| Pill style           | Copper tint bg         | Solid blue #023661 / orange tint |
-| Pill text            | Lowercase              | Capitalized (first letter) |
-| Card border radius   | Mixed (8-12px)         | 8px everywhere          |
-| Grid gap             | 8-10px                 | 6px                     |
-| Sheet style          | Light on dark           | Dark on dark (navy on black) |
-| Sunset progression   | Golden hour → night     | TBD — may simplify      |
-
----
-
-## 18. Resolved Decisions (continued)
-
-- **Sunset progression:** Keep it, update colors to align with new palette. Warm ambers shift to subtle warm tones that complement the #0d1a2a sheet.
-- **Mapbox map style:** Update to use #0A0C12 / #0d1a2a tones for land, water, and borders.
-- **Photo gradient overlay:** Yes — subtle dark gradient at bottom of card photos where text sits, ensuring legibility on light photos.
-
-## 19. Resolved Decisions
-
-- **FAB menu surface:** #0d1a2a (matches sheet)
-- **Trip markers and route lines:** Orange #B8441E replaces copper everywhere including map
-- **Sheet color:** #0d1a2a (barely blue), not #023661 (too saturated for surfaces)
-- **Orange shade:** #B8441E (warm dark), not #DB5227 (too vibrant)
-- **Pill capitalization:** First letter uppercase always
-- **Kinetic buttons:** Kept — press states, hover effects, smooth transitions all stay
-- **Light mode:** Deferred. Tokens defined but not shipping yet
+## 12. Rules That Cannot Be Changed Without Discussion
+
+- All modals: `fixed inset-x-0 bottom-0` (never `flex items-end`)
+- All inputs: 16px minimum font size
+- Unsplash images: only on trip destination images, never on saves/entries
+- Unified save sheet must never be removed or replaced
+- `location_locked` must always be checked before any location update
+- No emoji anywhere — text labels, Lucide icons, or badges only
+- Card radius: 8px — not 16px, not 20px
+- Save sheet stays light (`--surface-light`) even as the rest of the app is dark
+- Orange is always `--accent-primary` (#B8441E) — never `#ff8a4c` or any other variant

@@ -46,7 +46,7 @@ export default function ScrollToTop({ bottom = 80 }: ScrollToTopProps) {
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 20 20"
         fill="currentColor"
-        style={{ width: 16, height: 16, color: 'var(--color-text-secondary)' }}
+        style={{ width: 16, height: 16, color: 'var(--text-secondary)' }}
       >
         <path
           fillRule="evenodd"

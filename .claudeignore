@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+.next/
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Generated / compiled
+*.min.js
+*.min.css
+*.map
+
+# Test output & coverage
+coverage/
+playwright-report/
+test-results/
+
+# Environment & secrets
+.env
+.env.local
+.env.production
+
+# Editor & OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
+logs/
+
+# Vercel
+.vercel/

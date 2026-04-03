@@ -23,7 +23,7 @@ function DashedPlusCircle() {
       width: 28,
       height: 28,
       borderRadius: '50%',
-      border: '1.5px dashed #B8441E',
+      border: '1.5px dashed var(--accent-primary)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -31,8 +31,8 @@ function DashedPlusCircle() {
       marginRight: 12,
     }}>
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-        <line x1="6" y1="1" x2="6" y2="11" stroke="#B8441E" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="1" y1="6" x2="11" y2="6" stroke="#B8441E" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="6" y1="1" x2="6" y2="11" stroke="var(--accent-primary)" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="1" y1="6" x2="11" y2="6" stroke="var(--accent-primary)" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     </div>
   )
@@ -67,7 +67,7 @@ function SuggestionRow({
         border: 'none',
         borderBottomWidth: 0.5,
         borderBottomStyle: 'solid',
-        borderBottomColor: '#f1efe8',
+        borderBottomColor: 'rgba(118, 130, 142, 0.1)',
         cursor: 'pointer',
         textAlign: 'left',
       }}
@@ -80,7 +80,7 @@ function SuggestionRow({
           fontFamily: "'DM Sans', sans-serif",
           fontSize: 15,
           fontWeight: 600,
-          color: '#1a1d27',
+          color: 'var(--text-primary)',
           margin: 0,
           lineHeight: 1.3,
           overflow: 'hidden',
@@ -89,7 +89,7 @@ function SuggestionRow({
         }}>
           {cityName}
           {countryName && (
-            <span style={{ fontWeight: 400, color: '#888780', fontSize: 13 }}>
+            <span style={{ fontWeight: 400, color: 'var(--text-tertiary)', fontSize: 13 }}>
               {' '}· {countryName}
             </span>
           )}
@@ -98,7 +98,7 @@ function SuggestionRow({
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: 10,
-            color: '#888780',
+            color: 'var(--text-tertiary)',
           }}>
             {saveCount} save{saveCount !== 1 ? 's' : ''}
           </span>
@@ -172,7 +172,7 @@ export default function HierarchicalSuggestionList({
           fontWeight: 500,
           textTransform: 'uppercase',
           letterSpacing: '0.04em',
-          color: '#76828E',
+          color: 'var(--text-tertiary)',
         }}
         data-testid="suggestions-label"
         >

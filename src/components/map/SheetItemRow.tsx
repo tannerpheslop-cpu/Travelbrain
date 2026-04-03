@@ -100,14 +100,14 @@ export default function SheetItemRow({ item, selected = false, onSelect, onNavig
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{
             fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
-            color: 'var(--color-text-primary)',
+            color: 'var(--text-primary)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}>
             {item.title}
           </div>
           <div style={{
             fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-            color: precise ? 'var(--color-text-tertiary)' : MAP_COLORS.accent,
+            color: precise ? 'var(--text-tertiary)' : MAP_COLORS.accent,
             marginTop: 2,
           }}>
             {precise ? `${categoryLabel}${district ? ` · ${district}` : ''}` : 'Needs location'}

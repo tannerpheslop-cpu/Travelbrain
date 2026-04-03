@@ -68,7 +68,7 @@ describe('TravelGraph interaction logic', () => {
 
   it('selected node has bright state colors defined', () => {
     // When a node is selected, TravelGraph applies 'bright' state
-    expect(NODE_COLORS.bright.fill).toBe('#edf2fa')
+    expect(NODE_COLORS.bright.fill).toBe('var(--star-bright)')
     expect(NODE_COLORS.bright.glowOpacity).toBe(0.40)
   })
 

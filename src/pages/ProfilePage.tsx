@@ -116,11 +116,11 @@ export default function ProfilePage() {
           <img
             src={avatarUrl}
             alt=""
-            className="w-20 h-20 rounded-full object-cover ring-4 ring-white shadow-md mb-4"
+            className="w-20 h-20 rounded-full object-cover ring-4 ring-bg-card shadow-md mb-4"
             referrerPolicy="no-referrer"
           />
         ) : (
-          <div className="w-20 h-20 rounded-full bg-accent-light text-accent flex items-center justify-center text-2xl font-bold ring-4 ring-white shadow-md mb-4">
+          <div className="w-20 h-20 rounded-full bg-accent-light text-accent flex items-center justify-center text-2xl font-bold ring-4 ring-bg-card shadow-md mb-4">
             {initials}
           </div>
         )}
@@ -148,8 +148,8 @@ export default function ProfilePage() {
       <button
         type="button"
         onClick={() => setDeleteStep('confirm')}
-        className="w-full mt-10 py-3 rounded-xl text-sm font-medium border transition-colors bg-white hover:bg-red-50"
-        style={{ borderColor: '#c0392b', color: '#c0392b' }}
+        className="w-full mt-10 py-3 rounded-xl text-sm font-medium border transition-colors"
+        style={{ borderColor: '#c44a3d', color: '#c44a3d', background: 'transparent' }}
       >
         Delete Account
       </button>
@@ -186,7 +186,7 @@ export default function ProfilePage() {
           }}
         >
           <div
-            className="bg-white rounded-[14px] w-full shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
+            className="bg-bg-card rounded-[14px] w-full shadow-[0_8px_32px_rgba(0,0,0,0.3)]"
             style={{ maxWidth: 340, padding: 24 }}
           >
             <h2 className="text-[18px] font-semibold text-text-primary leading-snug">
@@ -225,7 +225,7 @@ export default function ProfilePage() {
                 onClick={handleDeleteAccount}
                 disabled={deleteInput !== 'DELETE' || deleting}
                 className="px-4 py-2 rounded-lg text-[13px] font-semibold text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: '#c0392b' }}
+                style={{ backgroundColor: '#c44a3d' }}
               >
                 {deleting ? 'Deleting…' : 'Delete my account'}
               </button>

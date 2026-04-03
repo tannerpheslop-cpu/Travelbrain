@@ -262,7 +262,7 @@ export default function QuickLocationPicker({
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: 16,
                 fontWeight: 600,
-                color: 'var(--color-text-primary)',
+                color: 'var(--text-primary)',
                 margin: 0,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -274,7 +274,7 @@ export default function QuickLocationPicker({
             <p style={{
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
-              color: 'var(--color-text-tertiary)',
+              color: 'var(--text-tertiary)',
               margin: '2px 0 0',
             }}>
               Set precise location
@@ -286,7 +286,7 @@ export default function QuickLocationPicker({
             data-testid="quick-picker-close"
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--color-text-tertiary)', padding: 4,
+              color: 'var(--text-tertiary)', padding: 4,
             }}
           >
             <X size={20} />
@@ -315,7 +315,7 @@ export default function QuickLocationPicker({
               background: 'var(--color-bg-page)',
               fontFamily: "'DM Sans', sans-serif",
               fontSize: 16, // Prevents iOS zoom
-              color: 'var(--color-text-primary)',
+              color: 'var(--text-primary)',
               outline: 'none',
             }}
           />
@@ -328,7 +328,7 @@ export default function QuickLocationPicker({
               <div style={{
                 textAlign: 'center', padding: '20px 0',
                 fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                color: 'var(--color-text-tertiary)',
+                color: 'var(--text-tertiary)',
               }}>
                 Searching...
               </div>
@@ -338,7 +338,7 @@ export default function QuickLocationPicker({
                   fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 9,
                   fontWeight: 600,
-                  color: 'var(--color-text-tertiary)',
+                  color: 'var(--text-tertiary)',
                   textTransform: 'uppercase',
                   letterSpacing: 0.5,
                   marginBottom: 8,
@@ -368,7 +368,7 @@ export default function QuickLocationPicker({
                       <div style={{
                         fontFamily: "'DM Sans', sans-serif",
                         fontSize: 14, fontWeight: 500,
-                        color: 'var(--color-text-primary)',
+                        color: 'var(--text-primary)',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                       }}>
                         {s.name}
@@ -376,7 +376,7 @@ export default function QuickLocationPicker({
                       <div style={{
                         fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 10,
-                        color: 'var(--color-text-tertiary)',
+                        color: 'var(--text-tertiary)',
                         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                         marginTop: 1,
                       }}>
@@ -398,7 +398,7 @@ export default function QuickLocationPicker({
               <div style={{
                 textAlign: 'center', padding: '20px 0',
                 fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                color: 'var(--color-text-tertiary)',
+                color: 'var(--text-tertiary)',
               }}>
                 No suggestions found. Try searching above.
               </div>
@@ -412,7 +412,7 @@ export default function QuickLocationPicker({
             <p style={{
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 9, fontWeight: 600,
-              color: 'var(--color-text-tertiary)',
+              color: 'var(--text-tertiary)',
               textTransform: 'uppercase', letterSpacing: 0.5,
             }}>
               Search results near {cityName}

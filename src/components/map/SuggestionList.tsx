@@ -13,7 +13,7 @@ function CountryBadge({ code }: { code: string | undefined }) {
       width: 28, height: 20, borderRadius: 4,
       background: 'var(--color-bg-muted)', flexShrink: 0,
       fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 700,
-      color: 'var(--color-text-tertiary)', letterSpacing: 0.5,
+      color: 'var(--text-tertiary)', letterSpacing: 0.5,
     }}>
       {label}
     </span>
@@ -85,7 +85,7 @@ export default function SuggestionList({
           textAlign: 'center',
           fontFamily: "'DM Sans', sans-serif",
           fontSize: 13,
-          color: 'var(--color-text-tertiary)',
+          color: 'var(--text-tertiary)',
         }}>
           Save travel inspiration to Horizon and suggestions will appear here.
         </div>
@@ -147,11 +147,11 @@ export default function SuggestionList({
             marginTop: 4,
           }}
         >
-          <MapPin size={14} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
+          <MapPin size={14} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
           <span style={{
             fontFamily: "'DM Sans', sans-serif",
             fontSize: 12,
-            color: 'var(--color-text-tertiary)',
+            color: 'var(--text-tertiary)',
           }}>
             {unassignedCount} save{unassignedCount !== 1 ? 's' : ''} have no location
           </span>
@@ -186,14 +186,14 @@ function SuggestionRow({
             fontFamily: "'DM Sans', sans-serif",
             fontSize: 14,
             fontWeight: 500,
-            color: 'var(--color-text-primary)',
+            color: 'var(--text-primary)',
           }}>
             {group.label}
           </span>
           <span style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: 11,
-            color: 'var(--color-text-tertiary)',
+            color: 'var(--text-tertiary)',
             marginLeft: 6,
           }}>
             · {group.saveCount} save{group.saveCount !== 1 ? 's' : ''}
@@ -235,10 +235,10 @@ function SuggestionRow({
         >
           {isMulti ? (
             <>
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)', margin: '0 0 4px' }}>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 4px' }}>
                 {group.label} — {expanded.length} destinations
               </p>
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-tertiary)', margin: '0 0 10px', lineHeight: 1.4 }}>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-tertiary)', margin: '0 0 10px', lineHeight: 1.4 }}>
                 {shownNames.map((n, i) => (
                   <span key={n}>{n} ({expanded[i].saves.length}){i < shownNames.length - 1 ? ', ' : ''}</span>
                 ))}
@@ -246,7 +246,7 @@ function SuggestionRow({
               </p>
             </>
           ) : (
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-text-secondary)', margin: '0 0 10px' }}>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 10px' }}>
               {group.saveCount} save{group.saveCount !== 1 ? 's' : ''} match this destination
             </p>
           )}
@@ -264,7 +264,7 @@ function SuggestionRow({
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: 13,
                 fontWeight: 500,
-                color: 'var(--color-text-secondary)',
+                color: 'var(--text-secondary)',
                 cursor: 'pointer',
               }}
             >

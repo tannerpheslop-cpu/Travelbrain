@@ -42,17 +42,16 @@ export default function ConfirmDeleteModal({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center px-6"
-      style={{ backgroundColor: 'rgba(0,0,0,0.3)' }}
+      style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onCancel() }}
     >
       <div
-        className="bg-white rounded-[14px] w-full shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
-        style={{ maxWidth: 340, padding: 24 }}
+        style={{ maxWidth: 340, padding: 24, background: 'var(--bg-elevated-1)', borderRadius: 14, width: '100%', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
       >
-        <h2 className="text-[18px] font-semibold text-text-primary leading-snug">
+        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 18, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.3 }}>
           {title}
         </h2>
-        <p className="mt-2 text-[14px] text-text-secondary leading-relaxed">
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5, marginTop: 8 }}>
           {description}
         </p>
         <div className="flex justify-end gap-2.5 mt-5">
@@ -61,7 +60,12 @@ export default function ConfirmDeleteModal({
             type="button"
             onClick={onCancel}
             disabled={loading}
-            className="px-4 py-2 rounded-lg text-[13px] font-semibold text-text-secondary bg-bg-muted hover:bg-bg-pill-dark transition-colors disabled:opacity-50"
+            style={{
+              padding: '8px 16px', borderRadius: 8,
+              fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+              color: 'var(--text-secondary)', background: 'var(--bg-base)', border: 'none', cursor: 'pointer',
+              opacity: loading ? 0.5 : 1, transition: 'background 150ms',
+            }}
           >
             {cancelLabel}
           </button>
@@ -69,8 +73,12 @@ export default function ConfirmDeleteModal({
             type="button"
             onClick={onConfirm}
             disabled={loading}
-            className="px-4 py-2 rounded-lg text-[13px] font-semibold text-white transition-colors disabled:opacity-50"
-            style={{ backgroundColor: '#c0392b' }}
+            style={{
+              padding: '8px 16px', borderRadius: 8,
+              fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
+              color: '#ffffff', background: '#c44a3d', border: 'none', cursor: 'pointer',
+              opacity: loading ? 0.5 : 1, transition: 'background 150ms',
+            }}
           >
             {loading ? 'Deleting…' : confirmLabel}
           </button>

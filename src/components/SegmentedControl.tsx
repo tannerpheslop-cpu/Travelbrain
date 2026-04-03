@@ -33,8 +33,8 @@ export default function SegmentedControl({ options, selected, onChange }: Segmen
               fontFamily: "'DM Sans', sans-serif",
               fontSize: 13,
               fontWeight: 500,
-              background: isSelected ? 'var(--color-bg-page, #faf9f8)' : 'transparent',
-              color: isSelected ? 'var(--color-text-primary, #2a2a28)' : 'var(--color-text-secondary, #6b6860)',
+              background: isSelected ? 'var(--bg-canvas)' : 'transparent',
+              color: isSelected ? 'var(--text-primary, #e8eaed)' : 'var(--color-text-secondary, #a8c4dc)',
               boxShadow: isSelected ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
               transition: 'background 150ms ease, color 150ms ease, box-shadow 150ms ease',
             }}

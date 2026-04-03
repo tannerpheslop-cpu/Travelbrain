@@ -362,7 +362,7 @@ export default function TripMap({
             style={{
               fontFamily: "'DM Sans', sans-serif",
               fontSize: 12,
-              color: 'var(--color-text-tertiary)',
+              color: 'var(--text-tertiary)',
             }}
           >
             tap a destination to explore

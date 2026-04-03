@@ -32,13 +32,13 @@ export default class ErrorBoundary extends Component<Props, State> {
         >
           <p
             className="text-lg font-medium"
-            style={{ fontFamily: "'DM Sans', sans-serif", color: 'var(--color-text-primary)' }}
+            style={{ fontFamily: "'DM Sans', sans-serif", color: 'var(--text-primary)' }}
           >
             Something went wrong
           </p>
           <p
             className="mt-2 text-sm text-center"
-            style={{ fontFamily: "'DM Sans', sans-serif", color: 'var(--color-text-tertiary)', maxWidth: 280 }}
+            style={{ fontFamily: "'DM Sans', sans-serif", color: 'var(--text-tertiary)', maxWidth: 280 }}
           >
             An unexpected error occurred. Please try again.
           </p>

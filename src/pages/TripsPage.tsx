@@ -109,7 +109,7 @@ function CreateTripSheet({ onClose, onCreated, createTrip }: CreateTripSheetProp
           <h2 style={{
             fontFamily: "'DM Sans', sans-serif",
             fontSize: 16, fontWeight: 600,
-            color: 'var(--color-text-primary)',
+            color: 'var(--text-primary)',
             marginBottom: 12,
           }}>New Trip</h2>
           <input
@@ -123,7 +123,7 @@ function CreateTripSheet({ onClose, onCreated, createTrip }: CreateTripSheetProp
               border: '1px solid var(--color-border-input)',
               borderRadius: 12, fontSize: 16,
               fontFamily: "'DM Sans', sans-serif",
-              color: 'var(--color-text-primary)',
+              color: 'var(--text-primary)',
               background: 'var(--color-bg-page)',
               outline: 'none',
             }}
@@ -137,7 +137,7 @@ function CreateTripSheet({ onClose, onCreated, createTrip }: CreateTripSheetProp
               padding: '14px 0',
               borderRadius: 12, border: 'none',
               background: title.trim() ? 'var(--color-accent)' : 'var(--color-bg-muted)',
-              color: title.trim() ? '#ffffff' : 'var(--color-text-tertiary)',
+              color: title.trim() ? '#ffffff' : 'var(--text-tertiary)',
               fontFamily: "'DM Sans', sans-serif",
               fontSize: 14, fontWeight: 600,
               cursor: title.trim() ? 'pointer' : 'not-allowed',
@@ -212,11 +212,11 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
           <div style={{
             fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
             letterSpacing: 1, textTransform: 'uppercase' as const,
-            color: '#B8441E', marginBottom: 4,
+            color: 'var(--accent-primary)', marginBottom: 4,
           }}>Up next</div>
           <div style={{
             fontSize: 24, fontWeight: 700, letterSpacing: -0.3,
-            color: hasBgImage ? 'white' : '#2a2a28',
+            color: hasBgImage ? 'white' : 'var(--text-primary)',
           }}>{trip.title}</div>
           <div style={{
             fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
@@ -245,14 +245,14 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
               fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
               letterSpacing: 0.5, textTransform: 'uppercase' as const, padding: '3px 8px', borderRadius: 4,
               background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'rgba(184,68,30,0.13)',
-              color: hasBgImage ? 'white' : '#B8441E',
+              color: hasBgImage ? 'white' : 'var(--accent-primary)',
             }}>{statusLabel(trip.status)}</span>
             {trip.is_favorited && (
               <span style={{
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
                 letterSpacing: 0.5, textTransform: 'uppercase' as const, padding: '3px 8px', borderRadius: 4,
                 background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'rgba(184,68,30,0.13)',
-                color: hasBgImage ? 'white' : '#B8441E', marginLeft: 6,
+                color: hasBgImage ? 'white' : 'var(--accent-primary)', marginLeft: 6,
               }}>PINNED</span>
             )}
           </div>
@@ -292,9 +292,9 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
     <Link
       to={`/trip/${trip.id}`}
       className="group"
-      style={{ width: 260, flexShrink: 0, borderRadius: 12, overflow: 'hidden', background: 'var(--color-surface)', border: '0.5px solid var(--color-surface-elevated)', cursor: 'pointer', transition: 'all 0.15s ease', display: 'block', alignSelf: 'start' }}
+      style={{ width: 260, flexShrink: 0, borderRadius: 12, overflow: 'hidden', background: 'var(--color-surface)', border: '0.5px solid var(--bg-elevated-1)', cursor: 'pointer', transition: 'all 0.15s ease', display: 'block', alignSelf: 'start' }}
       onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.border = '0.5px solid rgba(184,68,30,0.25)'; el.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)'; el.style.transform = 'translateY(-2px)' }}
-      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.border = '0.5px solid var(--color-surface-elevated)'; el.style.boxShadow = 'none'; el.style.transform = 'none' }}
+      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.border = '0.5px solid var(--bg-elevated-1)'; el.style.boxShadow = 'none'; el.style.transform = 'none' }}
     >
       {/* Top content */}
       <div style={{ padding: '16px 16px 12px', position: 'relative', overflow: 'hidden', minHeight: 100 }}>
@@ -310,51 +310,51 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
             {countryCodes.map(code => (
               <span key={code} style={{
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: 1,
-                color: 'var(--color-night-text-secondary)', background: 'var(--color-surface-elevated)', borderRadius: 3, padding: '2px 6px',
+                color: 'var(--text-secondary)', background: 'var(--bg-elevated-1)', borderRadius: 3, padding: '2px 6px',
               }}>{code}</span>
             ))}
           </div>
         )}
         {/* Trip name */}
-        <div className="group-hover:!text-[#B8441E]" style={{
+        <div className="group-hover:!text-[var(--accent-primary)]" style={{
           fontSize: 16, fontWeight: 700, letterSpacing: -0.2, position: 'relative',
           whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis',
-          color: 'var(--color-night-text-primary)', transition: 'color 0.15s ease',
+          color: 'var(--text-primary)', transition: 'color 0.15s ease',
         }}>{trip.title}</div>
         {/* Route chain */}
         {destNames.length > 0 && (
           <div style={{
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-secondary)',
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-secondary)',
             marginTop: 6, position: 'relative', whiteSpace: 'nowrap' as const,
             overflow: 'hidden', textOverflow: 'ellipsis',
           }}>
             {visibleNames.map((name, i) => (
-              <span key={i}>{i > 0 && <span style={{ color: 'var(--color-night-text-tertiary)', margin: '0 3px' }}>→</span>}{name}</span>
+              <span key={i}>{i > 0 && <span style={{ color: 'var(--text-tertiary)', margin: '0 3px' }}>→</span>}{name}</span>
             ))}
-            {overflow > 0 && <span style={{ color: 'var(--color-night-text-tertiary)', marginLeft: 4 }}>+{overflow}</span>}
+            {overflow > 0 && <span style={{ color: 'var(--text-tertiary)', marginLeft: 4 }}>+{overflow}</span>}
           </div>
         )}
         {/* Date range */}
         {trip.start_date && trip.end_date && (
           <div style={{
-            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-tertiary)',
+            fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)',
             marginTop: 4, position: 'relative',
           }}>{formatDateRange(trip.start_date, trip.end_date)}</div>
         )}
       </div>
       {/* Bottom bar */}
       <div style={{
-        padding: '8px 16px', borderTop: '0.5px solid var(--color-surface-elevated)', background: 'var(--color-surface)',
+        padding: '8px 16px', borderTop: '0.5px solid var(--bg-elevated-1)', background: 'var(--color-surface)',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-secondary)' }}>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-secondary)' }}>
           {dests.length} dest · {dests.length} saves
         </span>
         <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
           {(trip.companion_count ?? 0) > 0 && (
             <span style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
-              color: 'var(--color-night-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 2,
+              color: 'var(--text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 2,
             }}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: 11, height: 11 }}>
                 <path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z" />
@@ -365,13 +365,13 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
           {trip.is_favorited && (
             <span style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 500,
-              padding: '2px 5px', borderRadius: 3, background: '#B8441E22', color: '#B8441E',
+              padding: '2px 5px', borderRadius: 3, background: 'var(--accent-soft)', color: 'var(--accent-primary)',
             }}>PINNED</span>
           )}
           {[...new Set(dests.map(d => d.location_type ?? 'city'))].slice(0, 2).map(cat => (
             <span key={cat} style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 500,
-              padding: '2px 5px', borderRadius: 3, background: 'var(--color-surface-elevated)', color: 'var(--color-night-text-secondary)',
+              padding: '2px 5px', borderRadius: 3, background: 'var(--bg-elevated-1)', color: 'var(--text-secondary)',
             }}>{cat}</span>
           ))}
         </div>
@@ -399,9 +399,9 @@ function PhaseCarousel({ phaseKey, trips, startNum, onNewTrip }: {
       <div style={{ padding: '0 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 14 }}>
         <div>
           <div style={{ fontSize: 17, fontWeight: 600 }}>{config.title}</div>
-          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-secondary)', marginTop: 3 }}>{config.description}</div>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-secondary)', marginTop: 3 }}>{config.description}</div>
         </div>
-        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-tertiary)' }}>{trips.length}</span>
+        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)' }}>{trips.length}</span>
       </div>
       {/* Scroll container */}
       <div className="scrollbar-hide" style={{
@@ -419,11 +419,11 @@ function PhaseCarousel({ phaseKey, trips, startNum, onNewTrip }: {
             display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', gap: 3, minHeight: 140, transition: 'all 0.15s ease',
           }}
-          onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = '#B8441E'; el.style.background = 'rgba(184,68,30,0.06)' }}
+          onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = 'var(--accent-primary)'; el.style.background = 'rgba(184,68,30,0.06)' }}
           onMouseLeave={e => { const el = e.currentTarget; el.style.borderColor = '#d5d2cb'; el.style.background = 'transparent' }}
         >
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, color: 'var(--color-night-text-tertiary)', fontWeight: 300 }}>+</span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--color-night-text-tertiary)' }}>New trip</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, color: 'var(--text-tertiary)', fontWeight: 300 }}>+</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)' }}>New trip</span>
         </div>
       </div>
     </div>
@@ -507,7 +507,7 @@ export default function TripsPage() {
   const aspirationalStart = globalNum
 
   return (
-    <div style={{ maxWidth: 860, margin: '0 auto', paddingBottom: 120, background: 'var(--color-deep-bg)', minHeight: '100vh', paddingTop: 'calc(12px + env(safe-area-inset-top))' }}>
+    <div style={{ maxWidth: 860, margin: '0 auto', paddingBottom: 120, background: 'var(--bg-canvas)', minHeight: '100vh', paddingTop: 'calc(12px + env(safe-area-inset-top))' }}>
       {/* FAB — bottom-right, triggers trip creation */}
       <div
         className="fixed z-25 right-4 pointer-events-none"
@@ -519,7 +519,7 @@ export default function TripsPage() {
           className="pointer-events-auto"
           style={{
             width: 52, height: 52, borderRadius: '50%',
-            background: 'var(--color-copper)', color: 'white',
+            background: 'var(--accent-primary)', color: 'white',
             border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 2px 12px rgba(184,68,30,0.3)',
@@ -541,9 +541,9 @@ export default function TripsPage() {
       {!loading && trips.length === 0 && (
         <div style={{ padding: '0 20px' }} onClick={() => setShowModal(true)}>
           <DashedCard className="flex flex-col items-center justify-center py-20 px-6 cursor-pointer text-center">
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 28, color: 'var(--color-night-text-tertiary)', opacity: 0.25, display: 'block', marginBottom: 12 }}>↗</span>
-            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-night-text-secondary)' }}>Plan your first trip</p>
-            <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--color-night-text-tertiary)', marginTop: 6, maxWidth: 280 }}>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 28, color: 'var(--text-tertiary)', opacity: 0.25, display: 'block', marginBottom: 12 }}>↗</span>
+            <p style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-secondary)' }}>Plan your first trip</p>
+            <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--text-tertiary)', marginTop: 6, maxWidth: 280 }}>
               Create a trip to start organizing your destinations and saves
             </p>
           </DashedCard>

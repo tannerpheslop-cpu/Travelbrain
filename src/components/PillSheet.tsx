@@ -135,7 +135,7 @@ export default function PillSheet({
           <button
             onClick={handleClose}
             className="p-1 -ml-1"
-            style={{ color: 'var(--color-text-secondary)' }}
+            style={{ color: 'var(--text-secondary)' }}
             aria-label="Close"
             data-testid="pill-sheet-back"
           >
@@ -147,7 +147,7 @@ export default function PillSheet({
               fontFamily: "'DM Sans', sans-serif",
               fontSize: 16,
               fontWeight: 600,
-              color: 'var(--color-text-primary)',
+              color: 'var(--text-primary)',
             }}
           >
             {title}
@@ -160,7 +160,7 @@ export default function PillSheet({
           style={{
             fontFamily: "'JetBrains Mono', monospace",
             fontSize: 10,
-            color: 'var(--color-text-tertiary)',
+            color: 'var(--text-tertiary)',
           }}
         >
           Tap to select. Tap again to deselect.
@@ -180,7 +180,7 @@ export default function PillSheet({
                     fontFamily: "'DM Sans', sans-serif",
                     fontSize: 14,
                     fontWeight: 600,
-                    color: 'var(--color-text-primary)',
+                    color: 'var(--text-primary)',
                     margin: 0,
                   }}
                 >
@@ -194,7 +194,7 @@ export default function PillSheet({
                       fontFamily: "'DM Sans', sans-serif",
                       fontSize: 12,
                       fontWeight: 500,
-                      color: editMode ? 'var(--color-accent)' : 'var(--color-text-tertiary)',
+                      color: editMode ? 'var(--color-accent)' : 'var(--text-tertiary)',
                       background: 'none',
                       border: 'none',
                       cursor: 'pointer',
@@ -277,7 +277,7 @@ export default function PillSheet({
                         style={{
                           fontFamily: "'DM Sans', sans-serif",
                           fontSize: 13,
-                          color: 'var(--color-text-primary)',
+                          color: 'var(--text-primary)',
                           width: 80,
                         }}
                         data-testid="custom-tag-input"
@@ -294,7 +294,7 @@ export default function PillSheet({
                         background: 'transparent',
                         fontFamily: "'DM Sans', sans-serif",
                         fontSize: 13,
-                        color: 'var(--color-text-tertiary)',
+                        color: 'var(--text-tertiary)',
                         cursor: 'pointer',
                       }}
                       data-testid="add-custom-tag-btn"
@@ -315,7 +315,7 @@ export default function PillSheet({
                   fontFamily: "'DM Sans', sans-serif",
                   fontSize: 14,
                   fontWeight: 600,
-                  color: 'var(--color-text-primary)',
+                  color: 'var(--text-primary)',
                   marginBottom: 8,
                   marginTop: allowCustom || nonCustomGroups.indexOf(group) > 0 ? 16 : 0,
                 }}
@@ -358,7 +358,7 @@ export default function PillSheet({
               fontFamily: "'DM Sans', sans-serif",
               fontSize: 13,
               fontWeight: 400,
-              color: 'var(--color-text-tertiary)',
+              color: 'var(--text-tertiary)',
               background: 'none',
               border: 'none',
               cursor: 'pointer',
@@ -377,7 +377,7 @@ export default function PillSheet({
               fontSize: 13,
               fontWeight: 600,
               background: hasSelections ? 'var(--color-accent)' : 'var(--color-bg-muted)',
-              color: hasSelections ? '#ffffff' : 'var(--color-text-primary)',
+              color: hasSelections ? '#ffffff' : 'var(--text-primary)',
               border: 'none',
               borderRadius: 8,
               padding: '10px 24px',
@@ -407,10 +407,10 @@ export default function PillSheet({
                 boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
               }}
             >
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 8 }}>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>
                 Delete tag &lsquo;{confirmDelete}&rsquo;?
               </p>
-              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--color-text-tertiary)', marginBottom: 16 }}>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 16 }}>
                 This will remove it from all entries.
               </p>
               <div className="flex gap-3 justify-end">
@@ -419,7 +419,7 @@ export default function PillSheet({
                   onClick={() => setConfirmDelete(null)}
                   style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
-                    color: 'var(--color-text-secondary)', background: 'none', border: 'none',
+                    color: 'var(--text-secondary)', background: 'none', border: 'none',
                     cursor: 'pointer', padding: '8px 14px',
                   }}
                   data-testid="cancel-delete-tag"
@@ -468,7 +468,7 @@ function Pill({
       style={{
         border: `1.5px solid ${isSelected ? 'var(--color-accent)' : 'var(--color-border-input)'}`,
         background: isSelected ? 'var(--color-accent-light)' : 'transparent',
-        color: isSelected ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+        color: isSelected ? 'var(--color-accent)' : 'var(--text-secondary)',
         fontFamily: "'DM Sans', sans-serif",
         fontSize: 13,
         fontWeight: isSelected ? 500 : 400,

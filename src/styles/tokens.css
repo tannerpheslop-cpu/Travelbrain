@@ -1,43 +1,94 @@
 /**
- * Youji Night Sky Visual Identity — Color Tokens v2
- *
- * See /docs/DESIGN-SYSTEM-V2.md for the full specification.
- * These tokens are additive — they do NOT replace the existing
- * tokens in index.css. Components reference these directly.
+ * Youji Design System V2 — Color Tokens
+ * See /docs/DESIGN-SYSTEM-V2.md for full specification.
+ * Status: Locked — April 2026
  */
 
 :root {
-  /* ── Canvas (three depth layers) ── */
-  --color-deep-bg:           #0A0C12;   /* Sky: nav, page bg, Travel Graph, inputs */
-  --color-surface:           #0d1a2a;   /* Sheet: main content layer (barely blue) */
-  --color-surface-elevated:  #3F3A42;   /* Cards: elevated surfaces on the sheet */
-  --color-surface-hover:     #4a454e;   /* Card hover/press */
-  --color-surface-light:     #0d1a2a;   /* Alias — no longer light */
+  /* ─── Backgrounds & Surfaces ─────────────────────────────── */
+  --bg-canvas:          #121417;   /* Deepest bg, nav bar, Travel Graph canvas */
+  --bg-base:            #15181c;   /* Main content layer, draggable sheet */
+  --bg-subtle:          #181c20;   /* Subtle surface lift */
+  --bg-elevated-1:      #1c2126;   /* Cards, elevated surfaces */
+  --bg-elevated-2:      #21262c;   /* Source preview cards, nested cards */
+  --bg-elevated-3:      #262c33;   /* Tooltips, popovers */
 
-  /* ── Stars ── */
-  --color-star-dim:          #76828E;
-  --color-star-default:      #c8d0d8;
-  --color-star-bright:       #e4e8f0;
-  --color-star-claimed:      #B8441E;   /* Trip-claimed stars */
+  /* ─── Text ────────────────────────────────────────────────── */
+  --text-primary:       #e8eaed;
+  --text-secondary:     #b9c0c7;
+  --text-tertiary:      #8d96a0;
+  --text-muted:         #6f7781;
+  --text-inverse:       #15181c;   /* Text on light surfaces (save sheet) */
 
-  /* ── Orange (replaces copper) ── */
-  --color-copper-deep:       #a03b1a;   /* pressed state */
-  --color-copper:            #B8441E;   /* orange replaces copper throughout */
-  --color-copper-glow:       #d4603a;   /* glow/hover */
+  /* ─── Borders & Dividers ──────────────────────────────────── */
+  --border-subtle:      #242a30;
+  --border-default:     #2c333a;
+  --border-strong:      #38414a;
+  --divider:            #22272e;
+  --divider-soft:       #1c2127;
 
-  /* ── Text (dark surfaces) ── */
-  --color-night-text-primary:    #e4e8f0;
-  --color-night-text-secondary:  #a8c4dc;
-  --color-night-text-tertiary:   #76828E;
-  --color-night-text-on-light:   #e4e8f0;   /* all surfaces dark now */
+  /* ─── Accent (Orange) ─────────────────────────────────────── */
+  --accent-primary:     #B8441E;
+  --accent-hover:       #C9521F;
+  --accent-pressed:     #A33A1A;
+  --accent-soft:        rgba(184, 68, 30, 0.15);
+  --accent-glow:        rgba(184, 68, 30, 0.22);
 
-  /* ── Functional ── */
-  --color-night-success:     #5b8a72;
-  --color-night-warning:     #B8441E;
-  --color-night-error:       #c44a3d;
+  /* ─── Stars (Travel Graph — Horizon only) ─────────────────── */
+  --star-dim:           #8d96a0;
+  --star-default:       #b9c0c7;
+  --star-bright:        #e8eaed;
 
-  /* ── Graph edges ── */
-  --color-edge-strong:       rgba(200, 208, 216, 0.1);
-  --color-edge-medium:       rgba(200, 208, 216, 0.06);
-  --color-edge-weak:         rgba(200, 208, 216, 0.03);
+  /* ─── Interaction States ──────────────────────────────────── */
+  --state-hover:        rgba(255, 255, 255, 0.04);
+  --state-pressed:      rgba(255, 255, 255, 0.06);
+  --state-selected:     rgba(184, 68, 30, 0.10);
+  --focus-ring:         rgba(184, 68, 30, 0.42);
+  --disabled-bg:        #1b1f24;
+  --disabled-text:      #626a74;
+
+  /* ─── Shadows ─────────────────────────────────────────────── */
+  --shadow-sm:          0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-md:          0 6px 16px rgba(0, 0, 0, 0.24);
+  --shadow-lg:          0 12px 28px rgba(0, 0, 0, 0.30);
+
+  /* ─── Functional ──────────────────────────────────────────── */
+  --color-success:      #5b8a72;
+  --color-warning:      #c49a2d;
+  --color-error:        #c44a3d;
+
+  /* ─── Graph Edges ─────────────────────────────────────────── */
+  --edge-strong:        rgba(184, 192, 199, 0.094);
+  --edge-medium:        rgba(184, 192, 199, 0.063);
+  --edge-weak:          rgba(184, 192, 199, 0.031);
+
+  /* ─── Save Sheet (light surface — stays light always) ─────── */
+  --surface-light:      #faf8f4;
+
+  /* ─── Legacy aliases — do not use in new code ────────────── */
+  --color-deep-bg:              var(--bg-canvas);
+  --color-surface:              var(--bg-base);
+  --color-surface-elevated:     var(--bg-elevated-1);
+  --color-surface-light:        var(--surface-light);
+  --color-surface-hover:        var(--bg-elevated-2);
+  --color-copper:               var(--accent-primary);
+  --color-copper-deep:          var(--accent-pressed);
+  --color-copper-glow:          var(--accent-hover);
+  --color-text-primary:         var(--text-primary);
+  --color-text-secondary:       var(--text-secondary);
+  --color-text-tertiary:        var(--text-tertiary);
+  --color-night-text-primary:   var(--text-primary);
+  --color-night-text-secondary: var(--text-secondary);
+  --color-night-text-tertiary:  var(--text-tertiary);
+  --color-night-text-on-light:  var(--text-primary);
+  --color-star-dim:             var(--star-dim);
+  --color-star-default:         var(--star-default);
+  --color-star-bright:          var(--star-bright);
+  --color-star-claimed:         var(--accent-primary);
+  --color-edge-strong:          var(--edge-strong);
+  --color-edge-medium:          var(--edge-medium);
+  --color-edge-weak:            var(--edge-weak);
+  --color-night-success:        var(--color-success);
+  --color-night-warning:        var(--color-warning);
+  --color-night-error:          var(--color-error);
 }

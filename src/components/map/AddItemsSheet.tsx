@@ -162,20 +162,20 @@ export default function AddItemsSheet({
           <div>
             <h3 style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 600,
-              color: 'var(--color-text-primary)', margin: 0,
+              color: 'var(--text-primary)', margin: 0,
             }}>
               Add to {destinationName}
             </h3>
             <p style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-              color: 'var(--color-text-tertiary)', margin: '2px 0 0',
+              color: 'var(--text-tertiary)', margin: '2px 0 0',
             }}>
               from your Horizon
             </p>
           </div>
           <button type="button" onClick={handleClose} style={{
             background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--color-text-tertiary)', padding: 4,
+            color: 'var(--text-tertiary)', padding: 4,
           }}>
             <X size={20} />
           </button>
@@ -199,7 +199,7 @@ export default function AddItemsSheet({
               style={{
                 flex: 1, border: 'none', outline: 'none', background: 'transparent',
                 fontFamily: "'DM Sans', sans-serif", fontSize: 14,
-                color: 'var(--color-text-primary)',
+                color: 'var(--text-primary)',
               }}
             />
           </div>
@@ -208,11 +208,11 @@ export default function AddItemsSheet({
         {/* Item list */}
         <div style={{ flex: 1, overflowY: 'auto', overscrollBehavior: 'contain' }}>
           {loading ? (
-            <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13 }}>
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
               Loading...
             </div>
           ) : filtered.length === 0 ? (
-            <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--color-text-tertiary)', fontSize: 13 }}>
+            <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
               {search ? 'No matching saves' : 'All your saves are already added'}
             </div>
           ) : (
@@ -245,7 +245,7 @@ export default function AddItemsSheet({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
-                    color: 'var(--color-text-primary)',
+                    color: 'var(--text-primary)',
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {item.title}
@@ -253,7 +253,7 @@ export default function AddItemsSheet({
                   {item.location_name && (
                     <div style={{
                       fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                      color: 'var(--color-text-tertiary)', marginTop: 1,
+                      color: 'var(--text-tertiary)', marginTop: 1,
                     }}>
                       {item.location_name.split(',')[0]}
                     </div>

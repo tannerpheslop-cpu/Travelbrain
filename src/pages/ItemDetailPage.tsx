@@ -9,12 +9,12 @@ import AddToTripSheet from '../components/AddToTripSheet'
 import SavedItemImage from '../components/SavedItemImage'
 import { SecondaryButton, ConfirmDeleteModal } from '../components/ui'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
-import type { SavedItem, Category, ExtractedItem } from '../types'
+import type { SavedItem, Category, ExtractedItem, Route } from '../types'
 import SelectionOverlay from '../components/SelectionOverlay'
 import UnpackScreen from '../components/UnpackScreen'
 import { createRouteFromExtraction } from '../lib/createRouteFromExtraction'
 import { useToast } from '../components/Toast'
-import { X, Search } from 'lucide-react'
+import { X, Search, ChevronRight } from 'lucide-react'
 
 const categoryPills: { value: Category; label: string }[] = [
   { value: 'restaurant', label: 'Food' },
@@ -58,6 +58,21 @@ export default function ItemDetailPage() {
     enabled: !!id,
   })
   const extractedCount = Array.isArray(pendingExtraction?.extracted_items) ? pendingExtraction!.extracted_items.length : 0
+
+  // Fetch parent Route (if item belongs to one)
+  const { data: parentRoute } = useQuery({
+    queryKey: ['route', itemData?.route_id ?? ''],
+    queryFn: async () => {
+      if (!itemData?.route_id) return null
+      const { data } = await supabase
+        .from('routes')
+        .select('id, name, item_count')
+        .eq('id', itemData.route_id)
+        .single()
+      return data as Pick<Route, 'id' | 'name' | 'item_count'> | null
+    },
+    enabled: !!itemData?.route_id,
+  })
 
   // Editable fields
   const [title, setTitle] = useState('')
@@ -270,15 +285,14 @@ export default function ItemDetailPage() {
 
   if (loading) {
     return (
-      <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))', background: '#0d1a2a', minHeight: '100vh' }}>
-        <div className="animate-pulse">
-          <div style={{ height: 20, width: 56, background: '#e8e6e1', borderRadius: 10, marginBottom: 24 }} />
-          <div style={{ height: 224, background: '#f1efe8', borderRadius: 16 }} />
+      <div style={{ background: 'var(--bg-base)', minHeight: '100vh', paddingTop: 'env(safe-area-inset-top)' }}>
+        <div className="animate-pulse" style={{ padding: '16px 16px 100px' }}>
+          <div style={{ height: 20, width: 56, background: 'var(--bg-elevated-1)', borderRadius: 10, marginBottom: 24 }} />
+          <div style={{ height: 224, background: 'var(--bg-elevated-1)', borderRadius: 0 }} />
           <div style={{ marginTop: 20 }}>
-            <div style={{ height: 24, background: '#e8e6e1', borderRadius: 10, width: '75%' }} />
-            <div style={{ height: 16, background: '#f1efe8', borderRadius: 10, width: '33%', marginTop: 12 }} />
-            <div style={{ height: 44, background: '#f1efe8', borderRadius: 12, marginTop: 16 }} />
-            <div style={{ height: 96, background: '#f1efe8', borderRadius: 12, marginTop: 12 }} />
+            <div style={{ height: 24, background: 'var(--bg-elevated-1)', borderRadius: 8, width: '75%' }} />
+            <div style={{ height: 16, background: 'var(--bg-elevated-1)', borderRadius: 8, width: '33%', marginTop: 12 }} />
+            <div style={{ height: 44, background: 'var(--bg-elevated-1)', borderRadius: 8, marginTop: 16 }} />
           </div>
         </div>
       </div>
@@ -287,19 +301,19 @@ export default function ItemDetailPage() {
 
   if (notFound || !item) {
     return (
-      <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
+      <div style={{ background: 'var(--bg-base)', minHeight: '100vh', padding: '16px', paddingTop: 'calc(1rem + env(safe-area-inset-top))' }}>
         <button
           onClick={() => navigate(backTo)}
-          className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors"
+          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: "'DM Sans', sans-serif", fontSize: 14 }}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
             <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
           </svg>
           Back
         </button>
-        <div className="mt-16 text-center">
-          <p className="text-text-tertiary font-medium">Item not found</p>
-          <p className="mt-1 text-sm text-text-faint">It may have been deleted</p>
+        <div style={{ marginTop: 64, textAlign: 'center' }}>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500, color: 'var(--text-tertiary)' }}>Item not found</p>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-tertiary)', marginTop: 4 }}>It may have been deleted</p>
         </div>
       </div>
     )
@@ -310,45 +324,63 @@ export default function ItemDetailPage() {
   const hasAnyImage = (item.image_url || item.places_photo_url) && !imgFailed
 
   return (
-    <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))' }}>
-      {/* Header: Back + Save Status + Menu */}
-      <div className="flex items-center justify-between mb-4">
+    <div data-testid="item-detail-page" style={{ background: 'var(--bg-base)', minHeight: '100vh', paddingTop: 'env(safe-area-inset-top)' }}>
+      {/* Photo area — full width at top, no border-radius */}
+      {hasAnyImage ? (
+        <div style={{ overflow: 'hidden' }}>
+          <SavedItemImage item={item} size="full" className="!rounded-none w-full" />
+        </div>
+      ) : (
+        <div data-testid="photo-placeholder" style={{ width: '100%', height: 200, background: 'var(--bg-elevated-1)' }} />
+      )}
+
+      {/* Header: Back + Save Status + Menu — overlaid on top of photo */}
+      <div style={{
+        position: 'absolute', top: 'env(safe-area-inset-top)', left: 0, right: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 16px',
+      }}>
         <button
           onClick={() => navigate(backTo)}
-          className="flex items-center gap-1 text-sm text-text-tertiary hover:text-text-secondary transition-colors"
+          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: "'DM Sans', sans-serif", fontSize: 14 }}
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
             <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
           </svg>
           Back
         </button>
-        <div className="flex items-center gap-3">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {saveStatus !== 'idle' && (
-            <span className={`text-xs font-medium ${saveStatus === 'saving' ? 'text-text-faint' : 'text-success'}`}>
+            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, color: saveStatus === 'saving' ? 'var(--text-tertiary)' : '#5b8a72' }}>
               {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
             </span>
           )}
           {/* ··· overflow menu */}
-          <div className="relative" ref={menuRef}>
+          <div style={{ position: 'relative' }} ref={menuRef}>
             <button
               type="button"
               onClick={() => setShowMenu((v) => !v)}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-bg-muted transition-colors"
+              style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}
               aria-label="More options"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5 text-text-tertiary">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
                 <path d="M3 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM8.5 10a1.5 1.5 0 113 0 1.5 1.5 0 01-3 0zM15.5 8.5a1.5 1.5 0 100 3 1.5 1.5 0 000-3z" />
               </svg>
             </button>
             {showMenu && (
-              <div className="absolute right-0 top-full mt-1 w-40 bg-white rounded-xl border border-border shadow-lg py-1 z-30">
+              <div style={{
+                position: 'absolute', right: 0, top: '100%', marginTop: 4, width: 160,
+                background: 'var(--bg-elevated-1)', borderRadius: 10, border: '0.5px solid rgba(118, 130, 142, 0.1)',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '4px 0', zIndex: 30,
+              }}>
                 <button
                   type="button"
                   onClick={() => { setShowMenu(false); setShowDeleteConfirm(true) }}
-                  className="w-full text-left px-4 py-2.5 text-[14px] transition-colors"
-                  style={{ color: '#c0392b' }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#fdf0ef')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  style={{
+                    width: '100%', textAlign: 'left', padding: '10px 14px',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#c44a3d',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                  }}
                 >
                   Delete
                 </button>
@@ -358,211 +390,295 @@ export default function ItemDetailPage() {
         </div>
       </div>
 
-      {/* Delete confirmation modal */}
-      {showDeleteConfirm && (
-        <ConfirmDeleteModal
-          onConfirm={handleDelete}
-          onCancel={() => setShowDeleteConfirm(false)}
-          loading={deleting}
-        />
-      )}
+      {/* Content area */}
+      <div style={{ padding: '16px 16px 100px' }}>
+        {/* Delete confirmation modal */}
+        {showDeleteConfirm && (
+          <ConfirmDeleteModal
+            onConfirm={handleDelete}
+            onCancel={() => setShowDeleteConfirm(false)}
+            loading={deleting}
+          />
+        )}
 
-      {/* Image — only shown for OG metadata images and user uploads */}
-      {hasAnyImage ? (
-        <SavedItemImage item={item} size="full" className="rounded-2xl" />
-      ) : null}
-
-      {/* Title */}
-      {/* Pending extraction banner */}
-      {pendingExtraction && extractedCount >= 2 && (
-        <div
-          data-testid="extraction-banner"
-          style={{
-            marginTop: 12,
-            padding: '12px 14px',
-            background: 'rgba(184, 68, 30, 0.08)',
-            borderRadius: 10,
-            border: '1px solid rgba(184, 68, 30, 0.15)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            cursor: 'pointer',
-          }}
-          onClick={() => setShowSelectionOverlay(true)}
-        >
-          <div>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: '#B8441E', margin: 0 }}>
-              We found {extractedCount} items in this article
-            </p>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#888780', margin: '2px 0 0' }}>
-              Tap to review and save individually
-            </p>
+        {/* Pending extraction banner */}
+        {pendingExtraction && extractedCount >= 2 && (
+          <div
+            data-testid="extraction-banner"
+            style={{
+              marginBottom: 12,
+              padding: '12px 14px',
+              background: 'var(--accent-soft)',
+              borderRadius: 8,
+              border: '1px solid var(--accent-soft)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+            }}
+            onClick={() => setShowSelectionOverlay(true)}
+          >
+            <div>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: 'var(--accent-primary)', margin: 0 }}>
+                We found {extractedCount} items in this article
+              </p>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-tertiary)', margin: '2px 0 0' }}>
+                Tap to review and save individually
+              </p>
+            </div>
+            <ChevronRight size={16} color="var(--accent-primary)" style={{ flexShrink: 0 }} />
           </div>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: '#B8441E' }}>
-            <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-      )}
+        )}
 
-      {/* "Scan for places" — show on eligible URL saves */}
-      {item && item.source_type === 'url' && item.source_url && !item.route_id && !item.location_place_id && !pendingExtraction && (
+        {/* "Scan for places" — show on eligible URL saves */}
+        {item && item.source_type === 'url' && item.source_url && !item.route_id && !item.location_place_id && !pendingExtraction && (
+          <button
+            type="button"
+            onClick={() => setShowUnpackScreen(true)}
+            style={{
+              width: '100%', padding: '14px 16px', marginBottom: 12,
+              background: 'transparent',
+              border: '0.5px solid rgba(118, 130, 142, 0.15)',
+              borderRadius: 8, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: 10,
+              textAlign: 'left',
+            }}
+          >
+            <div style={{
+              width: 36, height: 36, borderRadius: 8,
+              background: 'var(--accent-soft)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Search size={16} color="var(--accent-primary)" />
+            </div>
+            <div>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>
+                Scan for places
+              </p>
+              <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-tertiary)', margin: '1px 0 0' }}>
+                Find restaurants, attractions, and more in this article
+              </p>
+            </div>
+          </button>
+        )}
+
+        {/* Title */}
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="Add a title..."
+          style={{
+            width: '100%', marginTop: 4,
+            fontFamily: "'DM Sans', sans-serif", fontSize: 18, fontWeight: 500,
+            color: 'var(--text-primary)', background: 'transparent', border: 'none', outline: 'none',
+          }}
+        />
+
+        {/* Pills — category + location */}
+        {(activeTags.length > 0 || location) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+            {activeTags.map((tag) => {
+              const isFood = tag.name === 'restaurant' || tag.name === 'nightlife'
+              return (
+                <span
+                  key={tag.name}
+                  style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
+                    padding: '2px 8px', borderRadius: 99,
+                    background: isFood ? 'var(--accent-soft)' : 'var(--bg-elevated-2)',
+                    color: isFood ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {tag.name === 'restaurant' ? 'Food' : tag.name === 'hotel' ? 'Stay' : tag.name === 'transit' ? 'Transit' : tag.name}
+                </span>
+              )
+            })}
+            {location && (
+              <span style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
+                padding: '2px 8px', borderRadius: 99,
+                background: 'rgba(118, 130, 142, 0.2)',
+                color: 'var(--text-tertiary)',
+              }}>
+                {location.name.split(',')[0]}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Description/context */}
+        {item.description && (
+          <p style={{
+            fontFamily: "'DM Sans', sans-serif", fontSize: 13, lineHeight: 1.6,
+            color: 'var(--text-secondary)', marginTop: 12,
+          }}>
+            {item.description}
+          </p>
+        )}
+
+        {/* Source preview card */}
+        {item.source_url && (item.source_title || item.site_name) && (
+          <a
+            href={item.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="source-preview-card"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: 10, marginTop: 14,
+              background: 'var(--bg-elevated-1)', borderRadius: 8,
+              textDecoration: 'none',
+            }}
+          >
+            {item.source_thumbnail && (
+              <img
+                src={item.source_thumbnail}
+                alt=""
+                style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+              />
+            )}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
+                color: 'var(--text-primary)', margin: 0,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {item.source_title || item.site_name}
+              </p>
+              <p style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 9,
+                color: 'var(--text-tertiary)', margin: '2px 0 0',
+              }}>
+                {(() => { try { return new URL(item.source_url!).hostname.replace(/^www\./, '') } catch { return '' } })()}
+              </p>
+            </div>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: 12, height: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>
+              <path d="M5.22 14.78a.75.75 0 001.06 0l7.22-7.22v5.69a.75.75 0 001.5 0v-7.5a.75.75 0 00-.75-.75h-7.5a.75.75 0 000 1.5h5.69l-7.22 7.22a.75.75 0 000 1.06z" />
+            </svg>
+          </a>
+        )}
+        {/* Simple source link fallback (no source_title) */}
+        {item.source_url && !item.source_title && !item.site_name && (
+          <a
+            href={item.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              marginTop: 8, fontFamily: "'DM Sans', sans-serif",
+              fontSize: 13, color: 'var(--accent-primary)', textDecoration: 'none',
+            }}
+          >
+            Source
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" style={{ width: 14, height: 14 }}>
+              <path d="M6.22 8.72a.75.75 0 001.06 1.06l5.22-5.22v1.69a.75.75 0 001.5 0v-3.5a.75.75 0 00-.75-.75h-3.5a.75.75 0 000 1.5h1.69L6.22 8.72z" />
+              <path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 007 4H4.75A2.75 2.75 0 002 6.75v4.5A2.75 2.75 0 004.75 14h4.5A2.75 2.75 0 0012 11.25V9a.75.75 0 00-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5z" />
+            </svg>
+          </a>
+        )}
+
+        {/* "Part of" Route link */}
+        {parentRoute && (
+          <button
+            type="button"
+            data-testid="part-of-route-link"
+            onClick={() => navigate(`/route/${parentRoute.id}`)}
+            style={{
+              width: '100%', marginTop: 14,
+              background: 'var(--bg-elevated-1)', borderRadius: 8, padding: 10, border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              cursor: 'pointer', textAlign: 'left',
+            }}
+          >
+            <div>
+              <p style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
+                textTransform: 'uppercase', letterSpacing: '0.08em',
+                color: 'var(--text-tertiary)', margin: 0,
+              }}>
+                Part of
+              </p>
+              <p style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
+                color: 'var(--text-primary)', margin: '2px 0 0',
+              }}>
+                {parentRoute.name}
+              </p>
+              <p style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 9,
+                color: 'var(--text-tertiary)', margin: '1px 0 0',
+              }}>
+                {parentRoute.item_count} place{parentRoute.item_count !== 1 ? 's' : ''}
+              </p>
+            </div>
+            <ChevronRight size={16} color="var(--text-tertiary)" style={{ flexShrink: 0 }} />
+          </button>
+        )}
+
+        {/* Add to Trip */}
         <button
           type="button"
-          onClick={() => setShowUnpackScreen(true)}
+          onClick={() => setShowTripSheet(true)}
           style={{
-            width: '100%', padding: '14px 16px', marginBottom: 12,
+            width: '100%', marginTop: 14, padding: '12px 20px',
             background: 'transparent',
-            border: '1px solid #e8e6e1',
+            border: '0.5px solid rgba(118, 130, 142, 0.2)',
             borderRadius: 8, cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: 10,
-            textAlign: 'left',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+            fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
+            color: 'var(--text-secondary)',
           }}
         >
-          <div style={{
-            width: 36, height: 36, borderRadius: 8,
-            background: 'rgba(184, 68, 30, 0.08)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <Search size={16} color="#B8441E" />
-          </div>
-          <div>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500, color: '#1a1d27', margin: 0 }}>
-              Scan for places
-            </p>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#888780', margin: '1px 0 0' }}>
-              Find restaurants, attractions, and more in this article
-            </p>
-          </div>
-        </button>
-      )}
-
-      <input
-        type="text"
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        placeholder="Add a title..."
-        className="w-full mt-4 text-xl font-bold text-text-primary placeholder:text-text-faint focus:outline-none"
-      />
-
-      {/* Source preview card */}
-      {item.source_url && (item.source_title || item.site_name) && (
-        <a
-          href={item.source_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 12px', marginTop: 10,
-            background: '#f5f3ef', borderRadius: 8,
-            border: '0.5px solid #e8e6e1',
-            textDecoration: 'none',
-          }}
-        >
-          {item.source_thumbnail && (
-            <img
-              src={item.source_thumbnail}
-              alt=""
-              style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
-            />
-          )}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
-              color: '#1a1d27', margin: 0,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {item.source_title || item.site_name}
-            </p>
-            <p style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-              color: '#888780', margin: '2px 0 0',
-            }}>
-              {(() => { try { return new URL(item.source_url!).hostname.replace(/^www\./, '') } catch { return '' } })()}
-            </p>
-          </div>
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#B8441E', flexShrink: 0 }}>
-            Open
-          </span>
-        </a>
-      )}
-      {/* Simple source link fallback (no source_title) */}
-      {item.source_url && !item.source_title && !item.site_name && (
-        <a
-          href={item.source_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 mt-2 text-sm text-accent hover:text-accent transition-colors"
-        >
-          Source
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
-            <path d="M6.22 8.72a.75.75 0 001.06 1.06l5.22-5.22v1.69a.75.75 0 001.5 0v-3.5a.75.75 0 00-.75-.75h-3.5a.75.75 0 000 1.5h1.69L6.22 8.72z" />
-            <path d="M3.5 6.75c0-.69.56-1.25 1.25-1.25H7A.75.75 0 007 4H4.75A2.75 2.75 0 002 6.75v4.5A2.75 2.75 0 004.75 14h4.5A2.75 2.75 0 0012 11.25V9a.75.75 0 00-1.5 0v2.25c0 .69-.56 1.25-1.25 1.25h-4.5c-.69 0-1.25-.56-1.25-1.25v-4.5z" />
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: 16, height: 16, color: 'var(--accent-primary)' }}>
+            <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
           </svg>
-        </a>
-      )}
+          Add to Trip
+        </button>
 
-      {/* Add to Trip */}
-      <SecondaryButton onClick={() => setShowTripSheet(true)} className="mt-4 w-full">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 text-accent">
-          <path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" />
-        </svg>
-        Add to Trip
-      </SecondaryButton>
+        {showTripSheet && item && (
+          <AddToTripSheet
+            itemId={item.id}
+            onClose={() => setShowTripSheet(false)}
+            onAdded={(tripTitle) => handleToast(`Added to "${tripTitle}"`)}
+          />
+        )}
 
-      {showTripSheet && item && (
-        <AddToTripSheet
-          itemId={item.id}
-          onClose={() => setShowTripSheet(false)}
-          onAdded={(tripTitle) => handleToast(`Added to "${tripTitle}"`)}
-        />
-      )}
-
-      {/* Selection overlay for multi-item extraction */}
-      {showSelectionOverlay && pendingExtraction && item && user && (
-        <SelectionOverlay
-          extractionId={pendingExtraction.id}
-          sourceEntryId={item.id}
-          sourceTitle={item.title}
-          sourceUrl={item.source_url ?? ''}
-          contentType={pendingExtraction.content_type as 'listicle' | 'itinerary' | 'guide'}
-          items={pendingExtraction.extracted_items as Array<ExtractedItem & { likely_duplicate?: boolean }>}
-          userId={user.id}
-          onClose={() => {
-            setShowSelectionOverlay(false)
-            // Refetch to update the banner
-            queryClient.invalidateQueries({ queryKey: ['pending-extraction', id] })
-          }}
-        />
-      )}
-
-      {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 bg-text-primary text-white text-sm rounded-full shadow-lg whitespace-nowrap pointer-events-none">
-          {toast}
-        </div>
-      )}
-
-      <div className="mt-5 space-y-5">
-        {/* Tags — multi-select categories + custom */}
-        <div>
-          <label className="block text-sm font-medium text-text-secondary mb-2">Tags</label>
-          <div className="flex flex-wrap gap-2">
+        {/* Tags section */}
+        <div style={{ marginTop: 20 }}>
+          <label style={{
+            fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
+            textTransform: 'uppercase', letterSpacing: '0.08em',
+            color: 'var(--text-secondary)', display: 'block', marginBottom: 8,
+          }}>
+            Tags
+          </label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {/* Category pills */}
             {categoryPills.map((cat) => {
               const active = activeCategoryTags.includes(cat.value)
+              const isFood = cat.value === 'restaurant'
               return (
                 <button
                   key={cat.value}
                   type="button"
                   onClick={() => handleToggleCategoryTag(cat.value)}
-                  className="transition-all duration-150"
                   style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                    fontWeight: active ? 500 : 400,
-                    padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
-                    border: active ? '1.5px solid var(--color-accent)' : '1.5px solid var(--color-border-input)',
-                    background: active ? 'var(--color-accent-light)' : 'transparent',
-                    color: active ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                    fontWeight: 500,
+                    padding: '6px 14px', borderRadius: 99, cursor: 'pointer',
+                    border: active
+                      ? (isFood ? '1.5px solid var(--accent-primary)' : '1.5px solid rgba(168, 196, 220, 0.3)')
+                      : '1.5px solid rgba(118, 130, 142, 0.15)',
+                    background: active
+                      ? (isFood ? 'var(--accent-soft)' : 'var(--bg-elevated-2)')
+                      : 'transparent',
+                    color: active
+                      ? (isFood ? 'var(--accent-primary)' : 'var(--text-secondary)')
+                      : 'var(--text-tertiary)',
+                    transition: 'all 150ms',
                   }}
                 >
                   {cat.label}
@@ -576,14 +692,14 @@ export default function ItemDetailPage() {
                 key={tag}
                 type="button"
                 onClick={() => handleRemoveTag(tag)}
-                className="flex items-center gap-1 transition-all duration-150"
                 style={{
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                  fontWeight: 500,
-                  padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
-                  border: '1.5px dotted var(--color-accent)',
-                  background: 'var(--color-accent-light)',
-                  color: 'var(--color-accent)',
+                  display: 'flex', alignItems: 'center', gap: 4,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
+                  padding: '6px 14px', borderRadius: 99, cursor: 'pointer',
+                  border: '1.5px dotted var(--accent-primary)',
+                  background: 'var(--accent-soft)',
+                  color: 'var(--accent-primary)',
+                  transition: 'all 150ms',
                 }}
               >
                 {tag}
@@ -593,13 +709,11 @@ export default function ItemDetailPage() {
 
             {/* + Tag button / inline input */}
             {showTagInput ? (
-              <div
-                className="inline-flex items-center"
-                style={{
-                  border: '1.5px dashed var(--color-border-input)',
-                  borderRadius: 20, padding: '4px 10px',
-                }}
-              >
+              <div style={{
+                display: 'inline-flex', alignItems: 'center',
+                border: '1.5px dashed rgba(118, 130, 142, 0.2)',
+                borderRadius: 99, padding: '4px 10px',
+              }}>
                 <input
                   ref={tagInputRef}
                   type="text"
@@ -622,11 +736,10 @@ export default function ItemDetailPage() {
                     if (!tagDraft.trim()) setShowTagInput(false)
                   }}
                   placeholder="Tag name"
-                  className="outline-none bg-transparent"
                   style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                    color: 'var(--color-text-primary)',
-                    width: 80,
+                    color: 'var(--text-primary)', background: 'transparent', outline: 'none',
+                    width: 80, border: 'none',
                   }}
                 />
               </div>
@@ -637,14 +750,14 @@ export default function ItemDetailPage() {
                   setShowTagInput(true)
                   setTimeout(() => tagInputRef.current?.focus(), 50)
                 }}
-                className="transition-all duration-150"
                 style={{
                   fontFamily: "'DM Sans', sans-serif", fontSize: 13,
                   fontWeight: 400,
-                  padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
-                  border: '1.5px dashed var(--color-border-input)',
+                  padding: '6px 14px', borderRadius: 99, cursor: 'pointer',
+                  border: '1.5px dashed rgba(118, 130, 142, 0.2)',
                   background: 'transparent',
-                  color: 'var(--color-text-faint)',
+                  color: 'var(--text-tertiary)',
+                  transition: 'all 150ms',
                 }}
               >+ Tag</button>
             )}
@@ -652,16 +765,25 @@ export default function ItemDetailPage() {
         </div>
 
         {/* Location */}
-        <LocationAutocomplete
-          value={location?.name ?? ''}
-          onSelect={(loc) => { setLocation(loc); locationManuallyChanged.current = true }}
-          label="Location"
-          optional
-        />
+        <div style={{ marginTop: 20 }}>
+          <LocationAutocomplete
+            value={location?.name ?? ''}
+            onSelect={(loc) => { setLocation(loc); locationManuallyChanged.current = true }}
+            label="Location"
+            optional
+          />
+        </div>
 
         {/* Notes */}
-        <div>
-          <label htmlFor="detail-notes" className="block text-sm font-medium text-text-secondary mb-1.5">
+        <div style={{ marginTop: 20 }}>
+          <label
+            htmlFor="detail-notes"
+            style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
+              textTransform: 'uppercase', letterSpacing: '0.08em',
+              color: 'var(--text-secondary)', display: 'block', marginBottom: 6,
+            }}
+          >
             Notes
           </label>
           <textarea
@@ -677,12 +799,46 @@ export default function ItemDetailPage() {
               e.target.style.height = e.target.scrollHeight + 'px'
             }}
             placeholder="Any notes about this place..."
-            className="w-full px-4 py-3 border border-border-input rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent placeholder:text-text-faint resize-none overflow-hidden"
-            style={{ minHeight: 80 }}
+            style={{
+              width: '100%', padding: '12px 14px',
+              fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+              color: 'var(--text-primary)', background: 'var(--bg-canvas)',
+              border: '0.5px solid rgba(118, 130, 142, 0.15)',
+              borderRadius: 8, outline: 'none',
+              minHeight: 80, resize: 'none', overflow: 'hidden',
+            }}
           />
         </div>
-
       </div>
+
+      {/* Selection overlay for multi-item extraction */}
+      {showSelectionOverlay && pendingExtraction && item && user && (
+        <SelectionOverlay
+          extractionId={pendingExtraction.id}
+          sourceEntryId={item.id}
+          sourceTitle={item.title}
+          sourceUrl={item.source_url ?? ''}
+          contentType={pendingExtraction.content_type as 'listicle' | 'itinerary' | 'guide'}
+          items={pendingExtraction.extracted_items as Array<ExtractedItem & { likely_duplicate?: boolean }>}
+          userId={user.id}
+          onClose={() => {
+            setShowSelectionOverlay(false)
+            queryClient.invalidateQueries({ queryKey: ['pending-extraction', id] })
+          }}
+        />
+      )}
+
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', zIndex: 50,
+          padding: '10px 16px', background: 'var(--bg-elevated-1)', color: 'var(--text-primary)',
+          fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+          borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)',
+          whiteSpace: 'nowrap', pointerEvents: 'none',
+        }}>
+          {toast}
+        </div>
+      )}
 
       {/* Unpack screen — launched from "Scan for places" */}
       {showUnpackScreen && item && (
@@ -707,7 +863,6 @@ export default function ItemDetailPage() {
             )
             setShowUnpackScreen(false)
             if (result) {
-              // Absorb original save into the Route
               await supabase.from('saved_items').update({ route_id: result.routeId }).eq('id', item.id)
               globalToast(`Created group with ${result.itemCount} places`)
               navigate(`/route/${result.routeId}`)

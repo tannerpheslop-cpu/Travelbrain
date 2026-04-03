@@ -150,7 +150,7 @@ export default function InboxPage() {
   // ── Set body background to match sky (covers Dynamic Island / safe area) ──
   useEffect(() => {
     const prev = document.body.style.backgroundColor
-    document.body.style.backgroundColor = '#0A0C12'
+    document.body.style.backgroundColor = 'var(--bg-canvas)'
     return () => { document.body.style.backgroundColor = prev }
   }, [])
 
@@ -757,7 +757,7 @@ export default function InboxPage() {
         fontFamily: "'DM Sans', sans-serif",
         fontSize: 17,
         fontWeight: 500,
-        color: '#b8c8e0',
+        color: 'var(--text-secondary)',
         letterSpacing: '0.5px',
       }}>
         youji
@@ -780,8 +780,8 @@ export default function InboxPage() {
         header={<div style={{ height: 4 }} />}
       >
         <div style={{
-          background: 'var(--color-surface, #0d1a2a)',
-          color: 'var(--color-text-primary, #e4e8f0)',
+          background: 'var(--bg-base, #15181c)',
+          color: 'var(--text-primary, #e8eaed)',
           minHeight: '100%',
           padding: '0 16px 120px',
           pointerEvents: 'auto',
@@ -795,7 +795,7 @@ export default function InboxPage() {
             type="button"
             onClick={() => { setSearchQuery(''); setSearchExpanded(false) }}
             className="flex items-center justify-center shrink-0"
-            style={{ width: 32, height: 32, color: '#76828E', background: 'none', border: 'none', cursor: 'pointer' }}
+            style={{ width: 32, height: 32, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
             aria-label="Close search"
           >
             <X className="w-4 h-4" />
@@ -808,14 +808,14 @@ export default function InboxPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search saves..."
               className="w-full px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-              style={{ background: '#0A0C12', border: '0.5px solid rgba(118,130,142,0.15)', color: '#e4e8f0', fontSize: 16 }}
+              style={{ background: 'var(--bg-canvas)', border: '0.5px solid rgba(118,130,142,0.15)', color: 'var(--text-primary)', fontSize: 16 }}
               autoFocus
             />
           </div>
           <button
             type="button"
             onClick={() => { setSearchQuery(''); setSearchExpanded(false) }}
-            style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#76828E', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}
+            style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}
           >
             Cancel
           </button>
@@ -829,7 +829,7 @@ export default function InboxPage() {
               type="button"
               onClick={() => { setSearchExpanded(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
               className="flex items-center justify-center"
-              style={{ width: 32, height: 32, color: searchQuery ? '#B8441E' : '#76828E', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}
+              style={{ width: 32, height: 32, color: searchQuery ? 'var(--accent-primary)' : 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}
               aria-label="Search"
               data-testid="horizon-search-btn"
             >
@@ -841,7 +841,7 @@ export default function InboxPage() {
               className="flex items-center justify-center"
               style={{
                 width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer',
-                color: selectedFilters.length > 0 ? '#B8441E' : '#76828E',
+                color: selectedFilters.length > 0 ? 'var(--accent-primary)' : 'var(--text-tertiary)',
                 background: selectedFilters.length > 0 ? 'rgba(184,68,30,0.08)' : 'none',
               }}
               data-testid="horizon-filter-btn"
@@ -855,7 +855,7 @@ export default function InboxPage() {
               className="flex items-center justify-center"
               style={{
                 width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer',
-                color: multiSelectMode ? '#B8441E' : '#76828E',
+                color: multiSelectMode ? 'var(--accent-primary)' : 'var(--text-tertiary)',
                 background: multiSelectMode ? 'rgba(184,68,30,0.08)' : 'none',
               }}
               aria-label={multiSelectMode ? 'Cancel selection' : 'Select items'}
@@ -875,7 +875,7 @@ export default function InboxPage() {
                   padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'country' ? 600 : 400,
                   background: groupMode === 'country' ? 'rgba(228,232,240,0.1)' : 'transparent',
-                  color: groupMode === 'country' ? '#e4e8f0' : '#76828E',
+                  color: groupMode === 'country' ? 'var(--text-primary)' : 'var(--text-tertiary)',
                 }}
                 aria-label="Group by country"
               >
@@ -888,7 +888,7 @@ export default function InboxPage() {
                   padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'city' ? 600 : 400,
                   background: groupMode === 'city' ? 'rgba(228,232,240,0.1)' : 'transparent',
-                  color: groupMode === 'city' ? '#e4e8f0' : '#76828E',
+                  color: groupMode === 'city' ? 'var(--text-primary)' : 'var(--text-tertiary)',
                 }}
                 aria-label="Group by city"
               >
@@ -905,7 +905,7 @@ export default function InboxPage() {
                 style={{
                   width: 28, height: 28, border: 'none', cursor: 'pointer',
                   background: viewMode === 'grid' ? 'rgba(228,232,240,0.1)' : 'transparent',
-                  color: viewMode === 'grid' ? '#e4e8f0' : '#76828E',
+                  color: viewMode === 'grid' ? 'var(--text-primary)' : 'var(--text-tertiary)',
                 }}
                 aria-label="Grid view"
               >
@@ -918,7 +918,7 @@ export default function InboxPage() {
                 style={{
                   width: 28, height: 28, border: 'none', cursor: 'pointer',
                   background: viewMode === 'list' ? 'rgba(228,232,240,0.1)' : 'transparent',
-                  color: viewMode === 'list' ? '#e4e8f0' : '#76828E',
+                  color: viewMode === 'list' ? 'var(--text-primary)' : 'var(--text-tertiary)',
                 }}
                 aria-label="List view"
               >
@@ -962,7 +962,7 @@ export default function InboxPage() {
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
               fontWeight: 500,
-              color: 'var(--color-text-tertiary)',
+              color: 'var(--text-tertiary)',
             }}
             data-testid="clear-all-filters"
           >
@@ -1024,10 +1024,10 @@ export default function InboxPage() {
       {!loading && !error && recentlyAdded.length > 0 && (
         <section style={{ borderTop: '1px solid rgba(118,130,142,0.1)', borderBottom: '1px solid rgba(118,130,142,0.1)', paddingTop: 16, paddingBottom: 16, marginBottom: 20 }}>
           <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: '#e4e8f0', margin: 0 }}>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
               Recently added
             </h2>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#76828E' }}>{recentlyAdded.length}</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)' }}>{recentlyAdded.length}</span>
           </div>
           {viewMode === 'grid' ? (
             /* Grid: horizontal scroll of tile cards */
@@ -1049,7 +1049,7 @@ export default function InboxPage() {
                     }}>
                       <div style={{
                         width: '40%', height: '100%',
-                        background: 'linear-gradient(90deg, transparent, rgba(196,90,45,0.3), transparent)',
+                        background: 'linear-gradient(90deg, transparent, rgba(184,68,30,0.3), transparent)',
                         animation: 'extraction-shimmer 1.5s ease-in-out infinite',
                       }} />
                     </div>
@@ -1115,7 +1115,7 @@ export default function InboxPage() {
                     {group.countryCode && (
                       <span style={{
                         fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
-                        color: '#76828E', letterSpacing: 0.5,
+                        color: 'var(--text-tertiary)', letterSpacing: 0.5,
                         background: 'rgba(118,130,142,0.2)', borderRadius: 4,
                         padding: '2px 6px', flexShrink: 0,
                       }}>
@@ -1124,17 +1124,17 @@ export default function InboxPage() {
                     )}
                     <h2 style={{
                       fontFamily: "'DM Sans', sans-serif",
-                      fontSize: 14, fontWeight: 500, color: '#e4e8f0',
+                      fontSize: 14, fontWeight: 500, color: 'var(--text-primary)',
                       margin: 0, flex: 1,
                     }}>
                       {groupLabel}
                     </h2>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#76828E', marginRight: 4 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)', marginRight: 4 }}>
                       {group.items.length}
                     </span>
                     {isCollapsed
-                      ? <ChevronRight size={16} style={{ color: '#76828E', flexShrink: 0 }} />
-                      : <ChevronDown size={16} style={{ color: '#76828E', flexShrink: 0 }} />
+                      ? <ChevronRight size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                      : <ChevronDown size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
                     }
                   </button>
                 ) : (
@@ -1150,7 +1150,7 @@ export default function InboxPage() {
                   >
                     {groupMode === 'city' && group.city ? (
                       <>
-                        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, margin: 0, color: '#e4e8f0' }}>
+                        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>
                           {group.city}
                         </h2>
                         {group.countryCode && <CountryCodeBadge code={group.countryCode} />}
@@ -1160,17 +1160,17 @@ export default function InboxPage() {
                         {group.country && group.countryCode && (
                           <CountryCodeBadge code={group.countryCode} />
                         )}
-                        <h2 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: '#76828E', margin: 0 }}>
+                        <h2 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: 'var(--text-tertiary)', margin: 0 }}>
                           {group.country ?? 'Unplaced'}
                         </h2>
                       </>
                     )}
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#76828E', flex: 1 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)', flex: 1 }}>
                       {group.items.length}
                     </span>
                     {isCollapsed
-                      ? <ChevronRight size={16} style={{ color: '#76828E', flexShrink: 0 }} />
-                      : <ChevronDown size={16} style={{ color: '#76828E', flexShrink: 0 }} />
+                      ? <ChevronRight size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
+                      : <ChevronDown size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
                     }
                   </button>
                 )
@@ -1202,7 +1202,7 @@ export default function InboxPage() {
                             position: 'absolute', top: 6, left: 6, zIndex: 10,
                             width: 22, height: 22, borderRadius: 11,
                             border: isSelected ? 'none' : '2px solid rgba(255,255,255,0.7)',
-                            background: isSelected ? '#B8441E' : 'rgba(0,0,0,0.2)',
+                            background: isSelected ? 'var(--accent-primary)' : 'rgba(0,0,0,0.2)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             pointerEvents: 'none',
                           }}>
@@ -1223,7 +1223,7 @@ export default function InboxPage() {
                               }}>
                                 <div style={{
                                   width: '40%', height: '100%',
-                                  background: 'linear-gradient(90deg, transparent, rgba(196,90,45,0.3), transparent)',
+                                  background: 'linear-gradient(90deg, transparent, rgba(184,68,30,0.3), transparent)',
                                   animation: 'extraction-shimmer 1.5s ease-in-out infinite',
                                 }} />
                               </div>
@@ -1251,7 +1251,7 @@ export default function InboxPage() {
                           <div style={{
                             width: 22, height: 22, borderRadius: 11, flexShrink: 0, marginRight: 8,
                             border: isSelected ? 'none' : '2px solid rgba(118,130,142,0.3)',
-                            background: isSelected ? '#B8441E' : 'transparent',
+                            background: isSelected ? 'var(--accent-primary)' : 'transparent',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                           }}>
                             {isSelected && (
@@ -1271,7 +1271,7 @@ export default function InboxPage() {
                               }}>
                                 <div style={{
                                   width: '40%', height: '100%',
-                                  background: 'linear-gradient(90deg, transparent, rgba(196,90,45,0.3), transparent)',
+                                  background: 'linear-gradient(90deg, transparent, rgba(184,68,30,0.3), transparent)',
                                   animation: 'extraction-shimmer 1.5s ease-in-out infinite',
                                 }} />
                               </div>
@@ -1326,7 +1326,7 @@ export default function InboxPage() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 45 }} onClick={exitMultiSelect} />
         <div style={{
           position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-          background: '#0d1a2a', borderTop: '0.5px solid rgba(118,130,142,0.1)',
+          background: 'var(--bg-base)', borderTop: '0.5px solid rgba(118,130,142,0.1)',
           padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
           boxShadow: '0 -2px 12px rgba(0,0,0,0.08)',
         }}>
@@ -1342,7 +1342,7 @@ export default function InboxPage() {
                 style={{
                   width: '100%', padding: '10px 14px', marginBottom: 10,
                   fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500,
-                  color: '#e4e8f0', background: '#0A0C12',
+                  color: 'var(--text-primary)', background: 'var(--bg-canvas)',
                   border: '0.5px solid rgba(118,130,142,0.15)', borderRadius: 8, outline: 'none',
                 }}
               />
@@ -1354,7 +1354,7 @@ export default function InboxPage() {
                     flex: 1, padding: '12px 0',
                     background: 'none', border: '1px solid rgba(118,130,142,0.2)', borderRadius: 10,
                     fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
-                    color: '#76828E', cursor: 'pointer',
+                    color: 'var(--text-tertiary)', cursor: 'pointer',
                   }}
                 >
                   Back
@@ -1365,7 +1365,7 @@ export default function InboxPage() {
                   disabled={!mergeRouteName.trim()}
                   style={{
                     flex: 2, padding: '12px 0',
-                    background: mergeRouteName.trim() ? '#B8441E' : 'rgba(118,130,142,0.3)', color: '#fff',
+                    background: mergeRouteName.trim() ? 'var(--accent-primary)' : 'rgba(118,130,142,0.3)', color: '#fff',
                     border: 'none', borderRadius: 10,
                     fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
                     cursor: mergeRouteName.trim() ? 'pointer' : 'default',
@@ -1383,12 +1383,12 @@ export default function InboxPage() {
                 style={{
                   padding: '10px 16px', background: 'none', border: '1px solid rgba(118,130,142,0.2)',
                   borderRadius: 8, fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                  color: '#76828E', cursor: 'pointer',
+                  color: 'var(--text-tertiary)', cursor: 'pointer',
                 }}
               >
                 Cancel
               </button>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#76828E', flex: 1 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--text-tertiary)', flex: 1 }}>
                 {multiSelected.size} selected
               </span>
               <button
@@ -1397,7 +1397,7 @@ export default function InboxPage() {
                 disabled={multiSelected.size < 2}
                 style={{
                   padding: '10px 16px',
-                  background: multiSelected.size >= 2 ? '#B8441E' : 'rgba(118,130,142,0.3)', color: '#fff',
+                  background: multiSelected.size >= 2 ? 'var(--accent-primary)' : 'rgba(118,130,142,0.3)', color: '#fff',
                   border: 'none', borderRadius: 8,
                   fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
                   cursor: multiSelected.size >= 2 ? 'pointer' : 'default',
@@ -1563,7 +1563,7 @@ function RouteGridCard({ route }: { route: Route }) {
       <div style={{
         position: 'relative', zIndex: 1,
         borderRadius: 8, overflow: 'hidden',
-        background: '#3F3A42',
+        background: 'var(--bg-elevated-1)',
       }}>
         {/* Thumbnail */}
         {thumbnail ? (
@@ -1577,7 +1577,7 @@ function RouteGridCard({ route }: { route: Route }) {
             {/* Count badge */}
             <span style={{
               position: 'absolute', top: 6, right: 6, zIndex: 2,
-              background: '#B8441E', color: '#fff',
+              background: 'var(--accent-primary)', color: '#fff',
               fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
               padding: '2px 8px', borderRadius: 999,
             }}>
@@ -1607,7 +1607,7 @@ function RouteGridCard({ route }: { route: Route }) {
           <div style={{ padding: '14px 12px' }}>
             <span style={{
               position: 'absolute', top: 6, right: 6,
-              background: '#B8441E', color: '#fff',
+              background: 'var(--accent-primary)', color: '#fff',
               fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
               padding: '2px 8px', borderRadius: 999,
             }}>
@@ -1615,7 +1615,7 @@ function RouteGridCard({ route }: { route: Route }) {
             </span>
             <p style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
-              color: '#e4e8f0', margin: 0,
+              color: 'var(--text-primary)', margin: 0,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {route.name}
@@ -1623,7 +1623,7 @@ function RouteGridCard({ route }: { route: Route }) {
             {route.location_scope && (
               <p style={{
                 fontFamily: "'DM Sans', sans-serif", fontSize: 11,
-                color: '#76828E', margin: '4px 0 0',
+                color: 'var(--text-tertiary)', margin: '4px 0 0',
               }}>
                 {route.location_scope}
               </p>
@@ -1658,7 +1658,7 @@ function RouteListRow({ route }: { route: Route }) {
         }} />
         <div style={{
           width: 44, height: 44, borderRadius: 6, overflow: 'hidden',
-          background: '#3F3A42',
+          background: 'var(--bg-elevated-1)',
           position: 'relative', zIndex: 1,
         }}>
           {route.source_thumbnail ? (
@@ -1669,7 +1669,7 @@ function RouteListRow({ route }: { route: Route }) {
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#76828E" strokeWidth="1.5">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
               </svg>
             </div>
@@ -1680,13 +1680,13 @@ function RouteListRow({ route }: { route: Route }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{
           fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
-          color: '#e4e8f0', margin: 0,
+          color: 'var(--text-primary)', margin: 0,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {route.name}
         </p>
         <p style={{
-          fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#76828E',
+          fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--text-tertiary)',
           margin: '2px 0 0',
         }}>
           {route.location_scope ? `${route.location_scope} · ` : ''}{route.item_count} place{route.item_count !== 1 ? 's' : ''}
@@ -1705,7 +1705,7 @@ function ExtractionBadge({ count }: { count: number }) {
       data-testid="extraction-badge"
       style={{
         position: 'absolute', top: 6, right: 6, zIndex: 5,
-        background: '#B8441E', color: '#fff',
+        background: 'var(--accent-primary)', color: '#fff',
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: 10, fontWeight: 500,
         padding: '2px 8px', borderRadius: 999,
@@ -1971,7 +1971,7 @@ function ListRow({
           <CategoryPill label={categoryLabel[item.category]} />
           {item.has_pending_extraction && extractionCount && extractionCount >= 2 && (
             <span style={{
-              background: '#B8441E', color: '#fff',
+              background: 'var(--accent-primary)', color: '#fff',
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10, fontWeight: 500,
               padding: '1px 6px', borderRadius: 999,

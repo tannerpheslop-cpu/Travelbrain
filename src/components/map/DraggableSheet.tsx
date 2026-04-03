@@ -310,9 +310,9 @@ export default function DraggableSheet({
         left: 0,
         right: 0,
         height,
-        background: '#0d1a2a',
-        borderTopLeftRadius: 16,
-        borderTopRightRadius: 16,
+        background: 'var(--bg-base)',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
         boxShadow: '0 -2px 20px rgba(0,0,0,0.15)',
         display: 'flex',
         flexDirection: 'column',
@@ -340,10 +340,10 @@ export default function DraggableSheet({
       >
         <div
           style={{
-            width: 36,
+            width: 40,
             height: 4,
-            borderRadius: 2,
-            background: '#d3d1c7',
+            borderRadius: 8,
+            background: 'var(--border-strong)',
           }}
         />
       </div>

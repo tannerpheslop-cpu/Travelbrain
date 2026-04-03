@@ -379,7 +379,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 60,
-        background: '#0A0C12',
+        background: 'var(--bg-canvas)',
         opacity: visible ? 1 : 0,
         transition: 'opacity 200ms ease',
         display: 'flex', flexDirection: 'column',
@@ -394,12 +394,12 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           }}>
             <button type="button" onClick={handleClose} style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              color: '#b8c8e0',
+              color: 'var(--text-secondary)',
               fontFamily: "'DM Sans', sans-serif", fontSize: 14,
             }}>Cancel</button>
             <span style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
-              color: '#76828E', textTransform: 'lowercase',
+              color: 'var(--text-tertiary)', textTransform: 'lowercase',
             }}>unpack</span>
           </div>
 
@@ -412,16 +412,16 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               placeholder="Paste a link or article text"
               style={{
                 width: '100%', padding: '14px 16px',
-                background: '#3F3A42',
-                border: '0.5px solid rgba(255,255,255,0.1)',
+                background: 'var(--bg-elevated-1)',
+                border: '0.5px solid rgba(118, 130, 142, 0.15)',
                 borderRadius: 10, outline: 'none',
                 fontFamily: "'DM Sans', sans-serif", fontSize: 16,
-                color: '#e4e8f0',
+                color: 'var(--text-primary)',
               }}
             />
             <div style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-              color: '#76828E', marginTop: 8, textAlign: 'center',
+              color: 'var(--text-tertiary)', marginTop: 8, textAlign: 'center',
             }}>
               Find restaurants, attractions, and more
             </div>
@@ -429,7 +429,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
           {loadingPreview && (
             <div style={{ padding: '20px', textAlign: 'center' }}>
-              <span style={{ color: '#b8c8e0', fontSize: 13 }}>Loading preview...</span>
+              <span style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Loading preview...</span>
             </div>
           )}
           {preview && !loadingPreview && (
@@ -437,10 +437,10 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               {preview.image && (
                 <img src={preview.image} alt="" style={{ width: 200, maxWidth: '100%', borderRadius: 8, marginBottom: 12, objectFit: 'cover' }} />
               )}
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500, color: '#e4e8f0', textAlign: 'center', maxWidth: 300 }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500, color: 'var(--text-primary)', textAlign: 'center', maxWidth: 300 }}>
                 {preview.title || urlInput}
               </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0', marginTop: 4 }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
                 {extractDomain(urlInput)}
               </div>
             </div>
@@ -454,8 +454,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               border: '0.5px solid rgba(184, 68, 30, 0.2)',
               borderRadius: 10,
             }}>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#e4e8f0', marginBottom: 8 }}>
-                You've already unpacked this as <strong style={{ color: '#B8441E' }}>{duplicateRoute.name}</strong>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-primary)', marginBottom: 8 }}>
+                You've already unpacked this as <strong style={{ color: 'var(--accent-primary)' }}>{duplicateRoute.name}</strong>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" onClick={() => {
@@ -464,9 +464,9 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                   window.location.href = `/route/${duplicateRoute.id}`
                 }} style={{
                   flex: 1, padding: '8px 0',
-                  background: 'none', border: '1px solid rgba(255,255,255,0.1)',
+                  background: 'none', border: '1px solid rgba(118, 130, 142, 0.15)',
                   borderRadius: 8, cursor: 'pointer',
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-secondary)',
                 }}>
                   View existing
                 </button>
@@ -476,7 +476,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                   handleStart()
                 }} style={{
                   flex: 1, padding: '8px 0',
-                  background: '#B8441E', color: '#fff',
+                  background: 'var(--accent-primary)', color: '#fff',
                   border: 'none', borderRadius: 8, cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
                 }}>
@@ -490,7 +490,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             <div style={{ padding: '20px', marginTop: 'auto' }}>
               <button type="button" onClick={handleStart} disabled={starting} style={{
                 width: '100%', padding: '14px 0',
-                background: starting ? '#8a4020' : '#B8441E', color: '#fff',
+                background: starting ? 'var(--disabled-bg)' : 'var(--accent-primary)', color: '#fff',
                 border: 'none', borderRadius: 12, cursor: starting ? 'default' : 'pointer',
                 fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
               }}>
@@ -506,11 +506,11 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           <div style={{
             display: 'flex', alignItems: 'center', gap: 10,
             padding: '10px 16px', paddingTop: 'calc(10px + env(safe-area-inset-top))',
-            borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+            borderBottom: '0.5px solid rgba(118, 130, 142, 0.06)',
           }}>
             <button type="button" onClick={handleClose} style={{
               background: 'none', border: 'none', cursor: 'pointer', padding: 4,
-              color: '#b8c8e0',
+              color: 'var(--text-secondary)',
             }}>
               <X size={20} />
             </button>
@@ -518,10 +518,10 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               <img src={preview.image} alt="" style={{ width: 40, height: 40, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }} />
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: '#e4e8f0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {preview?.title || urlInput}
               </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#b8c8e0' }}>
+              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--text-tertiary)' }}>
                 {extractDomain(urlInput)}
               </div>
             </div>
@@ -531,13 +531,13 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           <div style={{ textAlign: 'center', padding: '24px 0 16px' }}>
             <div style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 36, fontWeight: 500,
-              color: '#B8441E', lineHeight: 1, overflow: 'hidden', height: 40,
+              color: 'var(--accent-primary)', lineHeight: 1, overflow: 'hidden', height: 40,
             }}>
               <div key={displayedCount} style={{ animation: displayedCount > 0 ? 'slideUp 200ms ease forwards' : 'none' }}>
                 {displayedCount}
               </div>
             </div>
-            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0', marginTop: 4 }}>
+            <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-tertiary)', marginTop: 4 }}>
               places found
             </div>
           </div>
@@ -550,7 +550,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                 else setCheckedItems(new Set(items.map((_, i) => i)))
               }} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#B8441E',
+                fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--accent-primary)',
               }}>
                 {allChecked ? 'Deselect all' : 'Select all'}
               </button>
@@ -562,10 +562,10 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             {[...sections.entries()].map(([label, sectionItems]) => (
               <div key={label} style={{ marginBottom: 16 }}>
                 <div style={{
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
-                  textTransform: 'uppercase', letterSpacing: '0.04em',
-                  color: '#76828E',
-                  paddingBottom: 6, borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
+                  textTransform: 'uppercase', letterSpacing: '0.08em',
+                  color: 'var(--text-secondary)',
+                  paddingBottom: 6, borderBottom: '0.5px solid rgba(118, 130, 142, 0.1)',
                   marginBottom: 8, marginTop: 4,
                 }}>
                   {label}
@@ -579,7 +579,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                   return (
                     <div key={`${label}-${i}`} style={{
                       display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0',
-                      borderBottom: '0.5px solid rgba(255,255,255,0.06)',
+                      borderBottom: '0.5px solid rgba(118, 130, 142, 0.06)',
                       animation: 'fadeSlideIn 300ms ease-out forwards',
                       opacity: showCheckbox && !isChecked ? 0.4 : 1,
                       transition: 'opacity 150ms ease',
@@ -595,8 +595,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                           })
                         }} style={{
                           width: 22, height: 22, borderRadius: 11, flexShrink: 0, marginTop: 2,
-                          border: isChecked ? 'none' : '1.5px solid rgba(255,255,255,0.2)',
-                          background: isChecked ? '#B8441E' : 'transparent',
+                          border: isChecked ? 'none' : '1.5px solid rgba(118, 130, 142, 0.2)',
+                          background: isChecked ? 'var(--accent-primary)' : 'transparent',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'pointer', padding: 0,
                         }}>
@@ -609,13 +609,13 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                       )}
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500, color: '#e4e8f0' }}>
+                        <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
                           {item.name}
                         </div>
                         <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
                           <span style={{
                             fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
-                            background: 'rgba(184, 68, 30, 0.12)', color: '#B8441E',
+                            background: 'var(--accent-soft)', color: 'var(--accent-primary)',
                             padding: '2px 8px', borderRadius: 999,
                           }}>
                             {CATEGORY_LABELS[item.category] || item.category}
@@ -623,8 +623,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                           {extractCity(item.location_name) && (
                             <span style={{
                               fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
-                              background: 'rgba(255, 255, 255, 0.05)',
-                              color: '#b8c8e0',
+                              background: 'rgba(118, 130, 142, 0.2)',
+                              color: 'var(--text-tertiary)',
                               padding: '2px 8px', borderRadius: 999,
                             }}>
                               {extractCity(item.location_name)}
@@ -634,7 +634,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                         {item.context && (
                           <div style={{
                             fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-                            color: '#b8c8e0',
+                            color: 'var(--text-secondary)',
                             marginTop: 3, lineHeight: 1.4,
                             display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
                             overflow: 'hidden',
@@ -655,7 +655,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           {/* Bottom bar */}
           <div style={{
             padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
-            borderTop: '0.5px solid rgba(255,255,255,0.06)',
+            borderTop: '0.5px solid rgba(118, 130, 142, 0.06)',
           }}>
             {status === 'error' ? (
               /* Error state */
@@ -666,12 +666,12 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                 <div style={{ display: 'flex', gap: 8, marginTop: 8, justifyContent: 'center' }}>
                   <button type="button" onClick={handleClose} style={{
                     padding: '8px 20px', background: 'none',
-                    border: '1px solid rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(118, 130, 142, 0.06)',
                     borderRadius: 8, cursor: 'pointer',
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-secondary)',
                   }}>Cancel</button>
                   <button type="button" onClick={() => { setStep('input'); setStatus('reading'); setErrorMessage(null); setItems([]); setItemCount(0); setPrevCount(0); setStarting(false) }} style={{
-                    padding: '8px 20px', background: '#B8441E', color: '#fff',
+                    padding: '8px 20px', background: 'var(--accent-primary)', color: '#fff',
                     border: 'none', borderRadius: 8, cursor: 'pointer',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
                   }}>Try again</button>
@@ -682,7 +682,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               <div>
                 <button type="button" onClick={handleSave} disabled={isSaving || checkedItems.size === 0} style={{
                   width: '100%', padding: '14px 0',
-                  background: (isSaving || checkedItems.size === 0) ? '#8a4020' : '#B8441E', color: '#fff',
+                  background: (isSaving || checkedItems.size === 0) ? 'var(--disabled-bg)' : 'var(--accent-primary)', color: '#fff',
                   border: 'none', borderRadius: 12,
                   cursor: (isSaving || checkedItems.size === 0) ? 'default' : 'pointer',
                   opacity: (isSaving || checkedItems.size === 0) ? 0.5 : 1,
@@ -694,7 +694,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                   width: '100%', padding: '10px 0', marginTop: 4,
                   background: 'none', border: 'none', cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                  color: '#b8c8e0',
+                  color: 'var(--text-secondary)',
                 }}>
                   Cancel
                 </button>
@@ -702,8 +702,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             ) : (
               /* Processing state */
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#B8441E', animation: 'pulse 1.5s ease infinite' }} />
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0' }}>
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent-primary)', animation: 'pulse 1.5s ease infinite' }} />
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-secondary)' }}>
                   {status === 'reading' ? 'Reading article...' : 'Extracting places...'}
                 </span>
               </div>

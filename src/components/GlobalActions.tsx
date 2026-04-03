@@ -72,11 +72,23 @@ export default function GlobalActions() {
           <button
             type="button"
             onClick={handleFabTap}
-            className="pointer-events-auto w-13 h-13 rounded-full bg-accent text-white shadow-lg shadow-accent/25 flex items-center justify-center hover:scale-105 active:scale-95 transition-all"
+            style={{
+              width: 44, height: 44, borderRadius: '50%',
+              background: 'var(--accent-primary)', color: '#ffffff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', cursor: 'pointer',
+              boxShadow: 'var(--shadow-lg)',
+              pointerEvents: 'auto',
+              transition: 'transform 150ms ease, background 150ms ease',
+            }}
+            onMouseDown={(e) => { e.currentTarget.style.transform = 'scale(0.98)'; e.currentTarget.style.background = 'var(--accent-pressed)' }}
+            onMouseUp={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.background = 'var(--accent-primary)' }}
+            onTouchStart={(e) => { e.currentTarget.style.transform = 'scale(0.98)'; e.currentTarget.style.background = 'var(--accent-pressed)' }}
+            onTouchEnd={(e) => { e.currentTarget.style.transform = ''; e.currentTarget.style.background = 'var(--accent-primary)' }}
             aria-label={showSaveSheet || showMenu ? 'Close' : 'Add save'}
           >
-            <div className="transition-transform duration-200" style={{ transform: showMenu || showSaveSheet ? 'rotate(45deg)' : 'none' }}>
-              <Plus className="w-6 h-6" />
+            <div style={{ transition: 'transform 200ms', transform: showMenu || showSaveSheet ? 'rotate(45deg)' : 'none' }}>
+              <Plus size={18} strokeWidth={2.5} />
             </div>
           </button>
         </div>
@@ -105,7 +117,7 @@ export default function GlobalActions() {
           >
             <div
               style={{
-                background: 'var(--color-surface, #0d1a2a)',
+                background: 'var(--bg-base, #15181c)',
                 borderRadius: '16px 16px 0 0',
                 padding: '8px 0',
                 paddingBottom: 'calc(8px + env(safe-area-inset-bottom))',
@@ -125,22 +137,22 @@ export default function GlobalActions() {
               >
                 <div style={{
                   width: 44, height: 44, borderRadius: 12,
-                  background: 'rgba(184, 68, 30, 0.15)',
+                  background: 'var(--accent-soft)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}>
-                  <Bookmark size={20} color="#B8441E" />
+                  <Bookmark size={20} color="var(--accent-primary)" />
                 </div>
                 <div>
                   <div style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 500,
-                    color: '#e4e8f0',
+                    color: 'var(--text-primary)',
                   }}>
                     Quick save
                   </div>
                   <div style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-                    color: '#b8c8e0',
+                    color: 'var(--text-secondary)',
                     marginTop: 1,
                   }}>
                     Save a link, note, or photo
@@ -151,7 +163,7 @@ export default function GlobalActions() {
               {/* Divider */}
               <div style={{
                 height: 0.5, margin: '0 20px',
-                background: 'var(--color-surface-elevated, #3F3A42)',
+                background: 'var(--bg-elevated-1)',
               }} />
 
               {/* Unpack option */}
@@ -167,22 +179,22 @@ export default function GlobalActions() {
               >
                 <div style={{
                   width: 44, height: 44, borderRadius: 12,
-                  background: 'rgba(184, 68, 30, 0.15)',
+                  background: 'var(--accent-soft)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}>
-                  <PackageOpen size={20} color="#B8441E" />
+                  <PackageOpen size={20} color="var(--accent-primary)" />
                 </div>
                 <div>
                   <div style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 500,
-                    color: '#e4e8f0',
+                    color: 'var(--text-primary)',
                   }}>
                     Unpack
                   </div>
                   <div style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-                    color: '#b8c8e0',
+                    color: 'var(--text-secondary)',
                     marginTop: 1,
                   }}>
                     Turn any travel article into a list of places to visit

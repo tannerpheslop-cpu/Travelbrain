@@ -56,7 +56,7 @@ export function createMapRoute(map: MapboxMap, points: RoutePoint[]): MapRouteHa
     paint: {
       'line-color': MAP_COLORS.accent,
       'line-width': MAP_SIZES.routeGlowWeight,
-      'line-opacity': 0.08,
+      'line-opacity': 0.30,
     },
     layout: {
       'line-cap': 'round',
@@ -72,7 +72,7 @@ export function createMapRoute(map: MapboxMap, points: RoutePoint[]): MapRouteHa
     paint: {
       'line-color': MAP_COLORS.accent,
       'line-width': MAP_SIZES.routeWeight,
-      'line-opacity': 0.45,
+      'line-opacity': 0.9,
       'line-dasharray': [4, 3],
     },
     layout: {

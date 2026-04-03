@@ -7,47 +7,47 @@
   --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  /* ── Accent (orange replaces copper) ── */
+  /* ── Accent ── */
   --color-accent:             #B8441E;
   --color-accent-light:       rgba(184, 68, 30, 0.15);
-  --color-accent-med:         rgba(184, 68, 30, 0.2);
-  --color-accent-hover:       #a03b1a;
-  --color-accent-pressed:     #a03b1a;
+  --color-accent-med:         rgba(184, 68, 30, 0.22);
+  --color-accent-hover:       #C9521F;
+  --color-accent-pressed:     #A33A1A;
   --color-accent-muted:       rgba(184, 68, 30, 0.15);
 
   /* ── Text ── */
-  --color-text-primary:       #e4e8f0;
-  --color-text-secondary:     #a8c4dc;
-  --color-text-tertiary:      #76828E;
-  --color-text-faint:         #76828E;
-  --color-text-ghost:         #76828E;
-  --color-text-mist:          rgba(118, 130, 142, 0.5);
+  --color-text-primary:       #e8eaed;
+  --color-text-secondary:     #b9c0c7;
+  --color-text-tertiary:      #8d96a0;
+  --color-text-faint:         #8d96a0;
+  --color-text-ghost:         #8d96a0;
+  --color-text-mist:          rgba(141, 150, 160, 0.5);
 
   /* ── Borders ── */
-  --color-border:             rgba(118, 130, 142, 0.1);
-  --color-border-light:       rgba(118, 130, 142, 0.06);
-  --color-border-subtle:      rgba(118, 130, 142, 0.06);
-  --color-border-input:       rgba(118, 130, 142, 0.15);
-  --color-border-dashed:      rgba(118, 130, 142, 0.2);
+  --color-border:             #2c333a;
+  --color-border-light:       #242a30;
+  --color-border-subtle:      #242a30;
+  --color-border-input:       #38414a;
+  --color-border-dashed:      #38414a;
 
   /* ── Backgrounds (three depth layers) ── */
-  --color-bg-page:            #0A0C12;   /* Sky — nav, page bg, inputs */
-  --color-bg-card:            #3F3A42;   /* Cards — elevated on sheet */
-  --color-bg-muted:           #0d1a2a;   /* Sheet surface */
-  --color-bg-tinted:          #0d1a2a;
-  --color-bg-pill:            rgba(118, 130, 142, 0.15);
-  --color-bg-pill-dark:       rgba(118, 130, 142, 0.2);
+  --color-bg-page:            #121417;   /* canvas — nav, page bg, inputs */
+  --color-bg-card:            #1c2126;   /* elevated-1 — cards */
+  --color-bg-muted:           #15181c;   /* base — sheet surface */
+  --color-bg-tinted:          #15181c;
+  --color-bg-pill:            #21262c;
+  --color-bg-pill-dark:       rgba(141, 150, 160, 0.2);
 
   /* ── Pills ── */
-  --color-pill-category-bg:   #023661;
-  --color-pill-category-text: #a8c4dc;
-  --color-pill-location-bg:   rgba(118, 130, 142, 0.2);
-  --color-pill-location-text: #76828E;
+  --color-pill-category-bg:   #21262c;
+  --color-pill-category-text: #b9c0c7;
+  --color-pill-location-bg:   rgba(141, 150, 160, 0.2);
+  --color-pill-location-text: #8d96a0;
 
   /* ── Shadows ── */
   --color-accent-shadow:      rgba(184, 68, 30, 0.25);
-  --color-card-shadow:        rgba(0, 0, 0, 0.2);
-  --color-card-shadow-lg:     rgba(0, 0, 0, 0.3);
+  --color-card-shadow:        rgba(0, 0, 0, 0.24);
+  --color-card-shadow-lg:     rgba(0, 0, 0, 0.30);
 
   /* ── Functional ── */
   --color-error:              #c44a3d;
@@ -66,8 +66,8 @@ html {
 
 body {
   font-family: var(--font-sans);
-  color: var(--color-text-primary);
-  background-color: var(--color-bg-page);
+  color: var(--text-primary);
+  background-color: var(--bg-canvas);
 }
 
 .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -82,18 +82,18 @@ input, textarea, select {
 }
 
 /* ── Night sky page overrides ── */
-/* When .night-sky is on the page wrapper, remap text colors to dark-mode tokens */
-.night-sky .text-text-primary { color: var(--color-night-text-primary) !important; }
-.night-sky .text-text-secondary { color: var(--color-night-text-secondary) !important; }
-.night-sky .text-text-tertiary { color: var(--color-night-text-tertiary) !important; }
-.night-sky .text-text-faint { color: var(--color-night-text-tertiary) !important; }
-.night-sky .text-text-ghost { color: var(--color-night-text-tertiary) !important; }
-.night-sky .text-text-mist { color: var(--color-night-text-secondary) !important; }
-.night-sky .border-border { border-color: rgba(118, 130, 142, 0.1) !important; }
-.night-sky .border-border-input { border-color: rgba(118, 130, 142, 0.15) !important; }
-.night-sky .border-border-light { border-color: rgba(118, 130, 142, 0.06) !important; }
-.night-sky .bg-bg-card { background-color: var(--color-surface) !important; }
-.night-sky .bg-bg-muted { background-color: var(--color-surface-elevated) !important; }
+/* Entire app is dark — these overrides are kept for legacy class compatibility */
+.night-sky .text-text-primary { color: var(--text-primary) !important; }
+.night-sky .text-text-secondary { color: var(--text-secondary) !important; }
+.night-sky .text-text-tertiary { color: var(--text-tertiary) !important; }
+.night-sky .text-text-faint { color: var(--text-tertiary) !important; }
+.night-sky .text-text-ghost { color: var(--text-tertiary) !important; }
+.night-sky .text-text-mist { color: var(--text-secondary) !important; }
+.night-sky .border-border { border-color: var(--border-default) !important; }
+.night-sky .border-border-input { border-color: var(--border-strong) !important; }
+.night-sky .border-border-light { border-color: var(--border-subtle) !important; }
+.night-sky .bg-bg-card { background-color: var(--bg-elevated-1) !important; }
+.night-sky .bg-bg-muted { background-color: var(--bg-base) !important; }
 .night-sky .bg-bg-page { background-color: transparent !important; }
 
 /* ── Mapbox overrides ── */

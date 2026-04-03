@@ -16,8 +16,9 @@ function getNavItem(label: string) {
 }
 
 function isActive(el: HTMLElement): boolean {
-  // Active tab uses copper color via inline style
-  return el.style.color === 'var(--color-copper)'
+  // Active tab NavLink uses var(--text-primary); the icon span inside gets var(--accent-primary).
+  // Inactive tabs use var(--text-tertiary).
+  return el.style.color === 'var(--text-primary)'
 }
 
 describe('BottomNav', () => {

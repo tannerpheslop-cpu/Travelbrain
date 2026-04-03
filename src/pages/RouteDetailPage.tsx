@@ -8,7 +8,7 @@ import { useToast } from '../components/Toast'
 import { ConfirmDeleteModal } from '../components/ui'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { enrichRouteItems } from '../lib/enrichPhotoOnly'
-import { ChevronLeft, MoreHorizontal, Trash2, Unlink, UtensilsCrossed, Landmark, Mountain, Hotel, Palmtree, ShoppingBag, Music, Gamepad2, Train, Sparkles, Waves, MapPin } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal, Trash2, Unlink, UtensilsCrossed, Landmark, Mountain, Hotel, Palmtree, ShoppingBag, Music, Gamepad2, Train, Sparkles, Waves, MapPin } from 'lucide-react'
 import {
   DndContext,
   closestCenter,
@@ -30,30 +30,30 @@ import type { Route, SavedItem } from '../types'
 // ── Category icons + colors ──────────────────────────────────────────────────
 
 const CATEGORY_ICON: Record<string, { icon: typeof MapPin; color: string; bg: string }> = {
-  restaurant: { icon: UtensilsCrossed, color: '#B8441E', bg: 'rgba(184, 68, 30, 0.08)' },
-  hotel: { icon: Hotel, color: '#6880a0', bg: 'rgba(104, 128, 160, 0.08)' },
-  museum: { icon: Landmark, color: '#8a6db0', bg: 'rgba(138, 109, 176, 0.08)' },
-  temple: { icon: Landmark, color: '#c49a2d', bg: 'rgba(196, 154, 45, 0.08)' },
-  park: { icon: Palmtree, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.08)' },
-  hike: { icon: Mountain, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.08)' },
-  historical: { icon: Landmark, color: '#8a6020', bg: 'rgba(138, 96, 32, 0.08)' },
-  shopping: { icon: ShoppingBag, color: '#c45a7d', bg: 'rgba(196, 90, 125, 0.08)' },
-  nightlife: { icon: Music, color: '#8a5ac4', bg: 'rgba(138, 90, 196, 0.08)' },
-  entertainment: { icon: Gamepad2, color: '#c45a7d', bg: 'rgba(196, 90, 125, 0.08)' },
-  transport: { icon: Train, color: '#6880a0', bg: 'rgba(104, 128, 160, 0.08)' },
-  spa: { icon: Sparkles, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.08)' },
-  beach: { icon: Waves, color: '#2d8ac4', bg: 'rgba(45, 138, 196, 0.08)' },
+  restaurant: { icon: UtensilsCrossed, color: 'var(--accent-primary)', bg: 'var(--accent-soft)' },
+  hotel: { icon: Hotel, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
+  museum: { icon: Landmark, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
+  temple: { icon: Landmark, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
+  park: { icon: Palmtree, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.15)' },
+  hike: { icon: Mountain, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.15)' },
+  historical: { icon: Landmark, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
+  shopping: { icon: ShoppingBag, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
+  nightlife: { icon: Music, color: 'var(--accent-primary)', bg: 'var(--accent-soft)' },
+  entertainment: { icon: Gamepad2, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
+  transport: { icon: Train, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
+  spa: { icon: Sparkles, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.15)' },
+  beach: { icon: Waves, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
 }
 
 function CategoryPlaceholder({ category }: { category: string }) {
-  const config = CATEGORY_ICON[category] ?? { icon: MapPin, color: '#b4b2a9', bg: '#f1efe8' }
+  const config = CATEGORY_ICON[category] ?? { icon: MapPin, color: 'var(--text-tertiary)', bg: 'var(--bg-elevated-1)' }
   const Icon = config.icon
   return (
     <div style={{
-      width: 48, height: 48, borderRadius: 8, flexShrink: 0,
+      width: 36, height: 36, borderRadius: 6, flexShrink: 0,
       background: config.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <Icon size={20} color={config.color} />
+      <Icon size={16} color={config.color} />
     </div>
   )
 }
@@ -80,16 +80,21 @@ function SortableItemRow({
 
   const thumbnail = enrichedPhoto ?? item.image_url ?? item.places_photo_url
 
+  // Pill styling
+  const isFood = item.category === 'restaurant' || item.category === 'nightlife'
+  const categoryLabel = item.category === 'restaurant' ? 'Food' : item.category === 'hotel' ? 'Stay' : item.category === 'transit' ? 'Transit' : item.category
+  const locationShort = item.location_name?.split(',')[0]
+
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: '0.5px solid #f1efe8' }}
+      style={{ ...style, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '0.5px solid rgba(118, 130, 142, 0.06)' }}
       {...attributes}
     >
       {/* Drag handle */}
       <div
         {...listeners}
-        style={{ cursor: 'grab', padding: '4px 2px', touchAction: 'none', color: '#b4b2a9' }}
+        style={{ cursor: 'grab', padding: '4px 2px', touchAction: 'none', color: 'var(--text-tertiary)' }}
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
           <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
@@ -98,18 +103,21 @@ function SortableItemRow({
         </svg>
       </div>
 
-      {/* Thumbnail — with fade-in for lazy-enriched photos */}
+      {/* Thumbnail */}
       {thumbnail ? (
         <img
           src={optimizedImageUrl(thumbnail, 'grid-thumbnail') ?? thumbnail}
           alt=""
           style={{
-            width: 48, height: 48, borderRadius: 8, objectFit: 'cover', flexShrink: 0,
+            width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0,
+            background: 'var(--bg-elevated-1)',
             animation: enrichedPhoto ? 'fadeIn 300ms ease' : 'none',
           }}
         />
       ) : (
-        <CategoryPlaceholder category={item.category} />
+        <div style={{ width: 36, height: 36, flexShrink: 0 }}>
+          <CategoryPlaceholder category={item.category} />
+        </div>
       )}
 
       {/* Content — tappable to open item detail */}
@@ -118,32 +126,40 @@ function SortableItemRow({
         style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}
       >
         <p style={{
-          fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
-          color: '#1a1d27', margin: 0,
+          fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
+          color: 'var(--text-primary)', margin: 0,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {item.title}
         </p>
-        <p style={{
-          fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#888780',
-          margin: '2px 0 0',
-        }}>
-          {item.category}{item.location_name ? ` · ${item.location_name.split(',')[0]}` : ''}
-        </p>
+        {/* Pills */}
+        <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
+          {item.category && item.category !== 'general' && (
+            <span style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 8, fontWeight: 500,
+              padding: '1px 6px', borderRadius: 99,
+              background: isFood ? 'var(--accent-soft)' : 'var(--bg-elevated-2)',
+              color: isFood ? 'var(--accent-primary)' : 'var(--text-secondary)',
+              textTransform: 'capitalize',
+            }}>
+              {categoryLabel}
+            </span>
+          )}
+          {locationShort && (
+            <span style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 8, fontWeight: 500,
+              padding: '1px 6px', borderRadius: 99,
+              background: 'rgba(118, 130, 142, 0.2)',
+              color: 'var(--text-tertiary)',
+            }}>
+              {locationShort}
+            </span>
+          )}
+        </div>
       </Link>
 
-      {/* Remove button */}
-      <button
-        type="button"
-        onClick={onRemove}
-        style={{
-          flexShrink: 0, padding: 6, background: 'none', border: 'none',
-          cursor: 'pointer', color: '#b4b2a9',
-        }}
-        aria-label="Remove from Route"
-      >
-        <Trash2 size={16} />
-      </button>
+      {/* Chevron */}
+      <ChevronRight size={10} color="var(--text-tertiary)" style={{ flexShrink: 0 }} />
     </div>
   )
 }
@@ -337,25 +353,34 @@ export default function RouteDetailPage() {
   const hasSections = sectionGroups.length > 1 || (sectionGroups.length === 1 && sectionGroups[0].label !== 'Places')
 
   if (loading) {
-    return <div style={{ padding: 20, color: '#888780' }}>Loading...</div>
+    return (
+      <div data-testid="route-detail-page" style={{ background: 'var(--bg-base)', minHeight: '100vh', paddingTop: 'env(safe-area-inset-top)' }}>
+        <div className="animate-pulse" style={{ padding: '16px 16px 100px' }}>
+          <div style={{ height: 20, width: 56, background: 'var(--bg-elevated-1)', borderRadius: 8, marginBottom: 24 }} />
+          <div style={{ height: 60, background: 'var(--bg-elevated-1)', borderRadius: 8, marginBottom: 16 }} />
+          <div style={{ height: 24, background: 'var(--bg-elevated-1)', borderRadius: 8, width: '60%', marginBottom: 8 }} />
+          <div style={{ height: 14, background: 'var(--bg-elevated-1)', borderRadius: 8, width: '30%' }} />
+        </div>
+      </div>
+    )
   }
 
   if (!route) {
     return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 20, fontWeight: 600, color: '#1a1d27' }}>
+      <div data-testid="route-detail-page" style={{ background: 'var(--bg-base)', minHeight: '100vh', padding: 40, textAlign: 'center', paddingTop: 'calc(2rem + env(safe-area-inset-top))' }}>
+        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 18, fontWeight: 500, color: 'var(--text-primary)' }}>
           Route not found
         </h2>
-        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#888780', marginTop: 8 }}>
+        <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-tertiary)', marginTop: 8 }}>
           This route may have been deleted.
         </p>
         <button
           type="button"
           onClick={() => navigate('/inbox')}
           style={{
-            marginTop: 16, padding: '10px 20px',
-            background: '#B8441E', color: '#fff', border: 'none', borderRadius: 8,
-            fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, cursor: 'pointer',
+            marginTop: 16, padding: '12px 20px',
+            background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: 8,
+            fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500, cursor: 'pointer',
           }}
         >
           Back to Horizon
@@ -365,13 +390,13 @@ export default function RouteDetailPage() {
   }
 
   return (
-    <div style={{ padding: '0 20px', paddingTop: 'calc(1rem + env(safe-area-inset-top))', paddingBottom: 100, maxWidth: 860, margin: '0 auto' }}>
+    <div data-testid="route-detail-page" style={{ background: 'var(--bg-base)', minHeight: '100vh', padding: '0 16px', paddingTop: 'calc(1rem + env(safe-area-inset-top))', paddingBottom: 100, maxWidth: 860, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <button
           type="button"
           onClick={() => navigate('/inbox')}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: '#888780', fontFamily: "'DM Sans', sans-serif", fontSize: 14 }}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: "'DM Sans', sans-serif", fontSize: 14 }}
         >
           <ChevronLeft size={18} /> Horizon
         </button>
@@ -379,7 +404,7 @@ export default function RouteDetailPage() {
           <button
             type="button"
             onClick={() => setShowMenu(!showMenu)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888780', padding: 4 }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: 4 }}
           >
             <MoreHorizontal size={20} />
           </button>
@@ -388,8 +413,8 @@ export default function RouteDetailPage() {
               <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowMenu(false)} />
               <div style={{
                 position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
-                background: '#fff', border: '0.5px solid #e8e6e1', borderRadius: 10,
-                boxShadow: '0 4px 20px rgba(0,0,0,0.1)', padding: '4px 0', minWidth: 180,
+                background: 'var(--bg-elevated-1)', border: '0.5px solid rgba(118, 130, 142, 0.1)', borderRadius: 10,
+                boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '4px 0', minWidth: 180,
               }}>
                 <button
                   type="button"
@@ -397,7 +422,7 @@ export default function RouteDetailPage() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, width: '100%',
                     padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#1a1d27', textAlign: 'left',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: 'var(--text-primary)', textAlign: 'left',
                   }}
                 >
                   <Unlink size={15} /> Break apart
@@ -408,7 +433,7 @@ export default function RouteDetailPage() {
                   style={{
                     display: 'flex', alignItems: 'center', gap: 8, width: '100%',
                     padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#c0392b', textAlign: 'left',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#c44a3d', textAlign: 'left',
                   }}
                 >
                   <Trash2 size={15} /> Delete group
@@ -419,6 +444,47 @@ export default function RouteDetailPage() {
         </div>
       </div>
 
+      {/* Source preview card at top */}
+      {route.source_url && (
+        <a
+          href={route.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="route-source-card"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            padding: 10, marginBottom: 16,
+            background: 'var(--bg-elevated-1)', borderRadius: 8,
+            textDecoration: 'none',
+          }}
+        >
+          {route.source_thumbnail && (
+            <img
+              src={optimizedImageUrl(route.source_thumbnail, 'grid-thumbnail') ?? route.source_thumbnail}
+              alt=""
+              style={{ width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
+            />
+          )}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
+              color: 'var(--text-primary)', margin: 0,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {route.source_title ?? 'Source article'}
+            </p>
+            <p style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 9, color: 'var(--text-tertiary)', margin: '2px 0 0',
+            }}>
+              {(() => { try { return new URL(route.source_url!).hostname.replace(/^www\./, '') } catch { return route.source_platform ?? 'web' } })()}
+            </p>
+          </div>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" style={{ width: 12, height: 12, color: 'var(--text-tertiary)', flexShrink: 0 }}>
+            <path d="M5.22 14.78a.75.75 0 001.06 0l7.22-7.22v5.69a.75.75 0 001.5 0v-7.5a.75.75 0 00-.75-.75h-7.5a.75.75 0 000 1.5h5.69l-7.22 7.22a.75.75 0 000 1.06z" />
+          </svg>
+        </a>
+      )}
+
       {/* Route name (editable) */}
       {editingName ? (
         <input
@@ -428,8 +494,8 @@ export default function RouteDetailPage() {
           onBlur={handleSaveName}
           onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }}
           style={{
-            fontFamily: "'DM Sans', sans-serif", fontSize: 22, fontWeight: 600, color: '#1a1d27',
-            background: 'transparent', border: 'none', borderBottom: '2px solid #B8441E',
+            fontFamily: "'DM Sans', sans-serif", fontSize: 18, fontWeight: 500, color: 'var(--text-primary)',
+            background: 'transparent', border: 'none', borderBottom: '2px solid var(--accent-primary)',
             outline: 'none', width: '100%', paddingBottom: 2, marginBottom: 4,
           }}
         />
@@ -439,7 +505,7 @@ export default function RouteDetailPage() {
           onClick={() => setEditingName(true)}
           style={{
             background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', padding: 0,
-            fontFamily: "'DM Sans', sans-serif", fontSize: 22, fontWeight: 600, color: '#1a1d27',
+            fontFamily: "'DM Sans', sans-serif", fontSize: 18, fontWeight: 500, color: 'var(--text-primary)',
             marginBottom: 4,
           }}
         >
@@ -449,50 +515,12 @@ export default function RouteDetailPage() {
 
       {/* Metadata */}
       <p style={{
-        fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#888780',
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)',
         marginBottom: 16,
       }}>
         {route.item_count} place{route.item_count !== 1 ? 's' : ''}
         {route.location_scope ? ` · ${route.location_scope}` : ''}
       </p>
-
-      {/* Source preview card */}
-      {route.source_url && (
-        <a
-          href={route.source_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10,
-            padding: '10px 12px', marginBottom: 20,
-            background: '#f5f3ef', borderRadius: 10,
-            textDecoration: 'none', border: '0.5px solid #e8e6e1',
-          }}
-        >
-          {route.source_thumbnail && (
-            <img
-              src={optimizedImageUrl(route.source_thumbnail, 'grid-thumbnail') ?? route.source_thumbnail}
-              alt=""
-              style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
-            />
-          )}
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
-              color: '#1a1d27', margin: 0,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {route.source_title ?? 'Source article'}
-            </p>
-            <p style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#888780', margin: '2px 0 0',
-            }}>
-              {(() => { try { return new URL(route.source_url!).hostname.replace(/^www\./, '') } catch { return route.source_platform ?? 'web' } })()}
-            </p>
-          </div>
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#B8441E', flexShrink: 0 }}>Open</span>
-        </a>
-      )}
 
       {/* Item list (with section headers if available) */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -501,11 +529,11 @@ export default function RouteDetailPage() {
             /* Grouped by section */
             sectionGroups.map(group => (
               <div key={group.label}>
-                <div style={{
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
-                  textTransform: 'uppercase', letterSpacing: '0.04em',
-                  color: '#888780', paddingBottom: 6, marginTop: 16,
-                  borderBottom: '0.5px solid #f1efe8',
+                <div data-testid="section-header" style={{
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
+                  textTransform: 'uppercase', letterSpacing: '0.08em',
+                  color: 'var(--text-secondary)', paddingBottom: 6, marginTop: 16, marginBottom: 8,
+                  borderBottom: '0.5px solid rgba(118, 130, 142, 0.1)',
                 }}>
                   {group.label}
                 </div>
@@ -535,8 +563,8 @@ export default function RouteDetailPage() {
 
       {/* Empty state */}
       {sortedItems.length === 0 && !loading && (
-        <div style={{ textAlign: 'center', padding: '40px 0', color: '#888780' }}>
-          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14 }}>No items in this Route</p>
+        <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-tertiary)' }}>
+          <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13 }}>No items in this Route</p>
         </div>
       )}
 

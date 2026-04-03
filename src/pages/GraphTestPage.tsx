@@ -108,17 +108,17 @@ export default function GraphTestPage() {
       <div style={{ position: 'relative', zIndex: 1, padding: '20px 0' }}>
         <div style={{ padding: '0 20px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <h1 style={{ color: 'var(--color-night-text-primary)', fontSize: 24, fontWeight: 600, margin: 0 }}>
+            <h1 style={{ color: 'var(--text-primary)', fontSize: 24, fontWeight: 600, margin: 0 }}>
               Graph Test
             </h1>
-            <p style={{ color: 'var(--color-night-text-secondary)', fontSize: 13, marginTop: 4 }}>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 4 }}>
               {items.length} items, {claimed.size} claimed by trips
             </p>
           </div>
           <button
             onClick={addSave}
             style={{
-              background: '#B8441E', color: '#fff', border: 'none', borderRadius: 8,
+              background: 'var(--accent-primary)', color: '#fff', border: 'none', borderRadius: 8,
               padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
             }}
           >
