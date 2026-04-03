@@ -30,7 +30,7 @@ import type { Route, SavedItem } from '../types'
 // ── Category icons + colors ──────────────────────────────────────────────────
 
 const CATEGORY_ICON: Record<string, { icon: typeof MapPin; color: string; bg: string }> = {
-  restaurant: { icon: UtensilsCrossed, color: '#c45a2d', bg: 'rgba(196, 90, 45, 0.08)' },
+  restaurant: { icon: UtensilsCrossed, color: '#B8441E', bg: 'rgba(184, 68, 30, 0.08)' },
   hotel: { icon: Hotel, color: '#6880a0', bg: 'rgba(104, 128, 160, 0.08)' },
   museum: { icon: Landmark, color: '#8a6db0', bg: 'rgba(138, 109, 176, 0.08)' },
   temple: { icon: Landmark, color: '#c49a2d', bg: 'rgba(196, 154, 45, 0.08)' },
@@ -354,7 +354,7 @@ export default function RouteDetailPage() {
           onClick={() => navigate('/inbox')}
           style={{
             marginTop: 16, padding: '10px 20px',
-            background: '#c45a2d', color: '#fff', border: 'none', borderRadius: 8,
+            background: '#B8441E', color: '#fff', border: 'none', borderRadius: 8,
             fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, cursor: 'pointer',
           }}
         >
@@ -429,7 +429,7 @@ export default function RouteDetailPage() {
           onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }}
           style={{
             fontFamily: "'DM Sans', sans-serif", fontSize: 22, fontWeight: 600, color: '#1a1d27',
-            background: 'transparent', border: 'none', borderBottom: '2px solid #c45a2d',
+            background: 'transparent', border: 'none', borderBottom: '2px solid #B8441E',
             outline: 'none', width: '100%', paddingBottom: 2, marginBottom: 4,
           }}
         />
@@ -490,7 +490,7 @@ export default function RouteDetailPage() {
               {(() => { try { return new URL(route.source_url!).hostname.replace(/^www\./, '') } catch { return route.source_platform ?? 'web' } })()}
             </p>
           </div>
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#c45a2d', flexShrink: 0 }}>Open</span>
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#B8441E', flexShrink: 0 }}>Open</span>
         </a>
       )}
 

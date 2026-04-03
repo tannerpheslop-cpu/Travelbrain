@@ -379,7 +379,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
     <div
       style={{
         position: 'fixed', inset: 0, zIndex: 60,
-        background: '#080c18',
+        background: '#0A0C12',
         opacity: visible ? 1 : 0,
         transition: 'opacity 200ms ease',
         display: 'flex', flexDirection: 'column',
@@ -399,7 +399,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             }}>Cancel</button>
             <span style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
-              color: '#8088a0', textTransform: 'lowercase',
+              color: '#76828E', textTransform: 'lowercase',
             }}>unpack</span>
           </div>
 
@@ -412,7 +412,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               placeholder="Paste a link or article text"
               style={{
                 width: '100%', padding: '14px 16px',
-                background: '#1c2035',
+                background: '#3F3A42',
                 border: '0.5px solid rgba(255,255,255,0.1)',
                 borderRadius: 10, outline: 'none',
                 fontFamily: "'DM Sans', sans-serif", fontSize: 16,
@@ -421,7 +421,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             />
             <div style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-              color: '#8088a0', marginTop: 8, textAlign: 'center',
+              color: '#76828E', marginTop: 8, textAlign: 'center',
             }}>
               Find restaurants, attractions, and more
             </div>
@@ -450,12 +450,12 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           {duplicateRoute && (
             <div style={{
               margin: '16px 20px', padding: '14px 16px',
-              background: 'rgba(196, 90, 45, 0.08)',
-              border: '0.5px solid rgba(196, 90, 45, 0.2)',
+              background: 'rgba(184, 68, 30, 0.08)',
+              border: '0.5px solid rgba(184, 68, 30, 0.2)',
               borderRadius: 10,
             }}>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#e4e8f0', marginBottom: 8 }}>
-                You've already unpacked this as <strong style={{ color: '#c45a2d' }}>{duplicateRoute.name}</strong>
+                You've already unpacked this as <strong style={{ color: '#B8441E' }}>{duplicateRoute.name}</strong>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button type="button" onClick={() => {
@@ -476,7 +476,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                   handleStart()
                 }} style={{
                   flex: 1, padding: '8px 0',
-                  background: '#c45a2d', color: '#fff',
+                  background: '#B8441E', color: '#fff',
                   border: 'none', borderRadius: 8, cursor: 'pointer',
                   fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
                 }}>
@@ -490,7 +490,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             <div style={{ padding: '20px', marginTop: 'auto' }}>
               <button type="button" onClick={handleStart} disabled={starting} style={{
                 width: '100%', padding: '14px 0',
-                background: starting ? '#8a4020' : '#c45a2d', color: '#fff',
+                background: starting ? '#8a4020' : '#B8441E', color: '#fff',
                 border: 'none', borderRadius: 12, cursor: starting ? 'default' : 'pointer',
                 fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
               }}>
@@ -531,7 +531,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           <div style={{ textAlign: 'center', padding: '24px 0 16px' }}>
             <div style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 36, fontWeight: 500,
-              color: '#c45a2d', lineHeight: 1, overflow: 'hidden', height: 40,
+              color: '#B8441E', lineHeight: 1, overflow: 'hidden', height: 40,
             }}>
               <div key={displayedCount} style={{ animation: displayedCount > 0 ? 'slideUp 200ms ease forwards' : 'none' }}>
                 {displayedCount}
@@ -550,7 +550,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                 else setCheckedItems(new Set(items.map((_, i) => i)))
               }} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#c45a2d',
+                fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#B8441E',
               }}>
                 {allChecked ? 'Deselect all' : 'Select all'}
               </button>
@@ -564,7 +564,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                 <div style={{
                   fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
                   textTransform: 'uppercase', letterSpacing: '0.04em',
-                  color: '#8088a0',
+                  color: '#76828E',
                   paddingBottom: 6, borderBottom: '0.5px solid rgba(255,255,255,0.06)',
                   marginBottom: 8, marginTop: 4,
                 }}>
@@ -596,7 +596,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                         }} style={{
                           width: 22, height: 22, borderRadius: 11, flexShrink: 0, marginTop: 2,
                           border: isChecked ? 'none' : '1.5px solid rgba(255,255,255,0.2)',
-                          background: isChecked ? '#c45a2d' : 'transparent',
+                          background: isChecked ? '#B8441E' : 'transparent',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'pointer', padding: 0,
                         }}>
@@ -615,7 +615,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                         <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
                           <span style={{
                             fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
-                            background: 'rgba(196, 90, 45, 0.12)', color: '#c45a2d',
+                            background: 'rgba(184, 68, 30, 0.12)', color: '#B8441E',
                             padding: '2px 8px', borderRadius: 999,
                           }}>
                             {CATEGORY_LABELS[item.category] || item.category}
@@ -671,7 +671,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0',
                   }}>Cancel</button>
                   <button type="button" onClick={() => { setStep('input'); setStatus('reading'); setErrorMessage(null); setItems([]); setItemCount(0); setPrevCount(0); setStarting(false) }} style={{
-                    padding: '8px 20px', background: '#c45a2d', color: '#fff',
+                    padding: '8px 20px', background: '#B8441E', color: '#fff',
                     border: 'none', borderRadius: 8, cursor: 'pointer',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
                   }}>Try again</button>
@@ -682,7 +682,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
               <div>
                 <button type="button" onClick={handleSave} disabled={isSaving || checkedItems.size === 0} style={{
                   width: '100%', padding: '14px 0',
-                  background: (isSaving || checkedItems.size === 0) ? '#8a4020' : '#c45a2d', color: '#fff',
+                  background: (isSaving || checkedItems.size === 0) ? '#8a4020' : '#B8441E', color: '#fff',
                   border: 'none', borderRadius: 12,
                   cursor: (isSaving || checkedItems.size === 0) ? 'default' : 'pointer',
                   opacity: (isSaving || checkedItems.size === 0) ? 0.5 : 1,
@@ -702,7 +702,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             ) : (
               /* Processing state */
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#c45a2d', animation: 'pulse 1.5s ease infinite' }} />
+                <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#B8441E', animation: 'pulse 1.5s ease infinite' }} />
                 <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#b8c8e0' }}>
                   {status === 'reading' ? 'Reading article...' : 'Extracting places...'}
                 </span>

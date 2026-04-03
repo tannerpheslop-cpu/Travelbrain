@@ -118,7 +118,7 @@ export default function GraphTestPage() {
           <button
             onClick={addSave}
             style={{
-              background: '#c45a2d', color: '#fff', border: 'none', borderRadius: 8,
+              background: '#B8441E', color: '#fff', border: 'none', borderRadius: 8,
               padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
             }}
           >

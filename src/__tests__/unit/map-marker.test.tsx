@@ -33,8 +33,8 @@ describe('MapMarker', () => {
     container.remove()
   })
 
-  it('shows copper dot color (#c45a2d)', () => {
+  it('shows orange dot color (#B8441E)', () => {
     const html = buildMarkerHTML(5, 'Fukuoka', false)
-    expect(html).toContain('#c45a2d')
+    expect(html).toContain('#B8441E')
   })
 })

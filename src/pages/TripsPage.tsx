@@ -212,7 +212,7 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
           <div style={{
             fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
             letterSpacing: 1, textTransform: 'uppercase' as const,
-            color: '#c45a2d', marginBottom: 4,
+            color: '#B8441E', marginBottom: 4,
           }}>Up next</div>
           <div style={{
             fontSize: 24, fontWeight: 700, letterSpacing: -0.3,
@@ -244,15 +244,15 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
             <span style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
               letterSpacing: 0.5, textTransform: 'uppercase' as const, padding: '3px 8px', borderRadius: 4,
-              background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'rgba(196,90,45,0.13)',
-              color: hasBgImage ? 'white' : '#c45a2d',
+              background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'rgba(184,68,30,0.13)',
+              color: hasBgImage ? 'white' : '#B8441E',
             }}>{statusLabel(trip.status)}</span>
             {trip.is_favorited && (
               <span style={{
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
                 letterSpacing: 0.5, textTransform: 'uppercase' as const, padding: '3px 8px', borderRadius: 4,
-                background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'rgba(196,90,45,0.13)',
-                color: hasBgImage ? 'white' : '#c45a2d', marginLeft: 6,
+                background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'rgba(184,68,30,0.13)',
+                color: hasBgImage ? 'white' : '#B8441E', marginLeft: 6,
               }}>PINNED</span>
             )}
           </div>
@@ -293,13 +293,13 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
       to={`/trip/${trip.id}`}
       className="group"
       style={{ width: 260, flexShrink: 0, borderRadius: 12, overflow: 'hidden', background: 'var(--color-surface)', border: '0.5px solid var(--color-surface-elevated)', cursor: 'pointer', transition: 'all 0.15s ease', display: 'block', alignSelf: 'start' }}
-      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.border = '0.5px solid rgba(196,90,45,0.25)'; el.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)'; el.style.transform = 'translateY(-2px)' }}
+      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.border = '0.5px solid rgba(184,68,30,0.25)'; el.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)'; el.style.transform = 'translateY(-2px)' }}
       onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.border = '0.5px solid var(--color-surface-elevated)'; el.style.boxShadow = 'none'; el.style.transform = 'none' }}
     >
       {/* Top content */}
       <div style={{ padding: '16px 16px 12px', position: 'relative', overflow: 'hidden', minHeight: 100 }}>
         {/* Watermark */}
-        <div className="group-hover:!text-[rgba(196,90,45,0.13)]" style={{
+        <div className="group-hover:!text-[rgba(184,68,30,0.13)]" style={{
           position: 'absolute', top: -6, right: 6,
           fontFamily: "'JetBrains Mono', monospace", fontSize: 56, fontWeight: 800,
           color: '#f0eeea', lineHeight: 1, pointerEvents: 'none', transition: 'color 0.15s ease',
@@ -316,7 +316,7 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
           </div>
         )}
         {/* Trip name */}
-        <div className="group-hover:!text-[#c45a2d]" style={{
+        <div className="group-hover:!text-[#B8441E]" style={{
           fontSize: 16, fontWeight: 700, letterSpacing: -0.2, position: 'relative',
           whiteSpace: 'nowrap' as const, overflow: 'hidden', textOverflow: 'ellipsis',
           color: 'var(--color-night-text-primary)', transition: 'color 0.15s ease',
@@ -365,7 +365,7 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
           {trip.is_favorited && (
             <span style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 8, fontWeight: 500,
-              padding: '2px 5px', borderRadius: 3, background: '#c45a2d22', color: '#c45a2d',
+              padding: '2px 5px', borderRadius: 3, background: '#B8441E22', color: '#B8441E',
             }}>PINNED</span>
           )}
           {[...new Set(dests.map(d => d.location_type ?? 'city'))].slice(0, 2).map(cat => (
@@ -419,7 +419,7 @@ function PhaseCarousel({ phaseKey, trips, startNum, onNewTrip }: {
             display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', gap: 3, minHeight: 140, transition: 'all 0.15s ease',
           }}
-          onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = '#c45a2d'; el.style.background = 'rgba(196,90,45,0.06)' }}
+          onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = '#B8441E'; el.style.background = 'rgba(184,68,30,0.06)' }}
           onMouseLeave={e => { const el = e.currentTarget; el.style.borderColor = '#d5d2cb'; el.style.background = 'transparent' }}
         >
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, color: 'var(--color-night-text-tertiary)', fontWeight: 300 }}>+</span>
@@ -522,7 +522,7 @@ export default function TripsPage() {
             background: 'var(--color-copper)', color: 'white',
             border: 'none', cursor: 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 2px 12px rgba(196,90,45,0.3)',
+            boxShadow: '0 2px 12px rgba(184,68,30,0.3)',
           }}
           aria-label="New trip"
         >

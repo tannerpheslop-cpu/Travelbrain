@@ -24,7 +24,7 @@ type NodeState = 'dim' | 'default' | 'claimed' | 'bright'
 const NODE_COLORS: Record<NodeState, { fill: string; glowOpacity: number }> = {
   dim:     { fill: '#b8c8e0', glowOpacity: 0.15 },
   default: { fill: '#d4e0f0', glowOpacity: 0.25 },
-  claimed: { fill: '#c45a2d', glowOpacity: 0.25 },
+  claimed: { fill: '#B8441E', glowOpacity: 0.25 },
   bright:  { fill: '#edf2fa', glowOpacity: 0.40 },
 }
 
@@ -206,7 +206,7 @@ function NodePreviewCard({ item }: { item: SavedItem }) {
         bottom: 8,
         left: 16,
         right: 16,
-        background: 'var(--color-surface, #141828)',
+        background: 'var(--color-surface, #0d1a2a)',
         borderRadius: 10,
         padding: '10px 14px',
         display: 'flex',
@@ -233,7 +233,7 @@ function NodePreviewCard({ item }: { item: SavedItem }) {
         </div>
         <div style={{
           fontFamily: "'DM Sans', sans-serif", fontSize: 11,
-          color: 'var(--color-text-secondary, #8088a0)',
+          color: 'var(--color-text-secondary, #a8c4dc)',
           marginTop: 1,
         }}>
           {item.location_name?.split(',')[0] ?? ''}{item.category ? ` · ${item.category}` : ''}
@@ -616,9 +616,9 @@ export default function TravelGraph({
               <stop offset="100%" stopColor="#d4e0f0" stopOpacity="0.3" />
             </radialGradient>
             <radialGradient id="dot-claimed">
-              <stop offset="0%" stopColor="#c45a2d" stopOpacity="1" />
-              <stop offset="60%" stopColor="#c45a2d" stopOpacity="0.9" />
-              <stop offset="100%" stopColor="#c45a2d" stopOpacity="0.3" />
+              <stop offset="0%" stopColor="#B8441E" stopOpacity="1" />
+              <stop offset="60%" stopColor="#B8441E" stopOpacity="0.9" />
+              <stop offset="100%" stopColor="#B8441E" stopOpacity="0.3" />
             </radialGradient>
             <radialGradient id="dot-dim">
               <stop offset="0%" stopColor="#b8c8e0" stopOpacity="0.8" />

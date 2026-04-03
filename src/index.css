@@ -1,44 +1,59 @@
 @import "tailwindcss";
 
-/* ── Youji Design System Tokens ── */
+/* ── Youji Design System Tokens — v2 (April 2026) ── */
+/* Dark mode first. See /docs/DESIGN-SYSTEM-V2.md for full spec. */
 
 @theme {
   --font-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  --color-accent: #c45a2d;
-  --color-accent-light: #c45a2d10;
-  --color-accent-med: #c45a2d22;
-  --color-accent-hover: #a94d26;
+  /* ── Accent (orange replaces copper) ── */
+  --color-accent:             #B8441E;
+  --color-accent-light:       rgba(184, 68, 30, 0.15);
+  --color-accent-med:         rgba(184, 68, 30, 0.2);
+  --color-accent-hover:       #a03b1a;
+  --color-accent-pressed:     #a03b1a;
+  --color-accent-muted:       rgba(184, 68, 30, 0.15);
 
-  --color-text-primary: #2a2a28;
-  --color-text-secondary: #6b6860;
-  --color-text-tertiary: #9e9b94;
-  --color-text-faint: #b5b2ab;
-  --color-text-ghost: #c5c2bb;
-  --color-text-mist: #d5d2cb;
+  /* ── Text ── */
+  --color-text-primary:       #e4e8f0;
+  --color-text-secondary:     #a8c4dc;
+  --color-text-tertiary:      #76828E;
+  --color-text-faint:         #76828E;
+  --color-text-ghost:         #76828E;
+  --color-text-mist:          rgba(118, 130, 142, 0.5);
 
-  --color-border: #e8e6e1;
-  --color-border-light: #eceae5;
-  --color-border-subtle: #f0eeea;
-  --color-border-input: #e0ddd7;
-  --color-border-dashed: #d5d2cb;
+  /* ── Borders ── */
+  --color-border:             rgba(118, 130, 142, 0.1);
+  --color-border-light:       rgba(118, 130, 142, 0.06);
+  --color-border-subtle:      rgba(118, 130, 142, 0.06);
+  --color-border-input:       rgba(118, 130, 142, 0.15);
+  --color-border-dashed:      rgba(118, 130, 142, 0.2);
 
-  --color-bg-page: #faf9f7;
-  --color-bg-card: #ffffff;
-  --color-bg-muted: #f5f3f0;
-  --color-bg-tinted: #f8f7f4;
-  --color-bg-pill: #f0eeea;
-  --color-bg-pill-dark: #eeece8;
+  /* ── Backgrounds (three depth layers) ── */
+  --color-bg-page:            #0A0C12;   /* Sky — nav, page bg, inputs */
+  --color-bg-card:            #3F3A42;   /* Cards — elevated on sheet */
+  --color-bg-muted:           #0d1a2a;   /* Sheet surface */
+  --color-bg-tinted:          #0d1a2a;
+  --color-bg-pill:            rgba(118, 130, 142, 0.15);
+  --color-bg-pill-dark:       rgba(118, 130, 142, 0.2);
 
-  --color-accent-shadow: rgba(196, 90, 45, 0.25);
-  --color-card-shadow: rgba(0, 0, 0, 0.05);
-  --color-card-shadow-lg: rgba(0, 0, 0, 0.06);
+  /* ── Pills ── */
+  --color-pill-category-bg:   #023661;
+  --color-pill-category-text: #a8c4dc;
+  --color-pill-location-bg:   rgba(118, 130, 142, 0.2);
+  --color-pill-location-text: #76828E;
 
-  --color-error: #dc2626;
-  --color-error-bg: #fef2f2;
-  --color-success: #16a34a;
-  --color-success-bg: #f0fdf4;
+  /* ── Shadows ── */
+  --color-accent-shadow:      rgba(184, 68, 30, 0.25);
+  --color-card-shadow:        rgba(0, 0, 0, 0.2);
+  --color-card-shadow-lg:     rgba(0, 0, 0, 0.3);
+
+  /* ── Functional ── */
+  --color-error:              #c44a3d;
+  --color-error-bg:           rgba(196, 74, 61, 0.1);
+  --color-success:            #5b8a72;
+  --color-success-bg:         rgba(91, 138, 114, 0.1);
 }
 
 /* ── Global Defaults ── */
@@ -74,9 +89,9 @@ input, textarea, select {
 .night-sky .text-text-faint { color: var(--color-night-text-tertiary) !important; }
 .night-sky .text-text-ghost { color: var(--color-night-text-tertiary) !important; }
 .night-sky .text-text-mist { color: var(--color-night-text-secondary) !important; }
-.night-sky .border-border { border-color: rgba(212, 224, 240, 0.08) !important; }
-.night-sky .border-border-input { border-color: rgba(212, 224, 240, 0.1) !important; }
-.night-sky .border-border-light { border-color: rgba(212, 224, 240, 0.06) !important; }
+.night-sky .border-border { border-color: rgba(118, 130, 142, 0.1) !important; }
+.night-sky .border-border-input { border-color: rgba(118, 130, 142, 0.15) !important; }
+.night-sky .border-border-light { border-color: rgba(118, 130, 142, 0.06) !important; }
 .night-sky .bg-bg-card { background-color: var(--color-surface) !important; }
 .night-sky .bg-bg-muted { background-color: var(--color-surface-elevated) !important; }
 .night-sky .bg-bg-page { background-color: transparent !important; }
@@ -91,7 +106,7 @@ input, textarea, select {
   font-size: 10px;
 }
 .mapboxgl-ctrl-attrib a {
-  color: rgba(136, 135, 128, 0.6) !important;
+  color: rgba(118, 130, 142, 0.6) !important;
 }
 
 /* Shimmer animation for pending location detection */

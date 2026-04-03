@@ -42,7 +42,7 @@ const STAGES: Stage[] = [
   // Stage 2: Dusk — 6-15 saves
   {
     linearStops: [
-      { pos: 0, color: '#080c18' }, { pos: 20, color: '#0e1228' },
+      { pos: 0, color: '#0A0C12' }, { pos: 20, color: '#0e1228' },
       { pos: 50, color: '#1f1530' }, { pos: 75, color: '#5a2535' },
       { pos: 92, color: '#8a4530' }, { pos: 100, color: '#a05a30' },
     ],
@@ -51,7 +51,7 @@ const STAGES: Stage[] = [
   // Stage 3: Early night — 16-30 saves
   {
     linearStops: [
-      { pos: 0, color: '#080c18' }, { pos: 25, color: '#0b0f20' },
+      { pos: 0, color: '#0A0C12' }, { pos: 25, color: '#0b0f20' },
       { pos: 50, color: '#101428' }, { pos: 70, color: '#1a1530' },
       { pos: 82, color: '#2a1d33' }, { pos: 92, color: '#3d2535' },
       { pos: 100, color: '#4a2a35' },
@@ -61,12 +61,12 @@ const STAGES: Stage[] = [
   // Stage 4: Full night — 30+ saves
   {
     linearStops: [
-      { pos: 0, color: '#080c18' }, { pos: 40, color: '#090e1c' },
+      { pos: 0, color: '#0A0C12' }, { pos: 40, color: '#090e1c' },
       { pos: 70, color: '#0b1020' }, { pos: 90, color: '#0e1326' },
-      { pos: 100, color: '#141828' },
+      { pos: 100, color: '#0d1a2a' },
     ],
     // City glow: compact, round, copper
-    radial: { centerYOffset: 20, radiusFactor: 0.5, color: '#c45a2d', opacity: 0.15 },
+    radial: { centerYOffset: 20, radiusFactor: 0.5, color: '#B8441E', opacity: 0.15 },
   },
 ]
 
@@ -177,7 +177,7 @@ export default function SunsetBackground({ saveCount }: SunsetBackgroundProps) {
         bottom: 0,
         zIndex: 0,
         pointerEvents: 'none',
-        background: '#080c18', // deep-bg fills everything, gradient overlays the top
+        background: '#0A0C12', // deep-bg fills everything, gradient overlays the top
       }}
     >
       {/* Gradient container — extends into safe area at top, overlaps sheet by 4px at bottom */}

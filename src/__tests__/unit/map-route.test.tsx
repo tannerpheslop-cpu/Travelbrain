@@ -62,7 +62,7 @@ describe('MapRoute (Mapbox)', () => {
     const glowLayer = addedLayers.find(l => l.id === 'youji-route-glow')
     expect(glowLayer).toBeDefined()
     const paint = (glowLayer!.config as Record<string, unknown>).paint as Record<string, unknown>
-    expect(paint['line-color']).toBe('#c45a2d')
+    expect(paint['line-color']).toBe('#B8441E')
     expect(paint['line-opacity']).toBe(0.08)
     expect(paint['line-width']).toBe(4)
   })

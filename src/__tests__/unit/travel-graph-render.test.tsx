@@ -61,8 +61,8 @@ describe('TravelGraph rendering logic', () => {
     it('dim uses star-dim color', () => {
       expect(NODE_COLORS.dim.fill).toBe('#b8c8e0')
     })
-    it('claimed uses copper color', () => {
-      expect(NODE_COLORS.claimed.fill).toBe('#c45a2d')
+    it('claimed uses orange color', () => {
+      expect(NODE_COLORS.claimed.fill).toBe('#B8441E')
     })
     it('default uses star-default color', () => {
       expect(NODE_COLORS.default.fill).toBe('#d4e0f0')
