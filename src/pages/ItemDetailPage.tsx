@@ -7,7 +7,7 @@ import { useSavedItem, useDeleteItem, useItemTags, useAddTag, useRemoveTag, quer
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SavedItemImage from '../components/SavedItemImage'
-import { SecondaryButton, ConfirmDeleteModal } from '../components/ui'
+import { ConfirmDeleteModal } from '../components/ui'
 import LocationAutocomplete, { type LocationSelection } from '../components/LocationAutocomplete'
 import type { SavedItem, Category, ExtractedItem, Route } from '../types'
 import SelectionOverlay from '../components/SelectionOverlay'

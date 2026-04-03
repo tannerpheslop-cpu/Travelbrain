@@ -62,7 +62,7 @@ function CategoryPlaceholder({ category }: { category: string }) {
 
 function SortableItemRow({
   item,
-  onRemove,
+  onRemove: _onRemove,
   enrichedPhoto,
 }: {
   item: SavedItem
