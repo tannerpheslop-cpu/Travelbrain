@@ -96,6 +96,6 @@ describe('SheetItemRow', () => {
       <SheetItemRow item={makeItem({ id: 'a2', category: 'activity' as Category })} />,
     )
     const copperDot = screen.getByTestId('item-dot-a2')
-    expect(copperDot.style.background).toMatch(/c45a2d|rgb\(196,\s*90,\s*45\)/)
+    expect(copperDot.style.background).toMatch(/[Bb]8441[Ee]|rgb\(184,\s*68,\s*30\)/)
   })
 })

@@ -270,7 +270,7 @@ export default function ItemDetailPage() {
 
   if (loading) {
     return (
-      <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))', background: '#faf8f4', minHeight: '100vh' }}>
+      <div className="px-4 pb-24" style={{ paddingTop: 'calc(1.5rem + env(safe-area-inset-top))', background: '#0d1a2a', minHeight: '100vh' }}>
         <div className="animate-pulse">
           <div style={{ height: 20, width: 56, background: '#e8e6e1', borderRadius: 10, marginBottom: 24 }} />
           <div style={{ height: 224, background: '#f1efe8', borderRadius: 16 }} />
@@ -380,9 +380,9 @@ export default function ItemDetailPage() {
           style={{
             marginTop: 12,
             padding: '12px 14px',
-            background: 'rgba(196, 90, 45, 0.08)',
+            background: 'rgba(184, 68, 30, 0.08)',
             borderRadius: 10,
-            border: '1px solid rgba(196, 90, 45, 0.15)',
+            border: '1px solid rgba(184, 68, 30, 0.15)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
@@ -391,14 +391,14 @@ export default function ItemDetailPage() {
           onClick={() => setShowSelectionOverlay(true)}
         >
           <div>
-            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: '#c45a2d', margin: 0 }}>
+            <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600, color: '#B8441E', margin: 0 }}>
               We found {extractedCount} items in this article
             </p>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#888780', margin: '2px 0 0' }}>
               Tap to review and save individually
             </p>
           </div>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: '#c45a2d' }}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, color: '#B8441E' }}>
             <path d="M6 3l5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </div>
@@ -420,11 +420,11 @@ export default function ItemDetailPage() {
         >
           <div style={{
             width: 36, height: 36, borderRadius: 8,
-            background: 'rgba(196, 90, 45, 0.08)',
+            background: 'rgba(184, 68, 30, 0.08)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0,
           }}>
-            <Search size={16} color="#c45a2d" />
+            <Search size={16} color="#B8441E" />
           </div>
           <div>
             <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500, color: '#1a1d27', margin: 0 }}>
@@ -481,7 +481,7 @@ export default function ItemDetailPage() {
               {(() => { try { return new URL(item.source_url!).hostname.replace(/^www\./, '') } catch { return '' } })()}
             </p>
           </div>
-          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#c45a2d', flexShrink: 0 }}>
+          <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#B8441E', flexShrink: 0 }}>
             Open
           </span>
         </a>

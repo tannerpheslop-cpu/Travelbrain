@@ -105,7 +105,7 @@ export default function GlobalActions() {
           >
             <div
               style={{
-                background: 'var(--color-surface, #141828)',
+                background: 'var(--color-surface, #0d1a2a)',
                 borderRadius: '16px 16px 0 0',
                 padding: '8px 0',
                 paddingBottom: 'calc(8px + env(safe-area-inset-bottom))',
@@ -125,11 +125,11 @@ export default function GlobalActions() {
               >
                 <div style={{
                   width: 44, height: 44, borderRadius: 12,
-                  background: 'rgba(196, 90, 45, 0.15)',
+                  background: 'rgba(184, 68, 30, 0.15)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}>
-                  <Bookmark size={20} color="#c45a2d" />
+                  <Bookmark size={20} color="#B8441E" />
                 </div>
                 <div>
                   <div style={{
@@ -151,7 +151,7 @@ export default function GlobalActions() {
               {/* Divider */}
               <div style={{
                 height: 0.5, margin: '0 20px',
-                background: 'var(--color-surface-elevated, #1c2035)',
+                background: 'var(--color-surface-elevated, #3F3A42)',
               }} />
 
               {/* Unpack option */}
@@ -167,11 +167,11 @@ export default function GlobalActions() {
               >
                 <div style={{
                   width: 44, height: 44, borderRadius: 12,
-                  background: 'rgba(196, 90, 45, 0.15)',
+                  background: 'rgba(184, 68, 30, 0.15)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   flexShrink: 0,
                 }}>
-                  <PackageOpen size={20} color="#c45a2d" />
+                  <PackageOpen size={20} color="#B8441E" />
                 </div>
                 <div>
                   <div style={{

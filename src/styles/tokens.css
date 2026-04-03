@@ -1,42 +1,43 @@
 /**
- * Youji Night Sky Visual Identity — Color Tokens
+ * Youji Night Sky Visual Identity — Color Tokens v2
  *
- * See /docs/BRAND-IDENTITY.md for the full specification.
+ * See /docs/DESIGN-SYSTEM-V2.md for the full specification.
  * These tokens are additive — they do NOT replace the existing
- * light-mode tokens in index.css. Components will migrate
- * to these tokens incrementally.
+ * tokens in index.css. Components reference these directly.
  */
 
 :root {
-  /* ── Canvas ── */
-  --color-deep-bg:           #080c18;
-  --color-surface:           #141828;
-  --color-surface-elevated:  #1c2035;
-  --color-surface-light:     #faf8f4;
+  /* ── Canvas (three depth layers) ── */
+  --color-deep-bg:           #0A0C12;   /* Sky: nav, page bg, Travel Graph, inputs */
+  --color-surface:           #0d1a2a;   /* Sheet: main content layer (barely blue) */
+  --color-surface-elevated:  #3F3A42;   /* Cards: elevated surfaces on the sheet */
+  --color-surface-hover:     #4a454e;   /* Card hover/press */
+  --color-surface-light:     #0d1a2a;   /* Alias — no longer light */
 
-  /* ── Stars (cool register) ── */
-  --color-star-dim:          #b8c8e0;
-  --color-star-default:      #d4e0f0;
-  --color-star-bright:       #edf2fa;
+  /* ── Stars ── */
+  --color-star-dim:          #76828E;
+  --color-star-default:      #c8d0d8;
+  --color-star-bright:       #e4e8f0;
+  --color-star-claimed:      #B8441E;   /* Trip-claimed stars */
 
-  /* ── Copper (warm register) ── */
-  --color-copper-deep:       #8a4020;
-  --color-copper:            #c45a2d;
-  --color-copper-glow:       #e8904a;
+  /* ── Orange (replaces copper) ── */
+  --color-copper-deep:       #a03b1a;   /* pressed state */
+  --color-copper:            #B8441E;   /* orange replaces copper throughout */
+  --color-copper-glow:       #d4603a;   /* glow/hover */
 
   /* ── Text (dark surfaces) ── */
   --color-night-text-primary:    #e4e8f0;
-  --color-night-text-secondary:  #8088a0;
-  --color-night-text-tertiary:   #4a5068;
-  --color-night-text-on-light:   #1a1d27;
+  --color-night-text-secondary:  #a8c4dc;
+  --color-night-text-tertiary:   #76828E;
+  --color-night-text-on-light:   #e4e8f0;   /* all surfaces dark now */
 
   /* ── Functional ── */
   --color-night-success:     #5b8a72;
-  --color-night-warning:     #c49a2d;
+  --color-night-warning:     #B8441E;
   --color-night-error:       #c44a3d;
 
   /* ── Graph edges ── */
-  --color-edge-strong:       #d4e0f018;
-  --color-edge-medium:       #d4e0f010;
-  --color-edge-weak:         #d4e0f008;
+  --color-edge-strong:       rgba(200, 208, 216, 0.1);
+  --color-edge-medium:       rgba(200, 208, 216, 0.06);
+  --color-edge-weak:         rgba(200, 208, 216, 0.03);
 }

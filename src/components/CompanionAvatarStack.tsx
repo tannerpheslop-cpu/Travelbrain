@@ -1,7 +1,7 @@
 import type { CompanionWithUser } from '../hooks/useCompanions'
 
 const AVATAR_COLORS = [
-  '#c45a2d', '#2d8c6e', '#5a6abf', '#b5593d', '#7c5cbf',
+  '#B8441E', '#2d8c6e', '#5a6abf', '#b5593d', '#7c5cbf',
   '#3d8bb5', '#bf5c8a', '#6b8c2d', '#8c6b2d', '#2d6b8c',
 ]
 

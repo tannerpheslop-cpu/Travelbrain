@@ -1,6 +1,6 @@
 # CLAUDE.md — Youji Project Context
 
-> Claude Code: Read this file and DESIGN-SYSTEM.md at the start of every session. This file is the source of truth for the product vision, architecture, data model, and design principles. DESIGN-SYSTEM.md is the authoritative reference for all visual and styling decisions. Every feature you build should be consistent with both documents.
+> Claude Code: Read this file and DESIGN-SYSTEM-V2.md at the start of every session. This file is the source of truth for the product vision, architecture, data model, and design principles. DESIGN-SYSTEM-V2.md is the authoritative reference for all visual and styling decisions. Every feature you build should be consistent with both documents.
 >
 > Additional context documents: `/docs/TRIP-CONTEXT.md`, `/docs/SAVE-FLOW-CONTEXT.md`, `/docs/HORIZON-CONTEXT.md`, `/docs/LOCATION-DETECTION-CONTEXT.md`, `/docs/MAP-NAVIGATION.md`, `/docs/TRIP-CREATION.md`, `/docs/BRAND-IDENTITY.md`, `/docs/TRAVEL-GRAPH.md`. Read these when working on the relevant subsystem.
 >
@@ -384,7 +384,7 @@ These are non-negotiable and must guide every UI decision:
 1. **Saving must be instant and delightful.** No loading spinners that feel slow. Optimistic UI where possible.
 2. **No required form fields during save.** The only thing the user must do is paste a URL or upload an image. Category, location, notes are all optional and editable later.
 3. **Edits must be one-tap.** Category selection is quick-tap buttons, not dropdowns.
-4. **UI must follow the Youji design system — warm copper accent on neutral palette, DM Sans for reading text, JetBrains Mono for metadata and data, traveler's notebook aesthetic at hero moments, clean functional substrate everywhere else. See DESIGN-SYSTEM.md for full spec.**
+4. **UI must follow the Youji design system — dark night-sky palette, orange accent (#B8441E), DM Sans for reading text, JetBrains Mono for metadata and data. See DESIGN-SYSTEM-V2.md for full spec.**
 5. **Sharing must be beautiful.** The public trip page is the viral surface — it must look polished enough that people want to share it.
 6. **The app must feel fun, not like project management.** No Gantt charts, no heavy admin UI, no complexity.
 7. **Mobile-first always.** Every component is designed for phone screens first, desktop second.
@@ -798,7 +798,7 @@ If you cannot answer all three, you are not done.
 - Handle loading states and errors gracefully — never show a blank screen or unhandled error
 - Prefetch images (destination photos) on list pages so they're cached before the user navigates deeper
 - Git commit after each working feature
-- All UI components must reference DESIGN-SYSTEM.md for typography, color, spacing, and component patterns. Use CSS custom properties from the design system. Import DM Sans and JetBrains Mono from Google Fonts.
+- All UI components must reference DESIGN-SYSTEM-V2.md for typography, color, spacing, and component patterns. Use CSS custom properties from the design system. Import DM Sans and JetBrains Mono from Google Fonts.
 
 ---
 

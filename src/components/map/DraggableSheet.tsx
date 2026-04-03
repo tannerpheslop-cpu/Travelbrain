@@ -310,7 +310,7 @@ export default function DraggableSheet({
         left: 0,
         right: 0,
         height,
-        background: '#faf8f4',
+        background: '#0d1a2a',
         borderTopLeftRadius: 16,
         borderTopRightRadius: 16,
         boxShadow: '0 -2px 20px rgba(0,0,0,0.15)',

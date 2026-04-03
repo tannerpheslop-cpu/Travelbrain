@@ -61,8 +61,8 @@ describe('computeGradient', () => {
 
   it('full night (35 saves) gradient contains deep blues', () => {
     const { linearGradient } = computeGradient(35)
-    expect(linearGradient).toContain('#080c18')
-    expect(linearGradient).toContain('#141828')
+    expect(linearGradient).toContain('#0a0c12')
+    expect(linearGradient).toContain('#0d1a2a')
   })
 
   it('interpolates smoothly — 10 saves differs from 6 saves', () => {
@@ -71,8 +71,8 @@ describe('computeGradient', () => {
     expect(g6.linearGradient).not.toBe(g10.linearGradient)
   })
 
-  it('full night radial uses copper color for city glow', () => {
+  it('full night radial uses orange color for city glow', () => {
     const { radialGradient } = computeGradient(35)
-    expect(radialGradient).toContain('#c45a2d')
+    expect(radialGradient).toContain('#b8441e')
   })
 })

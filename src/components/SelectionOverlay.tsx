@@ -445,7 +445,7 @@ export default function SelectionOverlay({
         data-testid="selection-overlay"
         style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 61,
-          background: '#faf8f4', borderRadius: '16px 16px 0 0',
+          background: '#0d1a2a', borderRadius: '16px 16px 0 0',
           maxHeight: '92vh', display: 'flex', flexDirection: 'column',
           transform: visible ? 'translateY(0)' : 'translateY(100%)',
           transition: 'transform 300ms ease',
@@ -476,11 +476,11 @@ export default function SelectionOverlay({
           <div style={{ display: 'flex', gap: 12 }}>
             <button type="button" onClick={selectAll} style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600,
-              color: '#c45a2d', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              color: '#B8441E', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
             }}>Select all</button>
             <button type="button" onClick={deselectAll} style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600,
-              color: '#c45a2d', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+              color: '#B8441E', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
             }}>Deselect all</button>
           </div>
         </div>
@@ -546,7 +546,7 @@ export default function SelectionOverlay({
                     style={{
                       width: 20, height: 20, borderRadius: 4, flexShrink: 0,
                       border: isSelected ? 'none' : '1.5px solid #d3d1c7',
-                      background: isSelected ? '#c45a2d' : 'transparent',
+                      background: isSelected ? '#B8441E' : 'transparent',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       cursor: 'pointer', padding: 0,
                     }}
@@ -591,7 +591,7 @@ export default function SelectionOverlay({
                   >
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {contentType === 'itinerary' && (
-                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: '#c45a2d' }}>
+                        <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700, color: '#B8441E' }}>
                           {item.source_order}.
                         </span>
                       )}
@@ -700,7 +700,7 @@ export default function SelectionOverlay({
                 disabled={selectedCount === 0 || saving || !routeName.trim()}
                 style={{
                   width: '100%', padding: '14px 0',
-                  background: selectedCount > 0 && routeName.trim() ? '#c45a2d' : '#d3d1c7',
+                  background: selectedCount > 0 && routeName.trim() ? '#B8441E' : '#d3d1c7',
                   color: '#fff',
                   fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
                   border: 'none', borderRadius: 12,
@@ -734,7 +734,7 @@ export default function SelectionOverlay({
                   disabled={selectedCount === 0 || saving}
                   style={{
                     flex: 1, padding: '14px 0',
-                    background: selectedCount > 0 ? '#c45a2d' : '#d3d1c7', color: '#fff',
+                    background: selectedCount > 0 ? '#B8441E' : '#d3d1c7', color: '#fff',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
                     border: 'none', borderRadius: 10,
                     cursor: selectedCount > 0 ? 'pointer' : 'default',
@@ -751,8 +751,8 @@ export default function SelectionOverlay({
                   style={{
                     flex: 1, padding: '14px 0',
                     background: 'transparent',
-                    border: selectedCount > 0 ? '1.5px solid #c45a2d' : '1.5px solid #d3d1c7',
-                    color: selectedCount > 0 ? '#c45a2d' : '#888780',
+                    border: selectedCount > 0 ? '1.5px solid #B8441E' : '1.5px solid #d3d1c7',
+                    color: selectedCount > 0 ? '#B8441E' : '#888780',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
                     borderRadius: 10,
                     cursor: selectedCount > 0 ? 'pointer' : 'default',
@@ -801,7 +801,7 @@ function ExpandedEditor({
           fontFamily: "'DM Sans', sans-serif", color: '#1a1d27',
           outline: 'none', boxSizing: 'border-box',
         }}
-        onFocus={e => e.target.style.borderColor = '#c45a2d'}
+        onFocus={e => e.target.style.borderColor = '#B8441E'}
         onBlur={e => e.target.style.borderColor = '#e8e6e1'}
       />
 
@@ -816,8 +816,8 @@ function ExpandedEditor({
               padding: '4px 10px', borderRadius: 12, cursor: 'pointer',
               fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
               border: display.category === pill.value ? 'none' : '1px solid #d3d1c7',
-              background: display.category === pill.value ? 'rgba(196,90,45,0.1)' : 'transparent',
-              color: display.category === pill.value ? '#c45a2d' : '#888780',
+              background: display.category === pill.value ? 'rgba(184,68,30,0.1)' : 'transparent',
+              color: display.category === pill.value ? '#B8441E' : '#888780',
             }}
           >
             {pill.label}
@@ -842,7 +842,7 @@ function ExpandedEditor({
           onClick={onDone}
           style={{
             fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 600,
-            color: '#c45a2d', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0',
+            color: '#B8441E', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0',
           }}
         >
           Done

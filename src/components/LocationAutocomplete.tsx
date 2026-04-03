@@ -191,7 +191,7 @@ export default function LocationAutocomplete({
           style={{
             position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
             fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
-            color: '#c45a2d', background: 'rgba(196,90,45,0.08)', borderRadius: 4,
+            color: '#B8441E', background: 'rgba(184,68,30,0.08)', borderRadius: 4,
             padding: '3px 8px', pointerEvents: 'none',
             animation: 'fadeOut 1.5s ease forwards',
           }}

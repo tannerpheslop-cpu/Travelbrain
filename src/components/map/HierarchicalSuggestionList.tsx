@@ -23,7 +23,7 @@ function DashedPlusCircle() {
       width: 28,
       height: 28,
       borderRadius: '50%',
-      border: '1.5px dashed #c45a2d',
+      border: '1.5px dashed #B8441E',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -31,8 +31,8 @@ function DashedPlusCircle() {
       marginRight: 12,
     }}>
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-        <line x1="6" y1="1" x2="6" y2="11" stroke="#c45a2d" strokeWidth="1.5" strokeLinecap="round" />
-        <line x1="1" y1="6" x2="11" y2="6" stroke="#c45a2d" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="6" y1="1" x2="6" y2="11" stroke="#B8441E" strokeWidth="1.5" strokeLinecap="round" />
+        <line x1="1" y1="6" x2="11" y2="6" stroke="#B8441E" strokeWidth="1.5" strokeLinecap="round" />
       </svg>
     </div>
   )
@@ -172,7 +172,7 @@ export default function HierarchicalSuggestionList({
           fontWeight: 500,
           textTransform: 'uppercase',
           letterSpacing: '0.04em',
-          color: '#8088a0',
+          color: '#76828E',
         }}
         data-testid="suggestions-label"
         >

@@ -150,7 +150,7 @@ export default function InboxPage() {
   // ── Set body background to match sky (covers Dynamic Island / safe area) ──
   useEffect(() => {
     const prev = document.body.style.backgroundColor
-    document.body.style.backgroundColor = '#080c18'
+    document.body.style.backgroundColor = '#0A0C12'
     return () => { document.body.style.backgroundColor = prev }
   }, [])
 
@@ -780,8 +780,8 @@ export default function InboxPage() {
         header={<div style={{ height: 4 }} />}
       >
         <div style={{
-          background: 'var(--color-surface-light, #faf8f4)',
-          color: 'var(--color-text-on-light, #1a1d27)',
+          background: 'var(--color-surface, #0d1a2a)',
+          color: 'var(--color-text-primary, #e4e8f0)',
           minHeight: '100%',
           padding: '0 16px 120px',
           pointerEvents: 'auto',
@@ -795,7 +795,7 @@ export default function InboxPage() {
             type="button"
             onClick={() => { setSearchQuery(''); setSearchExpanded(false) }}
             className="flex items-center justify-center shrink-0"
-            style={{ width: 32, height: 32, color: '#888780', background: 'none', border: 'none', cursor: 'pointer' }}
+            style={{ width: 32, height: 32, color: '#76828E', background: 'none', border: 'none', cursor: 'pointer' }}
             aria-label="Close search"
           >
             <X className="w-4 h-4" />
@@ -808,14 +808,14 @@ export default function InboxPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search saves..."
               className="w-full px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-              style={{ background: '#f1efe8', border: '0.5px solid #e8e6e1', color: '#1a1d27', fontSize: 16 }}
+              style={{ background: '#0A0C12', border: '0.5px solid rgba(118,130,142,0.15)', color: '#e4e8f0', fontSize: 16 }}
               autoFocus
             />
           </div>
           <button
             type="button"
             onClick={() => { setSearchQuery(''); setSearchExpanded(false) }}
-            style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#888780', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}
+            style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#76828E', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}
           >
             Cancel
           </button>
@@ -829,7 +829,7 @@ export default function InboxPage() {
               type="button"
               onClick={() => { setSearchExpanded(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
               className="flex items-center justify-center"
-              style={{ width: 32, height: 32, color: searchQuery ? '#c45a2d' : '#888780', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}
+              style={{ width: 32, height: 32, color: searchQuery ? '#B8441E' : '#76828E', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}
               aria-label="Search"
               data-testid="horizon-search-btn"
             >
@@ -841,8 +841,8 @@ export default function InboxPage() {
               className="flex items-center justify-center"
               style={{
                 width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer',
-                color: selectedFilters.length > 0 ? '#c45a2d' : '#888780',
-                background: selectedFilters.length > 0 ? 'rgba(196,90,45,0.08)' : 'none',
+                color: selectedFilters.length > 0 ? '#B8441E' : '#76828E',
+                background: selectedFilters.length > 0 ? 'rgba(184,68,30,0.08)' : 'none',
               }}
               data-testid="horizon-filter-btn"
               aria-label="Filter"
@@ -855,8 +855,8 @@ export default function InboxPage() {
               className="flex items-center justify-center"
               style={{
                 width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer',
-                color: multiSelectMode ? '#c45a2d' : '#888780',
-                background: multiSelectMode ? 'rgba(196,90,45,0.08)' : 'none',
+                color: multiSelectMode ? '#B8441E' : '#76828E',
+                background: multiSelectMode ? 'rgba(184,68,30,0.08)' : 'none',
               }}
               aria-label={multiSelectMode ? 'Cancel selection' : 'Select items'}
             >
@@ -867,15 +867,15 @@ export default function InboxPage() {
           {/* Right: group toggle + view toggle */}
           <div className="flex items-center gap-2">
             {/* Group mode toggle */}
-            <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid #e8e6e1' }}>
+            <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid rgba(118,130,142,0.2)' }}>
               <button
                 type="button"
                 onClick={() => setGroupMode('country')}
                 style={{
                   padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'country' ? 600 : 400,
-                  background: groupMode === 'country' ? '#f1efe8' : 'transparent',
-                  color: groupMode === 'country' ? '#1a1d27' : '#b4b2a9',
+                  background: groupMode === 'country' ? 'rgba(228,232,240,0.1)' : 'transparent',
+                  color: groupMode === 'country' ? '#e4e8f0' : '#76828E',
                 }}
                 aria-label="Group by country"
               >
@@ -887,8 +887,8 @@ export default function InboxPage() {
                 style={{
                   padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'city' ? 600 : 400,
-                  background: groupMode === 'city' ? '#f1efe8' : 'transparent',
-                  color: groupMode === 'city' ? '#1a1d27' : '#b4b2a9',
+                  background: groupMode === 'city' ? 'rgba(228,232,240,0.1)' : 'transparent',
+                  color: groupMode === 'city' ? '#e4e8f0' : '#76828E',
                 }}
                 aria-label="Group by city"
               >
@@ -897,15 +897,15 @@ export default function InboxPage() {
             </div>
 
             {/* View toggle */}
-            <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid #e8e6e1' }}>
+            <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid rgba(118,130,142,0.2)' }}>
               <button
                 type="button"
                 onClick={() => setViewMode('grid')}
                 className="flex items-center justify-center"
                 style={{
                   width: 28, height: 28, border: 'none', cursor: 'pointer',
-                  background: viewMode === 'grid' ? '#1a1d27' : 'transparent',
-                  color: viewMode === 'grid' ? '#faf8f4' : '#b4b2a9',
+                  background: viewMode === 'grid' ? 'rgba(228,232,240,0.1)' : 'transparent',
+                  color: viewMode === 'grid' ? '#e4e8f0' : '#76828E',
                 }}
                 aria-label="Grid view"
               >
@@ -917,8 +917,8 @@ export default function InboxPage() {
                 className="flex items-center justify-center"
                 style={{
                   width: 28, height: 28, border: 'none', cursor: 'pointer',
-                  background: viewMode === 'list' ? '#1a1d27' : 'transparent',
-                  color: viewMode === 'list' ? '#faf8f4' : '#b4b2a9',
+                  background: viewMode === 'list' ? 'rgba(228,232,240,0.1)' : 'transparent',
+                  color: viewMode === 'list' ? '#e4e8f0' : '#76828E',
                 }}
                 aria-label="List view"
               >
@@ -1022,12 +1022,12 @@ export default function InboxPage() {
 
       {/* ── Recently Added ── */}
       {!loading && !error && recentlyAdded.length > 0 && (
-        <section style={{ borderTop: '1px solid #e8e6e1', borderBottom: '1px solid #e8e6e1', paddingTop: 16, paddingBottom: 16, marginBottom: 20 }}>
+        <section style={{ borderTop: '1px solid rgba(118,130,142,0.1)', borderBottom: '1px solid rgba(118,130,142,0.1)', paddingTop: 16, paddingBottom: 16, marginBottom: 20 }}>
           <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: '#1a1d27', margin: 0 }}>
+            <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, color: '#e4e8f0', margin: 0 }}>
               Recently added
             </h2>
-            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b4b2a9' }}>{recentlyAdded.length}</span>
+            <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#76828E' }}>{recentlyAdded.length}</span>
           </div>
           {viewMode === 'grid' ? (
             /* Grid: horizontal scroll of tile cards */
@@ -1106,17 +1106,17 @@ export default function InboxPage() {
                     style={{
                       display: 'flex', alignItems: 'center', gap: 8, width: '100%',
                       padding: '10px 0 6px',
-                      borderBottom: '0.5px solid #e8e6e1',
+                      borderBottom: '0.5px solid rgba(118,130,142,0.1)',
                       marginBottom: isCollapsed ? 0 : 4,
                       background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left',
-                      borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: '#e8e6e1',
+                      borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: 'rgba(118,130,142,0.1)',
                     }}
                   >
                     {group.countryCode && (
                       <span style={{
                         fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 700,
-                        color: '#888780', letterSpacing: 0.5,
-                        background: '#f1efe8', borderRadius: 4,
+                        color: '#76828E', letterSpacing: 0.5,
+                        background: 'rgba(118,130,142,0.2)', borderRadius: 4,
                         padding: '2px 6px', flexShrink: 0,
                       }}>
                         {group.countryCode}
@@ -1124,17 +1124,17 @@ export default function InboxPage() {
                     )}
                     <h2 style={{
                       fontFamily: "'DM Sans', sans-serif",
-                      fontSize: 14, fontWeight: 500, color: '#1a1d27',
+                      fontSize: 14, fontWeight: 500, color: '#e4e8f0',
                       margin: 0, flex: 1,
                     }}>
                       {groupLabel}
                     </h2>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b4b2a9', marginRight: 4 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#76828E', marginRight: 4 }}>
                       {group.items.length}
                     </span>
                     {isCollapsed
-                      ? <ChevronRight size={16} style={{ color: '#888780', flexShrink: 0 }} />
-                      : <ChevronDown size={16} style={{ color: '#888780', flexShrink: 0 }} />
+                      ? <ChevronRight size={16} style={{ color: '#76828E', flexShrink: 0 }} />
+                      : <ChevronDown size={16} style={{ color: '#76828E', flexShrink: 0 }} />
                     }
                   </button>
                 ) : (
@@ -1150,7 +1150,7 @@ export default function InboxPage() {
                   >
                     {groupMode === 'city' && group.city ? (
                       <>
-                        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, margin: 0, color: '#1a1d27' }}>
+                        <h2 style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600, margin: 0, color: '#e4e8f0' }}>
                           {group.city}
                         </h2>
                         {group.countryCode && <CountryCodeBadge code={group.countryCode} />}
@@ -1160,17 +1160,17 @@ export default function InboxPage() {
                         {group.country && group.countryCode && (
                           <CountryCodeBadge code={group.countryCode} />
                         )}
-                        <h2 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: '#888780', margin: 0 }}>
+                        <h2 style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.5, color: '#76828E', margin: 0 }}>
                           {group.country ?? 'Unplaced'}
                         </h2>
                       </>
                     )}
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b4b2a9', flex: 1 }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#76828E', flex: 1 }}>
                       {group.items.length}
                     </span>
                     {isCollapsed
-                      ? <ChevronRight size={16} style={{ color: '#888780', flexShrink: 0 }} />
-                      : <ChevronDown size={16} style={{ color: '#888780', flexShrink: 0 }} />
+                      ? <ChevronRight size={16} style={{ color: '#76828E', flexShrink: 0 }} />
+                      : <ChevronDown size={16} style={{ color: '#76828E', flexShrink: 0 }} />
                     }
                   </button>
                 )
@@ -1202,7 +1202,7 @@ export default function InboxPage() {
                             position: 'absolute', top: 6, left: 6, zIndex: 10,
                             width: 22, height: 22, borderRadius: 11,
                             border: isSelected ? 'none' : '2px solid rgba(255,255,255,0.7)',
-                            background: isSelected ? '#c45a2d' : 'rgba(0,0,0,0.2)',
+                            background: isSelected ? '#B8441E' : 'rgba(0,0,0,0.2)',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             pointerEvents: 'none',
                           }}>
@@ -1250,8 +1250,8 @@ export default function InboxPage() {
                         {multiSelectMode && (
                           <div style={{
                             width: 22, height: 22, borderRadius: 11, flexShrink: 0, marginRight: 8,
-                            border: isSelected ? 'none' : '2px solid #d3d1c7',
-                            background: isSelected ? '#c45a2d' : 'transparent',
+                            border: isSelected ? 'none' : '2px solid rgba(118,130,142,0.3)',
+                            background: isSelected ? '#B8441E' : 'transparent',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                           }}>
                             {isSelected && (
@@ -1326,7 +1326,7 @@ export default function InboxPage() {
         <div style={{ position: 'fixed', inset: 0, zIndex: 45 }} onClick={exitMultiSelect} />
         <div style={{
           position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-          background: '#fff', borderTop: '0.5px solid #e8e6e1',
+          background: '#0d1a2a', borderTop: '0.5px solid rgba(118,130,142,0.1)',
           padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
           boxShadow: '0 -2px 12px rgba(0,0,0,0.08)',
         }}>
@@ -1342,8 +1342,8 @@ export default function InboxPage() {
                 style={{
                   width: '100%', padding: '10px 14px', marginBottom: 10,
                   fontFamily: "'DM Sans', sans-serif", fontSize: 16, fontWeight: 500,
-                  color: '#1a1d27', background: '#f1efe8',
-                  border: '0.5px solid #e8e6e1', borderRadius: 8, outline: 'none',
+                  color: '#e4e8f0', background: '#0A0C12',
+                  border: '0.5px solid rgba(118,130,142,0.15)', borderRadius: 8, outline: 'none',
                 }}
               />
               <div style={{ display: 'flex', gap: 8 }}>
@@ -1352,9 +1352,9 @@ export default function InboxPage() {
                   onClick={() => setShowMergeInput(false)}
                   style={{
                     flex: 1, padding: '12px 0',
-                    background: 'none', border: '1px solid #e8e6e1', borderRadius: 10,
+                    background: 'none', border: '1px solid rgba(118,130,142,0.2)', borderRadius: 10,
                     fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
-                    color: '#888780', cursor: 'pointer',
+                    color: '#76828E', cursor: 'pointer',
                   }}
                 >
                   Back
@@ -1365,7 +1365,7 @@ export default function InboxPage() {
                   disabled={!mergeRouteName.trim()}
                   style={{
                     flex: 2, padding: '12px 0',
-                    background: mergeRouteName.trim() ? '#c45a2d' : '#d3d1c7', color: '#fff',
+                    background: mergeRouteName.trim() ? '#B8441E' : 'rgba(118,130,142,0.3)', color: '#fff',
                     border: 'none', borderRadius: 10,
                     fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
                     cursor: mergeRouteName.trim() ? 'pointer' : 'default',
@@ -1381,14 +1381,14 @@ export default function InboxPage() {
                 type="button"
                 onClick={exitMultiSelect}
                 style={{
-                  padding: '10px 16px', background: 'none', border: '1px solid #e8e6e1',
+                  padding: '10px 16px', background: 'none', border: '1px solid rgba(118,130,142,0.2)',
                   borderRadius: 8, fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                  color: '#888780', cursor: 'pointer',
+                  color: '#76828E', cursor: 'pointer',
                 }}
               >
                 Cancel
               </button>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#888780', flex: 1 }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#76828E', flex: 1 }}>
                 {multiSelected.size} selected
               </span>
               <button
@@ -1397,7 +1397,7 @@ export default function InboxPage() {
                 disabled={multiSelected.size < 2}
                 style={{
                   padding: '10px 16px',
-                  background: multiSelected.size >= 2 ? '#c45a2d' : '#d3d1c7', color: '#fff',
+                  background: multiSelected.size >= 2 ? '#B8441E' : 'rgba(118,130,142,0.3)', color: '#fff',
                   border: 'none', borderRadius: 8,
                   fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
                   cursor: multiSelected.size >= 2 ? 'pointer' : 'default',
@@ -1411,8 +1411,8 @@ export default function InboxPage() {
                 disabled={multiSelected.size === 0}
                 style={{
                   padding: '10px 16px',
-                  background: 'none', color: '#c0392b',
-                  border: '1px solid rgba(192,57,43,0.3)', borderRadius: 8,
+                  background: 'none', color: '#c44a3d',
+                  border: '1px solid rgba(196,74,61,0.2)', borderRadius: 8,
                   fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
                   cursor: multiSelected.size > 0 ? 'pointer' : 'default',
                   opacity: multiSelected.size > 0 ? 1 : 0.4,
@@ -1558,12 +1558,12 @@ function RouteGridCard({ route }: { route: Route }) {
       {/* Stacked card effect: shadow card behind */}
       <div style={{
         position: 'absolute', top: 3, left: 3, right: -3, bottom: -3,
-        borderRadius: 10, background: '#e8e6e1', opacity: 0.4, zIndex: 0,
+        borderRadius: 8, background: 'rgba(118,130,142,0.15)', opacity: 0.4, zIndex: 0,
       }} />
       <div style={{
         position: 'relative', zIndex: 1,
-        borderRadius: 10, overflow: 'hidden',
-        background: thumbnail ? '#1a1d27' : '#f1efe8',
+        borderRadius: 8, overflow: 'hidden',
+        background: '#3F3A42',
       }}>
         {/* Thumbnail */}
         {thumbnail ? (
@@ -1577,7 +1577,7 @@ function RouteGridCard({ route }: { route: Route }) {
             {/* Count badge */}
             <span style={{
               position: 'absolute', top: 6, right: 6, zIndex: 2,
-              background: '#c45a2d', color: '#fff',
+              background: '#B8441E', color: '#fff',
               fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
               padding: '2px 8px', borderRadius: 999,
             }}>
@@ -1607,7 +1607,7 @@ function RouteGridCard({ route }: { route: Route }) {
           <div style={{ padding: '14px 12px' }}>
             <span style={{
               position: 'absolute', top: 6, right: 6,
-              background: '#c45a2d', color: '#fff',
+              background: '#B8441E', color: '#fff',
               fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
               padding: '2px 8px', borderRadius: 999,
             }}>
@@ -1615,7 +1615,7 @@ function RouteGridCard({ route }: { route: Route }) {
             </span>
             <p style={{
               fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
-              color: '#1a1d27', margin: 0,
+              color: '#e4e8f0', margin: 0,
               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}>
               {route.name}
@@ -1623,7 +1623,7 @@ function RouteGridCard({ route }: { route: Route }) {
             {route.location_scope && (
               <p style={{
                 fontFamily: "'DM Sans', sans-serif", fontSize: 11,
-                color: '#888780', margin: '4px 0 0',
+                color: '#76828E', margin: '4px 0 0',
               }}>
                 {route.location_scope}
               </p>
@@ -1644,7 +1644,7 @@ function RouteListRow({ route }: { route: Route }) {
       style={{
         display: 'flex', alignItems: 'center', gap: 10,
         padding: '10px 0', textDecoration: 'none',
-        borderBottom: '0.5px solid #f1efe8',
+        borderBottom: '0.5px solid rgba(118,130,142,0.06)',
       }}
       data-testid={`route-row-${route.id}`}
     >
@@ -1654,11 +1654,11 @@ function RouteListRow({ route }: { route: Route }) {
         <div style={{
           position: 'absolute', top: 2, left: 2,
           width: 44, height: 44, borderRadius: 6,
-          background: '#e8e6e1', opacity: 0.4,
+          background: 'rgba(118,130,142,0.15)', opacity: 0.4,
         }} />
         <div style={{
           width: 44, height: 44, borderRadius: 6, overflow: 'hidden',
-          background: route.source_thumbnail ? '#1a1d27' : '#f1efe8',
+          background: '#3F3A42',
           position: 'relative', zIndex: 1,
         }}>
           {route.source_thumbnail ? (
@@ -1669,7 +1669,7 @@ function RouteListRow({ route }: { route: Route }) {
             />
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b4b2a9" strokeWidth="1.5">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#76828E" strokeWidth="1.5">
                 <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
               </svg>
             </div>
@@ -1680,13 +1680,13 @@ function RouteListRow({ route }: { route: Route }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{
           fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
-          color: '#1a1d27', margin: 0,
+          color: '#e4e8f0', margin: 0,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         }}>
           {route.name}
         </p>
         <p style={{
-          fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#888780',
+          fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: '#76828E',
           margin: '2px 0 0',
         }}>
           {route.location_scope ? `${route.location_scope} · ` : ''}{route.item_count} place{route.item_count !== 1 ? 's' : ''}
@@ -1705,7 +1705,7 @@ function ExtractionBadge({ count }: { count: number }) {
       data-testid="extraction-badge"
       style={{
         position: 'absolute', top: 6, right: 6, zIndex: 5,
-        background: '#c45a2d', color: '#fff',
+        background: '#B8441E', color: '#fff',
         fontFamily: "'JetBrains Mono', monospace",
         fontSize: 10, fontWeight: 500,
         padding: '2px 8px', borderRadius: 999,
@@ -1971,7 +1971,7 @@ function ListRow({
           <CategoryPill label={categoryLabel[item.category]} />
           {item.has_pending_extraction && extractionCount && extractionCount >= 2 && (
             <span style={{
-              background: '#c45a2d', color: '#fff',
+              background: '#B8441E', color: '#fff',
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10, fontWeight: 500,
               padding: '1px 6px', borderRadius: 999,

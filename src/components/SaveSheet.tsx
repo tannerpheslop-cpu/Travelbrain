@@ -903,7 +903,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                   background: 'rgba(196,90,45,0.06)', border: '1px solid rgba(196,90,45,0.2)',
                 }}
               >
-                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, color: '#c45a2d' }}>
+                <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, color: '#B8441E' }}>
                   {location.name_en || location.name}
                 </span>
                 <span
@@ -945,7 +945,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
             style={{
               marginTop: 14, width: '100%', padding: 12,
               fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
-              background: saved ? '#2d9c5e' : '#c45a2d',
+              background: saved ? '#2d9c5e' : '#B8441E',
               color: 'white', border: 'none', borderRadius: 10, cursor: canSave ? 'pointer' : 'not-allowed',
               opacity: canSave || saved ? 1 : 0.5,
               boxShadow: '0 1px 4px rgba(196,90,45,0.25)',
