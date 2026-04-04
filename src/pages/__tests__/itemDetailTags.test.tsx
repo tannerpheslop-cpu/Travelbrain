@@ -178,6 +178,93 @@ describe('tag autocomplete suggestions', () => {
   })
 })
 
+// ── Mirror of the search/filter logic from ItemDetailPage ──────────────────
+
+/** Mirrors the filteredCategories derivation */
+function filterCategories(query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return SYSTEM_CATEGORIES
+  return SYSTEM_CATEGORIES.filter(
+    cat => cat.label.toLowerCase().includes(q) || cat.tagName.toLowerCase().includes(q),
+  )
+}
+
+/** Mirrors the filteredCustomTags derivation */
+function filterCustomTags(activeCustomTags: string[], query: string) {
+  const q = query.trim().toLowerCase()
+  if (!q) return activeCustomTags
+  return activeCustomTags.filter(t => t.toLowerCase().includes(q))
+}
+
+/** Mirrors the showCreateOption derivation */
+function shouldShowCreateOption(
+  query: string,
+  activeCustomTags: string[],
+  allCustomTags: string[],
+): boolean {
+  const q = query.trim()
+  if (!q) return false
+  const qLower = q.toLowerCase()
+  if (SYSTEM_CATEGORIES.some(cat => cat.label.toLowerCase() === qLower || cat.tagName.toLowerCase() === qLower)) return false
+  if (activeCustomTags.some(t => t.toLowerCase() === qLower)) return false
+  if (allCustomTags.some(t => t.toLowerCase() === qLower)) return false
+  return true
+}
+
+describe('search input filters categories and tags', () => {
+  it('shows all 12 categories when search is empty', () => {
+    expect(filterCategories('')).toHaveLength(12)
+  })
+
+  it('filters categories by label', () => {
+    const result = filterCategories('Rest')
+    expect(result.map(c => c.tagName)).toContain('restaurant')
+    expect(result.map(c => c.tagName)).not.toContain('hotel')
+  })
+
+  it('filters categories by tagName', () => {
+    const result = filterCategories('bar_')
+    expect(result.map(c => c.tagName)).toContain('bar_nightlife')
+  })
+
+  it('filters custom tags by query', () => {
+    const tags = ['Bucket List', 'Date Night', 'Rooftop']
+    expect(filterCustomTags(tags, 'date')).toEqual(['Date Night'])
+    expect(filterCustomTags(tags, '')).toEqual(tags)
+  })
+})
+
+describe('create tag option', () => {
+  const active = ['Bucket List']
+  const all = ['Bucket List', 'Date Night', 'Rooftop']
+
+  it('shows create option for novel text', () => {
+    expect(shouldShowCreateOption('My New Tag', active, all)).toBe(true)
+  })
+
+  it('does not show create option for existing system category label', () => {
+    expect(shouldShowCreateOption('Restaurant', active, all)).toBe(false)
+    expect(shouldShowCreateOption('restaurant', active, all)).toBe(false)
+  })
+
+  it('does not show create option for existing system category tagName', () => {
+    expect(shouldShowCreateOption('bar_nightlife', active, all)).toBe(false)
+  })
+
+  it('does not show create option for already-assigned custom tag', () => {
+    expect(shouldShowCreateOption('Bucket List', active, all)).toBe(false)
+  })
+
+  it('does not show create option for existing unassigned custom tag', () => {
+    expect(shouldShowCreateOption('Rooftop', active, all)).toBe(false)
+  })
+
+  it('does not show create option for empty input', () => {
+    expect(shouldShowCreateOption('', active, all)).toBe(false)
+    expect(shouldShowCreateOption('  ', active, all)).toBe(false)
+  })
+})
+
 describe('optimistic update contract', () => {
   it('addTag mutation input shape matches expected interface', () => {
     const input = {
