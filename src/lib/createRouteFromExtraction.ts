@@ -194,7 +194,7 @@ export async function createRouteFromExtraction(
         source_url: sourceUrl,
         title: item.name, // FROM HAIKU — authoritative
         description: item.context, // FROM HAIKU — authoritative
-        category: VALID_CATEGORIES.has(item.category) ? item.category : 'other',
+        category: VALID_CATEGORIES.has(item.category) ? item.category : 'general',
         location_name: item.location_name,
         location_country: parsed?.country ?? null,
         location_country_code: parsed?.countryCode ?? null,

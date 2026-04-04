@@ -119,11 +119,36 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
     revealingRef.current = false
   }, [])
 
+  // Clean up orphaned source entry when Unpack fails or is canceled
+  const cleanupSourceEntry = useCallback(async (id: string | null) => {
+    if (!id) return
+    try {
+      // Only delete if no Route was created from this entry (check route_items)
+      const { data: linkedRoute } = await supabase
+        .from('route_items')
+        .select('id')
+        .eq('saved_item_id', id)
+        .limit(1)
+        .maybeSingle()
+      if (!linkedRoute) {
+        await supabase.from('saved_items').delete().eq('id', id)
+        console.log('[unpack] Cleaned up orphaned source entry:', id)
+      }
+    } catch (err) {
+      console.error('[unpack] Cleanup failed:', err)
+    }
+  }, [])
+
   const handleClose = useCallback(() => {
     cancelledRef.current = true
+    // Clean up orphaned source entry if we created one during this session
+    // (only if sourceEntryId was NOT passed in — those belong to the caller)
+    if (entryId && !sourceEntryId) {
+      cleanupSourceEntry(entryId)
+    }
     setVisible(false)
     setTimeout(onClose, 200)
-  }, [onClose])
+  }, [onClose, entryId, sourceEntryId, cleanupSourceEntry])
 
   // ── Step 1: OG preview ──
   useEffect(() => {
@@ -181,7 +206,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           site_name: preview?.site_name || null,
           image_display: preview?.image ? 'thumbnail' : 'none',
           source_content: preview?.source_content || null,
-          category: 'other' as Category,
+          category: 'general' as Category,
         }).select('id').single()
 
         if (error || !entry) {
