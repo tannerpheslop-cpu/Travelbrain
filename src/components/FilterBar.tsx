@@ -110,6 +110,7 @@ export default function FilterBar({
       `}</style>
       <div
         className="filter-bar"
+        onTouchStart={(e) => e.stopPropagation()}
         style={{
           display: 'flex',
           flexWrap: 'nowrap',
@@ -120,6 +121,7 @@ export default function FilterBar({
           padding: '8px 16px',
           alignItems: 'center',
           marginBottom: 8,
+          touchAction: 'pan-x',
         }}
         data-testid="filter-bar"
       >

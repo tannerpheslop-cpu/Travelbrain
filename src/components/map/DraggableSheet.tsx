@@ -349,7 +349,7 @@ export default function DraggableSheet({
       </div>
 
       {/* Fixed header — also a drag zone */}
-      <div ref={headerRef} data-sheet-header data-testid="sheet-header" style={{ flexShrink: 0, touchAction: 'none' }}>
+      <div ref={headerRef} data-sheet-header data-testid="sheet-header" style={{ flexShrink: 0, touchAction: 'pan-x' }}>
         {header}
       </div>
 

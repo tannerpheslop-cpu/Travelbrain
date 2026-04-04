@@ -112,4 +112,16 @@ describe('DraggableSheet', () => {
     )
     expect(screen.getByTestId('draggable-sheet').style.height).toBe('680px')
   })
+
+  it('header wrapper uses touchAction pan-x to allow horizontal scrolling within header', () => {
+    render(
+      <DraggableSheet snapPoints={defaultSnaps} header={<div>Filter pills here</div>}>
+        <div>C</div>
+      </DraggableSheet>,
+    )
+    const header = screen.getByTestId('sheet-header')
+    // pan-x allows native horizontal scrolling (e.g. filter bar)
+    // while keeping vertical touch events available for JS sheet drag
+    expect(header.style.touchAction).toBe('pan-x')
+  })
 })
