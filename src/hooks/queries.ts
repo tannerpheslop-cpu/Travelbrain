@@ -190,6 +190,7 @@ export function useRouteItems(routeId: string | null) {
         .from('route_items')
         .select('saved_item_id, route_order, section_label, section_order, saved_items(*)')
         .eq('route_id', routeId)
+        .order('section_order', { ascending: true })
         .order('route_order', { ascending: true })
       if (error) throw error
       return (data ?? []) as unknown as Array<{ saved_item_id: string; route_order: number; section_label: string | null; section_order: number; saved_items: SavedItem }>

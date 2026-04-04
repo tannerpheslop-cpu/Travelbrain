@@ -480,15 +480,14 @@ export default function ItemDetailPage() {
         {(activeTags.length > 0 || location) && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
             {activeTags.map((tag) => {
-              const isFood = tag.name === 'restaurant' || tag.name === 'nightlife'
               return (
                 <span
                   key={tag.name}
                   style={{
                     fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
                     padding: '2px 8px', borderRadius: 99,
-                    background: isFood ? 'var(--accent-soft)' : 'var(--bg-elevated-2)',
-                    color: isFood ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                    background: 'var(--bg-elevated-2)',
+                    color: 'var(--text-secondary)',
                     textTransform: 'capitalize',
                   }}
                 >
@@ -659,7 +658,6 @@ export default function ItemDetailPage() {
             {/* Category pills */}
             {categoryPills.map((cat) => {
               const active = activeCategoryTags.includes(cat.value)
-              const isFood = cat.value === 'restaurant'
               return (
                 <button
                   key={cat.value}
@@ -670,13 +668,13 @@ export default function ItemDetailPage() {
                     fontWeight: 500,
                     padding: '6px 14px', borderRadius: 99, cursor: 'pointer',
                     border: active
-                      ? (isFood ? '1.5px solid var(--accent-primary)' : '1.5px solid rgba(168, 196, 220, 0.3)')
+                      ? '1.5px solid rgba(168, 196, 220, 0.3)'
                       : '1.5px solid rgba(118, 130, 142, 0.15)',
                     background: active
-                      ? (isFood ? 'var(--accent-soft)' : 'var(--bg-elevated-2)')
+                      ? 'var(--bg-elevated-2)'
                       : 'transparent',
                     color: active
-                      ? (isFood ? 'var(--accent-primary)' : 'var(--text-secondary)')
+                      ? 'var(--text-secondary)'
                       : 'var(--text-tertiary)',
                     transition: 'all 150ms',
                   }}

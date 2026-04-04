@@ -218,6 +218,8 @@ export interface Route {
   city_count: number
   country_count: number
   location_locked: boolean
+  first_viewed_at: string | null
+  left_recent: boolean
   created_at: string
   updated_at: string
 }

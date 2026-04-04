@@ -94,6 +94,44 @@ function getLocationScope(items: ExtractedItem[]): string | null {
   return null
 }
 
+/** Parse country name and code from a Haiku-provided location_name like "Beijing, China". */
+const COUNTRY_NAME_TO_CODE: Record<string, string> = {
+  'china': 'CN', 'japan': 'JP', 'taiwan': 'TW', 'south korea': 'KR', 'korea': 'KR',
+  'thailand': 'TH', 'vietnam': 'VN', 'indonesia': 'ID', 'singapore': 'SG',
+  'malaysia': 'MY', 'philippines': 'PH', 'cambodia': 'KH', 'india': 'IN',
+  'sri lanka': 'LK', 'nepal': 'NP', 'myanmar': 'MM', 'laos': 'LA', 'mongolia': 'MN',
+  'hong kong': 'HK', 'macau': 'MO',
+  'united states': 'US', 'usa': 'US', 'united kingdom': 'GB', 'uk': 'GB',
+  'france': 'FR', 'germany': 'DE', 'italy': 'IT', 'spain': 'ES',
+  'portugal': 'PT', 'netherlands': 'NL', 'belgium': 'BE', 'switzerland': 'CH',
+  'austria': 'AT', 'greece': 'GR', 'czech republic': 'CZ', 'czechia': 'CZ',
+  'poland': 'PL', 'sweden': 'SE', 'norway': 'NO', 'denmark': 'DK', 'finland': 'FI',
+  'ireland': 'IE', 'croatia': 'HR', 'hungary': 'HU', 'romania': 'RO',
+  'iceland': 'IS', 'turkey': 'TR', 'russia': 'RU',
+  'australia': 'AU', 'new zealand': 'NZ',
+  'mexico': 'MX', 'brazil': 'BR', 'argentina': 'AR', 'chile': 'CL',
+  'colombia': 'CO', 'peru': 'PE', 'costa rica': 'CR', 'cuba': 'CU',
+  'morocco': 'MA', 'egypt': 'EG', 'south africa': 'ZA', 'kenya': 'KE',
+  'tanzania': 'TZ', 'ethiopia': 'ET',
+  'united arab emirates': 'AE', 'uae': 'AE', 'israel': 'IL', 'jordan': 'JO',
+  'canada': 'CA',
+}
+
+export function parseCountryFromLocationName(locationName: string | null): { country: string; countryCode: string } | null {
+  if (!locationName) return null
+  const parts = locationName.split(',').map(s => s.trim())
+  if (parts.length < 2) {
+    // Single segment — check if the whole string is a country name
+    const code = COUNTRY_NAME_TO_CODE[locationName.trim().toLowerCase()]
+    if (!code) return null
+    return { country: locationName.trim(), countryCode: code }
+  }
+  const last = parts[parts.length - 1]
+  const code = COUNTRY_NAME_TO_CODE[last.toLowerCase()]
+  if (!code) return null
+  return { country: last, countryCode: code }
+}
+
 const VALID_CATEGORIES = new Set<Category>([
   'restaurant', 'hotel', 'museum', 'temple', 'park', 'hike',
   'historical', 'shopping', 'nightlife', 'entertainment',
@@ -154,23 +192,28 @@ export async function createRouteFromExtraction(
     }
 
     // Create saved_items for each extracted item
-    const savedItemRows = items.map(item => ({
-      user_id: userId,
-      source_type: 'manual' as const,
-      source_url: sourceUrl,
-      title: item.name, // FROM HAIKU — authoritative
-      description: item.context, // FROM HAIKU — authoritative
-      category: VALID_CATEGORIES.has(item.category as Category) ? item.category : 'other',
-      location_name: item.location_name,
-      route_id: route.id,
-      image_display: 'none' as const,
-      // No photo, no coordinates — lazy enrichment
-      location_lat: null,
-      location_lng: null,
-      location_place_id: null,
-      location_precision: null,
-      has_pending_extraction: false,
-    }))
+    const savedItemRows = items.map(item => {
+      const parsed = parseCountryFromLocationName(item.location_name)
+      return {
+        user_id: userId,
+        source_type: 'manual' as const,
+        source_url: sourceUrl,
+        title: item.name, // FROM HAIKU — authoritative
+        description: item.context, // FROM HAIKU — authoritative
+        category: VALID_CATEGORIES.has(item.category as Category) ? item.category : 'other',
+        location_name: item.location_name,
+        location_country: parsed?.country ?? null,
+        location_country_code: parsed?.countryCode ?? null,
+        route_id: route.id,
+        image_display: 'none' as const,
+        // No photo, no coordinates — lazy enrichment
+        location_lat: null,
+        location_lng: null,
+        location_place_id: null,
+        location_precision: null,
+        has_pending_extraction: false,
+      }
+    })
 
     const { data: savedItems, error: insertErr } = await supabase
       .from('saved_items')

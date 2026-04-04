@@ -30,7 +30,7 @@ import type { Route, SavedItem } from '../types'
 // ── Category icons + colors ──────────────────────────────────────────────────
 
 const CATEGORY_ICON: Record<string, { icon: typeof MapPin; color: string; bg: string }> = {
-  restaurant: { icon: UtensilsCrossed, color: 'var(--accent-primary)', bg: 'var(--accent-soft)' },
+  restaurant: { icon: UtensilsCrossed, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
   hotel: { icon: Hotel, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
   museum: { icon: Landmark, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
   temple: { icon: Landmark, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
@@ -38,7 +38,7 @@ const CATEGORY_ICON: Record<string, { icon: typeof MapPin; color: string; bg: st
   hike: { icon: Mountain, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.15)' },
   historical: { icon: Landmark, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
   shopping: { icon: ShoppingBag, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
-  nightlife: { icon: Music, color: 'var(--accent-primary)', bg: 'var(--accent-soft)' },
+  nightlife: { icon: Music, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
   entertainment: { icon: Gamepad2, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
   transport: { icon: Train, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
   spa: { icon: Sparkles, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.15)' },
@@ -50,10 +50,10 @@ function CategoryPlaceholder({ category }: { category: string }) {
   const Icon = config.icon
   return (
     <div style={{
-      width: 36, height: 36, borderRadius: 6, flexShrink: 0,
+      width: 56, height: 56, borderRadius: 8, flexShrink: 0,
       background: config.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <Icon size={16} color={config.color} />
+      <Icon size={22} color={config.color} />
     </div>
   )
 }
@@ -80,15 +80,13 @@ function SortableItemRow({
 
   const thumbnail = enrichedPhoto ?? item.image_url ?? item.places_photo_url
 
-  // Pill styling
-  const isFood = item.category === 'restaurant' || item.category === 'nightlife'
   const categoryLabel = item.category === 'restaurant' ? 'Food' : item.category === 'hotel' ? 'Stay' : item.category === 'transit' ? 'Transit' : item.category
   const locationShort = item.location_name?.split(',')[0]
 
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '0.5px solid rgba(118, 130, 142, 0.06)' }}
+      style={{ ...style, display: 'flex', alignItems: 'center', gap: 12, padding: 12, minHeight: 72, background: 'var(--bg-elevated-1)', borderRadius: 8 }}
       {...attributes}
     >
       {/* Drag handle */}
@@ -109,13 +107,13 @@ function SortableItemRow({
           src={optimizedImageUrl(thumbnail, 'grid-thumbnail') ?? thumbnail}
           alt=""
           style={{
-            width: 36, height: 36, borderRadius: 6, objectFit: 'cover', flexShrink: 0,
+            width: 56, height: 56, borderRadius: 8, objectFit: 'cover', flexShrink: 0,
             background: 'var(--bg-elevated-1)',
             animation: enrichedPhoto ? 'fadeIn 300ms ease' : 'none',
           }}
         />
       ) : (
-        <div style={{ width: 36, height: 36, flexShrink: 0 }}>
+        <div style={{ width: 56, height: 56, flexShrink: 0 }}>
           <CategoryPlaceholder category={item.category} />
         </div>
       )}
@@ -126,40 +124,40 @@ function SortableItemRow({
         style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}
       >
         <p style={{
-          fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
+          fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
           color: 'var(--text-primary)', margin: 0,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+          overflow: 'hidden',
         }}>
           {item.title}
         </p>
-        {/* Pills */}
-        <div style={{ display: 'flex', gap: 3, marginTop: 2 }}>
+        {/* Metadata row */}
+        <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+          {locationShort && (
+            <span style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+              color: 'var(--text-secondary)',
+            }}>
+              {locationShort}
+            </span>
+          )}
+          {locationShort && item.category && item.category !== 'general' && (
+            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>·</span>
+          )}
           {item.category && item.category !== 'general' && (
             <span style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 8, fontWeight: 500,
-              padding: '1px 6px', borderRadius: 99,
-              background: isFood ? 'var(--accent-soft)' : 'var(--bg-elevated-2)',
-              color: isFood ? 'var(--accent-primary)' : 'var(--text-secondary)',
+              fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+              color: 'var(--text-secondary)',
               textTransform: 'capitalize',
             }}>
               {categoryLabel}
-            </span>
-          )}
-          {locationShort && (
-            <span style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 8, fontWeight: 500,
-              padding: '1px 6px', borderRadius: 99,
-              background: 'rgba(118, 130, 142, 0.2)',
-              color: 'var(--text-tertiary)',
-            }}>
-              {locationShort}
             </span>
           )}
         </div>
       </Link>
 
       {/* Chevron */}
-      <ChevronRight size={10} color="var(--text-tertiary)" style={{ flexShrink: 0 }} />
+      <ChevronRight size={14} color="var(--text-tertiary)" style={{ flexShrink: 0 }} />
     </div>
   )
 }
@@ -211,6 +209,10 @@ export default function RouteDetailPage() {
         setRoute(data as Route)
         setNameDraft(data.name)
         setLoading(false)
+        // Mark as viewed for Recently Added graduation
+        if (!data.first_viewed_at) {
+          void supabase.from('routes').update({ first_viewed_at: new Date().toISOString() }).eq('id', data.id)
+        }
       })
   }, [id, user])
 
@@ -537,26 +539,30 @@ export default function RouteDetailPage() {
                 }}>
                   {group.label}
                 </div>
-                {group.items.map(item => (
-                  <SortableItemRow
-                    key={item.id}
-                    item={item}
-                    onRemove={() => handleRemoveItem(item.id)}
-                    enrichedPhoto={enrichedPhotos.get(item.id)}
-                  />
-                ))}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {group.items.map(item => (
+                    <SortableItemRow
+                      key={item.id}
+                      item={item}
+                      onRemove={() => handleRemoveItem(item.id)}
+                      enrichedPhoto={enrichedPhotos.get(item.id)}
+                    />
+                  ))}
+                </div>
               </div>
             ))
           ) : (
             /* Flat list */
-            sortedItems.map(item => (
-              <SortableItemRow
-                key={item.id}
-                item={item}
-                onRemove={() => handleRemoveItem(item.id)}
-                enrichedPhoto={enrichedPhotos.get(item.id)}
-              />
-            ))
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {sortedItems.map(item => (
+                <SortableItemRow
+                  key={item.id}
+                  item={item}
+                  onRemove={() => handleRemoveItem(item.id)}
+                  enrichedPhoto={enrichedPhotos.get(item.id)}
+                />
+              ))}
+            </div>
           )}
         </SortableContext>
       </DndContext>

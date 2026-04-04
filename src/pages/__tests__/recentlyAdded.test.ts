@@ -2,7 +2,7 @@
  * Tests for the "Recently Added" section logic on the Horizon page.
  */
 import { describe, it, expect } from 'vitest'
-import type { SavedItem } from '../../types'
+import type { SavedItem, Route } from '../../types'
 
 // Reproduce the filtering logic from InboxPage (24h expiry, no cap, exclude Route items)
 function getRecentlyAdded(
@@ -185,5 +185,140 @@ describe('Recently Added logic', () => {
     const afterDelete = items.filter(i => i.id !== 'item-0')
     const afterResult = getRecentlyAdded(afterDelete, new Map())
     expect(afterResult).toHaveLength(0)
+  })
+})
+
+// ── Combined Recently Added (saves + routes) ──────────────────────────────
+
+type GeoEntry =
+  | { type: 'save'; item: SavedItem }
+  | { type: 'route'; route: Route; locationLabelOverride?: string }
+
+function makeRoute(overrides: Partial<Route> & { id: string }): Route {
+  return {
+    user_id: 'user-1',
+    name: 'Test Route',
+    description: null,
+    source_url: null,
+    source_title: null,
+    source_platform: null,
+    source_thumbnail: null,
+    location_scope: null,
+    item_count: 3,
+    derived_city: null,
+    derived_city_country_code: null,
+    derived_country: null,
+    derived_country_code: null,
+    city_count: 0,
+    country_count: 0,
+    location_locked: false,
+    first_viewed_at: null,
+    left_recent: false,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...overrides,
+  }
+}
+
+/** Reproduces the combined Recently Added logic from InboxPage */
+function getCombinedRecentlyAdded(
+  items: SavedItem[],
+  routes: Route[],
+  tripLinkCounts: Map<string, number>,
+): GeoEntry[] {
+  const now = Date.now()
+
+  const qualifyingSaves: GeoEntry[] = items
+    .filter((item) => {
+      if (item.left_recent) return false
+      if (item.route_id) return false
+      const ageHours = (now - new Date(item.created_at).getTime()) / (1000 * 60 * 60)
+      const isRecent = ageHours <= 24
+      const notViewed = !item.first_viewed_at
+      const notInTrip = (tripLinkCounts.get(item.id) || 0) === 0
+      return isRecent && notViewed && notInTrip
+    })
+    .map(item => ({ type: 'save' as const, item }))
+
+  const qualifyingRoutes: GeoEntry[] = routes
+    .filter((route) => {
+      if (route.left_recent) return false
+      const ageHours = (now - new Date(route.created_at).getTime()) / (1000 * 60 * 60)
+      const isRecent = ageHours <= 24
+      const notViewed = !route.first_viewed_at
+      return isRecent && notViewed
+    })
+    .map(route => ({ type: 'route' as const, route }))
+
+  return [...qualifyingSaves, ...qualifyingRoutes]
+    .sort((a, b) => {
+      const ta = new Date(a.type === 'save' ? a.item.created_at : a.route.created_at).getTime()
+      const tb = new Date(b.type === 'save' ? b.item.created_at : b.route.created_at).getTime()
+      return tb - ta
+    })
+}
+
+describe('Combined Recently Added (saves + routes)', () => {
+  it('includes qualifying routes alongside saves', () => {
+    const items = [makeItem({ id: 's1', created_at: new Date().toISOString() })]
+    const routes = [makeRoute({ id: 'r1', created_at: new Date().toISOString() })]
+    const result = getCombinedRecentlyAdded(items, routes, new Map())
+    expect(result).toHaveLength(2)
+    expect(result.some(e => e.type === 'save')).toBe(true)
+    expect(result.some(e => e.type === 'route')).toBe(true)
+  })
+
+  it('excludes routes older than 24 hours', () => {
+    const routes = [makeRoute({ id: 'r1', created_at: new Date(Date.now() - 30 * 3600000).toISOString() })]
+    const result = getCombinedRecentlyAdded([], routes, new Map())
+    expect(result).toHaveLength(0)
+  })
+
+  it('excludes routes that have been viewed (first_viewed_at set)', () => {
+    const routes = [makeRoute({ id: 'r1', first_viewed_at: new Date().toISOString() })]
+    const result = getCombinedRecentlyAdded([], routes, new Map())
+    expect(result).toHaveLength(0)
+  })
+
+  it('excludes routes with left_recent = true', () => {
+    const routes = [makeRoute({ id: 'r1', left_recent: true })]
+    const result = getCombinedRecentlyAdded([], routes, new Map())
+    expect(result).toHaveLength(0)
+  })
+
+  it('sorts saves and routes together by created_at descending', () => {
+    const items = [makeItem({ id: 's1', created_at: new Date(Date.now() - 5000).toISOString() })]
+    const routes = [makeRoute({ id: 'r1', created_at: new Date().toISOString() })]
+    const result = getCombinedRecentlyAdded(items, routes, new Map())
+    expect(result[0].type).toBe('route') // newer
+    expect(result[1].type).toBe('save') // older
+  })
+
+  it('recently added route IDs can exclude routes from geo groups', () => {
+    const routes = [
+      makeRoute({ id: 'r1', created_at: new Date().toISOString() }),
+      makeRoute({ id: 'r2', created_at: new Date(Date.now() - 50 * 3600000).toISOString() }),
+    ]
+    const result = getCombinedRecentlyAdded([], routes, new Map())
+    const recentRouteIds = new Set(result.filter(e => e.type === 'route').map(e => (e as { type: 'route'; route: Route }).route.id))
+
+    expect(recentRouteIds.has('r1')).toBe(true)
+    expect(recentRouteIds.has('r2')).toBe(false)
+
+    // Only r2 should appear in geo groups
+    const routesForGroups = routes.filter(r => !recentRouteIds.has(r.id))
+    expect(routesForGroups).toHaveLength(1)
+    expect(routesForGroups[0].id).toBe('r2')
+  })
+
+  it('saves in a Route are excluded (Route card shows instead)', () => {
+    const items = [
+      makeItem({ id: 's1', route_id: 'r1', created_at: new Date().toISOString() }),
+    ]
+    const routes = [makeRoute({ id: 'r1', created_at: new Date().toISOString() })]
+    const result = getCombinedRecentlyAdded(items, routes, new Map())
+    // Save excluded because it has route_id, but the Route itself qualifies
+    expect(result).toHaveLength(1)
+    expect(result[0].type).toBe('route')
   })
 })

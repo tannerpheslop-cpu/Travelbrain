@@ -611,11 +611,18 @@ export default function InboxPage() {
     [items, searchQuery, parsedFilters, assignedItemIds, graphCluster],
   )
 
+  // GeoEntry: discriminated union for saves and routes in geo groups + recently added
+  type GeoEntry =
+    | { type: 'save'; item: SavedItem }
+    | { type: 'route'; route: Route; locationLabelOverride?: string }
+
   // ── Recently Added: entries < 48h old, not viewed, not in a trip ────────
-  const recentlyAdded = useMemo(() => {
+  // Returns GeoEntry[] so both saves and routes can appear in Recently Added
+  const recentlyAdded = useMemo((): GeoEntry[] => {
     const now = Date.now()
-    // No hard cap — show all qualifying items (24h expiry or until opened)
-    const allQualifying = filtered
+
+    // Qualifying saves
+    const qualifyingSaves: GeoEntry[] = filtered
       .filter((item) => {
         if (item.left_recent) return false // Permanently excluded
         if (item.route_id) return false // In a Route — Route card shows instead
@@ -625,11 +632,28 @@ export default function InboxPage() {
         const notInTrip = (tripLinkCounts.get(item.id) || 0) === 0
         return isRecent && notViewed && notInTrip
       })
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .map(item => ({ type: 'save' as const, item }))
 
-    const shown = allQualifying // No cap — show all qualifying
+    // Qualifying routes
+    const qualifyingRoutes: GeoEntry[] = routes
+      .filter((route) => {
+        if (route.left_recent) return false
+        const ageHours = (now - new Date(route.created_at).getTime()) / (1000 * 60 * 60)
+        const isRecent = ageHours <= 24
+        const notViewed = !route.first_viewed_at
+        return isRecent && notViewed
+      })
+      .map(route => ({ type: 'route' as const, route }))
 
-    // Mark aged-out items (> 48h) that haven't been flagged yet
+    // Combine and sort by created_at descending
+    const all = [...qualifyingSaves, ...qualifyingRoutes]
+      .sort((a, b) => {
+        const ta = new Date(a.type === 'save' ? a.item.created_at : a.route.created_at).getTime()
+        const tb = new Date(b.type === 'save' ? b.item.created_at : b.route.created_at).getTime()
+        return tb - ta
+      })
+
+    // Mark aged-out saves (> 48h) that haven't been flagged yet
     filtered.forEach((item) => {
       if (item.left_recent) return
       const ageHours = (now - new Date(item.created_at).getTime()) / (1000 * 60 * 60)
@@ -637,11 +661,32 @@ export default function InboxPage() {
         void supabase.from('saved_items').update({ left_recent: true }).eq('id', item.id)
       }
     })
+    // Mark aged-out routes
+    routes.forEach((route) => {
+      if (route.left_recent) return
+      const ageHours = (now - new Date(route.created_at).getTime()) / (1000 * 60 * 60)
+      if (ageHours > 48) {
+        void supabase.from('routes').update({ left_recent: true }).eq('id', route.id)
+      }
+    })
 
-    return shown
-  }, [filtered, tripLinkCounts])
+    return all
+  }, [filtered, tripLinkCounts, routes])
 
-  const recentlyAddedIds = useMemo(() => new Set(recentlyAdded.map((i) => i.id)), [recentlyAdded])
+  const recentlyAddedIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const entry of recentlyAdded) {
+      ids.add(entry.type === 'save' ? entry.item.id : entry.route.id)
+    }
+    return ids
+  }, [recentlyAdded])
+  const recentlyAddedRouteIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const entry of recentlyAdded) {
+      if (entry.type === 'route') ids.add(entry.route.id)
+    }
+    return ids
+  }, [recentlyAdded])
 
   // Geo groups exclude recently added to avoid duplication
   const geoGroups = useMemo(() => {
@@ -683,9 +728,6 @@ export default function InboxPage() {
   }, [routes, routeSavesMap, searchQuery, selectedFilters, countryList])
 
   // Merge Routes into geo groups so they render inline with saves
-  type GeoEntry =
-    | { type: 'save'; item: SavedItem }
-    | { type: 'route'; route: Route; locationLabelOverride?: string }
   interface MergedGeoGroup {
     country: string | null
     countryCode: string | null
@@ -734,7 +776,10 @@ export default function InboxPage() {
 
     const isCountryMode = groupMode === 'country'
 
-    for (const route of filteredRoutes) {
+    // Exclude routes that are in Recently Added (avoid duplication)
+    const routesForGroups = filteredRoutes.filter(r => !recentlyAddedRouteIds.has(r.id))
+
+    for (const route of routesForGroups) {
       const locs = routeDistinctLocations.get(route.id)
       const distinctCodes = locs?.countryCodes ?? []
       const distinctCities = locs?.cities ?? []
@@ -798,7 +843,7 @@ export default function InboxPage() {
     }
 
     return merged
-  }, [geoGroups, filteredRoutes, routeDistinctLocations, routeSavesMap, groupMode])
+  }, [geoGroups, filteredRoutes, routeDistinctLocations, routeSavesMap, groupMode, recentlyAddedRouteIds])
 
   // Preload first-screen gallery images
   useEffect(() => {
@@ -1164,30 +1209,40 @@ export default function InboxPage() {
                 margin: '0 -16px', padding: '0 16px',
               }}
             >
-              {recentlyAdded.map((item) => (
-                <div key={item.id} style={{ width: 170, flexShrink: 0, position: 'relative' }}>
-                  <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} extractionCount={extractionCounts.get(item.id)} eager showShimmer={!item.location_name && (Date.now() - new Date(item.created_at).getTime()) < 30000} />
-                  {extractingIds.has(item.id) && (
-                    <div style={{
-                      position: 'absolute', top: 0, left: 0, right: 0, height: 3,
-                      borderRadius: '8px 8px 0 0', overflow: 'hidden',
-                    }}>
+              {recentlyAdded.map((entry) => {
+                const key = entry.type === 'save' ? entry.item.id : entry.route.id
+                return (
+                  <div key={key} style={{ width: 170, flexShrink: 0, position: 'relative' }}>
+                    {entry.type === 'route' ? (
+                      <RouteGridCard route={entry.route} />
+                    ) : (
+                      <GridCard item={entry.item} tripCount={tripLinkCounts.get(entry.item.id) ?? 0} extractionCount={extractionCounts.get(entry.item.id)} eager showShimmer={!entry.item.location_name && (Date.now() - new Date(entry.item.created_at).getTime()) < 30000} />
+                    )}
+                    {entry.type === 'save' && extractingIds.has(entry.item.id) && (
                       <div style={{
-                        width: '40%', height: '100%',
-                        background: 'linear-gradient(90deg, transparent, rgba(184,68,30,0.3), transparent)',
-                        animation: 'extraction-shimmer 1.5s ease-in-out infinite',
-                      }} />
-                    </div>
-                  )}
-                </div>
-              ))}
+                        position: 'absolute', top: 0, left: 0, right: 0, height: 3,
+                        borderRadius: '8px 8px 0 0', overflow: 'hidden',
+                      }}>
+                        <div style={{
+                          width: '40%', height: '100%',
+                          background: 'linear-gradient(90deg, transparent, rgba(184,68,30,0.3), transparent)',
+                          animation: 'extraction-shimmer 1.5s ease-in-out infinite',
+                        }} />
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           ) : (
             /* List: vertical stack of compact rows */
             <div className="flex flex-col">
-              {recentlyAdded.map((item) => (
-                <ListRow key={item.id} item={item} extractionCount={extractionCounts.get(item.id)} />
-              ))}
+              {recentlyAdded.map((entry) => {
+                const key = entry.type === 'save' ? entry.item.id : entry.route.id
+                return entry.type === 'route'
+                  ? <RouteListRow key={key} route={entry.route} />
+                  : <ListRow key={key} item={entry.item} extractionCount={extractionCounts.get(entry.item.id)} />
+              })}
             </div>
           )}
         </section>
@@ -1709,9 +1764,8 @@ function RouteGridCard({ route, locationLabelOverride }: { route: Route; locatio
         {/* Count badge */}
         <span style={{
           position: 'absolute', top: 8, right: 8, zIndex: 2,
-          background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
-          border: '1px solid var(--border-subtle)',
-          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
+          background: 'rgba(255, 255, 255, 0.15)', color: 'rgba(255, 255, 255, 0.9)',
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 7, fontWeight: 500,
           padding: '2px 6px', borderRadius: 9999,
         }}>
           {route.item_count} places
@@ -1761,9 +1815,8 @@ function RouteGridCard({ route, locationLabelOverride }: { route: Route; locatio
       {/* Count badge */}
       <span style={{
         position: 'absolute', top: 8, right: 8, zIndex: 2,
-        background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
-        border: '1px solid var(--border-subtle)',
-        fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
+        background: 'var(--bg-elevated-3, #262c33)', color: 'var(--text-secondary)',
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 7, fontWeight: 500,
         padding: '2px 6px', borderRadius: 9999,
       }}>
         {route.item_count} places
