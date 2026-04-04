@@ -140,8 +140,7 @@ This gives Horizon and Trips their own emotional registers while feeling like on
 --edge-medium:        rgba(184, 192, 199, 0.063);
 --edge-weak:          rgba(184, 192, 199, 0.031);
 
-/* ─── Save Sheet (light surface) ──────────────────────────── */
---surface-light:      #faf8f4;   /* Save sheet background — stays light always */
+/* ─── (surface-light removed — save sheet is now dark) ────── */
 ```
 
 ### 4.2 Surface depth stack
@@ -176,7 +175,7 @@ Each step is a small tonal lift (3–5%). No big jumps. Use `bg-subtle` and `bg-
 | Restaurant pills | `--accent-soft` fill + `--accent-primary` text | Food category signal |
 | Location pills | `rgba(141,150,160,0.20)` fill + `--text-tertiary` text | Geographic context |
 | Primary CTA buttons | `--accent-primary` | Only one on screen at a time |
-| Save sheet | `--surface-light` | Intentional contrast — light stays light |
+| Save sheet | `--bg-base` | Dark surface — consistent with app theme |
 
 ### 4.4 Orange usage rules — CRITICAL
 
@@ -322,7 +321,7 @@ Layer 2 — City glow (REPLACES the sunset curve):
 | Horizon stats line | JetBrains Mono | `--star-default` | 400 |
 | Chapter numbers (trips) | JetBrains Mono | `--accent-primary` | 500 |
 | Counters, numerical data | JetBrains Mono | `--text-primary` | 400 |
-| Text on light (save sheet) | DM Sans | `--text-inverse` | 400 |
+| Text on save sheet | DM Sans | `--text-primary` | 400 |
 
 **Hierarchy rule:** Use weight AND brightness together, not just size, to establish hierarchy. A `--text-primary` label at 500 weight reads as more important than the same size at `--text-secondary` 400 weight — use this intentionally.
 
@@ -339,7 +338,7 @@ Layer 2 — City glow (REPLACES the sunset curve):
 | DraggableSheet | `--bg-base` | Primary/secondary text | Not white, not canvas |
 | Cards | `--bg-elevated-1` | Primary/secondary text | 8px radius |
 | Source preview cards | `--bg-elevated-2` | Secondary/tertiary text | Nested within cards |
-| Save sheet | `--surface-light` | `--text-inverse` | Stays light — intentional contrast with dark UI |
+| Save sheet | `--bg-base` | `--text-primary` | Dark surface — consistent with app theme |
 | Bottom nav | `--bg-canvas` | Active: `--accent-primary` / Inactive: `--text-tertiary` | Subtle `--border-subtle` top border |
 | Toast notifications | `--bg-elevated-1` | `--text-primary` | `--shadow-md` |
 | FAB menu sheet | `--bg-base` | `--text-primary` | Compact, Spotify-style |
@@ -440,5 +439,5 @@ Light mode tokens are defined but not shipping yet. Ship after dark mode is stab
 - `location_locked` must always be checked before any location update
 - No emoji anywhere — text labels, Lucide icons, or badges only
 - Card radius: 8px — not 16px, not 20px
-- Save sheet stays light (`--surface-light`) even as the rest of the app is dark
+- Save sheet uses `--bg-base` — dark, consistent with app theme
 - Orange is always `--accent-primary` (#B8441E) — never `#ff8a4c` or any other variant

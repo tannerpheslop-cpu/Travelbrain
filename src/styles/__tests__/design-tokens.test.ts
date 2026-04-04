@@ -72,7 +72,7 @@ describe('CSS token definitions', () => {
     ['--star-dim', '#8d96a0'],
     ['--star-default', '#b9c0c7'],
     ['--star-bright', '#e8eaed'],
-    ['--surface-light', '#faf8f4'],
+    // --surface-light removed — save sheet is now dark
   ];
 
   test.each(expectedTokens)('token %s is defined with value %s', (token, value) => {

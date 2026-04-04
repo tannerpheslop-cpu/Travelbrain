@@ -172,8 +172,9 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
   return (
     <Link to={`/trip/${trip.id}`} className="block" style={{ marginBottom: 28 }}>
       <div style={{
-        borderRadius: 16, overflow: 'hidden', position: 'relative', height: 220,
-        cursor: 'pointer', background: hasBgImage ? '#1a1a1a' : '#f8f7f4',
+        borderRadius: 12, overflow: 'hidden', position: 'relative', height: 220,
+        cursor: 'pointer', background: hasBgImage ? '#1a1a1a' : 'var(--bg-elevated-1)',
+        border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-md)',
       }}>
         {/* Background image */}
         {hasBgImage && (
@@ -186,7 +187,7 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
         {hasBgImage && (
           <div style={{
             position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-            background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.72) 100%)',
+            background: 'linear-gradient(to bottom, transparent 40%, rgba(18,20,23,0.85) 100%)',
             zIndex: 1,
           }} />
         )}
@@ -194,7 +195,7 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
         <div style={{
           position: 'absolute', top: -12, right: 12,
           fontFamily: "'JetBrains Mono', monospace", fontSize: 100, fontWeight: 800,
-          color: hasBgImage ? 'rgba(255,255,255,0.12)' : '#f0eeea',
+          color: hasBgImage ? 'rgba(255,255,255,0.12)' : 'var(--border-subtle)',
           lineHeight: 1, pointerEvents: 'none', zIndex: 2,
         }}>01</div>
         {/* Country code badge */}
@@ -202,8 +203,8 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
           <div style={{
             position: 'absolute', top: 14, left: 14, zIndex: 2,
             fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700, letterSpacing: 1,
-            color: hasBgImage ? 'white' : '#9e9b94',
-            background: hasBgImage ? 'rgba(255,255,255,0.18)' : '#f0eeea',
+            color: hasBgImage ? 'white' : 'var(--text-tertiary)',
+            background: hasBgImage ? 'rgba(255,255,255,0.18)' : 'var(--bg-elevated-2)',
             borderRadius: 4, padding: '3px 8px',
           }}>{countryCode}</div>
         )}
@@ -220,11 +221,11 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
           }}>{trip.title}</div>
           <div style={{
             fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-            color: hasBgImage ? 'rgba(255,255,255,0.65)' : '#9e9b94', marginTop: 5,
+            color: hasBgImage ? 'rgba(255,255,255,0.65)' : 'var(--text-tertiary)', marginTop: 5,
           }}>
             {dests.length} destination{dests.length !== 1 ? 's' : ''}
             {trip.start_date && trip.end_date && (
-              <><span style={{ color: hasBgImage ? 'rgba(255,255,255,0.35)' : '#d5d2cb', margin: '0 6px' }}>·</span>{formatDateRange(trip.start_date, trip.end_date)}</>
+              <><span style={{ color: hasBgImage ? 'rgba(255,255,255,0.35)' : 'var(--text-muted)', margin: '0 6px' }}>·</span>{formatDateRange(trip.start_date, trip.end_date)}</>
             )}
           </div>
           {/* Route chain */}
@@ -232,11 +233,11 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
             <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', overflow: 'hidden', whiteSpace: 'nowrap' as const }}>
               {destNames.slice(0, 4).map((name, i) => (
                 <span key={i}>
-                  {i > 0 && <span style={{ margin: '0 5px', fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: hasBgImage ? 'rgba(255,255,255,0.35)' : '#d5d2cb' }}>→</span>}
-                  <span style={{ fontSize: 12, fontWeight: 500, color: hasBgImage ? 'rgba(255,255,255,0.85)' : '#6b6860' }}>{name}</span>
+                  {i > 0 && <span style={{ margin: '0 5px', fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: hasBgImage ? 'rgba(255,255,255,0.35)' : 'var(--text-muted)' }}>→</span>}
+                  <span style={{ fontSize: 12, fontWeight: 500, color: hasBgImage ? 'rgba(255,255,255,0.85)' : 'var(--text-secondary)' }}>{name}</span>
                 </span>
               ))}
-              {destNames.length > 4 && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: hasBgImage ? 'rgba(255,255,255,0.35)' : '#c5c2bb', marginLeft: 6 }}>+{destNames.length - 4}</span>}
+              {destNames.length > 4 && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: hasBgImage ? 'rgba(255,255,255,0.35)' : 'var(--text-muted)', marginLeft: 6 }}>+{destNames.length - 4}</span>}
             </div>
           )}
           {/* Status badge */}
@@ -244,14 +245,14 @@ function HeroCard({ trip }: { trip: TripWithDestinations }) {
             <span style={{
               fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
               letterSpacing: 0.5, textTransform: 'uppercase' as const, padding: '3px 8px', borderRadius: 4,
-              background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'rgba(184,68,30,0.13)',
+              background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'var(--state-selected)',
               color: hasBgImage ? 'white' : 'var(--accent-primary)',
             }}>{statusLabel(trip.status)}</span>
             {trip.is_favorited && (
               <span style={{
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: 600,
                 letterSpacing: 0.5, textTransform: 'uppercase' as const, padding: '3px 8px', borderRadius: 4,
-                background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'rgba(184,68,30,0.13)',
+                background: hasBgImage ? 'rgba(255,255,255,0.15)' : 'var(--state-selected)',
                 color: hasBgImage ? 'white' : 'var(--accent-primary)', marginLeft: 6,
               }}>PINNED</span>
             )}
@@ -292,9 +293,9 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
     <Link
       to={`/trip/${trip.id}`}
       className="group"
-      style={{ width: 260, flexShrink: 0, borderRadius: 12, overflow: 'hidden', background: 'var(--color-surface)', border: '0.5px solid var(--bg-elevated-1)', cursor: 'pointer', transition: 'all 0.15s ease', display: 'block', alignSelf: 'start' }}
-      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.border = '0.5px solid rgba(184,68,30,0.25)'; el.style.boxShadow = '0 4px 16px rgba(0,0,0,0.15)'; el.style.transform = 'translateY(-2px)' }}
-      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.border = '0.5px solid var(--bg-elevated-1)'; el.style.boxShadow = 'none'; el.style.transform = 'none' }}
+      style={{ width: 260, flexShrink: 0, borderRadius: 12, overflow: 'hidden', background: 'var(--bg-elevated-1)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-md)', cursor: 'pointer', transition: 'all 0.15s ease', display: 'block', alignSelf: 'start' }}
+      onMouseEnter={e => { const el = e.currentTarget as HTMLElement; el.style.border = '1px solid rgba(184,68,30,0.25)'; el.style.transform = 'translateY(-2px)' }}
+      onMouseLeave={e => { const el = e.currentTarget as HTMLElement; el.style.border = '1px solid var(--border-subtle)'; el.style.transform = 'none' }}
     >
       {/* Top content */}
       <div style={{ padding: '16px 16px 12px', position: 'relative', overflow: 'hidden', minHeight: 100 }}>
@@ -302,7 +303,7 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
         <div className="group-hover:!text-[rgba(184,68,30,0.13)]" style={{
           position: 'absolute', top: -6, right: 6,
           fontFamily: "'JetBrains Mono', monospace", fontSize: 56, fontWeight: 800,
-          color: '#f0eeea', lineHeight: 1, pointerEvents: 'none', transition: 'color 0.15s ease',
+          color: 'var(--border-subtle)', lineHeight: 1, pointerEvents: 'none', transition: 'color 0.15s ease',
         }}>{num}</div>
         {/* Country badges */}
         {countryCodes.length > 0 && (
@@ -344,7 +345,7 @@ function CarouselCard({ trip, globalNum }: { trip: TripWithDestinations; globalN
       </div>
       {/* Bottom bar */}
       <div style={{
-        padding: '8px 16px', borderTop: '0.5px solid var(--bg-elevated-1)', background: 'var(--color-surface)',
+        padding: '8px 16px', borderTop: '1px solid var(--border-subtle)', background: 'var(--bg-elevated-1)',
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
       }}>
         <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-secondary)' }}>
@@ -415,12 +416,12 @@ function PhaseCarousel({ phaseKey, trips, startNum, onNewTrip }: {
         <div
           onClick={onNewTrip}
           style={{
-            width: 180, flexShrink: 0, borderRadius: 12, border: '1.5px dashed #d5d2cb',
+            width: 180, flexShrink: 0, borderRadius: 12, border: '1.5px dashed var(--border-strong)',
             display: 'flex', flexDirection: 'column' as const, alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', gap: 3, minHeight: 140, transition: 'all 0.15s ease',
           }}
-          onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = 'var(--accent-primary)'; el.style.background = 'rgba(184,68,30,0.06)' }}
-          onMouseLeave={e => { const el = e.currentTarget; el.style.borderColor = '#d5d2cb'; el.style.background = 'transparent' }}
+          onMouseEnter={e => { const el = e.currentTarget; el.style.borderColor = 'var(--accent-primary)'; el.style.background = 'var(--state-selected)' }}
+          onMouseLeave={e => { const el = e.currentTarget; el.style.borderColor = 'var(--border-strong)'; el.style.background = 'transparent' }}
         >
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 16, color: 'var(--text-tertiary)', fontWeight: 300 }}>+</span>
           <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)' }}>New trip</span>

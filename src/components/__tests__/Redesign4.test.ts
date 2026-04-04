@@ -98,20 +98,20 @@ describe('Toast dark theme', () => {
 
 describe('FAB dark theme', () => {
   const fabStyle = {
-    width: 44,
-    height: 44,
+    width: 52,
+    height: 52,
     background: 'var(--accent-primary)',
     pressedBackground: 'var(--accent-pressed)',
     color: '#ffffff',
     borderRadius: '50%',
-    iconSize: 18,
+    iconSize: 24,
     iconStrokeWidth: 2.5,
     boxShadow: 'var(--shadow-lg)',
   }
 
-  it('FAB is 44px circle', () => {
-    expect(fabStyle.width).toBe(44)
-    expect(fabStyle.height).toBe(44)
+  it('FAB is 52px circle', () => {
+    expect(fabStyle.width).toBe(52)
+    expect(fabStyle.height).toBe(52)
     expect(fabStyle.borderRadius).toBe('50%')
   })
 
@@ -125,8 +125,8 @@ describe('FAB dark theme', () => {
     expect(fabStyle.pressedBackground).not.toBe('#a03b1a')
   })
 
-  it('Plus icon is 18px with strokeWidth 2.5', () => {
-    expect(fabStyle.iconSize).toBe(18)
+  it('Plus icon is 24px with strokeWidth 2.5', () => {
+    expect(fabStyle.iconSize).toBe(24)
     expect(fabStyle.iconStrokeWidth).toBe(2.5)
   })
 

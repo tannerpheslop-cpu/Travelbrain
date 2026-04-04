@@ -181,18 +181,17 @@ describe('FAB styling contract', () => {
   })
 })
 
-// ── Save sheet stays light ────────────────────────────────────────────────────
+// ── Save sheet is dark (bg-base) ─────────────────────────────────────────────
 
-describe('save sheet light surface', () => {
-  const SAVE_SHEET_BG = 'var(--surface-light)' // resolves to #faf8f4
+describe('save sheet dark surface', () => {
+  const SAVE_SHEET_BG = 'var(--bg-base)' // #15181c — consistent with app theme
 
-  it('save sheet background references surface-light token', () => {
-    expect(SAVE_SHEET_BG).toBe('var(--surface-light)')
+  it('save sheet background references bg-base token', () => {
+    expect(SAVE_SHEET_BG).toBe('var(--bg-base)')
   })
 
-  it('surface-light is NOT a dark token', () => {
-    const darkTokens = ['var(--bg-canvas)', 'var(--bg-base)', 'var(--bg-elevated-1)', 'var(--bg-elevated-2)']
-    expect(darkTokens).not.toContain(SAVE_SHEET_BG)
+  it('save sheet does NOT use surface-light', () => {
+    expect(SAVE_SHEET_BG).not.toBe('var(--surface-light)')
   })
 })
 

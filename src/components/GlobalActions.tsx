@@ -73,7 +73,7 @@ export default function GlobalActions() {
             type="button"
             onClick={handleFabTap}
             style={{
-              width: 44, height: 44, borderRadius: '50%',
+              width: 52, height: 52, borderRadius: '50%',
               background: 'var(--accent-primary)', color: '#ffffff',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               border: 'none', cursor: 'pointer',
@@ -88,7 +88,7 @@ export default function GlobalActions() {
             aria-label={showSaveSheet || showMenu ? 'Close' : 'Add save'}
           >
             <div style={{ transition: 'transform 200ms', transform: showMenu || showSaveSheet ? 'rotate(45deg)' : 'none' }}>
-              <Plus size={18} strokeWidth={2.5} />
+              <Plus size={24} strokeWidth={2.5} />
             </div>
           </button>
         </div>

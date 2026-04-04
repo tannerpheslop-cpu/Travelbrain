@@ -527,8 +527,8 @@ export default function UnifiedTripMap({
         id: PIN_CIRCLE, type: 'circle', source: PIN_SOURCE,
         paint: {
           'circle-radius': ['case', ['boolean', ['feature-state', 'selected'], false], 8, 6],
-          'circle-color': ['case', ['get', 'isAccommodation'], MAP_COLORS.accommodation, MAP_COLORS.accent],
-          'circle-stroke-color': '#ffffff',
+          'circle-color': ['case', ['boolean', ['feature-state', 'selected'], false], MAP_COLORS.accentSelected, ['get', 'isAccommodation'], MAP_COLORS.accommodation, MAP_COLORS.accent],
+          'circle-stroke-color': MAP_COLORS.markerStroke,
           'circle-stroke-width': ['case', ['boolean', ['feature-state', 'selected'], false], 2.5, 1.5],
         },
       })

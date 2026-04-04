@@ -1867,8 +1867,8 @@ function TextCard({ item, tripCount, showShimmer, extractionCount }: { item: Sav
   return (
     <Link
       to={`/item/${item.id}`}
-      className="block relative overflow-hidden bg-bg-muted"
-      style={{ borderRadius: 10, height: 160, cursor: 'pointer' }}
+      className="block relative overflow-hidden"
+      style={{ borderRadius: 8, height: 160, cursor: 'pointer', background: 'var(--bg-elevated-1)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
     >
       {/* Trip count pill */}
       <TripCountPill count={tripCount} variant="text" />
@@ -1948,7 +1948,8 @@ function ListRow({
     <div className="relative group">
       <Link
         to={`/item/${item.id}`}
-        className="flex items-center gap-3 px-2 py-2.5 rounded-lg hover:bg-bg-muted active:bg-bg-pill transition-colors"
+        className="flex items-center gap-3 px-2 py-2.5 hover:bg-bg-muted active:bg-bg-pill transition-colors"
+        style={{ borderRadius: 8, background: 'var(--bg-elevated-1)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
       >
         {/* Source icon */}
         <SourceIcon source={sourceKey} size={32} />

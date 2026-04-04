@@ -62,14 +62,11 @@
   --edge-medium:        rgba(184, 192, 199, 0.063);
   --edge-weak:          rgba(184, 192, 199, 0.031);
 
-  /* ─── Save Sheet (light surface — stays light always) ─────── */
-  --surface-light:      #faf8f4;
-
   /* ─── Legacy aliases — do not use in new code ────────────── */
   --color-deep-bg:              var(--bg-canvas);
   --color-surface:              var(--bg-base);
   --color-surface-elevated:     var(--bg-elevated-1);
-  --color-surface-light:        var(--surface-light);
+  /* --color-surface-light removed — save sheet is now dark */
   --color-surface-hover:        var(--bg-elevated-2);
   --color-copper:               var(--accent-primary);
   --color-copper-deep:          var(--accent-pressed);

@@ -532,12 +532,12 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       {/* Sheet */}
       <div
         className="fixed inset-x-0 bottom-0 z-50 rounded-t-3xl flex flex-col"
-        style={{ maxHeight: '90dvh', background: 'var(--surface-light)' }}
+        style={{ maxHeight: '90dvh', background: 'var(--bg-base)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drag handle + close button */}
         <div className="relative flex justify-center pt-3 shrink-0">
-          <div style={{ width: 36, height: 4, background: 'var(--color-border-input)', borderRadius: 2 }} />
+          <div style={{ width: 40, height: 4, background: 'var(--border-strong)', borderRadius: 2 }} />
           {!saving && (
             <button
               type="button"
@@ -546,6 +546,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
               style={{
                 width: 32,
                 height: 32,
+                borderRadius: 8,
+                background: 'var(--bg-elevated-1)',
                 color: 'var(--text-tertiary)',
                 fontFamily: "'DM Sans', sans-serif",
                 fontSize: 18,
@@ -572,14 +574,14 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 placeholder="Type a place and press Enter..."
                 style={{
                   width: '100%', minHeight: 80, padding: '12px 14px',
-                  background: 'var(--bg-canvas)', borderRadius: 10,
-                  border: '1px solid rgba(118, 130, 142, 0.15)', outline: 'none', resize: 'vertical',
+                  background: 'var(--bg-elevated-1)', borderRadius: 12,
+                  border: '1px solid var(--border-default)', outline: 'none', resize: 'vertical',
                   fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: 'var(--text-primary)',
                 }}
               />
               <p style={{
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                color: 'var(--color-text-faint)', marginTop: 6,
+                color: 'var(--text-tertiary)', marginTop: 6,
               }}>
                 Enter to save · Paste a list for bulk add
               </p>
@@ -589,7 +591,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 <div style={{ marginTop: 12 }}>
                   <p style={{
                     fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                    color: 'var(--color-text-faint)', marginBottom: 6,
+                    color: 'var(--text-tertiary)', marginBottom: 6,
                     textTransform: 'uppercase', letterSpacing: '0.5px',
                   }}>{bulkRecentItems.length} added</p>
                   <div style={{ maxHeight: 160, overflowY: 'auto' }}>
@@ -601,14 +603,14 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                           padding: '6px 0', fontSize: 13, color: 'var(--text-secondary)',
                         }}
                       >
-                        <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--color-accent)', flexShrink: 0 }} />
+                        <div style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--accent-primary)', flexShrink: 0 }} />
                         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {item.title}
                         </span>
                         {resolvingIds.has(item.id) && !item.location_name ? (
-                          <Loader2 style={{ width: 12, height: 12, flexShrink: 0, color: 'var(--color-text-faint)' }} className="animate-spin" />
+                          <Loader2 style={{ width: 12, height: 12, flexShrink: 0, color: 'var(--text-tertiary)' }} className="animate-spin" />
                         ) : item.location_name ? (
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0, fontSize: 11, color: 'var(--color-text-faint)' }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0, fontSize: 11, color: 'var(--text-tertiary)' }}>
                             <MapPin style={{ width: 10, height: 10 }} />
                             {item.location_name.split(',')[0].trim()}
                           </span>
@@ -626,7 +628,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 style={{
                   marginTop: 14, background: 'none', border: 'none', cursor: 'pointer',
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                  color: 'var(--color-text-faint)',
+                  color: 'var(--text-tertiary)',
                 }}
               >← Back to single entry</button>
             </div>
@@ -637,11 +639,11 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
           <div
             style={{
               display: 'flex', alignItems: 'center', gap: 10,
-              background: 'var(--bg-canvas)', borderRadius: 10, padding: '12px 14px',
-              border: '1px solid rgba(118, 130, 142, 0.15)', transition: 'border-color 0.15s ease',
+              background: 'var(--bg-elevated-1)', borderRadius: 12, padding: '12px 14px',
+              border: '1px solid var(--border-default)', transition: 'border-color 0.15s ease',
             }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'rgba(184,68,30,0.25)')}
-            onBlur={e => (e.currentTarget.style.borderColor = 'rgba(118, 130, 142, 0.15)')}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent-primary)')}
+            onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-default)')}
           >
             <input
               ref={inputRef}
@@ -677,8 +679,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                   onClick={removeAttachment}
                   style={{
                     position: 'absolute', top: 6, right: 6, width: 24, height: 24,
-                    borderRadius: '50%', background: 'white', border: 'none',
-                    boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+                    borderRadius: '50%', background: 'var(--bg-elevated-2)', border: 'none',
+                    boxShadow: 'var(--shadow-sm)',
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     color: 'var(--text-secondary)', fontSize: 14, fontFamily: "'DM Sans', sans-serif",
                   }}
@@ -690,14 +692,14 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 onClick={() => fileInputRef.current?.click()}
                 style={{
                   width: '100%', height: 48, borderRadius: 10,
-                  border: '1.5px dashed var(--color-border-input)',
-                  background: 'transparent', cursor: 'pointer',
+                  border: '1px dashed var(--border-default)',
+                  background: 'var(--bg-elevated-1)', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                   transition: 'border-color 0.15s, color 0.15s',
-                  color: 'var(--color-text-faint)',
+                  color: 'var(--text-tertiary)',
                 }}
-                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--text-tertiary)'; e.currentTarget.style.color = 'var(--text-tertiary)' }}
-                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--color-border-input)'; e.currentTarget.style.color = 'var(--color-text-faint)' }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--border-strong)'; e.currentTarget.style.color = 'var(--text-secondary)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-default)'; e.currentTarget.style.color = 'var(--text-tertiary)' }}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" style={{ width: 18, height: 18 }}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6.827 6.175A2.31 2.31 0 0 1 5.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 0 0-1.134-.175 2.31 2.31 0 0 1-1.64-1.055l-.822-1.316a2.192 2.192 0 0 0-1.736-1.039 48.774 48.774 0 0 0-5.232 0 2.192 2.192 0 0 0-1.736 1.039l-.821 1.316Z" />
@@ -718,19 +720,19 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
             }}
           >
             {urlLoading && (
-              <div className="animate-pulse" style={{ borderRadius: 10, border: '1px solid #eceae5', overflow: 'hidden' }}>
+              <div className="animate-pulse" style={{ borderRadius: 10, border: '1px solid var(--border-subtle)', overflow: 'hidden', background: 'var(--bg-elevated-2)' }}>
                 <div style={{ display: 'flex' }}>
-                  <div style={{ width: 100, height: 80, background: 'var(--bg-elevated-1)' }} />
+                  <div style={{ width: 100, height: 80, background: 'var(--bg-elevated-3, #262c33)' }} />
                   <div style={{ flex: 1, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <div style={{ height: 10, background: '#f0eeea', borderRadius: 4, width: '40%' }} />
-                    <div style={{ height: 14, background: '#f0eeea', borderRadius: 4, width: '80%' }} />
-                    <div style={{ height: 10, background: '#f0eeea', borderRadius: 4, width: '60%' }} />
+                    <div style={{ height: 10, background: 'var(--bg-elevated-3, #262c33)', borderRadius: 4, width: '40%' }} />
+                    <div style={{ height: 14, background: 'var(--bg-elevated-3, #262c33)', borderRadius: 4, width: '80%' }} />
+                    <div style={{ height: 10, background: 'var(--bg-elevated-3, #262c33)', borderRadius: 4, width: '60%' }} />
                   </div>
                 </div>
               </div>
             )}
             {!urlLoading && metadata && (
-              <div style={{ borderRadius: 10, border: '1px solid #eceae5', overflow: 'hidden', display: 'flex' }}>
+              <div style={{ borderRadius: 10, border: '1px solid var(--border-subtle)', overflow: 'hidden', display: 'flex', background: 'var(--bg-elevated-2)' }}>
                 {/* Thumbnail */}
                 {(metadata.image && !imageFailed) ? (
                   <div style={{ width: 100, height: 80, flexShrink: 0, background: 'var(--bg-elevated-1)' }}>
@@ -748,10 +750,10 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 {/* Content */}
                 <div style={{ flex: 1, padding: 10, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#9e9b94' }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--text-tertiary)' }}>
                       {sourceChar(metadata.site_name)}
                     </span>
-                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: '#9e9b94' }}>
+                    <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, color: 'var(--text-tertiary)' }}>
                       {metadata.site_name || 'Link'}
                     </span>
                   </div>
@@ -769,12 +771,12 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                   />
                   {metadata.description && (
                     <p style={{
-                      fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#6b6860',
+                      fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-secondary)',
                       marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>{metadata.description}</p>
                   )}
                   {urlError && (
-                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: '#b5b2ab', marginTop: 4 }}>{urlError}</p>
+                    <p style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)', marginTop: 4 }}>{urlError}</p>
                   )}
                 </div>
               </div>
@@ -800,9 +802,9 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                     fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
                     fontWeight: active ? 600 : 400,
                     padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
-                    border: active ? '1.5px solid var(--color-accent)' : '1px solid var(--color-border-input)',
-                    background: active ? 'var(--color-accent-light)' : 'transparent',
-                    color: active ? 'var(--color-accent)' : 'var(--text-secondary)',
+                    border: active ? '1.5px solid var(--accent-primary)' : '1px solid transparent',
+                    background: active ? 'var(--state-selected)' : 'var(--bg-elevated-2)',
+                    color: active ? 'var(--accent-primary)' : 'var(--text-secondary)',
                     transition: 'all 0.15s ease',
                   }}
                 >{cat.label}</button>
@@ -821,9 +823,9 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                     fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
                     fontWeight: 600,
                     padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
-                    border: '1.5px dotted var(--color-accent)',
-                    background: 'var(--color-accent-light)',
-                    color: 'var(--color-accent)',
+                    border: '1.5px dotted var(--accent-primary)',
+                    background: 'var(--state-selected)',
+                    color: 'var(--accent-primary)',
                     transition: 'all 0.15s ease',
                   }}
                 >{tag}</button>
@@ -833,7 +835,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
               <div
                 style={{
                   display: 'inline-flex', alignItems: 'center',
-                  border: '1.5px dashed var(--color-border-input)',
+                  border: '1px dashed var(--border-default)',
                   borderRadius: 20, padding: '4px 10px',
                 }}
               >
@@ -883,9 +885,9 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                   fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
                   fontWeight: 400,
                   padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
-                  border: '1.5px dashed var(--color-border-input)',
+                  border: '1px dashed var(--border-default)',
                   background: 'transparent',
-                  color: 'var(--color-text-faint)',
+                  color: 'var(--text-tertiary)',
                   transition: 'all 0.15s ease',
                 }}
               >+ Tag</button>
@@ -900,7 +902,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   padding: '6px 10px', borderRadius: 8, marginBottom: 6,
-                  background: 'rgba(184,68,30,0.06)', border: '1px solid rgba(184,68,30,0.2)',
+                  background: 'var(--state-selected)', border: '1px solid var(--accent-soft)',
                 }}
               >
                 <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, color: 'var(--accent-primary)' }}>
@@ -908,7 +910,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
                 </span>
                 <span
                   onClick={() => { console.log('[dismiss] Setting dismissedAutoDetectRef=true'); setLocation(null); setUserSelectedLocation(false); userSelectedRef.current = false; dismissedAutoDetectRef.current = true }}
-                  style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: '#b5b2ab', cursor: 'pointer', padding: '0 4px' }}
+                  style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--text-tertiary)', cursor: 'pointer', padding: '0 4px' }}
                 >×</span>
               </div>
             )}
@@ -928,13 +930,13 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
             onChange={e => setNotes(e.target.value)}
             placeholder="Notes (optional)"
             style={{
-              marginTop: 12, width: '100%', padding: '10px 12px', border: '1px solid rgba(118, 130, 142, 0.15)',
-              borderRadius: 8, fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-              color: 'var(--text-primary)', background: 'transparent', outline: 'none', resize: 'vertical',
+              marginTop: 12, width: '100%', padding: '10px 12px', border: '1px solid var(--border-default)',
+              borderRadius: 12, fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+              color: 'var(--text-primary)', background: 'var(--bg-elevated-1)', outline: 'none', resize: 'vertical',
               minHeight: 40,
             }}
-            onFocus={e => (e.currentTarget.style.borderColor = 'rgba(184,68,30,0.4)')}
-            onBlur={e => (e.currentTarget.style.borderColor = 'rgba(118, 130, 142, 0.15)')}
+            onFocus={e => (e.currentTarget.style.borderColor = 'var(--accent-primary)')}
+            onBlur={e => (e.currentTarget.style.borderColor = 'var(--border-default)')}
           />
 
           {/* 6. Save button */}
@@ -948,13 +950,13 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
               background: saved ? '#2d9c5e' : 'var(--accent-primary)',
               color: 'white', border: 'none', borderRadius: 10, cursor: canSave ? 'pointer' : 'not-allowed',
               opacity: canSave || saved ? 1 : 0.5,
-              boxShadow: '0 1px 4px rgba(184,68,30,0.25)',
+              boxShadow: 'var(--shadow-sm)',
               transition: 'all 0.15s ease',
             }}
           >{saving ? 'Saving...' : saved ? 'Saved!' : 'Save to Horizon'}</button>
 
           {saveError && (
-            <p style={{ marginTop: 8, fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#c0392b', textAlign: 'center' }}>{saveError}</p>
+            <p style={{ marginTop: 8, fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--color-error)', textAlign: 'center' }}>{saveError}</p>
           )}
 
           {/* Bulk add link */}
@@ -965,7 +967,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                color: 'var(--color-text-faint)',
+                color: 'var(--text-tertiary)',
               }}
             >Bulk add</button>
           </div>

@@ -6,6 +6,8 @@
 export const MAP_COLORS = {
   accent: '#B8441E',
   accentGlow: 'rgba(184, 68, 30, 0.22)',
+  accentSelected: '#C9521F',
+  markerStroke: 'rgba(184, 68, 30, 0.30)',
   accommodation: '#5f5e5a',
   labelPlateLight: 'rgba(255, 255, 255, 0.94)',
   labelPlateDark: 'rgba(36, 35, 32, 0.95)',
