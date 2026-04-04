@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Search, MapPin, Hash, X } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { getCategoryIcon } from '../lib/categories'
 import type { FilterPill } from './FilterBar'
 

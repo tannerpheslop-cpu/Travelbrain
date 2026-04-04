@@ -1086,17 +1086,10 @@ export default function InboxPage() {
       {!loading && !error && items.length > 0 && filtered.length === 0 && filteredRoutes.length === 0 && (
         <div className="mt-16 text-center py-16 px-6">
           <span className="font-mono text-[28px] text-text-faint opacity-30 block mb-3">⌕</span>
-          {parsedFilters.statuses.includes('In a trip') && selectedFilters.length === 1 ? (
-            <>
-              <p className="text-sm text-text-tertiary">No items assigned to a trip yet.</p>
-              <p className="mt-1.5 text-sm text-text-tertiary">Save items to your Horizon, then add them to your trip.</p>
-            </>
-          ) : (
-            <>
+          <>
               <p className="text-sm text-text-faint">No matching items</p>
               <p className="mt-1 font-mono text-xs text-text-ghost">Try a different search or filter</p>
             </>
-          )}
         </div>
       )}
 

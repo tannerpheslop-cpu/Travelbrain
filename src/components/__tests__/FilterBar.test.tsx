@@ -1,7 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import FilterBar, { buildAllPills } from '../FilterBar'
-import { SYSTEM_CATEGORIES } from '../../lib/categories'
 import type { SavedItem } from '../../types'
 
 // Minimal SavedItem factory
