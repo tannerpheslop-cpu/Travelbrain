@@ -230,17 +230,24 @@ export default function ItemDetailPage() {
       .slice(0, 5)
   }, [tagDraft, allCustomTags, activeCustomTags])
 
-  // Filtered categories & custom tags based on search input
+  // Filtered categories & custom tags based on search input, with assigned-first sort
   const filteredCategories = useMemo(() => {
     const q = tagDraft.trim().toLowerCase()
-    if (!q) return SYSTEM_CATEGORIES
-    return SYSTEM_CATEGORIES.filter(cat => cat.label.toLowerCase().includes(q) || cat.tagName.toLowerCase().includes(q))
-  }, [tagDraft])
+    const base = q
+      ? SYSTEM_CATEGORIES.filter(cat => cat.label.toLowerCase().includes(q) || cat.tagName.toLowerCase().includes(q))
+      : [...SYSTEM_CATEGORIES]
+    // Sort: assigned first, then unassigned
+    return base.sort((a, b) => {
+      const aActive = activeCategoryTags.includes(a.tagName) ? 1 : 0
+      const bActive = activeCategoryTags.includes(b.tagName) ? 1 : 0
+      return bActive - aActive
+    })
+  }, [tagDraft, activeCategoryTags])
 
   const filteredCustomTags = useMemo(() => {
     const q = tagDraft.trim().toLowerCase()
-    if (!q) return activeCustomTags
-    return activeCustomTags.filter(t => t.toLowerCase().includes(q))
+    if (!q) return [...activeCustomTags].sort()
+    return activeCustomTags.filter(t => t.toLowerCase().includes(q)).sort()
   }, [tagDraft, activeCustomTags])
 
   // Show "Create" option when search doesn't match any existing tag
@@ -824,7 +831,7 @@ export default function ItemDetailPage() {
                     color: active
                       ? '#e8eaed'
                       : 'var(--text-tertiary)',
-                    transition: 'all 150ms',
+                    transition: 'all 0.2s ease-out',
                     whiteSpace: 'nowrap',
                   }}
                 >
@@ -836,7 +843,7 @@ export default function ItemDetailPage() {
           </div>
 
           {/* Row 2: User tags — horizontal scroll (hidden when empty) */}
-          {(filteredCustomTags.length > 0 || (showTagInput && tagSuggestions.length > 0)) && (
+          {filteredCustomTags.length > 0 && (
             <div
               className="category-scroll"
               style={{
@@ -854,18 +861,18 @@ export default function ItemDetailPage() {
                   data-testid={`custom-tag-${tag}`}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 11,
-                    padding: '3px 8px', borderRadius: 9999, cursor: 'pointer',
-                    border: 'none',
-                    background: 'var(--bg-elevated-2)',
-                    color: 'var(--text-tertiary)',
-                    transition: 'all 150ms',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                    padding: '4px 10px', borderRadius: 9999, cursor: 'pointer',
+                    border: '1px solid var(--accent-primary)',
+                    background: 'var(--accent-primary)',
+                    color: '#e8eaed',
+                    transition: 'all 0.2s ease-out',
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  <span style={{ opacity: 0.6 }}>#</span>
+                  <span style={{ opacity: 0.7 }}>#</span>
                   {tag}
-                  <X style={{ width: 10, height: 10, opacity: 0.5 }} />
+                  <X style={{ width: 10, height: 10, opacity: 0.8 }} />
                 </button>
               ))}
             </div>

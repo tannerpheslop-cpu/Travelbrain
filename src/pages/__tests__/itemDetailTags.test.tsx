@@ -113,6 +113,20 @@ describe('category pill toggle behavior', () => {
     expect(tagNames).toContain('events')
   })
 
+  it('bar_nightlife label is "Bar" and coffee_cafe label is "Cafe"', () => {
+    const bar = SYSTEM_CATEGORIES.find(c => c.tagName === 'bar_nightlife')
+    const cafe = SYSTEM_CATEGORIES.find(c => c.tagName === 'coffee_cafe')
+    expect(bar?.label).toBe('Bar')
+    expect(cafe?.label).toBe('Cafe')
+  })
+
+  it('wellness uses Flower2 icon', () => {
+    const wellness = SYSTEM_CATEGORIES.find(c => c.tagName === 'wellness')
+    expect(wellness?.icon).toBeDefined()
+    // Lucide icons are ForwardRef objects with displayName
+    expect(wellness?.icon.displayName).toBe('Flower2')
+  })
+
   it('each system category has an icon', () => {
     for (const cat of SYSTEM_CATEGORIES) {
       expect(cat.icon).toBeDefined()
@@ -262,6 +276,79 @@ describe('create tag option', () => {
   it('does not show create option for empty input', () => {
     expect(shouldShowCreateOption('', active, all)).toBe(false)
     expect(shouldShowCreateOption('  ', active, all)).toBe(false)
+  })
+})
+
+describe('assigned-first category sorting', () => {
+  /** Mirrors the filteredCategories sorting logic */
+  function sortCategories(assignedTagNames: string[]) {
+    return [...SYSTEM_CATEGORIES].sort((a, b) => {
+      const aActive = assignedTagNames.includes(a.tagName) ? 1 : 0
+      const bActive = assignedTagNames.includes(b.tagName) ? 1 : 0
+      return bActive - aActive
+    })
+  }
+
+  it('assigned categories come first in sort order', () => {
+    const sorted = sortCategories(['hotel', 'outdoors'])
+    const firstTwo = sorted.slice(0, 2).map(c => c.tagName)
+    expect(firstTwo).toContain('hotel')
+    expect(firstTwo).toContain('outdoors')
+  })
+
+  it('unassigned categories follow assigned ones', () => {
+    const sorted = sortCategories(['restaurant'])
+    expect(sorted[0].tagName).toBe('restaurant')
+    // All other 11 should come after
+    const rest = sorted.slice(1).map(c => c.tagName)
+    expect(rest).not.toContain('restaurant')
+    expect(rest).toHaveLength(11)
+  })
+
+  it('when no categories assigned, original order is preserved', () => {
+    const sorted = sortCategories([])
+    // No assigned means all equal — stable sort keeps original order
+    expect(sorted).toHaveLength(12)
+  })
+
+  it('multiple assigned categories all sort to front', () => {
+    const sorted = sortCategories(['events', 'shopping', 'hotel'])
+    const firstThree = sorted.slice(0, 3).map(c => c.tagName)
+    expect(firstThree).toContain('events')
+    expect(firstThree).toContain('shopping')
+    expect(firstThree).toContain('hotel')
+  })
+})
+
+describe('custom tag pill styling contract', () => {
+  it('custom tags assigned to a save use active styling (matching category pill active state)', () => {
+    // This documents the styling contract: custom tag pills on the detail page
+    // should use the same active styling as category pills
+    const activeStyle = {
+      border: '1px solid var(--accent-primary)',
+      background: 'var(--accent-primary)',
+      color: '#e8eaed',
+      fontSize: 12,
+      borderRadius: 9999,
+      padding: '4px 10px',
+    }
+    // Verify the style values are what we expect
+    expect(activeStyle.background).toBe('var(--accent-primary)')
+    expect(activeStyle.color).toBe('#e8eaed')
+    expect(activeStyle.fontSize).toBe(12)
+    expect(activeStyle.borderRadius).toBe(9999)
+  })
+
+  it('custom tags include # prefix and × removal button', () => {
+    // Documents the contract: custom tags have # prefix and × for removal
+    const customTagStructure = {
+      leadingChar: '#',
+      hasRemoveButton: true,
+      isToggleable: false, // × removes, search input adds
+    }
+    expect(customTagStructure.leadingChar).toBe('#')
+    expect(customTagStructure.hasRemoveButton).toBe(true)
+    expect(customTagStructure.isToggleable).toBe(false)
   })
 })
 

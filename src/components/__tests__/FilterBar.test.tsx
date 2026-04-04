@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import FilterBar from '../FilterBar'
+import FilterBar, { buildAllPills } from '../FilterBar'
 import { SYSTEM_CATEGORIES } from '../../lib/categories'
 import type { SavedItem } from '../../types'
 
-// Minimal SavedItem factory for count testing
+// Minimal SavedItem factory
 function makeSave(overrides: Partial<SavedItem> = {}): SavedItem {
   return {
     id: crypto.randomUUID(),
@@ -48,7 +48,7 @@ function makeSave(overrides: Partial<SavedItem> = {}): SavedItem {
 const defaultProps = {
   selectedFilters: [] as string[],
   onSelectionChange: vi.fn(),
-  countryList: ['Japan', 'China'],
+  countryList: [{ code: 'JP', name: 'Japan' }, { code: 'CN', name: 'China' }],
   customTags: [] as string[],
   items: [] as SavedItem[],
   groupMode: 'country' as const,
@@ -56,98 +56,177 @@ const defaultProps = {
 }
 
 describe('FilterBar', () => {
-  it('renders City/Country toggle', () => {
+  it('renders "More" button always', () => {
     render(<FilterBar {...defaultProps} />)
-    expect(screen.getByTestId('filter-group-country')).toBeInTheDocument()
-    expect(screen.getByTestId('filter-group-city')).toBeInTheDocument()
+    expect(screen.getByTestId('filter-more-btn')).toBeInTheDocument()
   })
 
-  it('renders all 12 system category pills', () => {
-    render(<FilterBar {...defaultProps} />)
-    for (const cat of SYSTEM_CATEGORIES) {
-      expect(screen.getByTestId(`filter-category-${cat.tagName}`)).toBeInTheDocument()
-    }
+  it('shows max 6 pills from highest count', () => {
+    const items = [
+      makeSave({ category: 'restaurant', location_country: 'Japan', location_country_code: 'JP' }),
+      makeSave({ category: 'restaurant', location_country: 'Japan', location_country_code: 'JP' }),
+      makeSave({ category: 'restaurant', location_country: 'Japan', location_country_code: 'JP' }),
+      makeSave({ category: 'activity', location_country: 'China', location_country_code: 'CN' }),
+      makeSave({ category: 'activity', location_country: 'China', location_country_code: 'CN' }),
+      makeSave({ category: 'hotel', location_country: 'Japan', location_country_code: 'JP' }),
+      makeSave({ category: 'coffee_cafe', location_country: 'Japan', location_country_code: 'JP' }),
+      makeSave({ category: 'bar_nightlife', location_country: 'China', location_country_code: 'CN' }),
+      makeSave({ category: 'attraction', location_country: 'Japan', location_country_code: 'JP' }),
+    ]
+    render(<FilterBar {...defaultProps} items={items} />)
+
+    const bar = screen.getByTestId('filter-bar')
+    const pills = bar.querySelectorAll('[data-testid^="filter-pill-"]')
+    expect(pills.length).toBeLessThanOrEqual(6)
+    expect(pills.length).toBeGreaterThan(0)
   })
 
-  it('renders location pills for each country', () => {
-    render(<FilterBar {...defaultProps} />)
-    expect(screen.getByTestId('filter-country-Japan')).toBeInTheDocument()
-    expect(screen.getByTestId('filter-country-China')).toBeInTheDocument()
+  it('active filters always appear in the bar', () => {
+    const items = [
+      makeSave({ category: 'restaurant', location_country: 'Japan', location_country_code: 'JP' }),
+    ]
+    render(<FilterBar {...defaultProps} items={items} selectedFilters={['cat:wellness']} />)
+
+    const bar = screen.getByTestId('filter-bar')
+    expect(bar.querySelector('[data-testid="filter-pill-cat:wellness"]')).toBeInTheDocument()
   })
 
-  it('renders custom tag pills when provided', () => {
-    render(<FilterBar {...defaultProps} customTags={['Bucket List', 'Must Try']} />)
-    expect(screen.getByTestId('filter-custom-Bucket List')).toBeInTheDocument()
-    expect(screen.getByTestId('filter-custom-Must Try')).toBeInTheDocument()
-  })
-
-  it('does not render custom tag section when no custom tags', () => {
-    render(<FilterBar {...defaultProps} customTags={[]} />)
-    expect(screen.queryByTestId('filter-custom-anything')).not.toBeInTheDocument()
-  })
-
-  it('toggling a country pill calls onSelectionChange with that country', () => {
+  it('tapping a pill toggles its selection', () => {
     const onChange = vi.fn()
-    render(<FilterBar {...defaultProps} onSelectionChange={onChange} />)
-    fireEvent.click(screen.getByTestId('filter-country-Japan'))
-    expect(onChange).toHaveBeenCalledWith(['Japan'])
-  })
+    const items = [
+      makeSave({ category: 'restaurant', location_country: 'Japan', location_country_code: 'JP' }),
+      makeSave({ category: 'restaurant', location_country: 'Japan', location_country_code: 'JP' }),
+    ]
+    render(<FilterBar {...defaultProps} items={items} onSelectionChange={onChange} />)
 
-  it('toggling a category pill calls onSelectionChange with that label', () => {
-    const onChange = vi.fn()
-    render(<FilterBar {...defaultProps} onSelectionChange={onChange} />)
-    fireEvent.click(screen.getByTestId('filter-category-restaurant'))
-    expect(onChange).toHaveBeenCalledWith(['Restaurant'])
+    // Both cat:restaurant (2) and loc:JP (2) should be visible pills
+    const bar = screen.getByTestId('filter-bar')
+    const pills = bar.querySelectorAll('[data-testid^="filter-pill-"]')
+    expect(pills.length).toBeGreaterThan(0)
+    fireEvent.click(pills[0])
+    expect(onChange).toHaveBeenCalled()
   })
 
   it('deselecting a selected filter removes it', () => {
     const onChange = vi.fn()
-    render(<FilterBar {...defaultProps} selectedFilters={['Japan', 'Restaurant']} onSelectionChange={onChange} />)
-    fireEvent.click(screen.getByTestId('filter-country-Japan'))
-    expect(onChange).toHaveBeenCalledWith(['Restaurant'])
-  })
+    const items = [
+      makeSave({ category: 'restaurant', location_country: 'Japan', location_country_code: 'JP' }),
+    ]
+    render(<FilterBar {...defaultProps} items={items} selectedFilters={['loc:JP']} onSelectionChange={onChange} />)
 
-  it('shows Clear button only when filters are active', () => {
-    const { rerender } = render(<FilterBar {...defaultProps} selectedFilters={[]} />)
-    expect(screen.queryByTestId('clear-all-filters')).not.toBeInTheDocument()
-
-    rerender(<FilterBar {...defaultProps} selectedFilters={['Japan']} />)
-    expect(screen.getByTestId('clear-all-filters')).toBeInTheDocument()
-  })
-
-  it('Clear button resets all filters', () => {
-    const onChange = vi.fn()
-    render(<FilterBar {...defaultProps} selectedFilters={['Japan', 'Restaurant']} onSelectionChange={onChange} />)
-    fireEvent.click(screen.getByTestId('clear-all-filters'))
+    const pill = screen.getByTestId('filter-pill-loc:JP')
+    fireEvent.click(pill)
     expect(onChange).toHaveBeenCalledWith([])
   })
 
-  it('shows item counts per category', () => {
+  it('pills use flex-shrink 0', () => {
     const items = [
-      makeSave({ category: 'restaurant', location_country: 'Japan' }),
-      makeSave({ category: 'restaurant', location_country: 'Japan' }),
-      makeSave({ category: 'activity', location_country: 'China' }),
+      makeSave({ category: 'restaurant', location_country: 'Japan', location_country_code: 'JP' }),
     ]
     render(<FilterBar {...defaultProps} items={items} />)
 
-    // Restaurant pill should show count 2
-    const restaurantPill = screen.getByTestId('filter-category-restaurant')
-    expect(restaurantPill.textContent).toContain('2')
-
-    // Activity pill should show count 1
-    const activityPill = screen.getByTestId('filter-category-activity')
-    expect(activityPill.textContent).toContain('1')
+    const bar = screen.getByTestId('filter-bar')
+    const pills = bar.querySelectorAll('[data-testid^="filter-pill-"]')
+    for (const pill of pills) {
+      expect((pill as HTMLElement).style.flexShrink).toBe('0')
+    }
   })
 
-  it('shows item counts per country', () => {
+  it('filter bar container uses flex-nowrap and overflow-x auto', () => {
+    render(<FilterBar {...defaultProps} />)
+    const bar = screen.getByTestId('filter-bar')
+    expect(bar.style.flexWrap).toBe('nowrap')
+    expect(bar.style.overflowX).toBe('auto')
+  })
+
+  it('filter bar has touchAction pan-x', () => {
+    render(<FilterBar {...defaultProps} />)
+    const bar = screen.getByTestId('filter-bar')
+    expect(bar.style.touchAction).toBe('pan-x')
+  })
+
+  it('all active filters appear in bar even if more than 6', () => {
+    const sevenFilters = [
+      'cat:restaurant', 'cat:activity', 'cat:hotel', 'cat:coffee_cafe',
+      'cat:bar_nightlife', 'cat:attraction', 'cat:shopping',
+    ]
+    render(<FilterBar {...defaultProps} selectedFilters={sevenFilters} />)
+    const bar = screen.getByTestId('filter-bar')
+    const pills = bar.querySelectorAll('[data-testid^="filter-pill-"]')
+    // All 7 should be visible since they're active
+    expect(pills.length).toBe(7)
+  })
+
+  it('"More" button has no orange dot when all active filters are visible', () => {
+    render(<FilterBar {...defaultProps} selectedFilters={['cat:restaurant']} />)
+    expect(screen.queryByTestId('filter-more-dot')).not.toBeInTheDocument()
+  })
+
+  it('pills sorted by count — highest first', () => {
     const items = [
-      makeSave({ location_country: 'Japan' }),
-      makeSave({ location_country: 'Japan' }),
-      makeSave({ location_country: 'China' }),
+      makeSave({ category: 'activity', location_country: 'Japan', location_country_code: 'JP' }),
+      makeSave({ category: 'activity', location_country: 'Japan', location_country_code: 'JP' }),
+      makeSave({ category: 'activity', location_country: 'Japan', location_country_code: 'JP' }),
+      makeSave({ category: 'restaurant', location_country: 'China', location_country_code: 'CN' }),
     ]
     render(<FilterBar {...defaultProps} items={items} />)
-    expect(screen.getByTestId('filter-country-Japan').textContent).toContain('2')
-    expect(screen.getByTestId('filter-country-China').textContent).toContain('1')
+
+    const bar = screen.getByTestId('filter-bar')
+    const pills = bar.querySelectorAll('[data-testid^="filter-pill-"]')
+    // First pill should be JP (3 items) or activity (3 items)
+    const firstId = pills[0]?.getAttribute('data-testid') ?? ''
+    expect(firstId === 'filter-pill-loc:JP' || firstId === 'filter-pill-cat:activity').toBe(true)
+  })
+})
+
+describe('buildAllPills', () => {
+  it('creates pills for all 12 system categories', () => {
+    const pills = buildAllPills([], [], [])
+    const catPills = pills.filter(p => p.type === 'category')
+    expect(catPills).toHaveLength(12)
+  })
+
+  it('creates location pills for each country', () => {
+    const countries = [{ code: 'JP', name: 'Japan' }, { code: 'CN', name: 'China' }]
+    const pills = buildAllPills([], countries, [])
+    const locPills = pills.filter(p => p.type === 'location')
+    expect(locPills).toHaveLength(2)
+    expect(locPills[0].id).toBe('loc:JP')
+    expect(locPills[1].id).toBe('loc:CN')
+  })
+
+  it('creates custom tag pills', () => {
+    const pills = buildAllPills([], [], ['Bucket List', 'Must Try'])
+    const tagPills = pills.filter(p => p.type === 'custom')
+    expect(tagPills).toHaveLength(2)
+    expect(tagPills[0].id).toBe('tag:Bucket List')
+  })
+
+  it('counts items per category correctly', () => {
+    const items = [
+      makeSave({ category: 'restaurant' }),
+      makeSave({ category: 'restaurant' }),
+      makeSave({ category: 'activity' }),
+    ]
+    const pills = buildAllPills(items, [], [])
+    const restaurant = pills.find(p => p.id === 'cat:restaurant')
+    const activity = pills.find(p => p.id === 'cat:activity')
+    expect(restaurant?.count).toBe(2)
+    expect(activity?.count).toBe(1)
+  })
+
+  it('counts items per country correctly', () => {
+    const items = [
+      makeSave({ location_country_code: 'JP' }),
+      makeSave({ location_country_code: 'JP' }),
+      makeSave({ location_country_code: 'CN' }),
+    ]
+    const countries = [{ code: 'JP', name: 'Japan' }, { code: 'CN', name: 'China' }]
+    const pills = buildAllPills(items, countries, [])
+    const jp = pills.find(p => p.id === 'loc:JP')
+    const cn = pills.find(p => p.id === 'loc:CN')
+    expect(jp?.count).toBe(2)
+    expect(cn?.count).toBe(1)
   })
 
   it('resolves legacy categories for counts', () => {
@@ -155,98 +234,30 @@ describe('FilterBar', () => {
       makeSave({ category: 'museum' as any }),
       makeSave({ category: 'nightlife' as any }),
     ]
-    render(<FilterBar {...defaultProps} items={items} />)
-    // museum → Attraction, nightlife → Bar / Nightlife
-    expect(screen.getByTestId('filter-category-attraction').textContent).toContain('1')
-    expect(screen.getByTestId('filter-category-bar_nightlife').textContent).toContain('1')
+    const pills = buildAllPills(items, [], [])
+    // museum → attraction, nightlife → bar_nightlife
+    const attraction = pills.find(p => p.id === 'cat:attraction')
+    const bar = pills.find(p => p.id === 'cat:bar_nightlife')
+    expect(attraction?.count).toBe(1)
+    expect(bar?.count).toBe(1)
   })
 
-  it('City/Country toggle calls onGroupModeChange', () => {
-    const onGroupChange = vi.fn()
-    render(<FilterBar {...defaultProps} onGroupModeChange={onGroupChange} />)
-    fireEvent.click(screen.getByTestId('filter-group-city'))
-    expect(onGroupChange).toHaveBeenCalledWith('city')
-  })
-
-  it('supports multiple filters (OR within groups)', () => {
-    const onChange = vi.fn()
-    render(<FilterBar {...defaultProps} selectedFilters={['Japan']} onSelectionChange={onChange} />)
-    fireEvent.click(screen.getByTestId('filter-country-China'))
-    expect(onChange).toHaveBeenCalledWith(['Japan', 'China'])
-  })
-
-  // ── Scrolling ──
-
-  it('filter bar container uses flex-nowrap and overflow-x auto for horizontal scroll', () => {
-    render(<FilterBar {...defaultProps} />)
-    const bar = screen.getByTestId('filter-bar')
-    expect(bar.style.flexWrap).toBe('nowrap')
-    expect(bar.style.overflowX).toBe('auto')
-  })
-
-  it('all pills have flexShrink 0 so they do not compress', () => {
-    const items = [makeSave({ category: 'restaurant', location_country: 'Japan' })]
-    render(<FilterBar {...defaultProps} items={items} />)
-    const pill = screen.getByTestId('filter-category-restaurant')
-    expect(pill.style.flexShrink).toBe('0')
-  })
-
-  it('filter bar has touchAction pan-x to enable horizontal touch scrolling', () => {
-    render(<FilterBar {...defaultProps} />)
-    const bar = screen.getByTestId('filter-bar')
-    expect(bar.style.touchAction).toBe('pan-x')
-  })
-
-  it('touch events on filter bar do not propagate to parent (prevents sheet drag hijack)', () => {
-    render(<FilterBar {...defaultProps} />)
-    const bar = screen.getByTestId('filter-bar')
-    // Verify the bar has touchAction pan-x and the onTouchStart handler is attached
-    expect(bar.style.touchAction).toBe('pan-x')
-  })
-
-  // ── Sort order ──
-
-  it('country pills are sorted by save count descending', () => {
+  it('all pill types compete for visibility based on count', () => {
     const items = [
-      makeSave({ location_country: 'China' }),
-      makeSave({ location_country: 'China' }),
-      makeSave({ location_country: 'China' }),
-      makeSave({ location_country: 'Japan' }),
+      // 5 Japan items
+      ...Array.from({ length: 5 }, () => makeSave({ location_country_code: 'JP', category: 'hotel' })),
+      // 3 restaurant items
+      ...Array.from({ length: 3 }, () => makeSave({ category: 'restaurant' })),
     ]
-    render(<FilterBar {...defaultProps} countryList={['Japan', 'China']} items={items} />)
+    const countries = [{ code: 'JP', name: 'Japan' }]
+    const pills = buildAllPills(items, countries, [])
 
-    const bar = screen.getByTestId('filter-bar')
-    const countryPills = bar.querySelectorAll('[data-testid^="filter-country-"]')
-    // China (3) should come before Japan (1)
-    expect(countryPills[0].getAttribute('data-testid')).toBe('filter-country-China')
-    expect(countryPills[1].getAttribute('data-testid')).toBe('filter-country-Japan')
-  })
-
-  it('category pills are sorted by save count descending, zero-count last', () => {
-    const items = [
-      makeSave({ category: 'activity' }),
-      makeSave({ category: 'activity' }),
-      makeSave({ category: 'restaurant' }),
-    ]
-    render(<FilterBar {...defaultProps} items={items} />)
-
-    const bar = screen.getByTestId('filter-bar')
-    const catPills = bar.querySelectorAll('[data-testid^="filter-category-"]')
-    // Activity (2) first, Restaurant (1) second, then zero-count categories
-    expect(catPills[0].getAttribute('data-testid')).toBe('filter-category-activity')
-    expect(catPills[1].getAttribute('data-testid')).toBe('filter-category-restaurant')
-  })
-
-  it('zero-count category pills use muted text color', () => {
-    const items = [makeSave({ category: 'restaurant' })]
-    render(<FilterBar {...defaultProps} items={items} />)
-
-    // Activity has zero saves — should be muted
-    const activityPill = screen.getByTestId('filter-category-activity')
-    expect(activityPill.style.color).toBe('var(--text-muted)')
-
-    // Restaurant has 1 save — should not be muted
-    const restaurantPill = screen.getByTestId('filter-category-restaurant')
-    expect(restaurantPill.style.color).toBe('var(--text-tertiary)')
+    // Sort by count to check ranking
+    const sorted = [...pills].sort((a, b) => b.count - a.count)
+    // JP location (5) and hotel (5) should be top — they're tied, then restaurant (3)
+    const top3Ids = sorted.slice(0, 3).map(p => p.id)
+    expect(top3Ids).toContain('loc:JP')
+    expect(top3Ids).toContain('cat:hotel')
+    expect(top3Ids).toContain('cat:restaurant')
   })
 })

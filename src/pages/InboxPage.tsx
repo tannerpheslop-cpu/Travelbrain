@@ -7,7 +7,7 @@ import { useSavedItems, useAllSavedItems, useRoutes, useTripsQuery, useTripItemM
 import SaveSheet from '../components/SaveSheet'
 import { useToast } from '../components/Toast'
 import FilterBar from '../components/FilterBar'
-import { SYSTEM_CATEGORIES, getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
+import { getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { LayoutGrid, List, Search, X, ChevronDown, ChevronRight, CheckSquare } from 'lucide-react'
 import { CategoryPill, CountryCodeBadge, PrimaryButton, DashedCard, ConfirmDeleteModal } from '../components/ui'
@@ -514,9 +514,6 @@ export default function InboxPage() {
     [allTripItems],
   )
 
-  // Category names for the pill sheet (12 system categories)
-  const categoryNames = SYSTEM_CATEGORIES.map(c => c.tagName)
-
   // Country list from items (unique countries, sorted alphabetically)
   const countryList = useMemo(() => {
     const map = new Map<string, string>() // code → name
@@ -529,31 +526,30 @@ export default function InboxPage() {
     })
     return [...map.entries()]
       .sort((a, b) => a[1].localeCompare(b[1]))
-      .map(([, name]) => name)
+      .map(([code, name]) => ({ code, name }))
   }, [items])
 
-  // Parse selected filters into typed groups for filtering
+  // Parse selected filters into typed groups for filtering (typed IDs: cat:X, loc:XX, tag:X)
   const parsedFilters = useMemo(() => {
-    const categories: string[] = []
-    const countries: string[] = []
-    const statuses: string[] = []
+    const categories: string[] = []    // category labels (e.g. "Restaurant")
+    const countryCodes: string[] = []  // country codes (e.g. "JP")
     const customTagFilters: string[] = []
 
-    const categorySet = new Set(categoryNames.map((c) => getCategoryLabel(c)))
-    const countrySet = new Set(countryList)
-    const statusSet = new Set(['Unplanned', 'In a trip'])
-
     for (const f of selectedFilters) {
-      if (categorySet.has(f)) categories.push(f)
-      else if (countrySet.has(f)) countries.push(f)
-      else if (statusSet.has(f)) statuses.push(f)
-      else customTagFilters.push(f)
+      if (f.startsWith('cat:')) {
+        const tagName = f.slice(4)
+        categories.push(getCategoryLabel(tagName))
+      } else if (f.startsWith('loc:')) {
+        countryCodes.push(f.slice(4))
+      } else if (f.startsWith('tag:')) {
+        customTagFilters.push(f.slice(4))
+      }
     }
 
-    return { categories, countries, statuses, customTags: customTagFilters }
-  }, [selectedFilters, countryList])
+    return { categories, countryCodes, customTags: customTagFilters }
+  }, [selectedFilters])
 
-  const hasCountryFilter = parsedFilters.countries.length > 0
+  const hasCountryFilter = parsedFilters.countryCodes.length > 0
 
   const filtered = useMemo(
     () =>
@@ -567,21 +563,13 @@ export default function InboxPage() {
         // Category filter (OR within group): resolve item.category (possibly legacy) to display label
         if (parsedFilters.categories.length > 0) {
           const resolved = LEGACY_CATEGORY_MAP[item.category] ?? item.category
-          const itemCategoryLabel = getCategoryLabel(resolved)
-          if (!parsedFilters.categories.includes(itemCategoryLabel)) return false
+          const itemCatLabel = getCategoryLabel(resolved)
+          if (!parsedFilters.categories.includes(itemCatLabel)) return false
         }
 
-        // Country filter (OR within group): item.location_country must match one of selected
-        if (parsedFilters.countries.length > 0) {
-          if (!item.location_country || !parsedFilters.countries.includes(item.location_country)) return false
-        }
-
-        // Status filter (OR within group)
-        if (parsedFilters.statuses.length > 0) {
-          const isAssigned = assignedItemIds.has(item.id)
-          const matchesUnplanned = parsedFilters.statuses.includes('Unplanned') && !isAssigned
-          const matchesInTrip = parsedFilters.statuses.includes('In a trip') && isAssigned
-          if (!matchesUnplanned && !matchesInTrip) return false
+        // Country filter (OR within group): item.location_country_code must match one of selected
+        if (parsedFilters.countryCodes.length > 0) {
+          if (!item.location_country_code || !parsedFilters.countryCodes.includes(item.location_country_code)) return false
         }
 
         // Custom tag filter: for now, match against saved_items.tags array (backward compat)
@@ -599,7 +587,7 @@ export default function InboxPage() {
 
         return true
       }),
-    [items, searchQuery, parsedFilters, assignedItemIds, graphCluster],
+    [items, searchQuery, parsedFilters, graphCluster],
   )
 
   // GeoEntry: discriminated union for saves and routes in geo groups + recently added
@@ -697,28 +685,33 @@ export default function InboxPage() {
         const saveMatch = saves.some(s => s.title?.toLowerCase().includes(q))
         if (!nameMatch && !saveMatch) return false
       }
-      if (selectedFilters.length > 0) {
-        // Category filter
-        const allCategoryLabels: string[] = SYSTEM_CATEGORIES.map(c => c.label)
-        const catFilters = selectedFilters.filter((f: string) => allCategoryLabels.includes(f))
-        if (catFilters.length > 0) {
-          const hasMatchingCat = saves.some(s => {
-            const resolved = LEGACY_CATEGORY_MAP[s.category] ?? s.category
-            const label = getCategoryLabel(resolved)
-            return catFilters.includes(label)
-          })
-          if (!hasMatchingCat) return false
-        }
-        // Country filter
-        const countryFilters = selectedFilters.filter((f: string) => countryList.includes(f))
-        if (countryFilters.length > 0) {
-          const hasMatchingCountry = saves.some(s => s.location_country && countryFilters.includes(s.location_country))
-          if (!hasMatchingCountry) return false
-        }
+      // Category filter (from typed IDs)
+      if (parsedFilters.categories.length > 0) {
+        const hasMatchingCat = saves.some(s => {
+          const resolved = LEGACY_CATEGORY_MAP[s.category] ?? s.category
+          const label = getCategoryLabel(resolved)
+          return parsedFilters.categories.includes(label)
+        })
+        if (!hasMatchingCat) return false
+      }
+      // Country filter (from typed IDs — uses country codes now)
+      if (parsedFilters.countryCodes.length > 0) {
+        const hasMatchingCountry = saves.some(s =>
+          s.location_country_code && parsedFilters.countryCodes.includes(s.location_country_code),
+        )
+        if (!hasMatchingCountry) return false
+      }
+      // Custom tag filter
+      if (parsedFilters.customTags.length > 0) {
+        const hasMatchingTag = saves.some(s => {
+          const itemTags = s.tags ?? []
+          return parsedFilters.customTags.some(t => itemTags.includes(t))
+        })
+        if (!hasMatchingTag) return false
       }
       return true
     })
-  }, [routes, routeSavesMap, searchQuery, selectedFilters, countryList])
+  }, [routes, routeSavesMap, searchQuery, parsedFilters])
 
   // Merge Routes into geo groups so they render inline with saves
   interface MergedGeoGroup {
