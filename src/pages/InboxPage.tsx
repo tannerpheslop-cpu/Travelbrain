@@ -10,7 +10,7 @@ import FilterBar from '../components/FilterBar'
 import { SYSTEM_CATEGORIES, getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { LayoutGrid, List, Search, X, ChevronDown, ChevronRight, CheckSquare } from 'lucide-react'
-import { CategoryPill, CountryCodeBadge, SourceIcon, PrimaryButton, DashedCard, ConfirmDeleteModal } from '../components/ui'
+import { CategoryPill, CountryCodeBadge, PrimaryButton, DashedCard, ConfirmDeleteModal } from '../components/ui'
 import ScrollToTop from '../components/ScrollToTop'
 import SunsetBackground from '../components/horizon/SunsetBackground'
 import TravelGraph from '../components/horizon/TravelGraph'
@@ -32,17 +32,7 @@ function formatDate(dateStr: string): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-/** Map source_type / site_name to a SourceIcon key */
-function getSourceKey(item: SavedItem): string {
-  if (item.site_name) {
-    const sn = item.site_name.toLowerCase()
-    if (sn.includes('tiktok')) return 'tiktok'
-    if (sn.includes('instagram')) return 'instagram'
-  }
-  if (item.source_type === 'manual') return 'manual'
-  if (item.source_type === 'screenshot') return 'screenshot'
-  return 'url'
-}
+
 
 // ── Geo Grouping ─────────────────────────────────────────────────────────────
 
@@ -1895,7 +1885,6 @@ function LocationShimmer({ variant }: { variant: 'image' | 'text' }) {
 // ─── Image Card (image_display = 'thumbnail') ────────────────────────────────
 
 function ImageCard({ item, tripCount, eager, showShimmer, extractionCount, categoryLabel }: { item: SavedItem; tripCount: number; eager?: boolean; showShimmer?: boolean; extractionCount?: number; categoryLabel?: string }) {
-  const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
   const rawUrl = item.image_url ?? item.places_photo_url ?? null
   const [photoUrl, setPhotoUrl] = useState<string | null>(rawUrl)
@@ -1957,10 +1946,6 @@ function ImageCard({ item, tripCount, eager, showShimmer, extractionCount, categ
           className="absolute inset-0 pointer-events-none"
           style={{ background: 'linear-gradient(to bottom, transparent 35%, rgba(0,0,0,0.7) 100%)' }}
         />
-        {/* Source icon — top left with dark backdrop */}
-        <div className="absolute" style={{ top: 8, left: 8 }}>
-          <SourceIcon source={sourceKey} size={20} overImage className="!text-[8px]" />
-        </div>
         {/* Trip count pill */}
         <TripCountPill count={tripCount} variant="image" />
         {/* Extraction badge */}
@@ -2019,7 +2004,6 @@ function ImageCard({ item, tripCount, eager, showShimmer, extractionCount, categ
 // ─── Text Card (image_display = 'none') ──────────────────────────────────────
 
 function TextCard({ item, tripCount, showShimmer, extractionCount, categoryLabel }: { item: SavedItem; tripCount: number; showShimmer?: boolean; extractionCount?: number; categoryLabel?: string }) {
-  const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
 
   return (
@@ -2037,13 +2021,6 @@ function TextCard({ item, tripCount, showShimmer, extractionCount, categoryLabel
           className="flex flex-col justify-end"
           style={{ padding: 10, height: '100%', boxSizing: 'border-box' }}
         >
-          {/* Source row */}
-          <div className="flex items-center gap-1.5" style={{ marginBottom: 6 }}>
-            <SourceIcon source={sourceKey} size={16} className="!text-[8px]" />
-            <span className="font-mono text-[8px] text-text-faint truncate">
-              {item.site_name ?? item.source_type}
-            </span>
-          </div>
           {/* Title */}
           <p
             className="text-[12px] font-semibold text-text-primary"
@@ -2107,7 +2084,6 @@ function ListRow({
   extractionCount?: number
   categoryLabel?: string
 }) {
-  const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
   const catLabel = categoryLabel ?? (item.category && item.category !== 'general' ? getCategoryLabel(LEGACY_CATEGORY_MAP[item.category] ?? item.category) : null)
 
@@ -2118,15 +2094,9 @@ function ListRow({
         className="flex items-center gap-3 px-2 py-2.5 hover:bg-bg-muted active:bg-bg-pill transition-colors"
         style={{ borderRadius: 8, background: 'var(--bg-elevated-1)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
       >
-        {/* Source icon */}
-        <SourceIcon source={sourceKey} size={32} />
-
-        {/* Title + source */}
+        {/* Title */}
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-medium text-text-primary truncate group-hover:text-accent transition-colors">{item.title}</p>
-          <p className="font-mono text-[11px] text-text-tertiary truncate">
-            {item.site_name ?? item.source_type}
-          </p>
         </div>
 
         {/* Pills + date */}
