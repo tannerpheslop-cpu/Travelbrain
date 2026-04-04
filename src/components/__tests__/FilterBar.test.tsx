@@ -174,4 +174,66 @@ describe('FilterBar', () => {
     fireEvent.click(screen.getByTestId('filter-country-China'))
     expect(onChange).toHaveBeenCalledWith(['Japan', 'China'])
   })
+
+  // ── Scrolling ──
+
+  it('filter bar container uses flex-nowrap and overflow-x auto for horizontal scroll', () => {
+    render(<FilterBar {...defaultProps} />)
+    const bar = screen.getByTestId('filter-bar')
+    expect(bar.style.flexWrap).toBe('nowrap')
+    expect(bar.style.overflowX).toBe('auto')
+  })
+
+  it('all pills have flexShrink 0 so they do not compress', () => {
+    const items = [makeSave({ category: 'restaurant', location_country: 'Japan' })]
+    render(<FilterBar {...defaultProps} items={items} />)
+    const pill = screen.getByTestId('filter-category-restaurant')
+    expect(pill.style.flexShrink).toBe('0')
+  })
+
+  // ── Sort order ──
+
+  it('country pills are sorted by save count descending', () => {
+    const items = [
+      makeSave({ location_country: 'China' }),
+      makeSave({ location_country: 'China' }),
+      makeSave({ location_country: 'China' }),
+      makeSave({ location_country: 'Japan' }),
+    ]
+    render(<FilterBar {...defaultProps} countryList={['Japan', 'China']} items={items} />)
+
+    const bar = screen.getByTestId('filter-bar')
+    const countryPills = bar.querySelectorAll('[data-testid^="filter-country-"]')
+    // China (3) should come before Japan (1)
+    expect(countryPills[0].getAttribute('data-testid')).toBe('filter-country-China')
+    expect(countryPills[1].getAttribute('data-testid')).toBe('filter-country-Japan')
+  })
+
+  it('category pills are sorted by save count descending, zero-count last', () => {
+    const items = [
+      makeSave({ category: 'activity' }),
+      makeSave({ category: 'activity' }),
+      makeSave({ category: 'restaurant' }),
+    ]
+    render(<FilterBar {...defaultProps} items={items} />)
+
+    const bar = screen.getByTestId('filter-bar')
+    const catPills = bar.querySelectorAll('[data-testid^="filter-category-"]')
+    // Activity (2) first, Restaurant (1) second, then zero-count categories
+    expect(catPills[0].getAttribute('data-testid')).toBe('filter-category-activity')
+    expect(catPills[1].getAttribute('data-testid')).toBe('filter-category-restaurant')
+  })
+
+  it('zero-count category pills use muted text color', () => {
+    const items = [makeSave({ category: 'restaurant' })]
+    render(<FilterBar {...defaultProps} items={items} />)
+
+    // Activity has zero saves — should be muted
+    const activityPill = screen.getByTestId('filter-category-activity')
+    expect(activityPill.style.color).toBe('var(--text-muted)')
+
+    // Restaurant has 1 save — should not be muted
+    const restaurantPill = screen.getByTestId('filter-category-restaurant')
+    expect(restaurantPill.style.color).toBe('var(--text-tertiary)')
+  })
 })
