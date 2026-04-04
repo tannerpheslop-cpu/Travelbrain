@@ -347,16 +347,26 @@ export default function ItemDetailPage() {
       }}>
         <button
           onClick={() => navigate(backTo)}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: "'DM Sans', sans-serif", fontSize: 14 }}
+          style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 32, height: 32, borderRadius: 8,
+            background: 'rgba(0, 0, 0, 0.5)', border: 'none', cursor: 'pointer',
+            color: '#e8eaed',
+          }}
+          aria-label="Back"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
             <path fillRule="evenodd" d="M17 10a.75.75 0 01-.75.75H5.612l4.158 3.96a.75.75 0 11-1.04 1.08l-5.5-5.25a.75.75 0 010-1.08l5.5-5.25a.75.75 0 111.04 1.08L5.612 9.25H16.25A.75.75 0 0117 10z" clipRule="evenodd" />
           </svg>
-          Back
         </button>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {saveStatus !== 'idle' && (
-            <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500, color: saveStatus === 'saving' ? 'var(--text-tertiary)' : '#5b8a72' }}>
+            <span style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 12, fontWeight: 500,
+              color: saveStatus === 'saving' ? 'rgba(255,255,255,0.6)' : '#5b8a72',
+              padding: '2px 8px', borderRadius: 6,
+              background: 'rgba(0, 0, 0, 0.4)',
+            }}>
               {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
             </span>
           )}
@@ -365,7 +375,11 @@ export default function ItemDetailPage() {
             <button
               type="button"
               onClick={() => setShowMenu((v) => !v)}
-              style={{ width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)' }}
+              style={{
+                width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                borderRadius: 8, background: 'rgba(0, 0, 0, 0.5)', border: 'none',
+                cursor: 'pointer', color: '#e8eaed',
+              }}
               aria-label="More options"
             >
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
@@ -632,16 +646,26 @@ export default function ItemDetailPage() {
           />
         )}
 
-        {/* Category grid */}
+        {/* Categories & Tags — unified section */}
         <div style={{ marginTop: 20 }}>
           <label style={{
-            fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
-            textTransform: 'uppercase', letterSpacing: '0.08em',
+            fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
             color: 'var(--text-secondary)', display: 'block', marginBottom: 8,
           }}>
-            Category
+            Categories &amp; Tags
           </label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }} data-testid="category-grid">
+
+          {/* Row 1: System categories — horizontal scroll */}
+          <style>{`.category-scroll::-webkit-scrollbar { display: none; }`}</style>
+          <div
+            className="category-scroll"
+            style={{
+              display: 'flex', flexWrap: 'nowrap', overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
+              gap: 6, paddingBottom: 2,
+            }}
+            data-testid="category-grid"
+          >
             {SYSTEM_CATEGORIES.map((cat) => {
               const active = activeCategoryTags.includes(cat.tagName)
               const Icon = cat.icon
@@ -652,7 +676,7 @@ export default function ItemDetailPage() {
                   onClick={() => handleToggleCategoryTag(cat.tagName)}
                   data-testid={`category-pill-${cat.tagName}`}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 5,
+                    display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
                     fontFamily: "'DM Sans', sans-serif", fontSize: 12,
                     padding: '4px 10px', borderRadius: 9999, cursor: 'pointer',
                     border: active
@@ -665,126 +689,122 @@ export default function ItemDetailPage() {
                       ? '#e8eaed'
                       : 'var(--text-tertiary)',
                     transition: 'all 150ms',
+                    whiteSpace: 'nowrap',
                   }}
                 >
-                  <Icon style={{ width: 16, height: 16 }} />
+                  <Icon style={{ width: 14, height: 14 }} />
                   {cat.label}
                 </button>
               )
             })}
           </div>
-        </div>
 
-        {/* User tags section */}
-        <div style={{ marginTop: 16 }}>
-          <label style={{
-            fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
-            color: 'var(--text-secondary)', display: 'block', marginBottom: 8,
-          }}>
-            Tags
-          </label>
-
-          {/* Existing custom tags */}
-          {activeCustomTags.length > 0 && (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }} data-testid="custom-tags-list">
-              {activeCustomTags.map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => handleRemoveTag(tag)}
-                  data-testid={`custom-tag-${tag}`}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 11,
-                    padding: '3px 8px', borderRadius: 9999, cursor: 'pointer',
-                    border: 'none',
-                    background: 'var(--bg-elevated-2)',
-                    color: 'var(--text-tertiary)',
-                    transition: 'all 150ms',
-                  }}
-                >
-                  <span style={{ opacity: 0.6 }}>#</span>
-                  {tag}
-                  <X style={{ width: 10, height: 10, opacity: 0.5 }} />
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Tag input with autocomplete */}
-          <div style={{ position: 'relative' }}>
-            <input
-              ref={tagInputRef}
-              type="text"
-              value={tagDraft}
-              onChange={(e) => setTagDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  const trimmed = tagDraft.trim()
-                  if (trimmed) {
-                    // Check if it matches an existing suggestion
-                    handleAddCustomTag(trimmed)
-                  }
-                  setTagDraft('')
-                }
-                if (e.key === 'Escape') {
-                  setTagDraft('')
-                }
-              }}
-              onFocus={() => setShowTagInput(true)}
-              onBlur={() => {
-                // Delay to allow click on suggestion
-                setTimeout(() => setShowTagInput(false), 200)
-              }}
-              placeholder="Add tag..."
-              data-testid="tag-input"
-              style={{
-                width: '100%', padding: '8px 12px',
-                fontFamily: "'DM Sans', sans-serif", fontSize: 14,
-                color: 'var(--text-primary)',
-                background: 'var(--bg-elevated-1)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 9999, outline: 'none',
-              }}
-            />
-            {/* Autocomplete dropdown */}
-            {showTagInput && tagDraft.trim().length > 0 && tagSuggestions.length > 0 && (
-              <div
+          {/* Row 2: User tags — horizontal scroll */}
+          <div
+            className="category-scroll"
+            style={{
+              display: 'flex', flexWrap: 'nowrap', overflowX: 'auto',
+              WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none',
+              gap: 6, marginTop: 8, alignItems: 'center',
+            }}
+            data-testid="custom-tags-list"
+          >
+            {activeCustomTags.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => handleRemoveTag(tag)}
+                data-testid={`custom-tag-${tag}`}
                 style={{
-                  position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 4,
+                  display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 11,
+                  padding: '3px 8px', borderRadius: 9999, cursor: 'pointer',
+                  border: 'none',
                   background: 'var(--bg-elevated-2)',
-                  borderRadius: 8, overflow: 'hidden',
-                  boxShadow: 'var(--shadow-md)',
-                  zIndex: 20,
+                  color: 'var(--text-tertiary)',
+                  transition: 'all 150ms',
+                  whiteSpace: 'nowrap',
                 }}
-                data-testid="tag-suggestions"
               >
-                {tagSuggestions.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => {
-                      handleAddCustomTag(suggestion)
-                      setTagDraft('')
-                      setShowTagInput(false)
-                    }}
-                    data-testid={`tag-suggestion-${suggestion}`}
-                    style={{
-                      display: 'block', width: '100%', textAlign: 'left',
-                      padding: '8px 12px',
-                      fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                      color: 'var(--text-primary)',
-                      background: 'transparent', border: 'none', cursor: 'pointer',
-                    }}
-                  >
-                    <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>#</span>
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            )}
+                <span style={{ opacity: 0.6 }}>#</span>
+                {tag}
+                <X style={{ width: 10, height: 10, opacity: 0.5 }} />
+              </button>
+            ))}
+
+            {/* Inline tag input */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <input
+                ref={tagInputRef}
+                type="text"
+                value={tagDraft}
+                onChange={(e) => setTagDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    const trimmed = tagDraft.trim()
+                    if (trimmed) {
+                      handleAddCustomTag(trimmed)
+                    }
+                    setTagDraft('')
+                  }
+                  if (e.key === 'Escape') {
+                    setTagDraft('')
+                  }
+                }}
+                onFocus={() => setShowTagInput(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowTagInput(false), 200)
+                }}
+                placeholder="Add tag..."
+                data-testid="tag-input"
+                style={{
+                  width: 110, padding: '4px 10px',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                  color: 'var(--text-primary)',
+                  background: 'var(--bg-elevated-1)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 9999, outline: 'none',
+                }}
+              />
+              {/* Autocomplete dropdown */}
+              {showTagInput && tagDraft.trim().length > 0 && tagSuggestions.length > 0 && (
+                <div
+                  style={{
+                    position: 'absolute', left: 0, top: '100%', marginTop: 4,
+                    width: 180, background: 'var(--bg-elevated-2)',
+                    borderRadius: 8, overflow: 'hidden',
+                    boxShadow: 'var(--shadow-md)',
+                    zIndex: 20,
+                  }}
+                  data-testid="tag-suggestions"
+                >
+                  {tagSuggestions.map((suggestion) => (
+                    <button
+                      key={suggestion}
+                      type="button"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        handleAddCustomTag(suggestion)
+                        setTagDraft('')
+                        setShowTagInput(false)
+                      }}
+                      data-testid={`tag-suggestion-${suggestion}`}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left',
+                        padding: '8px 12px',
+                        fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                        color: 'var(--text-primary)',
+                        background: 'transparent', border: 'none', cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>#</span>
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

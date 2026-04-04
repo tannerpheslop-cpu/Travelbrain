@@ -22,7 +22,7 @@ describe('categoryLabel', () => {
 
   it('maps legacy values to their system equivalent labels', () => {
     expect(categoryLabel['transit']).toBe('Transport')
-    expect(categoryLabel['nightlife']).toBe('Bar / Nightlife')
+    expect(categoryLabel['nightlife']).toBe('Bar')
     expect(categoryLabel['museum']).toBe('Attraction')
     expect(categoryLabel['park']).toBe('Outdoors')
     expect(categoryLabel['spa']).toBe('Wellness')
@@ -37,8 +37,8 @@ describe('categoryLabel', () => {
 describe('displayTagName', () => {
   it('maps system category values to labels', () => {
     expect(displayTagName('restaurant')).toBe('Restaurant')
-    expect(displayTagName('bar_nightlife')).toBe('Bar / Nightlife')
-    expect(displayTagName('coffee_cafe')).toBe('Coffee / Cafe')
+    expect(displayTagName('bar_nightlife')).toBe('Bar')
+    expect(displayTagName('coffee_cafe')).toBe('Cafe')
     expect(displayTagName('hotel')).toBe('Hotel')
     expect(displayTagName('activity')).toBe('Activity')
     expect(displayTagName('attraction')).toBe('Attraction')
@@ -46,7 +46,7 @@ describe('displayTagName', () => {
   })
 
   it('maps legacy category values to system labels', () => {
-    expect(displayTagName('nightlife')).toBe('Bar / Nightlife')
+    expect(displayTagName('nightlife')).toBe('Bar')
     expect(displayTagName('museum')).toBe('Attraction')
     expect(displayTagName('spa')).toBe('Wellness')
     expect(displayTagName('transit')).toBe('Transport')
@@ -79,7 +79,7 @@ describe('isCategoryTag', () => {
 
   it('identifies category labels', () => {
     expect(isCategoryTag('Restaurant')).toBe(true)
-    expect(isCategoryTag('Bar / Nightlife')).toBe(true)
+    expect(isCategoryTag('Bar')).toBe(true)
     expect(isCategoryTag('Attraction')).toBe(true)
   })
 
@@ -93,8 +93,8 @@ describe('categoryFromLabel', () => {
   it('maps system labels to tag names', () => {
     expect(categoryFromLabel['Restaurant']).toBe('restaurant')
     expect(categoryFromLabel['Hotel']).toBe('hotel')
-    expect(categoryFromLabel['Bar / Nightlife']).toBe('bar_nightlife')
-    expect(categoryFromLabel['Coffee / Cafe']).toBe('coffee_cafe')
+    expect(categoryFromLabel['Bar']).toBe('bar_nightlife')
+    expect(categoryFromLabel['Cafe']).toBe('coffee_cafe')
     expect(categoryFromLabel['Attraction']).toBe('attraction')
   })
 })
@@ -151,7 +151,7 @@ describe('getItemDisplayTags', () => {
   it('handles legacy category in fallback mode', () => {
     const result = getItemDisplayTags(undefined, 'nightlife')
     expect(result).toHaveLength(1)
-    expect(result[0]).toEqual({ name: 'Bar / Nightlife', type: 'category', raw: 'nightlife' })
+    expect(result[0]).toEqual({ name: 'Bar', type: 'category', raw: 'nightlife' })
   })
 
   it('returns empty for general category with no tags', () => {

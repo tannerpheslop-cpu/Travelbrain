@@ -1,13 +1,13 @@
 import {
   Utensils, Wine, Coffee, Bed, Ticket, Landmark,
-  ShoppingBag, Trees, MapPinned, TrainFront, Sparkles, CalendarHeart,
+  ShoppingBag, Trees, MapPinned, TrainFront, Flower2, CalendarHeart,
   type LucideIcon,
 } from 'lucide-react'
 
 export const SYSTEM_CATEGORIES = [
   { tagName: 'restaurant', label: 'Restaurant', icon: Utensils },
-  { tagName: 'bar_nightlife', label: 'Bar / Nightlife', icon: Wine },
-  { tagName: 'coffee_cafe', label: 'Coffee / Cafe', icon: Coffee },
+  { tagName: 'bar_nightlife', label: 'Bar', icon: Wine },
+  { tagName: 'coffee_cafe', label: 'Cafe', icon: Coffee },
   { tagName: 'hotel', label: 'Hotel', icon: Bed },
   { tagName: 'activity', label: 'Activity', icon: Ticket },
   { tagName: 'attraction', label: 'Attraction', icon: Landmark },
@@ -15,7 +15,7 @@ export const SYSTEM_CATEGORIES = [
   { tagName: 'outdoors', label: 'Outdoors', icon: Trees },
   { tagName: 'neighborhood', label: 'Neighborhood', icon: MapPinned },
   { tagName: 'transport', label: 'Transport', icon: TrainFront },
-  { tagName: 'wellness', label: 'Wellness', icon: Sparkles },
+  { tagName: 'wellness', label: 'Wellness', icon: Flower2 },
   { tagName: 'events', label: 'Events', icon: CalendarHeart },
 ] as const
 

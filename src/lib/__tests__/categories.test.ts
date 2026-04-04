@@ -30,8 +30,8 @@ describe('SYSTEM_CATEGORIES', () => {
 describe('getCategoryLabel', () => {
   test('returns label for system categories', () => {
     expect(getCategoryLabel('restaurant')).toBe('Restaurant')
-    expect(getCategoryLabel('bar_nightlife')).toBe('Bar / Nightlife')
-    expect(getCategoryLabel('coffee_cafe')).toBe('Coffee / Cafe')
+    expect(getCategoryLabel('bar_nightlife')).toBe('Bar')
+    expect(getCategoryLabel('coffee_cafe')).toBe('Cafe')
     expect(getCategoryLabel('hotel')).toBe('Hotel')
     expect(getCategoryLabel('activity')).toBe('Activity')
     expect(getCategoryLabel('attraction')).toBe('Attraction')

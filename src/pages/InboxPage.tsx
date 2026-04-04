@@ -1895,6 +1895,7 @@ function LocationShimmer({ variant }: { variant: 'image' | 'text' }) {
 // ─── Image Card (image_display = 'thumbnail') ────────────────────────────────
 
 function ImageCard({ item, tripCount, eager, showShimmer, extractionCount, categoryLabel }: { item: SavedItem; tripCount: number; eager?: boolean; showShimmer?: boolean; extractionCount?: number; categoryLabel?: string }) {
+  const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
   const rawUrl = item.image_url ?? item.places_photo_url ?? null
   const [photoUrl, setPhotoUrl] = useState<string | null>(rawUrl)
@@ -1956,6 +1957,10 @@ function ImageCard({ item, tripCount, eager, showShimmer, extractionCount, categ
           className="absolute inset-0 pointer-events-none"
           style={{ background: 'linear-gradient(to bottom, transparent 35%, rgba(0,0,0,0.7) 100%)' }}
         />
+        {/* Source icon — top left with dark backdrop */}
+        <div className="absolute" style={{ top: 8, left: 8 }}>
+          <SourceIcon source={sourceKey} size={20} overImage className="!text-[8px]" />
+        </div>
         {/* Trip count pill */}
         <TripCountPill count={tripCount} variant="image" />
         {/* Extraction badge */}
