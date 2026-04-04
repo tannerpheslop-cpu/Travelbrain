@@ -5,6 +5,7 @@ import { useToast } from './Toast'
 import { useQueryClient } from '@tanstack/react-query'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
 import type { ExtractedItem, Category } from '../types'
+import { SYSTEM_CATEGORIES, LEGACY_CATEGORY_MAP } from '../lib/categories'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,35 +50,18 @@ function extractCity(location: string | null | undefined): string | null {
   return parts[0] ?? null
 }
 
-const VALID_CATEGORIES: Category[] = [
-  'restaurant', 'hotel', 'museum', 'temple', 'park', 'hike',
-  'historical', 'shopping', 'nightlife', 'entertainment',
-  'transport', 'spa', 'beach', 'other',
-  // Legacy
-  'activity', 'transit', 'general',
-]
+const SYSTEM_TAG_NAMES = new Set(SYSTEM_CATEGORIES.map(c => c.tagName))
 
 function normalizeCategory(cat: string): Category {
-  if (VALID_CATEGORIES.includes(cat as Category)) return cat as Category
-  return 'other'
+  // If it's a system category, use it directly
+  if (SYSTEM_TAG_NAMES.has(cat)) return cat as Category
+  // If it's a legacy value, map it
+  const mapped = LEGACY_CATEGORY_MAP[cat]
+  if (mapped) return mapped as Category
+  return 'other' as Category
 }
 
-const CATEGORY_PILLS: { value: Category; label: string }[] = [
-  { value: 'restaurant', label: 'Food' },
-  { value: 'hotel', label: 'Stay' },
-  { value: 'museum', label: 'Museum' },
-  { value: 'temple', label: 'Temple' },
-  { value: 'park', label: 'Park' },
-  { value: 'hike', label: 'Hike' },
-  { value: 'historical', label: 'Historical' },
-  { value: 'shopping', label: 'Shopping' },
-  { value: 'nightlife', label: 'Nightlife' },
-  { value: 'entertainment', label: 'Entertainment' },
-  { value: 'transport', label: 'Transport' },
-  { value: 'spa', label: 'Spa' },
-  { value: 'beach', label: 'Beach' },
-  { value: 'other', label: 'Other' },
-]
+const CATEGORY_PILLS = SYSTEM_CATEGORIES.map(c => ({ value: c.tagName as Category, label: c.label }))
 
 /** Auto-suggest a Route name from the items and source context. */
 function suggestRouteName(

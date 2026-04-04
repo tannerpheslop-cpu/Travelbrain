@@ -3,6 +3,7 @@ import type { SavedItem } from '../../types'
 import { useGraphData, type GraphNode, type GraphEdge } from './useGraphData'
 import { useGraphSimulation } from './useGraphSimulation'
 import { GRAPH } from './graphConstants'
+import { getCategoryLabel, LEGACY_CATEGORY_MAP } from '../../lib/categories'
 
 /**
  * Travel Graph — force-directed star map visualization.
@@ -236,7 +237,7 @@ function NodePreviewCard({ item }: { item: SavedItem }) {
           color: 'var(--color-text-secondary, #a8c4dc)',
           marginTop: 1,
         }}>
-          {item.location_name?.split(',')[0] ?? ''}{item.category ? ` · ${item.category}` : ''}
+          {item.location_name?.split(',')[0] ?? ''}{item.category ? ` · ${getCategoryLabel(LEGACY_CATEGORY_MAP[item.category] ?? item.category)}` : ''}
         </div>
       </div>
     </div>

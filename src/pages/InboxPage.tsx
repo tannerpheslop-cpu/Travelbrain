@@ -3,14 +3,13 @@ import { Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { useSavedItems, useAllSavedItems, useRoutes, useTripsQuery, useTripItemMappings, useTripLinkCounts, usePendingExtractionCounts, useUserCustomTags, queryKeys, fetchTrips } from '../hooks/queries'
+import { useSavedItems, useAllSavedItems, useRoutes, useTripsQuery, useTripItemMappings, useTripLinkCounts, usePendingExtractionCounts, useUserCustomTags, useAllUserTags, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
 import { useToast } from '../components/Toast'
-import PillSheet from '../components/PillSheet'
-import type { PillGroup } from '../components/PillSheet'
-import { categoryLabel } from '../utils/categoryIcons'
+import FilterBar from '../components/FilterBar'
+import { SYSTEM_CATEGORIES, getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
 import { optimizedImageUrl } from '../lib/optimizedImage'
-import { LayoutGrid, List, SlidersHorizontal, Search, X, ChevronDown, ChevronRight, CheckSquare } from 'lucide-react'
+import { LayoutGrid, List, Search, X, ChevronDown, ChevronRight, CheckSquare } from 'lucide-react'
 import { CategoryPill, CountryCodeBadge, SourceIcon, PrimaryButton, DashedCard, ConfirmDeleteModal } from '../components/ui'
 import ScrollToTop from '../components/ScrollToTop'
 import SunsetBackground from '../components/horizon/SunsetBackground'
@@ -163,6 +162,43 @@ export default function InboxPage() {
   const { data: allTripItems = [] } = useTripItemMappings()
   const tripLinkCounts = useTripLinkCounts()
   const extractionCounts = usePendingExtractionCounts()
+  const { data: allUserTags = [] } = useAllUserTags(user?.id)
+
+  // Build item_id → first category tag label lookup from item_tags
+  const itemCategoryLabel = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const tag of allUserTags) {
+      if (tag.tag_type === 'category' && !map.has(tag.item_id)) {
+        map.set(tag.item_id, getCategoryLabel(tag.tag_name))
+      }
+    }
+    return map
+  }, [allUserTags])
+
+  // Build route_id → most common category label from route items' tags
+  const routeCategoryLabel = useMemo(() => {
+    const map = new Map<string, string>()
+    // Group tags by route_id via allItems (which have route_id)
+    const routeTagCounts = new Map<string, Map<string, number>>()
+    for (const tag of allUserTags) {
+      if (tag.tag_type !== 'category') continue
+      // Find which route this item belongs to
+      const item = allItems.find(i => i.id === tag.item_id && i.route_id)
+      if (!item?.route_id) continue
+      const counts = routeTagCounts.get(item.route_id) ?? new Map<string, number>()
+      counts.set(tag.tag_name, (counts.get(tag.tag_name) ?? 0) + 1)
+      routeTagCounts.set(item.route_id, counts)
+    }
+    for (const [routeId, counts] of routeTagCounts) {
+      let maxTag = ''
+      let maxCount = 0
+      for (const [tag, count] of counts) {
+        if (count > maxCount) { maxTag = tag; maxCount = count }
+      }
+      if (maxTag) map.set(routeId, getCategoryLabel(maxTag))
+    }
+    return map
+  }, [allUserTags, allItems])
 
   // Build a map of route_id → saves for Route card filtering
   const routeSavesMap = useMemo(() => {
@@ -252,7 +288,6 @@ export default function InboxPage() {
   const [searchExpanded, setSearchExpanded] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [showSaveSheet, setShowSaveSheet] = useState(false)
-  const [showPillSheet, setShowPillSheet] = useState(false)
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   // ── Multi-select state ──
@@ -489,8 +524,8 @@ export default function InboxPage() {
     [allTripItems],
   )
 
-  // Category names for the pill sheet
-  const categoryNames: Category[] = ['restaurant', 'activity', 'hotel', 'transit', 'general']
+  // Category names for the pill sheet (12 system categories)
+  const categoryNames = SYSTEM_CATEGORIES.map(c => c.tagName)
 
   // Country list from items (unique countries, sorted alphabetically)
   const countryList = useMemo(() => {
@@ -514,7 +549,7 @@ export default function InboxPage() {
     const statuses: string[] = []
     const customTagFilters: string[] = []
 
-    const categorySet = new Set(categoryNames.map((c) => categoryLabel[c]))
+    const categorySet = new Set(categoryNames.map((c) => getCategoryLabel(c)))
     const countrySet = new Set(countryList)
     const statusSet = new Set(['Unplanned', 'In a trip'])
 
@@ -530,41 +565,6 @@ export default function InboxPage() {
 
   const hasCountryFilter = parsedFilters.countries.length > 0
 
-  // Build PillSheet groups
-  const pillGroups = useMemo((): PillGroup[] => {
-    const groups: PillGroup[] = []
-
-    if (customTags.length > 0) {
-      groups.push({
-        title: 'My Tags',
-        pills: customTags,
-        type: 'custom',
-      })
-    }
-
-    groups.push({
-      title: 'Category',
-      pills: categoryNames.map((c) => categoryLabel[c]),
-      type: 'category',
-    })
-
-    if (countryList.length > 0) {
-      groups.push({
-        title: 'Country',
-        pills: countryList,
-        type: 'country',
-      })
-    }
-
-    groups.push({
-      title: 'Status',
-      pills: ['Unplanned', 'In a trip'],
-      type: 'status',
-    })
-
-    return groups
-  }, [customTags, countryList])
-
   const filtered = useMemo(
     () =>
       items.filter((item) => {
@@ -574,9 +574,10 @@ export default function InboxPage() {
           if (!item.title?.toLowerCase().includes(q)) return false
         }
 
-        // Category filter (OR within group): item.category label must match one of selected
+        // Category filter (OR within group): resolve item.category (possibly legacy) to display label
         if (parsedFilters.categories.length > 0) {
-          const itemCategoryLabel = categoryLabel[item.category]
+          const resolved = LEGACY_CATEGORY_MAP[item.category] ?? item.category
+          const itemCategoryLabel = getCategoryLabel(resolved)
           if (!parsedFilters.categories.includes(itemCategoryLabel)) return false
         }
 
@@ -708,12 +709,14 @@ export default function InboxPage() {
       }
       if (selectedFilters.length > 0) {
         // Category filter
-        const catFilters = selectedFilters.filter((f: string) => Object.values(categoryLabel).includes(f as never))
+        const allCategoryLabels = SYSTEM_CATEGORIES.map(c => c.label)
+        const catFilters = selectedFilters.filter((f: string) => allCategoryLabels.includes(f))
         if (catFilters.length > 0) {
-          const reverseCatMap: Record<string, string> = {}
-          for (const [k, v] of Object.entries(categoryLabel)) reverseCatMap[v] = k
-          const catValues = catFilters.map((f: string) => reverseCatMap[f]).filter(Boolean)
-          const hasMatchingCat = saves.some(s => catValues.includes(s.category))
+          const hasMatchingCat = saves.some(s => {
+            const resolved = LEGACY_CATEGORY_MAP[s.category] ?? s.category
+            const label = getCategoryLabel(resolved)
+            return catFilters.includes(label)
+          })
           if (!hasMatchingCat) return false
         }
         // Country filter
@@ -997,20 +1000,6 @@ export default function InboxPage() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowPillSheet(true)}
-                    className="flex items-center justify-center"
-                    style={{
-                      width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer',
-                      color: selectedFilters.length > 0 ? 'var(--accent-primary)' : 'var(--text-tertiary)',
-                      background: selectedFilters.length > 0 ? 'rgba(184,68,30,0.08)' : 'none',
-                    }}
-                    data-testid="horizon-filter-btn"
-                    aria-label="Filter"
-                  >
-                    <SlidersHorizontal className="w-4 h-4" />
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => multiSelectMode ? exitMultiSelect() : setMultiSelectMode(true)}
                     className="flex items-center justify-center"
                     style={{
@@ -1024,39 +1013,8 @@ export default function InboxPage() {
                   </button>
                 </div>
 
-                {/* Right: group toggle + view toggle */}
+                {/* Right: view toggle */}
                 <div className="flex items-center gap-2">
-                  {/* Group mode toggle */}
-                  <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid rgba(118,130,142,0.2)' }}>
-                    <button
-                      type="button"
-                      onClick={() => setGroupMode('country')}
-                      style={{
-                        padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
-                        fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'country' ? 600 : 400,
-                        background: groupMode === 'country' ? 'rgba(228,232,240,0.1)' : 'transparent',
-                        color: groupMode === 'country' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                      }}
-                      aria-label="Group by country"
-                    >
-                      Country
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setGroupMode('city')}
-                      style={{
-                        padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
-                        fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'city' ? 600 : 400,
-                        background: groupMode === 'city' ? 'rgba(228,232,240,0.1)' : 'transparent',
-                        color: groupMode === 'city' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                      }}
-                      aria-label="Group by city"
-                    >
-                      City
-                    </button>
-                  </div>
-
-                  {/* View toggle */}
                   <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid rgba(118,130,142,0.2)' }}>
                     <button
                       type="button"
@@ -1089,47 +1047,16 @@ export default function InboxPage() {
               </div>
             )}
 
-            {/* ── Row 3: Active Filter Pills (horizontal scroll + Clear all) ── */}
-            {selectedFilters.length > 0 && (
-              <div className="flex items-center gap-1.5 mb-3 overflow-x-auto scrollbar-hide" data-testid="active-filter-pills">
-                {selectedFilters.map((filter) => (
-                  <button
-                    key={filter}
-                    type="button"
-                    onClick={() => setSelectedFilters((prev) => prev.filter((f) => f !== filter))}
-                    className="flex items-center gap-1 shrink-0 transition-colors"
-                    style={{
-                      fontFamily: "'JetBrains Mono', monospace",
-                      fontSize: 10,
-                      fontWeight: 500,
-                      color: 'var(--color-accent)',
-                      background: 'var(--color-accent-light)',
-                      border: '1px solid var(--color-accent)',
-                      borderRadius: 4,
-                      padding: '3px 8px',
-                    }}
-                    data-testid={`active-filter-${filter}`}
-                  >
-                    <X className="w-2.5 h-2.5" />
-                    {filter}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  onClick={() => setSelectedFilters([])}
-                  className="shrink-0 ml-1 transition-colors hover:text-text-secondary"
-                  style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: 10,
-                    fontWeight: 500,
-                    color: 'var(--text-tertiary)',
-                  }}
-                  data-testid="clear-all-filters"
-                >
-                  Clear all
-                </button>
-              </div>
-            )}
+            {/* ── Row 3: Inline FilterBar ── */}
+            <FilterBar
+              selectedFilters={selectedFilters}
+              onSelectionChange={setSelectedFilters}
+              countryList={countryList}
+              customTags={customTags}
+              items={items}
+              groupMode={groupMode}
+              onGroupModeChange={setGroupMode}
+            />
           </div>
         }
       >
@@ -1214,9 +1141,9 @@ export default function InboxPage() {
                 return (
                   <div key={key} style={{ width: 170, flexShrink: 0, position: 'relative' }}>
                     {entry.type === 'route' ? (
-                      <RouteGridCard route={entry.route} />
+                      <RouteGridCard route={entry.route} categoryLabel={routeCategoryLabel.get(entry.route.id)} />
                     ) : (
-                      <GridCard item={entry.item} tripCount={tripLinkCounts.get(entry.item.id) ?? 0} extractionCount={extractionCounts.get(entry.item.id)} eager showShimmer={!entry.item.location_name && (Date.now() - new Date(entry.item.created_at).getTime()) < 30000} />
+                      <GridCard item={entry.item} tripCount={tripLinkCounts.get(entry.item.id) ?? 0} extractionCount={extractionCounts.get(entry.item.id)} eager showShimmer={!entry.item.location_name && (Date.now() - new Date(entry.item.created_at).getTime()) < 30000} categoryLabel={itemCategoryLabel.get(entry.item.id)} />
                     )}
                     {entry.type === 'save' && extractingIds.has(entry.item.id) && (
                       <div style={{
@@ -1240,8 +1167,8 @@ export default function InboxPage() {
               {recentlyAdded.map((entry) => {
                 const key = entry.type === 'save' ? entry.item.id : entry.route.id
                 return entry.type === 'route'
-                  ? <RouteListRow key={key} route={entry.route} />
-                  : <ListRow key={key} item={entry.item} extractionCount={extractionCounts.get(entry.item.id)} />
+                  ? <RouteListRow key={key} route={entry.route} categoryLabel={routeCategoryLabel.get(entry.route.id)} />
+                  : <ListRow key={key} item={entry.item} extractionCount={extractionCounts.get(entry.item.id)} categoryLabel={itemCategoryLabel.get(entry.item.id)} />
               })}
             </div>
           )}
@@ -1380,9 +1307,9 @@ export default function InboxPage() {
                         <div style={{ pointerEvents: multiSelectMode ? 'none' : 'auto' }}>
                           <div style={{ position: 'relative' }}>
                             {entry.type === 'route' ? (
-                              <RouteGridCard route={entry.route} locationLabelOverride={entry.locationLabelOverride} />
+                              <RouteGridCard route={entry.route} locationLabelOverride={entry.locationLabelOverride} categoryLabel={routeCategoryLabel.get(entry.route.id)} />
                             ) : (
-                              <GridCard item={entry.item} tripCount={tripLinkCounts.get(entry.item.id) ?? 0} extractionCount={extractionCounts.get(entry.item.id)} eager={idx < 6} />
+                              <GridCard item={entry.item} tripCount={tripLinkCounts.get(entry.item.id) ?? 0} extractionCount={extractionCounts.get(entry.item.id)} eager={idx < 6} categoryLabel={itemCategoryLabel.get(entry.item.id)} />
                             )}
                             {entry.type === 'save' && extractingIds.has(entry.item.id) && (
                               <div style={{
@@ -1433,10 +1360,10 @@ export default function InboxPage() {
                         <div style={{ flex: 1, pointerEvents: multiSelectMode ? 'none' : 'auto' }}>
                           <div style={{ position: 'relative' }}>
                             {entry.type === 'route' ? (
-                              <RouteListRow route={entry.route} locationLabelOverride={entry.locationLabelOverride} />
+                              <RouteListRow route={entry.route} locationLabelOverride={entry.locationLabelOverride} categoryLabel={routeCategoryLabel.get(entry.route.id)} />
                             ) : (
                               <>
-                                <ListRow item={entry.item} extractionCount={extractionCounts.get(entry.item.id)} />
+                                <ListRow item={entry.item} extractionCount={extractionCounts.get(entry.item.id)} categoryLabel={itemCategoryLabel.get(entry.item.id)} />
                                 {extractingIds.has(entry.item.id) && (
                                   <div style={{
                                     position: 'absolute', top: 0, left: 0, right: 0, height: 2,
@@ -1468,32 +1395,6 @@ export default function InboxPage() {
       </DraggableSheet>
     </div>
 
-    {/* PillSheet Filter */}
-    {showPillSheet && (
-      <PillSheet
-        groups={pillGroups}
-        selected={selectedFilters}
-        onSelectionChange={setSelectedFilters}
-        onClose={() => setShowPillSheet(false)}
-        title="Filter"
-        allowCustom={customTags.length > 0}
-        onAddCustom={() => {
-          // Custom tags are created on items via the item detail page
-        }}
-        onDeleteCustomTag={async (tagName) => {
-          if (!user) return
-          await supabase
-            .from('item_tags')
-            .delete()
-            .eq('tag_name', tagName)
-            .eq('tag_type', 'custom')
-            .eq('user_id', user.id)
-          // Invalidate tags cache so the pill disappears
-          queryClient.invalidateQueries({ queryKey: ['user-custom-tags'] })
-          queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user.id) })
-        }}
-      />
-    )}
 
     {/* Multi-select bottom toolbar */}
     {multiSelectMode && (
@@ -1652,12 +1553,14 @@ function GridCard({
   eager,
   showShimmer,
   extractionCount,
+  categoryLabel,
 }: {
   item: SavedItem
   tripCount: number
   eager?: boolean
   showShimmer?: boolean
   extractionCount?: number
+  categoryLabel?: string
 }) {
   // Show image card if item has any image source:
   // 1. image_display is 'thumbnail' or 'featured' (backfilled)
@@ -1674,9 +1577,9 @@ function GridCard({
   const showImage = hasDirectImage || (item.image_display !== 'none' && hasImageSource)
 
   if (showImage) {
-    return <ImageCard item={item} tripCount={tripCount} eager={eager} showShimmer={showShimmer} extractionCount={extractionCount} />
+    return <ImageCard item={item} tripCount={tripCount} eager={eager} showShimmer={showShimmer} extractionCount={extractionCount} categoryLabel={categoryLabel} />
   }
-  return <TextCard item={item} tripCount={tripCount} showShimmer={showShimmer} extractionCount={extractionCount} />
+  return <TextCard item={item} tripCount={tripCount} showShimmer={showShimmer} extractionCount={extractionCount} categoryLabel={categoryLabel} />
 }
 
 // ─── Trip Count Pill (shared between card types) ─────────────────────────────
@@ -1719,7 +1622,7 @@ function TripCountPill({ count, variant }: { count: number; variant: 'image' | '
 
 // ─── Route Card (grid view) ─────────────────────────────────────────────────
 
-function RouteGridCard({ route, locationLabelOverride }: { route: Route; locationLabelOverride?: string }) {
+function RouteGridCard({ route, locationLabelOverride, categoryLabel }: { route: Route; locationLabelOverride?: string; categoryLabel?: string }) {
   const thumbnail = route.source_thumbnail
 
   // Derive location pill label
@@ -1785,18 +1688,31 @@ function RouteGridCard({ route, locationLabelOverride }: { route: Route; locatio
           >
             {route.name}
           </p>
-          {locationLabel && (
+          {(locationLabel || categoryLabel) && (
             <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
-              <span
-                className="truncate"
-                style={{
-                  ...locationPillStyle,
-                  color: 'rgba(255,255,255,0.85)',
-                  background: 'rgba(255,255,255,0.20)',
-                }}
-              >
-                {locationLabel}
-              </span>
+              {locationLabel && (
+                <span
+                  className="truncate"
+                  style={{
+                    ...locationPillStyle,
+                    color: 'rgba(255,255,255,0.85)',
+                    background: 'rgba(255,255,255,0.20)',
+                  }}
+                >
+                  {locationLabel}
+                </span>
+              )}
+              {categoryLabel && (
+                <span
+                  style={{
+                    ...locationPillStyle,
+                    color: 'rgba(255,255,255,0.6)',
+                    background: 'rgba(255,255,255,0.1)',
+                  }}
+                >
+                  {categoryLabel}
+                </span>
+              )}
             </div>
           )}
         </div>
@@ -1839,18 +1755,31 @@ function RouteGridCard({ route, locationLabelOverride }: { route: Route; locatio
         >
           {route.name}
         </p>
-        {locationLabel && (
+        {(locationLabel || categoryLabel) && (
           <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
-            <span
-              className="truncate"
-              style={{
-                ...locationPillStyle,
-                color: 'var(--text-tertiary)',
-                background: 'rgba(141, 150, 160, 0.20)',
-              }}
-            >
-              {locationLabel}
-            </span>
+            {locationLabel && (
+              <span
+                className="truncate"
+                style={{
+                  ...locationPillStyle,
+                  color: 'var(--text-tertiary)',
+                  background: 'rgba(141, 150, 160, 0.20)',
+                }}
+              >
+                {locationLabel}
+              </span>
+            )}
+            {categoryLabel && (
+              <span
+                style={{
+                  ...locationPillStyle,
+                  color: 'var(--text-secondary)',
+                  background: 'var(--bg-elevated-2)',
+                }}
+              >
+                {categoryLabel}
+              </span>
+            )}
           </div>
         )}
       </div>
@@ -1860,7 +1789,7 @@ function RouteGridCard({ route, locationLabelOverride }: { route: Route; locatio
 
 // ─── Route Card (list view) ─────────────────────────────────────────────────
 
-function RouteListRow({ route, locationLabelOverride }: { route: Route; locationLabelOverride?: string }) {
+function RouteListRow({ route, locationLabelOverride, categoryLabel }: { route: Route; locationLabelOverride?: string; categoryLabel?: string }) {
   // Derive location label
   const locationLabel = locationLabelOverride ?? (() => {
     const { derived_city, city_count, country_count } = route
@@ -1905,10 +1834,13 @@ function RouteListRow({ route, locationLabelOverride }: { route: Route; location
           </p>
         </div>
 
-        {/* Badge */}
-        <span className="font-mono text-[10px] text-text-faint shrink-0">
-          {formatDate(route.created_at)}
-        </span>
+        {/* Category + date */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {categoryLabel && <CategoryPill label={categoryLabel} />}
+          <span className="font-mono text-[10px] text-text-faint">
+            {formatDate(route.created_at)}
+          </span>
+        </div>
       </Link>
     </div>
   )
@@ -1962,7 +1894,7 @@ function LocationShimmer({ variant }: { variant: 'image' | 'text' }) {
 
 // ─── Image Card (image_display = 'thumbnail') ────────────────────────────────
 
-function ImageCard({ item, tripCount, eager, showShimmer, extractionCount }: { item: SavedItem; tripCount: number; eager?: boolean; showShimmer?: boolean; extractionCount?: number }) {
+function ImageCard({ item, tripCount, eager, showShimmer, extractionCount, categoryLabel }: { item: SavedItem; tripCount: number; eager?: boolean; showShimmer?: boolean; extractionCount?: number; categoryLabel?: string }) {
   const city = item.location_name ? extractCity(item.location_name) : null
   const rawUrl = item.image_url ?? item.places_photo_url ?? null
   const [photoUrl, setPhotoUrl] = useState<string | null>(rawUrl)
@@ -2000,7 +1932,7 @@ function ImageCard({ item, tripCount, eager, showShimmer, extractionCount }: { i
         </Link>
       )
     }
-    return <TextCard item={item} tripCount={tripCount} />
+    return <TextCard item={item} tripCount={tripCount} categoryLabel={categoryLabel} />
   }
 
   return (
@@ -2059,17 +1991,20 @@ function ImageCard({ item, tripCount, eager, showShimmer, extractionCount }: { i
                 {city}
               </span>
             ) : null}
-            <span
-              className="font-mono text-[7px]"
-              style={{
-                color: 'rgba(255,255,255,0.6)',
-                background: 'rgba(255,255,255,0.1)',
-                padding: '2px 5px',
-                borderRadius: 3,
-              }}
-            >
-              {categoryLabel[item.category]}
-            </span>
+            {(categoryLabel || (item.category && item.category !== 'general')) && (
+              <span
+                className="text-[7px]"
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  color: 'rgba(255,255,255,0.6)',
+                  background: 'rgba(255,255,255,0.1)',
+                  padding: '2px 5px',
+                  borderRadius: 9999,
+                }}
+              >
+                {categoryLabel ?? getCategoryLabel(LEGACY_CATEGORY_MAP[item.category] ?? item.category)}
+              </span>
+            )}
           </div>
         </div>
     </Link>
@@ -2078,7 +2013,7 @@ function ImageCard({ item, tripCount, eager, showShimmer, extractionCount }: { i
 
 // ─── Text Card (image_display = 'none') ──────────────────────────────────────
 
-function TextCard({ item, tripCount, showShimmer, extractionCount }: { item: SavedItem; tripCount: number; showShimmer?: boolean; extractionCount?: number }) {
+function TextCard({ item, tripCount, showShimmer, extractionCount, categoryLabel }: { item: SavedItem; tripCount: number; showShimmer?: boolean; extractionCount?: number; categoryLabel?: string }) {
   const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
 
@@ -2123,27 +2058,33 @@ function TextCard({ item, tripCount, showShimmer, extractionCount }: { item: Sav
               <LocationShimmer variant="text" />
             ) : city ? (
               <span
-                className="font-mono text-[7px] font-medium text-accent truncate"
+                className="text-[7px] font-medium truncate"
                 style={{
-                  background: 'var(--color-accent-light)',
+                  fontFamily: "'DM Sans', sans-serif",
+                  color: 'var(--text-tertiary)',
+                  background: 'rgba(141, 150, 160, 0.20)',
                   padding: '2px 5px',
-                  borderRadius: 3,
+                  borderRadius: 9999,
                   maxWidth: 100,
                 }}
               >
                 {city}
               </span>
             ) : null}
-            <span
-              className="font-mono text-[7px] text-text-tertiary"
-              style={{
-                background: 'var(--color-bg-pill)',
-                padding: '2px 5px',
-                borderRadius: 3,
-              }}
-            >
-              {categoryLabel[item.category]}
-            </span>
+            {(categoryLabel || (item.category && item.category !== 'general')) && (
+              <span
+                className="text-[7px]"
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  color: 'var(--text-secondary)',
+                  background: 'var(--bg-elevated-2)',
+                  padding: '2px 5px',
+                  borderRadius: 9999,
+                }}
+              >
+                {categoryLabel ?? getCategoryLabel(LEGACY_CATEGORY_MAP[item.category] ?? item.category)}
+              </span>
+            )}
           </div>
         </div>
     </Link>
@@ -2155,12 +2096,15 @@ function TextCard({ item, tripCount, showShimmer, extractionCount }: { item: Sav
 function ListRow({
   item,
   extractionCount,
+  categoryLabel,
 }: {
   item: SavedItem
   extractionCount?: number
+  categoryLabel?: string
 }) {
   const sourceKey = getSourceKey(item)
   const city = item.location_name ? extractCity(item.location_name) : null
+  const catLabel = categoryLabel ?? (item.category && item.category !== 'general' ? getCategoryLabel(LEGACY_CATEGORY_MAP[item.category] ?? item.category) : null)
 
   return (
     <div className="relative group">
@@ -2183,11 +2127,19 @@ function ListRow({
         {/* Pills + date */}
         <div className="flex items-center gap-1.5 shrink-0">
           {city && (
-            <span className="hidden sm:inline-block px-1.5 py-[1px] rounded bg-accent-light font-mono text-[10px] font-medium text-accent leading-none truncate max-w-[100px]">
+            <span
+              className="hidden sm:inline-block truncate max-w-[100px]"
+              style={{
+                padding: '1px 6px', borderRadius: 9999,
+                fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
+                color: 'var(--text-tertiary)', background: 'rgba(141, 150, 160, 0.20)',
+                lineHeight: 1,
+              }}
+            >
               {city}
             </span>
           )}
-          <CategoryPill label={categoryLabel[item.category]} />
+          {catLabel && <CategoryPill label={catLabel} />}
           {item.has_pending_extraction && extractionCount && extractionCount >= 2 && (
             <span style={{
               background: 'var(--accent-primary)', color: '#fff',

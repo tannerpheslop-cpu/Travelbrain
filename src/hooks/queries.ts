@@ -750,7 +750,29 @@ export function useAddTag() {
       if (error) throw error
       return data as ItemTag
     },
-    onSuccess: (_data, input) => {
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.itemTags(input.itemId) })
+      const previous = queryClient.getQueryData<ItemTag[]>(queryKeys.itemTags(input.itemId))
+      const optimistic: ItemTag = {
+        id: `optimistic-${Date.now()}`,
+        item_id: input.itemId,
+        tag_name: input.tagName,
+        tag_type: input.tagType,
+        user_id: user!.id,
+        created_at: new Date().toISOString(),
+      }
+      queryClient.setQueryData<ItemTag[]>(
+        queryKeys.itemTags(input.itemId),
+        (old) => [...(old ?? []), optimistic],
+      )
+      return { previous }
+    },
+    onError: (_err, input, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.itemTags(input.itemId), context.previous)
+      }
+    },
+    onSettled: (_data, _err, input) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.itemTags(input.itemId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.allUserTags(user?.id ?? '') })
       queryClient.invalidateQueries({ queryKey: queryKeys.userCustomTags(user?.id ?? '') })
@@ -773,7 +795,21 @@ export function useRemoveTag() {
         .eq('user_id', user!.id)
       if (error) throw error
     },
-    onSuccess: (_data, input) => {
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: queryKeys.itemTags(input.itemId) })
+      const previous = queryClient.getQueryData<ItemTag[]>(queryKeys.itemTags(input.itemId))
+      queryClient.setQueryData<ItemTag[]>(
+        queryKeys.itemTags(input.itemId),
+        (old) => (old ?? []).filter((t) => t.tag_name !== input.tagName),
+      )
+      return { previous }
+    },
+    onError: (_err, input, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(queryKeys.itemTags(input.itemId), context.previous)
+      }
+    },
+    onSettled: (_data, _err, input) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.itemTags(input.itemId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.allUserTags(user?.id ?? '') })
       queryClient.invalidateQueries({ queryKey: queryKeys.userCustomTags(user?.id ?? '') })

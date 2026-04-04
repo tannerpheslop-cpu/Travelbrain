@@ -8,7 +8,8 @@ import { useToast } from '../components/Toast'
 import { ConfirmDeleteModal } from '../components/ui'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { enrichRouteItems } from '../lib/enrichPhotoOnly'
-import { ChevronLeft, ChevronRight, MoreHorizontal, Trash2, Unlink, UtensilsCrossed, Landmark, Mountain, Hotel, Palmtree, ShoppingBag, Music, Gamepad2, Train, Sparkles, Waves, MapPin } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal, Trash2, Unlink, MapPin } from 'lucide-react'
+import { getCategoryIcon as getCategoryIconFromLib, getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
 import {
   DndContext,
   closestCenter,
@@ -27,33 +28,17 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { Route, SavedItem } from '../types'
 
-// ── Category icons + colors ──────────────────────────────────────────────────
-
-const CATEGORY_ICON: Record<string, { icon: typeof MapPin; color: string; bg: string }> = {
-  restaurant: { icon: UtensilsCrossed, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
-  hotel: { icon: Hotel, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
-  museum: { icon: Landmark, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
-  temple: { icon: Landmark, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
-  park: { icon: Palmtree, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.15)' },
-  hike: { icon: Mountain, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.15)' },
-  historical: { icon: Landmark, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
-  shopping: { icon: ShoppingBag, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
-  nightlife: { icon: Music, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
-  entertainment: { icon: Gamepad2, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
-  transport: { icon: Train, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
-  spa: { icon: Sparkles, color: '#5b8a72', bg: 'rgba(91, 138, 114, 0.15)' },
-  beach: { icon: Waves, color: 'var(--text-secondary)', bg: 'var(--bg-elevated-2)' },
-}
+// ── Category placeholder ─────────────────────────────────────────────────────
 
 function CategoryPlaceholder({ category }: { category: string }) {
-  const config = CATEGORY_ICON[category] ?? { icon: MapPin, color: 'var(--text-tertiary)', bg: 'var(--bg-elevated-1)' }
-  const Icon = config.icon
+  const resolved = LEGACY_CATEGORY_MAP[category] ?? category
+  const Icon = getCategoryIconFromLib(resolved) ?? MapPin
   return (
     <div style={{
       width: 56, height: 56, borderRadius: 8, flexShrink: 0,
-      background: config.bg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: 'var(--bg-elevated-2)', display: 'flex', alignItems: 'center', justifyContent: 'center',
     }}>
-      <Icon size={22} color={config.color} />
+      <Icon size={22} color="var(--text-secondary)" />
     </div>
   )
 }
@@ -80,7 +65,7 @@ function SortableItemRow({
 
   const thumbnail = enrichedPhoto ?? item.image_url ?? item.places_photo_url
 
-  const categoryLabel = item.category === 'restaurant' ? 'Food' : item.category === 'hotel' ? 'Stay' : item.category === 'transit' ? 'Transit' : item.category
+  const categoryLabel = getCategoryLabel(LEGACY_CATEGORY_MAP[item.category] ?? item.category)
   const locationShort = item.location_name?.split(',')[0]
 
   return (

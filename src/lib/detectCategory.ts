@@ -3,53 +3,209 @@
  *
  * Category is suggested, not forced — the user can override.
  * Priority: Place types (structured data) > keyword matching (fuzzy).
+ *
+ * Supports all 12 system categories from categories.ts.
  */
 
-export type Category = 'restaurant' | 'activity' | 'hotel' | 'transit' | 'general'
+import type { SystemCategoryName } from './categories'
+import { SYSTEM_CATEGORIES } from './categories'
+
+export type Category = SystemCategoryName | 'general'
+
+/** Set of all system category tagNames for quick lookup */
+const SYSTEM_TAG_NAMES = new Set<string>(SYSTEM_CATEGORIES.map(c => c.tagName))
+
+export function isSystemCategory(name: string): boolean {
+  return SYSTEM_TAG_NAMES.has(name)
+}
+
+// ── Place-type → category mappings ──────────────────────────────────────────
+
+const PLACE_TYPE_MAP: Record<string, SystemCategoryName> = {
+  // restaurant
+  restaurant: 'restaurant',
+  food: 'restaurant',
+  meal_delivery: 'restaurant',
+  meal_takeaway: 'restaurant',
+  // bar_nightlife
+  bar: 'bar_nightlife',
+  night_club: 'bar_nightlife',
+  // coffee_cafe
+  cafe: 'coffee_cafe',
+  bakery: 'coffee_cafe',
+  // hotel
+  lodging: 'hotel',
+  hotel: 'hotel',
+  motel: 'hotel',
+  hostel: 'hotel',
+  campground: 'hotel',
+  rv_park: 'hotel',
+  // activity
+  amusement_park: 'activity',
+  aquarium: 'activity',
+  stadium: 'activity',
+  zoo: 'activity',
+  bowling_alley: 'activity',
+  movie_theater: 'activity',
+  // attraction
+  tourist_attraction: 'attraction',
+  art_gallery: 'attraction',
+  museum: 'attraction',
+  church: 'attraction',
+  hindu_temple: 'attraction',
+  mosque: 'attraction',
+  synagogue: 'attraction',
+  place_of_worship: 'attraction',
+  // shopping
+  shopping_mall: 'shopping',
+  clothing_store: 'shopping',
+  department_store: 'shopping',
+  jewelry_store: 'shopping',
+  shoe_store: 'shopping',
+  book_store: 'shopping',
+  electronics_store: 'shopping',
+  home_goods_store: 'shopping',
+  store: 'shopping',
+  // outdoors
+  park: 'outdoors',
+  natural_feature: 'outdoors',
+  campground_outdoors: 'outdoors',
+  // transport
+  airport: 'transport',
+  train_station: 'transport',
+  transit_station: 'transport',
+  bus_station: 'transport',
+  subway_station: 'transport',
+  taxi_stand: 'transport',
+  ferry_terminal: 'transport',
+  // wellness
+  spa: 'wellness',
+  gym: 'wellness',
+  physiotherapist: 'wellness',
+  // events
+  event_venue: 'events',
+  concert_hall: 'events',
+}
+
+// ── Keyword → category mappings ─────────────────────────────────────────────
+
+const KEYWORD_MAP: { category: SystemCategoryName; words: string[] }[] = [
+  {
+    category: 'restaurant',
+    words: [
+      'ramen', 'restaurant', 'food', 'eat', 'eating', 'dining',
+      'sushi', 'noodle', 'hotpot', 'barbecue', 'brunch', 'lunch', 'dinner',
+      'street food', 'market food', 'foodie', 'izakaya',
+      'dim sum', 'dumpling', 'pizza', 'curry', 'soup', 'seafood',
+      'steakhouse', 'bistro', 'trattoria', 'taco', 'pho', 'bibimbap',
+    ],
+  },
+  {
+    category: 'bar_nightlife',
+    words: [
+      'bar', 'pub', 'brewery', 'cocktail', 'nightlife', 'nightclub', 'club',
+      'speakeasy', 'rooftop bar', 'wine bar', 'beer garden', 'happy hour',
+      'lounge', 'karaoke', 'live music venue',
+    ],
+  },
+  {
+    category: 'coffee_cafe',
+    words: [
+      'cafe', 'coffee', 'coffee shop', 'bakery', 'pastry', 'tea house',
+      'matcha', 'latte', 'espresso', 'brewed',
+    ],
+  },
+  {
+    category: 'hotel',
+    words: [
+      'hotel', 'hostel', 'lodge', 'airbnb', 'stay', 'accommodation',
+      'guesthouse', 'resort', 'motel', 'inn', 'ryokan', 'homestay', 'bnb',
+      'apartment', 'villa', 'glamping',
+    ],
+  },
+  {
+    category: 'activity',
+    words: [
+      'tour', 'dive', 'diving', 'snorkel', 'kayak', 'surf', 'bike',
+      'cycling', 'zipline', 'bungee', 'rafting', 'safari', 'cooking class',
+      'workshop', 'boat tour', 'day trip', 'excursion', 'experience',
+    ],
+  },
+  {
+    category: 'attraction',
+    words: [
+      'temple', 'shrine', 'museum', 'gallery', 'palace', 'castle',
+      'monument', 'ruins', 'cathedral', 'mosque', 'pagoda', 'attraction',
+      'landmark', 'historic', 'heritage', 'viewpoint', 'lookout',
+    ],
+  },
+  {
+    category: 'shopping',
+    words: [
+      'shopping', 'market', 'bazaar', 'mall', 'boutique', 'souvenir',
+      'thrift', 'vintage', 'flea market', 'night market', 'outlet',
+      'duty free', 'antique',
+    ],
+  },
+  {
+    category: 'outdoors',
+    words: [
+      'hike', 'hiking', 'trek', 'trekking', 'trail', 'climb', 'climbing',
+      'park', 'beach', 'waterfall', 'mountain', 'sunset', 'sunrise',
+      'lake', 'river', 'canyon', 'gorge', 'forest', 'nature', 'camping',
+      'national park', 'scenic', 'overlook',
+    ],
+  },
+  {
+    category: 'neighborhood',
+    words: [
+      'neighborhood', 'neighbourhood', 'district', 'quarter', 'area',
+      'old town', 'downtown', 'walking street', 'alley', 'backstreet',
+    ],
+  },
+  {
+    category: 'transport',
+    words: [
+      'train', 'bus', 'flight', 'airport', 'metro', 'subway',
+      'ferry', 'taxi', 'uber', 'transport', 'rail pass', 'jr pass', 'transit',
+      'transfer', 'getting to', 'getting from', 'how to get',
+    ],
+  },
+  {
+    category: 'wellness',
+    words: [
+      'spa', 'massage', 'onsen', 'hot spring', 'sauna', 'hammam',
+      'yoga', 'meditation', 'gym', 'fitness', 'wellness', 'retreat',
+      'thermal bath',
+    ],
+  },
+  {
+    category: 'events',
+    words: [
+      'festival', 'concert', 'show', 'performance', 'exhibition',
+      'carnival', 'parade', 'fireworks', 'event', 'conference',
+      'pop-up', 'fair', 'cherry blossom',
+    ],
+  },
+]
+
+// ── Detection functions ─────────────────────────────────────────────────────
+
+/** Match keyword with word boundaries to avoid substring false positives */
+function matchesKeyword(lower: string, keyword: string): boolean {
+  if (keyword.includes(' ')) return lower.includes(keyword)
+  return new RegExp(`\\b${keyword}\\b`).test(lower)
+}
 
 /**
  * Detect category from Google Places type array.
  * Returns null if no category can be confidently inferred.
  */
 export function detectCategoryFromPlaceTypes(types: string[]): Category | null {
-  const typeSet = new Set(types.map((t) => t.toLowerCase()))
-
-  // Food / Restaurant
-  if (
-    typeSet.has('restaurant') || typeSet.has('cafe') || typeSet.has('bakery') ||
-    typeSet.has('bar') || typeSet.has('meal_delivery') || typeSet.has('meal_takeaway') ||
-    typeSet.has('food') || typeSet.has('night_club')
-  ) {
-    return 'restaurant'
+  for (const t of types) {
+    const cat = PLACE_TYPE_MAP[t.toLowerCase()]
+    if (cat) return cat
   }
-
-  // Stay / Hotel
-  if (
-    typeSet.has('lodging') || typeSet.has('hotel') || typeSet.has('motel') ||
-    typeSet.has('hostel') || typeSet.has('campground') || typeSet.has('rv_park')
-  ) {
-    return 'hotel'
-  }
-
-  // Transit
-  if (
-    typeSet.has('airport') || typeSet.has('train_station') || typeSet.has('transit_station') ||
-    typeSet.has('bus_station') || typeSet.has('subway_station') || typeSet.has('taxi_stand') ||
-    typeSet.has('ferry_terminal')
-  ) {
-    return 'transit'
-  }
-
-  // Activity
-  if (
-    typeSet.has('tourist_attraction') || typeSet.has('amusement_park') ||
-    typeSet.has('aquarium') || typeSet.has('art_gallery') || typeSet.has('museum') ||
-    typeSet.has('park') || typeSet.has('stadium') || typeSet.has('zoo') ||
-    typeSet.has('place_of_worship') || typeSet.has('spa') || typeSet.has('gym')
-  ) {
-    return 'activity'
-  }
-
   return null
 }
 
@@ -59,46 +215,9 @@ export function detectCategoryFromPlaceTypes(types: string[]): Category | null {
  */
 export function detectCategoryFromText(text: string): Category | null {
   const lower = text.toLowerCase()
-
-  /** Match keyword with word boundaries to avoid substring false positives (e.g. "eat" in "great") */
-  function matchesKeyword(keyword: string): boolean {
-    // Multi-word phrases use simple includes (they're specific enough)
-    if (keyword.includes(' ')) return lower.includes(keyword)
-    // Single words use word-boundary regex
-    return new RegExp(`\\b${keyword}\\b`).test(lower)
+  for (const group of KEYWORD_MAP) {
+    if (group.words.some((w) => matchesKeyword(lower, w))) return group.category
   }
-
-  const foodWords = [
-    'ramen', 'restaurant', 'food', 'cafe', 'coffee', 'eat', 'eating', 'dining',
-    'sushi', 'noodle', 'hotpot', 'barbecue', 'bakery', 'brunch', 'lunch', 'dinner',
-    'street food', 'market food', 'foodie', 'izakaya', 'pub', 'bar', 'brewery',
-    'dim sum', 'dumpling', 'pizza', 'curry', 'soup',
-  ]
-  if (foodWords.some(matchesKeyword)) return 'restaurant'
-
-  const stayWords = [
-    'hotel', 'hostel', 'lodge', 'airbnb', 'stay', 'accommodation',
-    'guesthouse', 'resort', 'motel', 'inn', 'ryokan', 'homestay', 'bnb',
-    'apartment', 'villa', 'glamping', 'camping',
-  ]
-  if (stayWords.some(matchesKeyword)) return 'hotel'
-
-  const transitWords = [
-    'train', 'bus', 'flight', 'airport', 'metro', 'subway',
-    'ferry', 'taxi', 'uber', 'transport', 'rail pass', 'jr pass', 'transit',
-    'transfer', 'getting to', 'getting from', 'how to get',
-  ]
-  if (transitWords.some(matchesKeyword)) return 'transit'
-
-  const activityWords = [
-    'hike', 'hiking', 'trek', 'trekking', 'tour', 'dive', 'diving',
-    'climb', 'climbing', 'temple', 'shrine', 'museum', 'gallery', 'park',
-    'beach', 'waterfall', 'mountain', 'viewpoint', 'sunset', 'sunrise',
-    'snorkel', 'kayak', 'surf', 'bike', 'cycling', 'zipline', 'bungee',
-    'rafting', 'safari', 'explore', 'visit', 'see', 'attraction',
-  ]
-  if (activityWords.some(matchesKeyword)) return 'activity'
-
   return null
 }
 
@@ -121,100 +240,33 @@ export function detectCategory(
 
 /**
  * Detect ALL matching categories from Google Places type array.
- * Unlike detectCategoryFromPlaceTypes which returns the first match,
- * this returns every matching category.
  */
 export function detectCategoriesFromPlaceTypes(types: string[]): Category[] {
-  const typeSet = new Set(types.map((t) => t.toLowerCase()))
-  const result: Category[] = []
-
-  if (
-    typeSet.has('restaurant') || typeSet.has('cafe') || typeSet.has('bakery') ||
-    typeSet.has('bar') || typeSet.has('meal_delivery') || typeSet.has('meal_takeaway') ||
-    typeSet.has('food') || typeSet.has('night_club')
-  ) {
-    result.push('restaurant')
+  const result = new Set<Category>()
+  for (const t of types) {
+    const cat = PLACE_TYPE_MAP[t.toLowerCase()]
+    if (cat) result.add(cat)
   }
-
-  if (
-    typeSet.has('lodging') || typeSet.has('hotel') || typeSet.has('motel') ||
-    typeSet.has('hostel') || typeSet.has('campground') || typeSet.has('rv_park')
-  ) {
-    result.push('hotel')
-  }
-
-  if (
-    typeSet.has('airport') || typeSet.has('train_station') || typeSet.has('transit_station') ||
-    typeSet.has('bus_station') || typeSet.has('subway_station') || typeSet.has('taxi_stand') ||
-    typeSet.has('ferry_terminal')
-  ) {
-    result.push('transit')
-  }
-
-  if (
-    typeSet.has('tourist_attraction') || typeSet.has('amusement_park') ||
-    typeSet.has('aquarium') || typeSet.has('art_gallery') || typeSet.has('museum') ||
-    typeSet.has('park') || typeSet.has('stadium') || typeSet.has('zoo') ||
-    typeSet.has('place_of_worship') || typeSet.has('spa') || typeSet.has('gym')
-  ) {
-    result.push('activity')
-  }
-
-  return result
+  return [...result]
 }
 
 /**
  * Detect ALL matching categories from free-form text.
- * Unlike detectCategoryFromText which returns the first match,
- * this returns every matching category.
  */
 export function detectCategoriesFromText(text: string): Category[] {
   const lower = text.toLowerCase()
   const result: Category[] = []
-
-  function matchesKeyword(keyword: string): boolean {
-    if (keyword.includes(' ')) return lower.includes(keyword)
-    return new RegExp(`\\b${keyword}\\b`).test(lower)
+  for (const group of KEYWORD_MAP) {
+    if (group.words.some((w) => matchesKeyword(lower, w))) {
+      result.push(group.category)
+    }
   }
-
-  const foodWords = [
-    'ramen', 'restaurant', 'food', 'cafe', 'coffee', 'eat', 'eating', 'dining',
-    'sushi', 'noodle', 'hotpot', 'barbecue', 'bakery', 'brunch', 'lunch', 'dinner',
-    'street food', 'market food', 'foodie', 'izakaya', 'pub', 'bar', 'brewery',
-    'dim sum', 'dumpling', 'pizza', 'curry', 'soup',
-  ]
-  if (foodWords.some(matchesKeyword)) result.push('restaurant')
-
-  const stayWords = [
-    'hotel', 'hostel', 'lodge', 'airbnb', 'stay', 'accommodation',
-    'guesthouse', 'resort', 'motel', 'inn', 'ryokan', 'homestay', 'bnb',
-    'apartment', 'villa', 'glamping', 'camping',
-  ]
-  if (stayWords.some(matchesKeyword)) result.push('hotel')
-
-  const transitWords = [
-    'train', 'bus', 'flight', 'airport', 'metro', 'subway',
-    'ferry', 'taxi', 'uber', 'transport', 'rail pass', 'jr pass', 'transit',
-    'transfer', 'getting to', 'getting from', 'how to get',
-  ]
-  if (transitWords.some(matchesKeyword)) result.push('transit')
-
-  const activityWords = [
-    'hike', 'hiking', 'trek', 'trekking', 'tour', 'dive', 'diving',
-    'climb', 'climbing', 'temple', 'shrine', 'museum', 'gallery', 'park',
-    'beach', 'waterfall', 'mountain', 'viewpoint', 'sunset', 'sunrise',
-    'snorkel', 'kayak', 'surf', 'bike', 'cycling', 'zipline', 'bungee',
-    'rafting', 'safari', 'explore', 'visit', 'see', 'attraction',
-  ]
-  if (activityWords.some(matchesKeyword)) result.push('activity')
-
   return result
 }
 
 /**
  * Combined multi-category detection: collects from Place types AND text.
  * Returns deduplicated array of all matching categories.
- * Example: "Tiger Leaping Gorge Halfway House" → ['activity', 'hotel']
  */
 export function detectCategories(
   text: string,

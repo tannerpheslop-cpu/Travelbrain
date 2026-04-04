@@ -12,7 +12,8 @@ import { useRapidCapture } from '../hooks/useRapidCapture'
 import { MapPin, Loader2 } from 'lucide-react'
 import ImageWithFade from './ImageWithFade'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
-import type { Category, SavedItem } from '../types'
+import type { SavedItem } from '../types'
+import { SYSTEM_CATEGORIES, isSystemCategory } from '../lib/categories'
 
 interface Metadata {
   title: string | null
@@ -34,13 +35,6 @@ interface Metadata {
   source_platform?: string
   source_content?: string | null
 }
-
-const categoryPills: { value: Category; label: string }[] = [
-  { value: 'restaurant', label: 'Food' },
-  { value: 'activity', label: 'Activity' },
-  { value: 'hotel', label: 'Stay' },
-  { value: 'transit', label: 'Transit' },
-]
 
 interface Props {
   onClose: () => void
@@ -91,11 +85,8 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
   // Form state
   const [inputText, setInputText] = useState('')
   const [title, setTitle] = useState('')
-  const [selectedTags, setSelectedTags] = useState<string[]>([]) // category values or custom tag names
+  const [selectedTags, setSelectedTags] = useState<string[]>([]) // system category tagNames
   const [categoryManuallySet, setCategoryManuallySet] = useState(false)
-  const [showCustomTagInput, setShowCustomTagInput] = useState(false)
-  const [customTagDraft, setCustomTagDraft] = useState('')
-  const customTagInputRef = useRef<HTMLInputElement>(null)
   const [location, setLocation] = useState<LocationSelection | null>(null)
   const [userSelectedLocation, setUserSelectedLocation] = useState(false)
   const userSelectedRef = useRef(false) // Ref mirrors state for use in async callbacks
@@ -381,7 +372,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
           ? (location.location_type === 'country' ? 'country' : 'precise')
           : 'city')
         : null,
-      category: (selectedTags.find((t) => ['restaurant', 'activity', 'hotel', 'transit'].includes(t)) as Category) ?? 'general',
+      category: (selectedTags.find((t) => SYSTEM_CATEGORIES.some(c => c.tagName === t)) ?? 'general') as import('../types').Category,
       notes: notes.trim() || null,
       image_display: imageDisplay,
       image_source: imageSource,
@@ -436,16 +427,16 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       return
     }
 
-    const primaryCategory = selectedTags.find((t) => ['restaurant', 'activity', 'hotel', 'transit'].includes(t)) ?? 'general'
+    const primaryCategory = selectedTags.find((t) => isSystemCategory(t)) ?? 'general'
     trackEvent('save_created', user.id, { source_type: sourceType, category: primaryCategory, tags: selectedTags, location_name: location?.name ?? null })
 
     const savedItem = data as SavedItem
 
-    // Write all selected tags to item_tags table
+    // Write all selected tags to item_tags table (all are system categories in save sheet)
     if (selectedTags.length > 0) {
       const tagRows = selectedTags.map((t) => ({
         tagName: t,
-        tagType: (['restaurant', 'activity', 'hotel', 'transit'].includes(t) ? 'category' : 'custom') as 'category' | 'custom',
+        tagType: (isSystemCategory(t) ? 'category' : 'custom') as 'category' | 'custom',
       }))
       void writeItemTags(savedItem.id, user.id, tagRows)
     }
@@ -503,8 +494,6 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
       setUserSelectedLocation(false)
       userSelectedRef.current = false
       dismissedAutoDetectRef.current = false
-      setShowCustomTagInput(false)
-      setCustomTagDraft('')
     }
 
     if (bulkMode) {
@@ -783,115 +772,41 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
             )}
           </div>
 
-          {/* 3. Tag pills — multi-select categories + custom tags */}
-          <div style={{ marginTop: 14, display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {categoryPills.map(cat => {
-              const active = selectedTags.includes(cat.value)
+          {/* 3. Category pills — horizontal scroll, text only, 12 system categories */}
+          <div
+            className="scrollbar-hide"
+            style={{
+              marginTop: 14, display: 'flex', gap: 6,
+              overflowX: 'auto', flexWrap: 'nowrap',
+              paddingBottom: 2,
+            }}
+          >
+            {SYSTEM_CATEGORIES.map(cat => {
+              const active = selectedTags.includes(cat.tagName)
               return (
                 <button
-                  key={cat.value}
+                  key={cat.tagName}
                   type="button"
                   onClick={() => {
                     setSelectedTags((prev) =>
-                      active ? prev.filter((t) => t !== cat.value) : [...prev, cat.value],
+                      active ? prev.filter((t) => t !== cat.tagName) : [...prev, cat.tagName],
                     )
                     setCategoryManuallySet(true)
                   }}
-                  data-testid={`save-tag-${cat.value}`}
+                  data-testid={`save-tag-${cat.tagName}`}
                   style={{
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 12,
                     fontWeight: active ? 600 : 400,
-                    padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
-                    border: active ? '1.5px solid var(--accent-primary)' : '1px solid transparent',
-                    background: active ? 'var(--state-selected)' : 'var(--bg-elevated-2)',
-                    color: active ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                    padding: '5px 12px', borderRadius: 16, cursor: 'pointer',
+                    whiteSpace: 'nowrap', flexShrink: 0,
+                    border: active ? 'none' : '1px solid var(--border-subtle)',
+                    background: active ? 'var(--accent-primary)' : 'var(--bg-elevated-1)',
+                    color: active ? '#e8eaed' : 'var(--text-secondary)',
                     transition: 'all 0.15s ease',
                   }}
                 >{cat.label}</button>
               )
             })}
-            {/* Custom tags already selected */}
-            {selectedTags
-              .filter((t) => !['restaurant', 'activity', 'hotel', 'transit'].includes(t))
-              .map((tag) => (
-                <button
-                  key={tag}
-                  type="button"
-                  onClick={() => setSelectedTags((prev) => prev.filter((t) => t !== tag))}
-                  data-testid={`save-custom-tag-${tag}`}
-                  style={{
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-                    fontWeight: 600,
-                    padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
-                    border: '1.5px dotted var(--accent-primary)',
-                    background: 'var(--state-selected)',
-                    color: 'var(--accent-primary)',
-                    transition: 'all 0.15s ease',
-                  }}
-                >{tag}</button>
-              ))}
-            {/* + Tag button / inline input */}
-            {showCustomTagInput ? (
-              <div
-                style={{
-                  display: 'inline-flex', alignItems: 'center',
-                  border: '1px dashed var(--border-default)',
-                  borderRadius: 20, padding: '4px 10px',
-                }}
-              >
-                <input
-                  ref={customTagInputRef}
-                  type="text"
-                  value={customTagDraft}
-                  onChange={(e) => setCustomTagDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      const trimmed = customTagDraft.trim()
-                      if (trimmed && !selectedTags.includes(trimmed)) {
-                        setSelectedTags((prev) => [...prev, trimmed])
-                        setCategoryManuallySet(true)
-                      }
-                      setCustomTagDraft('')
-                      setShowCustomTagInput(false)
-                    }
-                    if (e.key === 'Escape') {
-                      setCustomTagDraft('')
-                      setShowCustomTagInput(false)
-                    }
-                  }}
-                  onBlur={() => {
-                    if (!customTagDraft.trim()) setShowCustomTagInput(false)
-                  }}
-                  placeholder="Tag name"
-                  data-testid="save-custom-tag-input"
-                  style={{
-                    fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-                    color: 'var(--text-primary)',
-                    outline: 'none', border: 'none', background: 'transparent',
-                    width: 80,
-                  }}
-                />
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCustomTagInput(true)
-                  setTimeout(() => customTagInputRef.current?.focus(), 50)
-                }}
-                data-testid="save-add-tag-btn"
-                style={{
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
-                  fontWeight: 400,
-                  padding: '6px 14px', borderRadius: 20, cursor: 'pointer',
-                  border: '1px dashed var(--border-default)',
-                  background: 'transparent',
-                  color: 'var(--text-tertiary)',
-                  transition: 'all 0.15s ease',
-                }}
-              >+ Tag</button>
-            )}
           </div>
 
           {/* 4. Location pill + input */}

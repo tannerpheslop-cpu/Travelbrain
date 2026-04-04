@@ -109,7 +109,7 @@ This gives Horizon and Trips their own emotional registers while feeling like on
 --accent-primary:     #B8441E;   /* FAB, active nav, badges, primary buttons */
 --accent-hover:       #C9521F;   /* Hover state */
 --accent-pressed:     #A33A1A;   /* Pressed/active state */
---accent-soft:        rgba(184, 68, 30, 0.15);  /* Soft fill (restaurant pills) */
+--accent-soft:        rgba(184, 68, 30, 0.15);  /* Soft fill (selected states, badges) */
 --accent-glow:        rgba(184, 68, 30, 0.22);  /* Glow effect, city glow on Horizon */
 
 /* ─── Stars (cool register — Horizon only) ────────────────── */
@@ -171,8 +171,7 @@ Each step is a small tonal lift (3–5%). No big jumps. Use `bg-subtle` and `bg-
 | Active nav icon | `--accent-primary` | Current location |
 | Inactive nav icon | `--text-tertiary` | Quiet — not competing with content |
 | Selected filter pills | `--state-selected` fill + `--accent-primary` text | Active choice |
-| Category pills | `--bg-elevated-2` fill + `--text-secondary` text | Scannable metadata |
-| Restaurant pills | `--accent-soft` fill + `--accent-primary` text | Food category signal |
+| Category pills | `--bg-elevated-2` fill + `--text-secondary` text | Scannable metadata (all categories uniform) |
 | Location pills | `rgba(141,150,160,0.20)` fill + `--text-tertiary` text | Geographic context |
 | Primary CTA buttons | `--accent-primary` | Only one on screen at a time |
 | Save sheet | `--bg-base` | Dark surface — consistent with app theme |
@@ -181,7 +180,7 @@ Each step is a small tonal lift (3–5%). No big jumps. Use `bg-subtle` and `bg-
 
 Orange is meaningful only when it is rare. Enforce strictly:
 
-- **Allowed:** FAB, active nav indicator (small dot or icon only — not full tab), primary CTA button, badges on Route cards, selected state on pills/toggles, accent-soft fill on restaurant pills, star nodes claimed by a trip, map markers and route lines, city glow on Horizon (Stage 4 only, very low opacity).
+- **Allowed:** FAB, active nav indicator (small dot or icon only — not full tab), primary CTA button, badges on Route cards, selected state on pills/toggles, star nodes claimed by a trip, map markers and route lines, city glow on Horizon (Stage 4 only, very low opacity).
 - **Not allowed:** Section headers, passive chips, decorative dividers, secondary labels, navigation bars as a whole, any element that is always visible and non-interactive.
 - At any moment, **maximum 1–2 orange elements** should be visible on screen.
 
@@ -359,10 +358,12 @@ Layer 2 — City glow (REPLACES the sunset curve):
 ### Pills
 - All pills: first letter capitalized ("Historical" not "historical")
 - Border radius: pill (9999px)
-- Category pills: `--bg-elevated-2` fill, `--text-secondary` text
-- Restaurant pills: `--accent-soft` fill, `--accent-primary` text
+- All category pills: `--bg-elevated-2` fill, `--text-secondary` text, DM Sans 11px
 - Location pills: `rgba(141, 150, 160, 0.20)` fill, `--text-tertiary` text
-- Selected pills: `--state-selected` fill, `--accent-primary` text
+- Selected pills (filter bar): `--state-selected` fill, `--accent-primary` text
+- No category-specific coloring — all categories use the same monochrome treatment
+- Card pills read from `item_tags` table, falling back to legacy `category` column
+- See `/docs/PILL-SYSTEM-CONTEXT.md` for the full pill system spec
 
 ### Buttons
 - Primary: `--accent-primary` background, white text, 16px radius (or pill)

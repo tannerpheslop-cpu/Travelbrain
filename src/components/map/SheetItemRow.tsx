@@ -1,6 +1,7 @@
 import { ChevronRight } from 'lucide-react'
 import { MAP_COLORS } from './mapConfig'
 import type { SavedItem } from '../../types'
+import { getCategoryLabel, LEGACY_CATEGORY_MAP } from '../../lib/categories'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -30,14 +31,9 @@ function getDistrict(item: SavedItem): string | null {
   return parts.length > 1 ? parts[0].trim() : null
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  restaurant: 'Restaurant', hotel: 'Hotel', museum: 'Museum',
-  temple: 'Temple', park: 'Park', hike: 'Hike',
-  historical: 'Historical', shopping: 'Shopping', nightlife: 'Nightlife',
-  entertainment: 'Entertainment', transport: 'Transport', spa: 'Spa',
-  beach: 'Beach', other: 'Other',
-  // Legacy
-  activity: 'Activity', transit: 'Transit', general: 'General',
+function resolveCategoryLabel(category: string): string {
+  const resolved = LEGACY_CATEGORY_MAP[category] ?? category
+  return getCategoryLabel(resolved)
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -47,7 +43,7 @@ export default function SheetItemRow({ item, selected = false, onSelect, onNavig
   const accommodation = isAccommodation(item)
   const dotColor = accommodation ? MAP_COLORS.accommodation : MAP_COLORS.accent
   const district = getDistrict(item)
-  const categoryLabel = CATEGORY_LABELS[item.category] ?? 'General'
+  const categoryLabel = resolveCategoryLabel(item.category)
 
   return (
     <div

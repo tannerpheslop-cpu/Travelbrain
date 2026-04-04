@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
-import { useSavedItem, useDeleteItem, useItemTags, useAddTag, useRemoveTag, queryKeys } from '../hooks/queries'
+import { useSavedItem, useDeleteItem, useItemTags, useAddTag, useRemoveTag, useUserCustomTags, queryKeys } from '../hooks/queries'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SavedItemImage from '../components/SavedItemImage'
@@ -15,13 +15,8 @@ import UnpackScreen from '../components/UnpackScreen'
 import { createRouteFromExtraction } from '../lib/createRouteFromExtraction'
 import { useToast } from '../components/Toast'
 import { X, Search, ChevronRight } from 'lucide-react'
+import { SYSTEM_CATEGORIES } from '../lib/categories'
 
-const categoryPills: { value: Category; label: string }[] = [
-  { value: 'restaurant', label: 'Food' },
-  { value: 'activity', label: 'Activity' },
-  { value: 'hotel', label: 'Stay' },
-  { value: 'transit', label: 'Transit' },
-]
 
 export default function ItemDetailPage() {
   const { id } = useParams()
@@ -41,6 +36,7 @@ export default function ItemDetailPage() {
   const { data: itemTagsData } = useItemTags(id)
   const addTagMutation = useAddTag()
   const removeTagMutation = useRemoveTag()
+  const { data: allCustomTags = [] } = useUserCustomTags(user?.id)
 
   // Pending extraction for this item
   const { data: pendingExtraction } = useQuery({
@@ -224,6 +220,15 @@ export default function ItemDetailPage() {
 
   const activeCategoryTags = activeTags.filter((t) => t.type === 'category').map((t) => t.name)
   const activeCustomTags = activeTags.filter((t) => t.type === 'custom').map((t) => t.name)
+
+  // Tag autocomplete suggestions — filter existing custom tags by draft input, exclude already-assigned tags
+  const tagSuggestions = useMemo(() => {
+    const q = tagDraft.trim().toLowerCase()
+    if (!q) return []
+    return allCustomTags
+      .filter((t: string) => t.toLowerCase().includes(q) && !activeCustomTags.includes(t))
+      .slice(0, 5)
+  }, [tagDraft, allCustomTags, activeCustomTags])
 
   // Toggle a category tag
   const handleToggleCategoryTag = async (catValue: string) => {
@@ -476,35 +481,17 @@ export default function ItemDetailPage() {
           }}
         />
 
-        {/* Pills — category + location */}
-        {(activeTags.length > 0 || location) && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-            {activeTags.map((tag) => {
-              return (
-                <span
-                  key={tag.name}
-                  style={{
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
-                    padding: '2px 8px', borderRadius: 99,
-                    background: 'var(--bg-elevated-2)',
-                    color: 'var(--text-secondary)',
-                    textTransform: 'capitalize',
-                  }}
-                >
-                  {tag.name === 'restaurant' ? 'Food' : tag.name === 'hotel' ? 'Stay' : tag.name === 'transit' ? 'Transit' : tag.name}
-                </span>
-              )
-            })}
-            {location && (
-              <span style={{
-                fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
-                padding: '2px 8px', borderRadius: 99,
-                background: 'rgba(118, 130, 142, 0.2)',
-                color: 'var(--text-tertiary)',
-              }}>
-                {location.name.split(',')[0]}
-              </span>
-            )}
+        {/* Location pill (inline, below title) */}
+        {location && (
+          <div style={{ marginTop: 6 }}>
+            <span style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
+              padding: '2px 8px', borderRadius: 99,
+              background: 'rgba(118, 130, 142, 0.2)',
+              color: 'var(--text-tertiary)',
+            }}>
+              {location.name.split(',')[0]}
+            </span>
           </div>
         )}
 
@@ -645,119 +632,158 @@ export default function ItemDetailPage() {
           />
         )}
 
-        {/* Tags section */}
+        {/* Category grid */}
         <div style={{ marginTop: 20 }}>
           <label style={{
             fontFamily: "'DM Sans', sans-serif", fontSize: 9, fontWeight: 500,
             textTransform: 'uppercase', letterSpacing: '0.08em',
             color: 'var(--text-secondary)', display: 'block', marginBottom: 8,
           }}>
-            Tags
+            Category
           </label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {/* Category pills */}
-            {categoryPills.map((cat) => {
-              const active = activeCategoryTags.includes(cat.value)
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }} data-testid="category-grid">
+            {SYSTEM_CATEGORIES.map((cat) => {
+              const active = activeCategoryTags.includes(cat.tagName)
+              const Icon = cat.icon
               return (
                 <button
-                  key={cat.value}
+                  key={cat.tagName}
                   type="button"
-                  onClick={() => handleToggleCategoryTag(cat.value)}
+                  onClick={() => handleToggleCategoryTag(cat.tagName)}
+                  data-testid={`category-pill-${cat.tagName}`}
                   style={{
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                    fontWeight: 500,
-                    padding: '6px 14px', borderRadius: 99, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                    padding: '4px 10px', borderRadius: 9999, cursor: 'pointer',
                     border: active
-                      ? '1.5px solid rgba(168, 196, 220, 0.3)'
-                      : '1.5px solid rgba(118, 130, 142, 0.15)',
+                      ? '1px solid var(--accent-primary)'
+                      : '1px solid var(--border-subtle)',
                     background: active
-                      ? 'var(--bg-elevated-2)'
-                      : 'transparent',
+                      ? 'var(--accent-primary)'
+                      : 'var(--bg-elevated-1)',
                     color: active
-                      ? 'var(--text-secondary)'
+                      ? '#e8eaed'
                       : 'var(--text-tertiary)',
                     transition: 'all 150ms',
                   }}
                 >
+                  <Icon style={{ width: 16, height: 16 }} />
                   {cat.label}
                 </button>
               )
             })}
+          </div>
+        </div>
 
-            {/* Custom tag pills with × */}
-            {activeCustomTags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => handleRemoveTag(tag)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 4,
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
-                  padding: '6px 14px', borderRadius: 99, cursor: 'pointer',
-                  border: '1.5px dotted var(--accent-primary)',
-                  background: 'var(--accent-soft)',
-                  color: 'var(--accent-primary)',
-                  transition: 'all 150ms',
-                }}
-              >
-                {tag}
-                <X className="w-3 h-3" />
-              </button>
-            ))}
+        {/* User tags section */}
+        <div style={{ marginTop: 16 }}>
+          <label style={{
+            fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
+            color: 'var(--text-secondary)', display: 'block', marginBottom: 8,
+          }}>
+            Tags
+          </label>
 
-            {/* + Tag button / inline input */}
-            {showTagInput ? (
-              <div style={{
-                display: 'inline-flex', alignItems: 'center',
-                border: '1.5px dashed rgba(118, 130, 142, 0.2)',
-                borderRadius: 99, padding: '4px 10px',
-              }}>
-                <input
-                  ref={tagInputRef}
-                  type="text"
-                  value={tagDraft}
-                  onChange={(e) => setTagDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      const trimmed = tagDraft.trim()
-                      if (trimmed) handleAddCustomTag(trimmed)
-                      setTagDraft('')
-                      setShowTagInput(false)
-                    }
-                    if (e.key === 'Escape') {
-                      setTagDraft('')
-                      setShowTagInput(false)
-                    }
-                  }}
-                  onBlur={() => {
-                    if (!tagDraft.trim()) setShowTagInput(false)
-                  }}
-                  placeholder="Tag name"
+          {/* Existing custom tags */}
+          {activeCustomTags.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }} data-testid="custom-tags-list">
+              {activeCustomTags.map((tag) => (
+                <button
+                  key={tag}
+                  type="button"
+                  onClick={() => handleRemoveTag(tag)}
+                  data-testid={`custom-tag-${tag}`}
                   style={{
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                    color: 'var(--text-primary)', background: 'transparent', outline: 'none',
-                    width: 80, border: 'none',
+                    display: 'flex', alignItems: 'center', gap: 4,
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 11,
+                    padding: '3px 8px', borderRadius: 9999, cursor: 'pointer',
+                    border: 'none',
+                    background: 'var(--bg-elevated-2)',
+                    color: 'var(--text-tertiary)',
+                    transition: 'all 150ms',
                   }}
-                />
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setShowTagInput(true)
-                  setTimeout(() => tagInputRef.current?.focus(), 50)
-                }}
+                >
+                  <span style={{ opacity: 0.6 }}>#</span>
+                  {tag}
+                  <X style={{ width: 10, height: 10, opacity: 0.5 }} />
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Tag input with autocomplete */}
+          <div style={{ position: 'relative' }}>
+            <input
+              ref={tagInputRef}
+              type="text"
+              value={tagDraft}
+              onChange={(e) => setTagDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  const trimmed = tagDraft.trim()
+                  if (trimmed) {
+                    // Check if it matches an existing suggestion
+                    handleAddCustomTag(trimmed)
+                  }
+                  setTagDraft('')
+                }
+                if (e.key === 'Escape') {
+                  setTagDraft('')
+                }
+              }}
+              onFocus={() => setShowTagInput(true)}
+              onBlur={() => {
+                // Delay to allow click on suggestion
+                setTimeout(() => setShowTagInput(false), 200)
+              }}
+              placeholder="Add tag..."
+              data-testid="tag-input"
+              style={{
+                width: '100%', padding: '8px 12px',
+                fontFamily: "'DM Sans', sans-serif", fontSize: 14,
+                color: 'var(--text-primary)',
+                background: 'var(--bg-elevated-1)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 9999, outline: 'none',
+              }}
+            />
+            {/* Autocomplete dropdown */}
+            {showTagInput && tagDraft.trim().length > 0 && tagSuggestions.length > 0 && (
+              <div
                 style={{
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 13,
-                  fontWeight: 400,
-                  padding: '6px 14px', borderRadius: 99, cursor: 'pointer',
-                  border: '1.5px dashed rgba(118, 130, 142, 0.2)',
-                  background: 'transparent',
-                  color: 'var(--text-tertiary)',
-                  transition: 'all 150ms',
+                  position: 'absolute', left: 0, right: 0, top: '100%', marginTop: 4,
+                  background: 'var(--bg-elevated-2)',
+                  borderRadius: 8, overflow: 'hidden',
+                  boxShadow: 'var(--shadow-md)',
+                  zIndex: 20,
                 }}
-              >+ Tag</button>
+                data-testid="tag-suggestions"
+              >
+                {tagSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => {
+                      handleAddCustomTag(suggestion)
+                      setTagDraft('')
+                      setShowTagInput(false)
+                    }}
+                    data-testid={`tag-suggestion-${suggestion}`}
+                    style={{
+                      display: 'block', width: '100%', textAlign: 'left',
+                      padding: '8px 12px',
+                      fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+                      color: 'var(--text-primary)',
+                      background: 'transparent', border: 'none', cursor: 'pointer',
+                    }}
+                  >
+                    <span style={{ color: 'var(--text-muted)', marginRight: 4 }}>#</span>
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
             )}
           </div>
         </div>

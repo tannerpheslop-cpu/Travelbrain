@@ -14,37 +14,30 @@ import { describe, it, expect } from 'vitest'
 
 // ── Category pill color contract ──────────────────────────────────────────────
 
-describe('category pill color contract', () => {
-  // Matches CategoryPill component design token usage
-  const regularPill = {
-    bg: 'var(--bg-elevated-2)',    // --color-bg-pill maps here
-    text: 'var(--text-secondary)', // non-dominant pills use text-secondary
-  }
-  const restaurantPill = {
-    bg: 'var(--accent-soft)',      // rgba(184, 68, 30, 0.15)
-    text: 'var(--accent-primary)',
+describe('category pill color contract — unified monochrome', () => {
+  // ALL category pills use the same treatment (no restaurant-specific orange)
+  const categoryPill = {
+    bg: 'var(--bg-elevated-2)',
+    text: 'var(--text-secondary)',
   }
   const locationPill = {
     bg: 'rgba(141, 150, 160, 0.20)',
     text: 'var(--text-tertiary)',
   }
 
-  it('regular category pill uses bg-elevated-2 background', () => {
-    expect(regularPill.bg).toBe('var(--bg-elevated-2)')
+  it('all category pills use bg-elevated-2 background', () => {
+    expect(categoryPill.bg).toBe('var(--bg-elevated-2)')
   })
 
-  it('regular category pill uses text-secondary (not tertiary)', () => {
-    expect(regularPill.text).toBe('var(--text-secondary)')
-    expect(regularPill.text).not.toBe('var(--text-tertiary)')
+  it('all category pills use text-secondary', () => {
+    expect(categoryPill.text).toBe('var(--text-secondary)')
+    expect(categoryPill.text).not.toBe('var(--text-tertiary)')
   })
 
-  it('restaurant pill uses accent-soft background', () => {
-    expect(restaurantPill.bg).toBe('var(--accent-soft)')
-    expect(restaurantPill.bg).not.toContain('#')
-  })
-
-  it('restaurant pill uses accent-primary text', () => {
-    expect(restaurantPill.text).toBe('var(--accent-primary)')
+  it('restaurant pills use same monochrome as other categories (no accent-soft)', () => {
+    // Previously restaurant pills used accent-soft — now unified
+    expect(categoryPill.bg).not.toBe('var(--accent-soft)')
+    expect(categoryPill.text).not.toBe('var(--accent-primary)')
   })
 
   it('location pill uses gray rgba background', () => {
@@ -221,8 +214,8 @@ describe('UnpackScreen surface tokens', () => {
     inputCard: 'var(--bg-elevated-1)',
     counterColor: 'var(--accent-primary)',
     saveButton: 'var(--accent-primary)',
-    categoryPillBg: 'var(--accent-soft)',
-    categoryPillText: 'var(--accent-primary)',
+    categoryPillBg: 'var(--bg-elevated-2)',
+    categoryPillText: 'var(--text-secondary)',
     locationPillBg: 'rgba(118, 130, 142, 0.2)',
     locationPillText: 'var(--text-tertiary)',
   }
@@ -240,8 +233,9 @@ describe('UnpackScreen surface tokens', () => {
     expect(unpack.saveButton).toBe('var(--accent-primary)')
   })
 
-  it('category pills use accent-soft background', () => {
-    expect(unpack.categoryPillBg).toBe('var(--accent-soft)')
+  it('category pills use monochrome bg-elevated-2 (not accent-soft)', () => {
+    expect(unpack.categoryPillBg).toBe('var(--bg-elevated-2)')
+    expect(unpack.categoryPillBg).not.toBe('var(--accent-soft)')
   })
 
   it('location pills use gray rgba with text-tertiary', () => {

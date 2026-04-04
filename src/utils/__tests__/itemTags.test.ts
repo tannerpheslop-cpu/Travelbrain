@@ -7,15 +7,49 @@ import {
   displayTagName,
   isCategoryTag,
   categoryFromLabel,
+  categoryLabel,
   CATEGORY_TAG_LABELS,
+  CATEGORY_VALUES,
 } from '../itemTags'
+import { SYSTEM_CATEGORIES } from '../../lib/categories'
+
+describe('categoryLabel', () => {
+  it('maps all 12 system categories to their labels', () => {
+    for (const cat of SYSTEM_CATEGORIES) {
+      expect(categoryLabel[cat.tagName]).toBe(cat.label)
+    }
+  })
+
+  it('maps legacy values to their system equivalent labels', () => {
+    expect(categoryLabel['transit']).toBe('Transport')
+    expect(categoryLabel['nightlife']).toBe('Bar / Nightlife')
+    expect(categoryLabel['museum']).toBe('Attraction')
+    expect(categoryLabel['park']).toBe('Outdoors')
+    expect(categoryLabel['spa']).toBe('Wellness')
+    expect(categoryLabel['hike']).toBe('Outdoors')
+    expect(categoryLabel['temple']).toBe('Attraction')
+    expect(categoryLabel['historical']).toBe('Attraction')
+    expect(categoryLabel['beach']).toBe('Outdoors')
+    expect(categoryLabel['entertainment']).toBe('Activity')
+  })
+})
 
 describe('displayTagName', () => {
-  it('maps category values to labels', () => {
-    expect(displayTagName('restaurant')).toBe('Food')
+  it('maps system category values to labels', () => {
+    expect(displayTagName('restaurant')).toBe('Restaurant')
+    expect(displayTagName('bar_nightlife')).toBe('Bar / Nightlife')
+    expect(displayTagName('coffee_cafe')).toBe('Coffee / Cafe')
+    expect(displayTagName('hotel')).toBe('Hotel')
     expect(displayTagName('activity')).toBe('Activity')
-    expect(displayTagName('hotel')).toBe('Stay')
-    expect(displayTagName('transit')).toBe('Transit')
+    expect(displayTagName('attraction')).toBe('Attraction')
+    expect(displayTagName('wellness')).toBe('Wellness')
+  })
+
+  it('maps legacy category values to system labels', () => {
+    expect(displayTagName('nightlife')).toBe('Bar / Nightlife')
+    expect(displayTagName('museum')).toBe('Attraction')
+    expect(displayTagName('spa')).toBe('Wellness')
+    expect(displayTagName('transit')).toBe('Transport')
   })
 
   it('returns custom tag names as-is', () => {
@@ -29,18 +63,24 @@ describe('displayTagName', () => {
 })
 
 describe('isCategoryTag', () => {
-  it('identifies category labels', () => {
-    expect(isCategoryTag('Food')).toBe(true)
-    expect(isCategoryTag('Activity')).toBe(true)
-    expect(isCategoryTag('Stay')).toBe(true)
-    expect(isCategoryTag('Transit')).toBe(true)
+  it('identifies system category tag names', () => {
+    expect(isCategoryTag('restaurant')).toBe(true)
+    expect(isCategoryTag('bar_nightlife')).toBe(true)
+    expect(isCategoryTag('coffee_cafe')).toBe(true)
+    expect(isCategoryTag('wellness')).toBe(true)
   })
 
-  it('identifies category values', () => {
-    expect(isCategoryTag('restaurant')).toBe(true)
+  it('identifies legacy category values', () => {
     expect(isCategoryTag('museum')).toBe(true)
+    expect(isCategoryTag('nightlife')).toBe(true)
     expect(isCategoryTag('temple')).toBe(true)
     expect(isCategoryTag('park')).toBe(true)
+  })
+
+  it('identifies category labels', () => {
+    expect(isCategoryTag('Restaurant')).toBe(true)
+    expect(isCategoryTag('Bar / Nightlife')).toBe(true)
+    expect(isCategoryTag('Attraction')).toBe(true)
   })
 
   it('returns false for custom tags', () => {
@@ -50,21 +90,35 @@ describe('isCategoryTag', () => {
 })
 
 describe('categoryFromLabel', () => {
-  it('maps labels to values', () => {
-    expect(categoryFromLabel['Food']).toBe('restaurant')
-    expect(categoryFromLabel['Stay']).toBe('hotel')
+  it('maps system labels to tag names', () => {
+    expect(categoryFromLabel['Restaurant']).toBe('restaurant')
+    expect(categoryFromLabel['Hotel']).toBe('hotel')
+    expect(categoryFromLabel['Bar / Nightlife']).toBe('bar_nightlife')
+    expect(categoryFromLabel['Coffee / Cafe']).toBe('coffee_cafe')
+    expect(categoryFromLabel['Attraction']).toBe('attraction')
   })
 })
 
 describe('CATEGORY_TAG_LABELS', () => {
-  it('excludes General/Other and includes all new categories', () => {
+  it('has exactly 12 labels matching system categories', () => {
+    expect(CATEGORY_TAG_LABELS).toHaveLength(12)
+    for (const cat of SYSTEM_CATEGORIES) {
+      expect(CATEGORY_TAG_LABELS).toContain(cat.label)
+    }
+  })
+
+  it('excludes General and Other', () => {
     expect(CATEGORY_TAG_LABELS).not.toContain('General')
     expect(CATEGORY_TAG_LABELS).not.toContain('Other')
-    expect(CATEGORY_TAG_LABELS).toContain('Food')
-    expect(CATEGORY_TAG_LABELS).toContain('Museum')
-    expect(CATEGORY_TAG_LABELS).toContain('Temple')
-    expect(CATEGORY_TAG_LABELS).toContain('Park')
-    expect(CATEGORY_TAG_LABELS).toHaveLength(13)
+  })
+})
+
+describe('CATEGORY_VALUES', () => {
+  it('has exactly 12 values matching system categories', () => {
+    expect(CATEGORY_VALUES).toHaveLength(12)
+    for (const cat of SYSTEM_CATEGORIES) {
+      expect(CATEGORY_VALUES).toContain(cat.tagName)
+    }
   })
 })
 
@@ -77,7 +131,7 @@ describe('getItemDisplayTags', () => {
     ]
     const result = getItemDisplayTags(itemTags, 'restaurant')
     expect(result).toHaveLength(3)
-    expect(result[0]).toEqual({ name: 'Food', type: 'category', raw: 'restaurant' })
+    expect(result[0]).toEqual({ name: 'Restaurant', type: 'category', raw: 'restaurant' })
     expect(result[1]).toEqual({ name: 'Activity', type: 'category', raw: 'activity' })
     expect(result[2]).toEqual({ name: 'Must Try', type: 'custom', raw: 'Must Try' })
   })
@@ -85,13 +139,19 @@ describe('getItemDisplayTags', () => {
   it('falls back to category column when no item_tags', () => {
     const result = getItemDisplayTags(undefined, 'restaurant')
     expect(result).toHaveLength(1)
-    expect(result[0]).toEqual({ name: 'Food', type: 'category', raw: 'restaurant' })
+    expect(result[0]).toEqual({ name: 'Restaurant', type: 'category', raw: 'restaurant' })
   })
 
   it('falls back to category column when item_tags is empty', () => {
     const result = getItemDisplayTags([], 'hotel')
     expect(result).toHaveLength(1)
-    expect(result[0]).toEqual({ name: 'Stay', type: 'category', raw: 'hotel' })
+    expect(result[0]).toEqual({ name: 'Hotel', type: 'category', raw: 'hotel' })
+  })
+
+  it('handles legacy category in fallback mode', () => {
+    const result = getItemDisplayTags(undefined, 'nightlife')
+    expect(result).toHaveLength(1)
+    expect(result[0]).toEqual({ name: 'Bar / Nightlife', type: 'category', raw: 'nightlife' })
   })
 
   it('returns empty for general category with no tags', () => {
@@ -102,14 +162,13 @@ describe('getItemDisplayTags', () => {
   it('includes fallback custom tags from old tags column', () => {
     const result = getItemDisplayTags(undefined, 'restaurant', ['Must Try', 'Rooftop'])
     expect(result).toHaveLength(3)
-    expect(result[0].name).toBe('Food')
+    expect(result[0].name).toBe('Restaurant')
     expect(result[1].name).toBe('Must Try')
     expect(result[2].name).toBe('Rooftop')
   })
 
   it('prefers item_tags over old columns', () => {
     const itemTags = [{ tag_name: 'activity', tag_type: 'category' }]
-    // Old category says restaurant, but item_tags says activity — item_tags wins
     const result = getItemDisplayTags(itemTags, 'restaurant', ['old-tag'])
     expect(result).toHaveLength(1)
     expect(result[0].raw).toBe('activity')

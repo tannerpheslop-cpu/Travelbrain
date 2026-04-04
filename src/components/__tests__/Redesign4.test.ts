@@ -175,10 +175,10 @@ describe('UnpackScreen dark theme', () => {
     expect(header.color).toBe('var(--text-secondary)')
   })
 
-  it('category pills use accent-soft (0.15 opacity)', () => {
-    const pill = { background: 'rgba(184, 68, 30, 0.15)' }
-    expect(pill.background).toContain('0.15')
-    expect(pill.background).not.toContain('0.12')
+  it('category pills use monochrome bg-elevated-2 (no accent-soft)', () => {
+    const pill = { background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)' }
+    expect(pill.background).toBe('var(--bg-elevated-2)')
+    expect(pill.background).not.toContain('184, 68, 30')
   })
 
   it('location pills use gray tint (not white 0.05)', () => {

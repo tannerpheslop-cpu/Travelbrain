@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import type { Category } from '../types'
 import { deriveRouteLocation } from './deriveRouteLocation'
+import { SYSTEM_CATEGORIES, getCategoryLabel } from './categories'
 
 /**
  * Auto-creates a Route from completed extraction results.
@@ -12,7 +13,8 @@ import { deriveRouteLocation } from './deriveRouteLocation'
 
 interface ExtractedItem {
   name: string
-  category: string
+  category: string            // primary category (first in categories array) — legacy column
+  categories?: string[]       // full categories array from Haiku — written to item_tags
   location_name: string | null
   context: string | null
   address: string | null
@@ -60,14 +62,7 @@ function suggestRouteName(
     const city = [...cities.keys()][0]
     const topCat = [...categories.entries()].sort((a, b) => b[1] - a[1])[0]
     if (topCat) {
-      const catLabel = topCat[0] === 'restaurant' ? 'Restaurants'
-        : topCat[0] === 'hotel' ? 'Hotels'
-        : topCat[0] === 'museum' ? 'Museums'
-        : topCat[0] === 'temple' ? 'Temples'
-        : topCat[0] === 'park' ? 'Parks'
-        : topCat[0] === 'hike' ? 'Hikes'
-        : topCat[0] === 'historical' ? 'Historical Sites'
-        : 'Places'
+      const catLabel = getCategoryLabel(topCat[0]) + 's'
       return `${city} ${catLabel}`
     }
     return `${city} Places`
@@ -132,11 +127,11 @@ export function parseCountryFromLocationName(locationName: string | null): { cou
   return { country: last, countryCode: code }
 }
 
-const VALID_CATEGORIES = new Set<Category>([
-  'restaurant', 'hotel', 'museum', 'temple', 'park', 'hike',
-  'historical', 'shopping', 'nightlife', 'entertainment',
-  'transport', 'spa', 'beach', 'other',
-  'activity', 'transit', 'general',
+const VALID_CATEGORIES = new Set<string>([
+  ...SYSTEM_CATEGORIES.map(c => c.tagName),
+  // Legacy values still accepted from Haiku extraction
+  'museum', 'temple', 'park', 'hike', 'historical', 'nightlife',
+  'entertainment', 'spa', 'beach', 'other', 'transit', 'general',
 ])
 
 export async function createRouteFromExtraction(
@@ -200,7 +195,7 @@ export async function createRouteFromExtraction(
         source_url: sourceUrl,
         title: item.name, // FROM HAIKU — authoritative
         description: item.context, // FROM HAIKU — authoritative
-        category: VALID_CATEGORIES.has(item.category as Category) ? item.category : 'other',
+        category: VALID_CATEGORIES.has(item.category) ? item.category : 'other',
         location_name: item.location_name,
         location_country: parsed?.country ?? null,
         location_country_code: parsed?.countryCode ?? null,
@@ -223,6 +218,30 @@ export async function createRouteFromExtraction(
     if (insertErr || !savedItems) {
       console.error('[createRoute] Item creation failed:', insertErr?.message)
       return null
+    }
+
+    // Write categories to item_tags for each saved item
+    const tagRows: Array<{ item_id: string; tag_name: string; tag_type: string; user_id: string }> = []
+    for (let i = 0; i < savedItems.length; i++) {
+      const cats = items[i]?.categories ?? (items[i]?.category ? [items[i].category] : [])
+      for (const cat of cats) {
+        if (VALID_CATEGORIES.has(cat)) {
+          tagRows.push({
+            item_id: savedItems[i].id,
+            tag_name: cat,
+            tag_type: 'category',
+            user_id: userId,
+          })
+        }
+      }
+    }
+    if (tagRows.length > 0) {
+      const { error: tagErr } = await supabase
+        .from('item_tags')
+        .upsert(tagRows, { onConflict: 'item_id,tag_name', ignoreDuplicates: true })
+      if (tagErr) {
+        console.error('[createRoute] item_tags write failed:', tagErr.message)
+      }
     }
 
     // Create route_items linking saves to Route with section metadata

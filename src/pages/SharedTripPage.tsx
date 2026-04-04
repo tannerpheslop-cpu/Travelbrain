@@ -7,6 +7,7 @@ import SavedItemImage from '../components/SavedItemImage'
 import { RenderedMarkdown } from '../components/MarkdownNotes'
 import { BrandMark, CategoryPill, CountryCodeBadge, MetadataLine, PrimaryButton, SecondaryButton } from '../components/ui'
 import type { Trip, TripDestination, SavedItem } from '../types'
+import { getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
 
 // ── Local types ────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ function SharedItemCard({ item }: { item: SavedItem }) {
       <div className="flex-1 min-w-0 py-0.5">
         <p className="text-[13px] font-medium text-text-primary leading-snug truncate">{item.title}</p>
         <div className="flex flex-wrap items-center gap-1.5 mt-1">
-          <CategoryPill label={item.category.charAt(0).toUpperCase() + item.category.slice(1)} dominant={item.category === 'hotel'} />
+          <CategoryPill label={getCategoryLabel(LEGACY_CATEGORY_MAP[item.category] ?? item.category)} />
           {item.location_name && (
             <span className="font-mono text-[10px] text-text-faint">
               {shortName(item.location_name)}

@@ -1,11 +1,14 @@
 export type SourceType = 'url' | 'screenshot' | 'manual'
 
 export type Category =
-  | 'restaurant' | 'hotel' | 'museum' | 'temple' | 'park'
-  | 'hike' | 'historical' | 'shopping' | 'nightlife'
-  | 'entertainment' | 'transport' | 'spa' | 'beach' | 'other'
-  // Legacy categories (still in database, mapped on display)
-  | 'activity' | 'transit' | 'general'
+  // System categories (item_tags canonical values)
+  | 'restaurant' | 'bar_nightlife' | 'coffee_cafe' | 'hotel'
+  | 'activity' | 'attraction' | 'shopping' | 'outdoors'
+  | 'neighborhood' | 'transport' | 'wellness' | 'events'
+  // Legacy categories (still in saved_items.category column, mapped via LEGACY_CATEGORY_MAP)
+  | 'museum' | 'temple' | 'park' | 'hike' | 'historical'
+  | 'nightlife' | 'entertainment' | 'spa' | 'beach' | 'other'
+  | 'transit' | 'general'
 
 export type TripStatus = 'aspirational' | 'planning' | 'scheduled'
 

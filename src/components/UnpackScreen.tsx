@@ -4,6 +4,7 @@ import { supabase, supabaseUrl, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from './Toast'
 import type { Category } from '../types'
+import { getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,11 +40,9 @@ function extractDomain(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  restaurant: 'Food', hotel: 'Stay', museum: 'Museum', temple: 'Temple',
-  park: 'Park', hike: 'Hike', historical: 'Historical', shopping: 'Shopping',
-  nightlife: 'Nightlife', entertainment: 'Fun', transport: 'Transport',
-  spa: 'Spa', beach: 'Beach', other: 'Place',
+function resolveCategoryLabel(category: string): string {
+  const resolved = LEGACY_CATEGORY_MAP[category] ?? category
+  return getCategoryLabel(resolved)
 }
 
 function extractCity(locationName: string | null): string | null {
@@ -615,10 +614,10 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                         <div style={{ display: 'flex', gap: 4, marginTop: 3, flexWrap: 'wrap' }}>
                           <span style={{
                             fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
-                            background: 'var(--accent-soft)', color: 'var(--accent-primary)',
+                            background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
                             padding: '2px 8px', borderRadius: 999,
                           }}>
-                            {CATEGORY_LABELS[item.category] || item.category}
+                            {resolveCategoryLabel(item.category)}
                           </span>
                           {extractCity(item.location_name) && (
                             <span style={{

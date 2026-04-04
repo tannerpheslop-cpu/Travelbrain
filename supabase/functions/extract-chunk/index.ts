@@ -6,7 +6,8 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 }
 
-// ── Extraction prompt (same as extract-multi-items) ──────────────────────────
+// ── Extraction prompt ────────────────────────────────────────────────────────
+// do NOT modify without discussion — last updated April 2026 for 12-category system
 
 const STRUCTURED_PROMPT = `You are extracting specific named places from a travel article. Your job is to identify every restaurant, hotel, museum, temple, park, landmark, market, theater, and other named destinations mentioned in the article.
 
@@ -19,9 +20,17 @@ Rules:
 - For each place, include what the article specifically says about it — why it's recommended, tips, what makes it special. This is the "context" field. Keep it to 1-3 sentences using the article's perspective.
 - Detect the article's organizational structure. If it's organized by days, use day labels. If by cities, use city labels. If by category (restaurants, attractions), use those. If no clear structure, use "Places" as the single section label.
 - For location_name, use the MOST SPECIFIC location mentioned for each place — the actual town, city, or district name. Do NOT use the article's general region for every item. For example, if an item is in Tagong, use "Tagong, Sichuan" not "Western Sichuan". If no specific town is mentioned, use the nearest city.
-- Mountains, peaks, mountain passes, valleys, gorges, and mountain trails should be categorized as "hike", not "historical" or "other".
 
-Category must be one of: restaurant, hotel, museum, temple, park, hike, historical, shopping, nightlife, entertainment, transport, spa, beach, other
+For "categories": assign one or more categories from this exact list:
+restaurant, bar_nightlife, coffee_cafe, hotel, activity, attraction, shopping, outdoors, neighborhood, transport, wellness, events
+
+Rules:
+- Use an array, e.g. ["restaurant", "shopping"] for a food market
+- Assign ALL that apply. A hot spring is ["wellness", "outdoors"]. A rooftop bar is ["bar_nightlife"].
+- A museum is ["attraction"]. A cooking class is ["activity"]. A temple visit for sightseeing is ["attraction"]. A meditation retreat at a temple is ["activity", "wellness"].
+- Mountains, peaks, mountain passes, valleys, gorges, and mountain trails are ["outdoors"].
+- If nothing fits, use ["activity"] as the default.
+- NEVER use values outside this list.
 
 Return ONLY valid JSON, no other text. No markdown backticks. No preamble.
 
@@ -35,7 +44,7 @@ Return format:
       "items": [
         {
           "name": "Da Dong Roast Duck Restaurant",
-          "category": "restaurant",
+          "categories": ["restaurant"],
           "location_name": "Beijing, China",
           "context": "Recommended for Peking duck dinner. The author notes it serves Beijing's best relatively non-fatty duck.",
           "address": "22 Dongsishitiao"
@@ -53,7 +62,8 @@ structure_type must be one of: "daily_itinerary", "city_sections", "category_sec
 
 interface ExtractedItem {
   name: string
-  category: string
+  category: string            // primary category (first in categories array) — for saved_items.category column
+  categories: string[]        // full categories array from Haiku — written to item_tags
   location_name: string | null
   context: string | null
   address: string | null
@@ -70,7 +80,8 @@ interface StructuredResponse {
     location?: string
     items?: Array<{
       name?: string
-      category?: string
+      category?: string         // backward compat: old single-category format
+      categories?: string[]     // new array format
       location_name?: string
       context?: string
       address?: string
@@ -81,10 +92,39 @@ interface StructuredResponse {
 // ── Parsing ──────────────────────────────────────────────────────────────────
 
 const VALID_CATEGORIES = new Set([
-  "restaurant", "hotel", "museum", "temple", "park", "hike",
-  "historical", "shopping", "nightlife", "entertainment",
-  "transport", "spa", "beach", "other",
+  // 12 system categories
+  "restaurant", "bar_nightlife", "coffee_cafe", "hotel",
+  "activity", "attraction", "shopping", "outdoors",
+  "neighborhood", "transport", "wellness", "events",
 ])
+
+// Legacy values → system category mapping (for backward compat with old Haiku responses)
+const LEGACY_MAP: Record<string, string> = {
+  "museum": "attraction", "temple": "attraction", "historical": "attraction",
+  "park": "outdoors", "hike": "outdoors", "beach": "outdoors",
+  "nightlife": "bar_nightlife", "entertainment": "activity",
+  "spa": "wellness", "transit": "transport",
+}
+
+/** Normalize a single category value to a valid system category. */
+function normalizeCategory(cat: string): string {
+  if (VALID_CATEGORIES.has(cat)) return cat
+  if (LEGACY_MAP[cat]) return LEGACY_MAP[cat]
+  return "activity" // default
+}
+
+/** Parse categories from a Haiku response item. Handles both array and string formats. */
+function parseCategories(item: { category?: string; categories?: string[] }): string[] {
+  // New format: categories array
+  if (Array.isArray(item.categories) && item.categories.length > 0) {
+    return item.categories.map(c => normalizeCategory(String(c))).filter(Boolean)
+  }
+  // Old format: single category string — wrap in array
+  if (item.category && typeof item.category === "string") {
+    return [normalizeCategory(item.category)]
+  }
+  return ["activity"]
+}
 
 function parseStructuredResponse(responseText: string): ExtractedItem[] {
   let data: StructuredResponse | null = null
@@ -106,17 +146,21 @@ function parseStructuredResponse(responseText: string): ExtractedItem[] {
     if (Array.isArray(arr)) {
       return arr
         .filter((it): it is Record<string, unknown> => !!it && typeof it === "object")
-        .map((it, i) => ({
-          name: String(it.name || "").trim(),
-          category: VALID_CATEGORIES.has(String(it.category || "")) ? String(it.category) : "other",
-          location_name: it.location_name ? String(it.location_name).trim() : null,
-          context: it.context ? String(it.context).trim().slice(0, 500) : null,
-          address: it.address ? String(it.address).trim() : null,
-          section_label: "Places",
-          section_location: null,
-          section_order: 0,
-          item_order: i,
-        }))
+        .map((it, i) => {
+          const cats = parseCategories(it as { category?: string; categories?: string[] })
+          return {
+            name: String(it.name || "").trim(),
+            category: cats[0],
+            categories: cats,
+            location_name: it.location_name ? String(it.location_name).trim() : null,
+            context: it.context ? String(it.context).trim().slice(0, 500) : null,
+            address: it.address ? String(it.address).trim() : null,
+            section_label: "Places",
+            section_location: null,
+            section_order: 0,
+            item_order: i,
+          }
+        })
         .filter(it => it.name.length >= 2)
     }
     return []
@@ -138,9 +182,12 @@ function parseStructuredResponse(responseText: string): ExtractedItem[] {
       if (seen.has(key)) continue
       seen.add(key)
 
+      const cats = parseCategories(item)
+
       items.push({
         name,
-        category: VALID_CATEGORIES.has(item.category ?? "") ? item.category! : "other",
+        category: cats[0],
+        categories: cats,
         location_name: item.location_name ? String(item.location_name).trim() : null,
         context: item.context ? String(item.context).trim().slice(0, 500) : null,
         address: item.address ? String(item.address).trim() : null,
