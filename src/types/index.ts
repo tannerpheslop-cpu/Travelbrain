@@ -211,6 +211,13 @@ export interface Route {
   source_thumbnail: string | null
   location_scope: string | null
   item_count: number
+  derived_city: string | null
+  derived_city_country_code: string | null
+  derived_country: string | null
+  derived_country_code: string | null
+  city_count: number
+  country_count: number
+  location_locked: boolean
   created_at: string
   updated_at: string
 }

@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import type { Category } from '../types'
+import { deriveRouteLocation } from './deriveRouteLocation'
 
 /**
  * Auto-creates a Route from completed extraction results.
@@ -197,6 +198,9 @@ export async function createRouteFromExtraction(
     if (linkErr) {
       console.error('[createRoute] Route items linking failed:', linkErr.message)
     }
+
+    // Derive location metadata from the newly created saves
+    await deriveRouteLocation(route.id)
 
     // Update pending_extractions status to 'saved'
     await supabase

@@ -9,6 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
+import { deriveRouteLocation } from '../lib/deriveRouteLocation'
 import { getInboxClusters } from '../lib/clusters'
 import type { SavedItem, Trip, TripDestination, TripRoute, ItemTag, TagType, Route } from '../types'
 import type { LocationSelection } from '../components/LocationAutocomplete'
@@ -58,6 +59,7 @@ export const queryKeys = {
   itemTags: (itemId: string) => ['item-tags', itemId] as const,
   allUserTags: (userId: string) => ['all-user-tags', userId] as const,
   userCustomTags: (userId: string) => ['user-custom-tags', userId] as const,
+  routes: (userId: string) => ['routes', userId] as const,
 }
 
 // ── Standalone fetch functions (for prefetchQuery — no hooks) ────────────────
@@ -649,9 +651,24 @@ export function useUpdateItem() {
         fields_changed: Object.keys(input.updates),
       })
     },
-    onSettled: (_data, _err, input) => {
+    onSettled: async (_data, _err, input) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.savedItem(input.itemId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user?.id ?? '') })
+
+      // Re-derive route location when a route-member save's location changes
+      const locationFields = ['location_name', 'location_country', 'location_country_code']
+      const changedLocation = locationFields.some(f => f in input.updates)
+      if (changedLocation) {
+        const { data: item } = await supabase
+          .from('saved_items')
+          .select('route_id')
+          .eq('id', input.itemId)
+          .single()
+        if (item?.route_id) {
+          await deriveRouteLocation(item.route_id)
+          queryClient.invalidateQueries({ queryKey: queryKeys.routes(user?.id ?? '') })
+        }
+      }
     },
   })
 }

@@ -683,12 +683,44 @@ export default function InboxPage() {
   }, [routes, routeSavesMap, searchQuery, selectedFilters, countryList])
 
   // Merge Routes into geo groups so they render inline with saves
-  type GeoEntry = { type: 'save'; item: SavedItem } | { type: 'route'; route: Route }
+  type GeoEntry =
+    | { type: 'save'; item: SavedItem }
+    | { type: 'route'; route: Route; locationLabelOverride?: string }
   interface MergedGeoGroup {
     country: string | null
     countryCode: string | null
     city?: string | null
     entries: GeoEntry[]
+  }
+
+  // Build distinct cities/countries per route from their saves (for multi-group placement)
+  const routeDistinctLocations = useMemo(() => {
+    const map = new Map<string, { cities: string[]; countryCodes: string[]; countryNames: Map<string, string> }>()
+    for (const route of routes) {
+      const saves = routeSavesMap.get(route.id) ?? []
+      const citySet = new Set<string>()
+      const codeSet = new Set<string>()
+      const nameMap = new Map<string, string>()
+      for (const s of saves) {
+        if (s.location_name) citySet.add(s.location_name)
+        if (s.location_country_code) {
+          codeSet.add(s.location_country_code)
+          if (s.location_country) nameMap.set(s.location_country_code, s.location_country)
+        }
+      }
+      map.set(route.id, { cities: [...citySet], countryCodes: [...codeSet], countryNames: nameMap })
+    }
+    return map
+  }, [routes, routeSavesMap])
+
+  // Helper: insert a route entry into a group sorted by created_at descending
+  function insertRouteEntry(group: MergedGeoGroup, entry: GeoEntry & { type: 'route' }) {
+    const routeTime = new Date(entry.route.created_at).getTime()
+    const idx = group.entries.findIndex(e => {
+      const t = e.type === 'save' ? new Date(e.item.created_at).getTime() : new Date(e.route.created_at).getTime()
+      return routeTime >= t
+    })
+    group.entries.splice(idx === -1 ? group.entries.length : idx, 0, entry)
   }
 
   const mergedGeoGroups = useMemo((): MergedGeoGroup[] => {
@@ -700,51 +732,73 @@ export default function InboxPage() {
       entries: g.items.map(item => ({ type: 'save' as const, item })),
     }))
 
-    // For each filtered route, find the best country group to place it in
-    for (const route of filteredRoutes) {
-      // Determine route's primary country code from its items
-      const saves = routeSavesMap.get(route.id) ?? []
-      const codeCounts = new Map<string, number>()
-      for (const s of saves) {
-        if (s.location_country_code) {
-          codeCounts.set(s.location_country_code, (codeCounts.get(s.location_country_code) ?? 0) + 1)
-        }
-      }
-      const primaryCode = codeCounts.size > 0
-        ? [...codeCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
-        : null
+    const isCountryMode = groupMode === 'country'
 
-      // Find matching group (by countryCode for country mode, or put in first matching country group for city mode)
-      let placed = false
-      if (primaryCode) {
-        for (const group of merged) {
-          if (group.countryCode === primaryCode) {
-            // Insert by created_at descending
-            const routeTime = new Date(route.created_at).getTime()
-            const idx = group.entries.findIndex(e => {
-              const t = e.type === 'save' ? new Date(e.item.created_at).getTime() : new Date(e.route.created_at).getTime()
-              return routeTime >= t
-            })
-            group.entries.splice(idx === -1 ? group.entries.length : idx, 0, { type: 'route', route })
-            placed = true
-            break
+    for (const route of filteredRoutes) {
+      const locs = routeDistinctLocations.get(route.id)
+      const distinctCodes = locs?.countryCodes ?? []
+      const distinctCities = locs?.cities ?? []
+      const countryNames = locs?.countryNames ?? new Map<string, string>()
+
+      if (isCountryMode) {
+        // Country view: place route in each country group it spans
+        if (distinctCodes.length === 0) {
+          // No location — Unplaced
+          let unplaced = merged.find(g => g.country === null && !g.city)
+          if (!unplaced) {
+            unplaced = { country: null, countryCode: null, entries: [] }
+            merged.push(unplaced)
+          }
+          insertRouteEntry(unplaced, { type: 'route', route })
+        } else {
+          for (const code of distinctCodes) {
+            let group = merged.find(g => g.countryCode === code)
+            if (!group) {
+              group = { country: countryNames.get(code) ?? code, countryCode: code, entries: [] }
+              // Insert before Unplaced
+              const unplacedIdx = merged.findIndex(g => g.country === null && !g.city)
+              if (unplacedIdx >= 0) merged.splice(unplacedIdx, 0, group)
+              else merged.push(group)
+            }
+            insertRouteEntry(group, { type: 'route', route })
           }
         }
-      }
-
-      // If no matching group, add to "Unplaced" (null country)
-      if (!placed) {
-        let unplaced = merged.find(g => g.country === null && !g.city)
-        if (!unplaced) {
-          unplaced = { country: null, countryCode: null, entries: [] }
-          merged.push(unplaced)
+      } else {
+        // City view: place route in each city group it spans
+        if (distinctCities.length === 0) {
+          let unplaced = merged.find(g => g.country === null && g.city === null)
+          if (!unplaced) {
+            unplaced = { country: null, countryCode: null, city: null, entries: [] }
+            merged.push(unplaced)
+          }
+          insertRouteEntry(unplaced, { type: 'route', route })
+        } else {
+          for (const cityName of distinctCities) {
+            const cityKey = extractCity(cityName)
+            let group = merged.find(g => g.city && extractCity(g.city) === cityKey)
+            if (!group) {
+              // Find country info from saves
+              const saves = routeSavesMap.get(route.id) ?? []
+              const matchingSave = saves.find(s => s.location_name === cityName)
+              const code = matchingSave?.location_country_code ?? null
+              const country = matchingSave?.location_country ?? null
+              group = { country, countryCode: code, city: cityKey, entries: [] }
+              const unplacedIdx = merged.findIndex(g => g.country === null && g.city === null)
+              if (unplacedIdx >= 0) merged.splice(unplacedIdx, 0, group)
+              else merged.push(group)
+            }
+            // Deduplication: don't add same route twice to same group
+            const alreadyInGroup = group.entries.some(e => e.type === 'route' && e.route.id === route.id)
+            if (!alreadyInGroup) {
+              insertRouteEntry(group, { type: 'route', route, locationLabelOverride: cityName })
+            }
+          }
         }
-        unplaced.entries.push({ type: 'route', route })
       }
     }
 
     return merged
-  }, [geoGroups, filteredRoutes, routeSavesMap])
+  }, [geoGroups, filteredRoutes, routeDistinctLocations, routeSavesMap, groupMode])
 
   // Preload first-screen gallery images
   useEffect(() => {
@@ -1240,20 +1294,17 @@ export default function InboxPage() {
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-2" style={{ gap: 8 }}>
                   {group.entries.map((entry) => {
-                    if (entry.type === 'route') {
-                      return <RouteGridCard key={`route-${entry.route.id}`} route={entry.route} />
-                    }
-                    const item = entry.item
+                    const entryId = entry.type === 'route' ? `route:${entry.route.id}` : entry.item.id
                     const idx = gridIndex++
-                    const isSelected = multiSelected.has(item.id)
+                    const isSelected = multiSelected.has(entryId)
                     return (
                       <div
-                        key={item.id}
+                        key={entryId}
                         style={{ position: 'relative' }}
-                        onPointerDown={() => !multiSelectMode && startLongPress(item.id)}
+                        onPointerDown={() => !multiSelectMode && entry.type === 'save' && startLongPress(entry.item.id)}
                         onPointerUp={cancelLongPress}
                         onPointerLeave={cancelLongPress}
-                        onClick={multiSelectMode ? (e) => { e.preventDefault(); e.stopPropagation(); toggleMultiSelect(item.id) } : undefined}
+                        onClick={multiSelectMode ? (e) => { e.preventDefault(); e.stopPropagation(); toggleMultiSelect(entryId) } : undefined}
                       >
                         {multiSelectMode && (
                           <div style={{
@@ -1273,8 +1324,12 @@ export default function InboxPage() {
                         )}
                         <div style={{ pointerEvents: multiSelectMode ? 'none' : 'auto' }}>
                           <div style={{ position: 'relative' }}>
-                            <GridCard item={item} tripCount={tripLinkCounts.get(item.id) ?? 0} extractionCount={extractionCounts.get(item.id)} eager={idx < 6} />
-                            {extractingIds.has(item.id) && (
+                            {entry.type === 'route' ? (
+                              <RouteGridCard route={entry.route} locationLabelOverride={entry.locationLabelOverride} />
+                            ) : (
+                              <GridCard item={entry.item} tripCount={tripLinkCounts.get(entry.item.id) ?? 0} extractionCount={extractionCounts.get(entry.item.id)} eager={idx < 6} />
+                            )}
+                            {entry.type === 'save' && extractingIds.has(entry.item.id) && (
                               <div style={{
                                 position: 'absolute', top: 0, left: 0, right: 0, height: 3,
                                 borderRadius: '8px 8px 0 0', overflow: 'hidden',
@@ -1295,19 +1350,16 @@ export default function InboxPage() {
               ) : (
                 <div className="flex flex-col">
                   {group.entries.map((entry) => {
-                    if (entry.type === 'route') {
-                      return <RouteListRow key={`route-${entry.route.id}`} route={entry.route} />
-                    }
-                    const item = entry.item
-                    const isSelected = multiSelected.has(item.id)
+                    const entryId = entry.type === 'route' ? `route:${entry.route.id}` : entry.item.id
+                    const isSelected = multiSelected.has(entryId)
                     return (
                       <div
-                        key={item.id}
+                        key={entryId}
                         style={{ display: 'flex', alignItems: 'center' }}
-                        onPointerDown={() => !multiSelectMode && startLongPress(item.id)}
+                        onPointerDown={() => !multiSelectMode && entry.type === 'save' && startLongPress(entry.item.id)}
                         onPointerUp={cancelLongPress}
                         onPointerLeave={cancelLongPress}
-                        onClick={multiSelectMode ? (e) => { e.preventDefault(); e.stopPropagation(); toggleMultiSelect(item.id) } : undefined}
+                        onClick={multiSelectMode ? (e) => { e.preventDefault(); e.stopPropagation(); toggleMultiSelect(entryId) } : undefined}
                       >
                         {multiSelectMode && (
                           <div style={{
@@ -1325,18 +1377,24 @@ export default function InboxPage() {
                         )}
                         <div style={{ flex: 1, pointerEvents: multiSelectMode ? 'none' : 'auto' }}>
                           <div style={{ position: 'relative' }}>
-                            <ListRow item={item} extractionCount={extractionCounts.get(item.id)} />
-                            {extractingIds.has(item.id) && (
-                              <div style={{
-                                position: 'absolute', top: 0, left: 0, right: 0, height: 2,
-                                overflow: 'hidden',
-                              }}>
-                                <div style={{
-                                  width: '40%', height: '100%',
-                                  background: 'linear-gradient(90deg, transparent, rgba(184,68,30,0.3), transparent)',
-                                  animation: 'extraction-shimmer 1.5s ease-in-out infinite',
-                                }} />
-                              </div>
+                            {entry.type === 'route' ? (
+                              <RouteListRow route={entry.route} locationLabelOverride={entry.locationLabelOverride} />
+                            ) : (
+                              <>
+                                <ListRow item={entry.item} extractionCount={extractionCounts.get(entry.item.id)} />
+                                {extractingIds.has(entry.item.id) && (
+                                  <div style={{
+                                    position: 'absolute', top: 0, left: 0, right: 0, height: 2,
+                                    overflow: 'hidden',
+                                  }}>
+                                    <div style={{
+                                      width: '40%', height: '100%',
+                                      background: 'linear-gradient(90deg, transparent, rgba(184,68,30,0.3), transparent)',
+                                      animation: 'extraction-shimmer 1.5s ease-in-out infinite',
+                                    }} />
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                         </div>
@@ -1606,89 +1664,140 @@ function TripCountPill({ count, variant }: { count: number; variant: 'image' | '
 
 // ─── Route Card (grid view) ─────────────────────────────────────────────────
 
-function RouteGridCard({ route }: { route: Route }) {
+function RouteGridCard({ route, locationLabelOverride }: { route: Route; locationLabelOverride?: string }) {
   const thumbnail = route.source_thumbnail
+
+  // Derive location pill label
+  const locationLabel = locationLabelOverride ?? (() => {
+    const { derived_city, city_count, country_count } = route
+    if (city_count === 1 && derived_city) return derived_city
+    if (city_count > 1 && country_count === 1) return `${city_count} Cities`
+    if (country_count > 1) return `${country_count} Countries`
+    return null
+  })()
+
+  const locationPillStyle = {
+    fontFamily: "'DM Sans', sans-serif",
+    fontSize: 11,
+    padding: '2px 7px',
+    borderRadius: 9999,
+    maxWidth: 120,
+  }
+
+  if (thumbnail) {
+    // Image variant — same 160px height as ImageCard
+    return (
+      <Link
+        to={`/route/${route.id}`}
+        className="block relative overflow-hidden"
+        style={{ borderRadius: 10, height: 160, cursor: 'pointer' }}
+        data-testid={`route-card-${route.id}`}
+      >
+        {/* Image */}
+        <div className="absolute inset-0" style={{ background: 'var(--bg-elevated-1)' }}>
+          <img
+            src={optimizedImageUrl(thumbnail, 'gallery-card') ?? thumbnail}
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
+        {/* Gradient overlay */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: 'linear-gradient(to bottom, transparent 35%, rgba(0,0,0,0.7) 100%)' }}
+        />
+        {/* Count badge */}
+        <span style={{
+          position: 'absolute', top: 8, right: 8, zIndex: 2,
+          background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
+          border: '1px solid var(--border-subtle)',
+          fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
+          padding: '2px 6px', borderRadius: 9999,
+        }}>
+          {route.item_count} places
+        </span>
+        {/* Content at bottom */}
+        <div className="absolute bottom-0 left-0 right-0" style={{ padding: '8px 10px' }}>
+          <p
+            className="text-[12px] font-semibold text-white"
+            style={{
+              lineHeight: 1.3,
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden',
+              textShadow: '0 1px 3px rgba(0,0,0,0.5)',
+            }}
+          >
+            {route.name}
+          </p>
+          {locationLabel && (
+            <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
+              <span
+                className="truncate"
+                style={{
+                  ...locationPillStyle,
+                  color: 'rgba(255,255,255,0.85)',
+                  background: 'rgba(255,255,255,0.20)',
+                }}
+              >
+                {locationLabel}
+              </span>
+            </div>
+          )}
+        </div>
+      </Link>
+    )
+  }
+
+  // Text variant — same 160px height as TextCard
   return (
     <Link
       to={`/route/${route.id}`}
-      style={{ textDecoration: 'none', position: 'relative' }}
+      className="block relative overflow-hidden"
+      style={{ borderRadius: 10, height: 160, cursor: 'pointer', background: 'var(--bg-elevated-1)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
       data-testid={`route-card-${route.id}`}
     >
-      {/* Stacked card effect: shadow card behind */}
-      <div style={{
-        position: 'absolute', top: 3, left: 3, right: -3, bottom: -3,
-        borderRadius: 8, background: 'rgba(118,130,142,0.15)', opacity: 0.4, zIndex: 0,
-      }} />
-      <div style={{
-        position: 'relative', zIndex: 1,
-        borderRadius: 8, overflow: 'hidden',
-        background: 'var(--bg-elevated-1)',
+      {/* Count badge */}
+      <span style={{
+        position: 'absolute', top: 8, right: 8, zIndex: 2,
+        background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
+        border: '1px solid var(--border-subtle)',
+        fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
+        padding: '2px 6px', borderRadius: 9999,
       }}>
-        {/* Thumbnail */}
-        {thumbnail ? (
-          <div style={{ position: 'relative', paddingTop: '65%' }}>
-            <img
-              src={optimizedImageUrl(thumbnail, 'gallery-card') ?? thumbnail}
-              alt=""
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-            />
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(transparent 30%, rgba(0,0,0,0.6))' }} />
-            {/* Count badge */}
-            <span style={{
-              position: 'absolute', top: 6, right: 6, zIndex: 2,
-              background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
-              border: '1px solid var(--border-subtle)',
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 500,
-              padding: '2px 8px', borderRadius: 9999,
-            }}>
-              {route.item_count} places
+        {route.item_count} places
+      </span>
+      {/* Content — pinned to bottom */}
+      <div
+        className="flex flex-col justify-end"
+        style={{ padding: 10, height: '100%', boxSizing: 'border-box' }}
+      >
+        <p
+          className="text-[12px] font-semibold"
+          style={{
+            color: 'var(--text-primary)', margin: 0,
+            lineHeight: 1.3,
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {route.name}
+        </p>
+        {locationLabel && (
+          <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
+            <span
+              className="truncate"
+              style={{
+                ...locationPillStyle,
+                color: 'var(--text-tertiary)',
+                background: 'rgba(141, 150, 160, 0.20)',
+              }}
+            >
+              {locationLabel}
             </span>
-            {/* Name on image */}
-            <div style={{ position: 'absolute', bottom: 8, left: 8, right: 8, zIndex: 2 }}>
-              <p style={{
-                fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
-                color: '#fff', margin: 0,
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                textShadow: '0 1px 3px rgba(0,0,0,0.5)',
-              }}>
-                {route.name}
-              </p>
-              {route.location_scope && (
-                <p style={{
-                  fontFamily: "'DM Sans', sans-serif", fontSize: 10,
-                  color: 'rgba(255,255,255,0.7)', margin: '2px 0 0',
-                }}>
-                  {route.location_scope}
-                </p>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div style={{ padding: '14px 12px' }}>
-            <span style={{
-              position: 'absolute', top: 6, right: 6,
-              background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
-              border: '1px solid var(--border-subtle)',
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 500,
-              padding: '2px 8px', borderRadius: 9999,
-            }}>
-              {route.item_count} places
-            </span>
-            <p style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,
-              color: 'var(--text-primary)', margin: 0,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {route.name}
-            </p>
-            {route.location_scope && (
-              <p style={{
-                fontFamily: "'DM Sans', sans-serif", fontSize: 11,
-                color: 'var(--text-tertiary)', margin: '4px 0 0',
-              }}>
-                {route.location_scope}
-              </p>
-            )}
           </div>
         )}
       </div>
@@ -1698,29 +1807,29 @@ function RouteGridCard({ route }: { route: Route }) {
 
 // ─── Route Card (list view) ─────────────────────────────────────────────────
 
-function RouteListRow({ route }: { route: Route }) {
+function RouteListRow({ route, locationLabelOverride }: { route: Route; locationLabelOverride?: string }) {
+  // Derive location label
+  const locationLabel = locationLabelOverride ?? (() => {
+    const { derived_city, city_count, country_count } = route
+    if (city_count === 1 && derived_city) return derived_city
+    if (city_count > 1 && country_count === 1) return `${city_count} Cities`
+    if (country_count > 1) return `${country_count} Countries`
+    return null
+  })()
+
   return (
-    <Link
-      to={`/route/${route.id}`}
-      style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-        padding: '10px 0', textDecoration: 'none',
-        borderBottom: '0.5px solid rgba(118,130,142,0.06)',
-      }}
-      data-testid={`route-row-${route.id}`}
-    >
-      {/* Thumbnail */}
-      <div style={{ position: 'relative', flexShrink: 0 }}>
-        {/* Stacked effect */}
+    <div className="relative group">
+      <Link
+        to={`/route/${route.id}`}
+        className="flex items-center gap-3 px-2 py-2.5 hover:bg-bg-muted active:bg-bg-pill transition-colors"
+        style={{ borderRadius: 8, background: 'var(--bg-elevated-1)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
+        data-testid={`route-row-${route.id}`}
+      >
+        {/* Thumbnail */}
         <div style={{
-          position: 'absolute', top: 2, left: 2,
-          width: 44, height: 44, borderRadius: 6,
-          background: 'rgba(118,130,142,0.15)', opacity: 0.4,
-        }} />
-        <div style={{
-          width: 44, height: 44, borderRadius: 6, overflow: 'hidden',
-          background: 'var(--bg-elevated-1)',
-          position: 'relative', zIndex: 1,
+          width: 32, height: 32, borderRadius: 6, overflow: 'hidden', flexShrink: 0,
+          background: 'var(--bg-elevated-2)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           {route.source_thumbnail ? (
             <img
@@ -1729,31 +1838,26 @@ function RouteListRow({ route }: { route: Route }) {
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
             />
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-              </svg>
-            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-tertiary)" strokeWidth="1.5">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
           )}
         </div>
-      </div>
-      {/* Text */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <p style={{
-          fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
-          color: 'var(--text-primary)', margin: 0,
-          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-        }}>
-          {route.name}
-        </p>
-        <p style={{
-          fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--text-tertiary)',
-          margin: '2px 0 0',
-        }}>
-          {route.location_scope ? `${route.location_scope} · ` : ''}{route.item_count} place{route.item_count !== 1 ? 's' : ''}
-        </p>
-      </div>
-    </Link>
+
+        {/* Title + location */}
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-medium text-text-primary truncate group-hover:text-accent transition-colors">{route.name}</p>
+          <p className="font-mono text-[11px] text-text-tertiary truncate">
+            {locationLabel ? `${locationLabel} · ` : ''}{route.item_count} place{route.item_count !== 1 ? 's' : ''}
+          </p>
+        </div>
+
+        {/* Badge */}
+        <span className="font-mono text-[10px] text-text-faint shrink-0">
+          {formatDate(route.created_at)}
+        </span>
+      </Link>
+    </div>
   )
 }
 
@@ -1929,7 +2033,7 @@ function TextCard({ item, tripCount, showShimmer, extractionCount }: { item: Sav
     <Link
       to={`/item/${item.id}`}
       className="block relative overflow-hidden"
-      style={{ borderRadius: 8, height: 160, cursor: 'pointer', background: 'var(--bg-elevated-1)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
+      style={{ borderRadius: 10, height: 160, cursor: 'pointer', background: 'var(--bg-elevated-1)', border: '1px solid var(--border-subtle)', boxShadow: 'var(--shadow-sm)' }}
     >
       {/* Trip count pill */}
       <TripCountPill count={tripCount} variant="text" />
