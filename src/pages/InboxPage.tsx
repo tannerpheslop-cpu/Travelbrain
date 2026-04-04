@@ -841,7 +841,198 @@ export default function InboxPage() {
           const fraction = SNAP_FRACTIONS[snap] ?? 0.7
           setSkyHeight(Math.round(vh * (1 - fraction)))
         }}
-        header={<div style={{ height: 4 }} />}
+        header={
+          <div style={{
+            background: 'var(--bg-base, #15181c)',
+            color: 'var(--text-primary, #e8eaed)',
+            padding: '0 16px',
+            pointerEvents: 'auto',
+          }}>
+            {/* ── Compact toolbar (one row) ── */}
+            {searchExpanded ? (
+              /* Expanded search state */
+              <div className="flex items-center gap-2 mb-3" style={{ height: 36 }}>
+                <button
+                  type="button"
+                  onClick={() => { setSearchQuery(''); setSearchExpanded(false) }}
+                  className="flex items-center justify-center shrink-0"
+                  style={{ width: 32, height: 32, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
+                  aria-label="Close search"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <div className="relative flex-1">
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search saves..."
+                    className="w-full px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
+                    style={{ background: 'var(--bg-canvas)', border: '0.5px solid rgba(118,130,142,0.15)', color: 'var(--text-primary)', fontSize: 16 }}
+                    autoFocus
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setSearchQuery(''); setSearchExpanded(false) }}
+                  style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              /* Collapsed toolbar */
+              <div className="flex items-center justify-between mb-3" style={{ height: 36 }}>
+                {/* Left: search + filter icons */}
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => { setSearchExpanded(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
+                    className="flex items-center justify-center"
+                    style={{ width: 32, height: 32, color: searchQuery ? 'var(--accent-primary)' : 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}
+                    aria-label="Search"
+                    data-testid="horizon-search-btn"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowPillSheet(true)}
+                    className="flex items-center justify-center"
+                    style={{
+                      width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer',
+                      color: selectedFilters.length > 0 ? 'var(--accent-primary)' : 'var(--text-tertiary)',
+                      background: selectedFilters.length > 0 ? 'rgba(184,68,30,0.08)' : 'none',
+                    }}
+                    data-testid="horizon-filter-btn"
+                    aria-label="Filter"
+                  >
+                    <SlidersHorizontal className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => multiSelectMode ? exitMultiSelect() : setMultiSelectMode(true)}
+                    className="flex items-center justify-center"
+                    style={{
+                      width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer',
+                      color: multiSelectMode ? 'var(--accent-primary)' : 'var(--text-tertiary)',
+                      background: multiSelectMode ? 'rgba(184,68,30,0.08)' : 'none',
+                    }}
+                    aria-label={multiSelectMode ? 'Cancel selection' : 'Select items'}
+                  >
+                    {multiSelectMode ? <X className="w-4 h-4" /> : <CheckSquare className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                {/* Right: group toggle + view toggle */}
+                <div className="flex items-center gap-2">
+                  {/* Group mode toggle */}
+                  <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid rgba(118,130,142,0.2)' }}>
+                    <button
+                      type="button"
+                      onClick={() => setGroupMode('country')}
+                      style={{
+                        padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
+                        fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'country' ? 600 : 400,
+                        background: groupMode === 'country' ? 'rgba(228,232,240,0.1)' : 'transparent',
+                        color: groupMode === 'country' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                      }}
+                      aria-label="Group by country"
+                    >
+                      Country
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGroupMode('city')}
+                      style={{
+                        padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
+                        fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'city' ? 600 : 400,
+                        background: groupMode === 'city' ? 'rgba(228,232,240,0.1)' : 'transparent',
+                        color: groupMode === 'city' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                      }}
+                      aria-label="Group by city"
+                    >
+                      City
+                    </button>
+                  </div>
+
+                  {/* View toggle */}
+                  <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid rgba(118,130,142,0.2)' }}>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('grid')}
+                      className="flex items-center justify-center"
+                      style={{
+                        width: 28, height: 28, border: 'none', cursor: 'pointer',
+                        background: viewMode === 'grid' ? 'rgba(228,232,240,0.1)' : 'transparent',
+                        color: viewMode === 'grid' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                      }}
+                      aria-label="Grid view"
+                    >
+                      <LayoutGrid className="w-3 h-3" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setViewMode('list')}
+                      className="flex items-center justify-center"
+                      style={{
+                        width: 28, height: 28, border: 'none', cursor: 'pointer',
+                        background: viewMode === 'list' ? 'rgba(228,232,240,0.1)' : 'transparent',
+                        color: viewMode === 'list' ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                      }}
+                      aria-label="List view"
+                    >
+                      <List className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Row 3: Active Filter Pills (horizontal scroll + Clear all) ── */}
+            {selectedFilters.length > 0 && (
+              <div className="flex items-center gap-1.5 mb-3 overflow-x-auto scrollbar-hide" data-testid="active-filter-pills">
+                {selectedFilters.map((filter) => (
+                  <button
+                    key={filter}
+                    type="button"
+                    onClick={() => setSelectedFilters((prev) => prev.filter((f) => f !== filter))}
+                    className="flex items-center gap-1 shrink-0 transition-colors"
+                    style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 10,
+                      fontWeight: 500,
+                      color: 'var(--color-accent)',
+                      background: 'var(--color-accent-light)',
+                      border: '1px solid var(--color-accent)',
+                      borderRadius: 4,
+                      padding: '3px 8px',
+                    }}
+                    data-testid={`active-filter-${filter}`}
+                  >
+                    <X className="w-2.5 h-2.5" />
+                    {filter}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setSelectedFilters([])}
+                  className="shrink-0 ml-1 transition-colors hover:text-text-secondary"
+                  style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: 10,
+                    fontWeight: 500,
+                    color: 'var(--text-tertiary)',
+                  }}
+                  data-testid="clear-all-filters"
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
+          </div>
+        }
       >
         <div style={{
           background: 'var(--bg-base, #15181c)',
@@ -850,190 +1041,6 @@ export default function InboxPage() {
           padding: '0 16px 120px',
           pointerEvents: 'auto',
         }}>
-
-      {/* ── Compact toolbar (one row) ── */}
-      {searchExpanded ? (
-        /* Expanded search state */
-        <div className="flex items-center gap-2 mb-3" style={{ height: 36 }}>
-          <button
-            type="button"
-            onClick={() => { setSearchQuery(''); setSearchExpanded(false) }}
-            className="flex items-center justify-center shrink-0"
-            style={{ width: 32, height: 32, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
-            aria-label="Close search"
-          >
-            <X className="w-4 h-4" />
-          </button>
-          <div className="relative flex-1">
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search saves..."
-              className="w-full px-3 py-1.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent/30"
-              style={{ background: 'var(--bg-canvas)', border: '0.5px solid rgba(118,130,142,0.15)', color: 'var(--text-primary)', fontSize: 16 }}
-              autoFocus
-            />
-          </div>
-          <button
-            type="button"
-            onClick={() => { setSearchQuery(''); setSearchExpanded(false) }}
-            style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 0', whiteSpace: 'nowrap' }}
-          >
-            Cancel
-          </button>
-        </div>
-      ) : (
-        /* Collapsed toolbar */
-        <div className="flex items-center justify-between mb-3" style={{ height: 36 }}>
-          {/* Left: search + filter icons */}
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => { setSearchExpanded(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
-              className="flex items-center justify-center"
-              style={{ width: 32, height: 32, color: searchQuery ? 'var(--accent-primary)' : 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 6 }}
-              aria-label="Search"
-              data-testid="horizon-search-btn"
-            >
-              <Search className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowPillSheet(true)}
-              className="flex items-center justify-center"
-              style={{
-                width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer',
-                color: selectedFilters.length > 0 ? 'var(--accent-primary)' : 'var(--text-tertiary)',
-                background: selectedFilters.length > 0 ? 'rgba(184,68,30,0.08)' : 'none',
-              }}
-              data-testid="horizon-filter-btn"
-              aria-label="Filter"
-            >
-              <SlidersHorizontal className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => multiSelectMode ? exitMultiSelect() : setMultiSelectMode(true)}
-              className="flex items-center justify-center"
-              style={{
-                width: 32, height: 32, borderRadius: 6, border: 'none', cursor: 'pointer',
-                color: multiSelectMode ? 'var(--accent-primary)' : 'var(--text-tertiary)',
-                background: multiSelectMode ? 'rgba(184,68,30,0.08)' : 'none',
-              }}
-              aria-label={multiSelectMode ? 'Cancel selection' : 'Select items'}
-            >
-              {multiSelectMode ? <X className="w-4 h-4" /> : <CheckSquare className="w-4 h-4" />}
-            </button>
-          </div>
-
-          {/* Right: group toggle + view toggle */}
-          <div className="flex items-center gap-2">
-            {/* Group mode toggle */}
-            <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid rgba(118,130,142,0.2)' }}>
-              <button
-                type="button"
-                onClick={() => setGroupMode('country')}
-                style={{
-                  padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'country' ? 600 : 400,
-                  background: groupMode === 'country' ? 'rgba(228,232,240,0.1)' : 'transparent',
-                  color: groupMode === 'country' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                }}
-                aria-label="Group by country"
-              >
-                Country
-              </button>
-              <button
-                type="button"
-                onClick={() => setGroupMode('city')}
-                style={{
-                  padding: '0 8px', height: 28, border: 'none', cursor: 'pointer',
-                  fontFamily: "'JetBrains Mono', monospace", fontSize: 9, fontWeight: groupMode === 'city' ? 600 : 400,
-                  background: groupMode === 'city' ? 'rgba(228,232,240,0.1)' : 'transparent',
-                  color: groupMode === 'city' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                }}
-                aria-label="Group by city"
-              >
-                City
-              </button>
-            </div>
-
-            {/* View toggle */}
-            <div className="flex rounded-md overflow-hidden shrink-0" style={{ height: 28, border: '0.5px solid rgba(118,130,142,0.2)' }}>
-              <button
-                type="button"
-                onClick={() => setViewMode('grid')}
-                className="flex items-center justify-center"
-                style={{
-                  width: 28, height: 28, border: 'none', cursor: 'pointer',
-                  background: viewMode === 'grid' ? 'rgba(228,232,240,0.1)' : 'transparent',
-                  color: viewMode === 'grid' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                }}
-                aria-label="Grid view"
-              >
-                <LayoutGrid className="w-3 h-3" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('list')}
-                className="flex items-center justify-center"
-                style={{
-                  width: 28, height: 28, border: 'none', cursor: 'pointer',
-                  background: viewMode === 'list' ? 'rgba(228,232,240,0.1)' : 'transparent',
-                  color: viewMode === 'list' ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                }}
-                aria-label="List view"
-              >
-                <List className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Row 3: Active Filter Pills (horizontal scroll + Clear all) ── */}
-      {selectedFilters.length > 0 && (
-        <div className="flex items-center gap-1.5 mb-3 overflow-x-auto scrollbar-hide" data-testid="active-filter-pills">
-          {selectedFilters.map((filter) => (
-            <button
-              key={filter}
-              type="button"
-              onClick={() => setSelectedFilters((prev) => prev.filter((f) => f !== filter))}
-              className="flex items-center gap-1 shrink-0 transition-colors"
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: 10,
-                fontWeight: 500,
-                color: 'var(--color-accent)',
-                background: 'var(--color-accent-light)',
-                border: '1px solid var(--color-accent)',
-                borderRadius: 4,
-                padding: '3px 8px',
-              }}
-              data-testid={`active-filter-${filter}`}
-            >
-              <X className="w-2.5 h-2.5" />
-              {filter}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => setSelectedFilters([])}
-            className="shrink-0 ml-1 transition-colors hover:text-text-secondary"
-            style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: 10,
-              fontWeight: 500,
-              color: 'var(--text-tertiary)',
-            }}
-            data-testid="clear-all-filters"
-          >
-            Clear all
-          </button>
-        </div>
-      )}
 
       {/* ── Loading Skeletons ── */}
       {loading && (
