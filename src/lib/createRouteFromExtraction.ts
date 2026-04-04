@@ -204,11 +204,11 @@ export async function createRouteFromExtraction(
       .update({ status: 'saved' })
       .eq('id', extractionId)
 
-    // Clear has_pending_extraction on the source entry
+    // Delete the bare source entry — Route items replace it
     if (extraction.source_entry_id) {
       await supabase
         .from('saved_items')
-        .update({ has_pending_extraction: false })
+        .delete()
         .eq('id', extraction.source_entry_id)
     }
 

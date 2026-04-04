@@ -682,6 +682,70 @@ export default function InboxPage() {
     })
   }, [routes, routeSavesMap, searchQuery, selectedFilters, countryList])
 
+  // Merge Routes into geo groups so they render inline with saves
+  type GeoEntry = { type: 'save'; item: SavedItem } | { type: 'route'; route: Route }
+  interface MergedGeoGroup {
+    country: string | null
+    countryCode: string | null
+    city?: string | null
+    entries: GeoEntry[]
+  }
+
+  const mergedGeoGroups = useMemo((): MergedGeoGroup[] => {
+    // Convert existing geoGroups to merged format
+    const merged: MergedGeoGroup[] = geoGroups.map(g => ({
+      country: g.country,
+      countryCode: g.countryCode,
+      city: g.city,
+      entries: g.items.map(item => ({ type: 'save' as const, item })),
+    }))
+
+    // For each filtered route, find the best country group to place it in
+    for (const route of filteredRoutes) {
+      // Determine route's primary country code from its items
+      const saves = routeSavesMap.get(route.id) ?? []
+      const codeCounts = new Map<string, number>()
+      for (const s of saves) {
+        if (s.location_country_code) {
+          codeCounts.set(s.location_country_code, (codeCounts.get(s.location_country_code) ?? 0) + 1)
+        }
+      }
+      const primaryCode = codeCounts.size > 0
+        ? [...codeCounts.entries()].sort((a, b) => b[1] - a[1])[0][0]
+        : null
+
+      // Find matching group (by countryCode for country mode, or put in first matching country group for city mode)
+      let placed = false
+      if (primaryCode) {
+        for (const group of merged) {
+          if (group.countryCode === primaryCode) {
+            // Insert by created_at descending
+            const routeTime = new Date(route.created_at).getTime()
+            const idx = group.entries.findIndex(e => {
+              const t = e.type === 'save' ? new Date(e.item.created_at).getTime() : new Date(e.route.created_at).getTime()
+              return routeTime >= t
+            })
+            group.entries.splice(idx === -1 ? group.entries.length : idx, 0, { type: 'route', route })
+            placed = true
+            break
+          }
+        }
+      }
+
+      // If no matching group, add to "Unplaced" (null country)
+      if (!placed) {
+        let unplaced = merged.find(g => g.country === null && !g.city)
+        if (!unplaced) {
+          unplaced = { country: null, countryCode: null, entries: [] }
+          merged.push(unplaced)
+        }
+        unplaced.entries.push({ type: 'route', route })
+      }
+    }
+
+    return merged
+  }, [geoGroups, filteredRoutes, routeSavesMap])
+
   // Preload first-screen gallery images
   useEffect(() => {
     if (filtered.length === 0) return
@@ -1003,7 +1067,7 @@ export default function InboxPage() {
       )}
 
       {/* ── No Results State ── */}
-      {!loading && !error && items.length > 0 && filtered.length === 0 && (
+      {!loading && !error && items.length > 0 && filtered.length === 0 && filteredRoutes.length === 0 && (
         <div className="mt-16 text-center py-16 px-6">
           <span className="font-mono text-[28px] text-text-faint opacity-30 block mb-3">⌕</span>
           {parsedFilters.statuses.includes('In a trip') && selectedFilters.length === 1 ? (
@@ -1068,29 +1132,12 @@ export default function InboxPage() {
         </section>
       )}
 
-      {/* ── Route Cards ── */}
-      {filteredRoutes.length > 0 && (
-        viewMode === 'grid' ? (
-          <div className="grid grid-cols-2" style={{ gap: 8, marginBottom: 16 }}>
-            {filteredRoutes.map(route => (
-              <RouteGridCard key={route.id} route={route} />
-            ))}
-          </div>
-        ) : (
-          <div className="flex flex-col" style={{ marginBottom: 16 }}>
-            {filteredRoutes.map(route => (
-              <RouteListRow key={route.id} route={route} />
-            ))}
-          </div>
-        )
-      )}
-
-      {/* ── Country-Grouped Content ── */}
-      {!loading && !error && filtered.length > 0 && (() => {
+      {/* ── Country-Grouped Content (saves + routes inline) ── */}
+      {!loading && !error && (filtered.length > 0 || filteredRoutes.length > 0) && (() => {
         let gridIndex = 0
         return (
         <div className="space-y-6">
-          {geoGroups.map((group) => {
+          {mergedGeoGroups.map((group) => {
             const groupKey = group.city ? `${group.countryCode}:${group.city}` : (group.countryCode ?? '__unsorted__')
             const isCollapsed = collapsedGroups.has(groupKey)
             const groupLabel = groupMode === 'city' && group.city ? group.city : (group.country ?? 'Unplaced')
@@ -1130,7 +1177,7 @@ export default function InboxPage() {
                       {groupLabel}
                     </h2>
                     <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)', marginRight: 4 }}>
-                      {group.items.length}
+                      {group.entries.length}
                     </span>
                     {isCollapsed
                       ? <ChevronRight size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
@@ -1166,7 +1213,7 @@ export default function InboxPage() {
                       </>
                     )}
                     <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--text-tertiary)', flex: 1 }}>
-                      {group.items.length}
+                      {group.entries.length}
                     </span>
                     {isCollapsed
                       ? <ChevronRight size={16} style={{ color: 'var(--text-tertiary)', flexShrink: 0 }} />
@@ -1185,7 +1232,11 @@ export default function InboxPage() {
               }}>
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-2" style={{ gap: 8 }}>
-                  {group.items.map((item) => {
+                  {group.entries.map((entry) => {
+                    if (entry.type === 'route') {
+                      return <RouteGridCard key={`route-${entry.route.id}`} route={entry.route} />
+                    }
+                    const item = entry.item
                     const idx = gridIndex++
                     const isSelected = multiSelected.has(item.id)
                     return (
@@ -1236,7 +1287,11 @@ export default function InboxPage() {
                 </div>
               ) : (
                 <div className="flex flex-col">
-                  {group.items.map((item) => {
+                  {group.entries.map((entry) => {
+                    if (entry.type === 'route') {
+                      return <RouteListRow key={`route-${entry.route.id}`} route={entry.route} />
+                    }
+                    const item = entry.item
                     const isSelected = multiSelected.has(item.id)
                     return (
                       <div
@@ -1322,8 +1377,6 @@ export default function InboxPage() {
 
     {/* Multi-select bottom toolbar */}
     {multiSelectMode && (
-      <>
-        <div style={{ position: 'fixed', inset: 0, zIndex: 45 }} onClick={exitMultiSelect} />
         <div style={{
           position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
           background: 'var(--bg-base)', borderTop: '0.5px solid rgba(118,130,142,0.1)',
@@ -1423,7 +1476,6 @@ export default function InboxPage() {
             </div>
           )}
         </div>
-      </>
     )}
 
     {/* Bulk delete confirmation */}
@@ -1577,9 +1629,10 @@ function RouteGridCard({ route }: { route: Route }) {
             {/* Count badge */}
             <span style={{
               position: 'absolute', top: 6, right: 6, zIndex: 2,
-              background: 'var(--accent-primary)', color: '#fff',
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
-              padding: '2px 8px', borderRadius: 999,
+              background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
+              border: '1px solid var(--border-subtle)',
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 500,
+              padding: '2px 8px', borderRadius: 9999,
             }}>
               {route.item_count} places
             </span>
@@ -1607,9 +1660,10 @@ function RouteGridCard({ route }: { route: Route }) {
           <div style={{ padding: '14px 12px' }}>
             <span style={{
               position: 'absolute', top: 6, right: 6,
-              background: 'var(--accent-primary)', color: '#fff',
-              fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 500,
-              padding: '2px 8px', borderRadius: 999,
+              background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
+              border: '1px solid var(--border-subtle)',
+              fontFamily: "'JetBrains Mono', monospace", fontSize: 12, fontWeight: 500,
+              padding: '2px 8px', borderRadius: 9999,
             }}>
               {route.item_count} places
             </span>
