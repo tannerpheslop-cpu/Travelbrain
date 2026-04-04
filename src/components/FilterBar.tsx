@@ -15,14 +15,6 @@ interface FilterBarProps {
   onGroupModeChange: (mode: GroupMode) => void
 }
 
-// All 12 system category labels for identification
-const CATEGORY_LABEL_SET = new Set(SYSTEM_CATEGORIES.map(c => c.label))
-
-/** Check if a filter string is a category label */
-function isCategoryFilter(f: string): boolean {
-  return CATEGORY_LABEL_SET.has(f)
-}
-
 export default function FilterBar({
   selectedFilters,
   onSelectionChange,

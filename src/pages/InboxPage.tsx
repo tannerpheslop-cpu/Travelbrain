@@ -17,7 +17,7 @@ import TravelGraph from '../components/horizon/TravelGraph'
 import DraggableSheet from '../components/map/DraggableSheet'
 import ImageWithFade from '../components/ImageWithFade'
 import { getPlacePhoto } from '../components/SavedItemImage'
-import type { SavedItem, Category, Route } from '../types'
+import type { SavedItem, Route } from '../types'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -709,7 +709,7 @@ export default function InboxPage() {
       }
       if (selectedFilters.length > 0) {
         // Category filter
-        const allCategoryLabels = SYSTEM_CATEGORIES.map(c => c.label)
+        const allCategoryLabels: string[] = SYSTEM_CATEGORIES.map(c => c.label)
         const catFilters = selectedFilters.filter((f: string) => allCategoryLabels.includes(f))
         if (catFilters.length > 0) {
           const hasMatchingCat = saves.some(s => {

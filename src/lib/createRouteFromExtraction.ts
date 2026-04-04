@@ -1,5 +1,4 @@
 import { supabase } from './supabase'
-import type { Category } from '../types'
 import { deriveRouteLocation } from './deriveRouteLocation'
 import { SYSTEM_CATEGORIES, getCategoryLabel } from './categories'
 

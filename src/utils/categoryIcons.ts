@@ -1,5 +1,5 @@
 import { MapPin, type LucideIcon } from 'lucide-react'
-import { SYSTEM_CATEGORIES, getCategoryIcon as getCategoryIconFromLib, LEGACY_CATEGORY_MAP } from '../lib/categories'
+import { getCategoryIcon as getCategoryIconFromLib, LEGACY_CATEGORY_MAP } from '../lib/categories'
 
 /**
  * Get the icon for a category value (system or legacy).

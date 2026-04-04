@@ -5,7 +5,7 @@ import { useToast } from './Toast'
 import { useQueryClient } from '@tanstack/react-query'
 import LocationAutocomplete, { type LocationSelection } from './LocationAutocomplete'
 import type { ExtractedItem, Category } from '../types'
-import { SYSTEM_CATEGORIES, LEGACY_CATEGORY_MAP } from '../lib/categories'
+import { SYSTEM_CATEGORIES, LEGACY_CATEGORY_MAP, type SystemCategoryName } from '../lib/categories'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -54,7 +54,7 @@ const SYSTEM_TAG_NAMES = new Set(SYSTEM_CATEGORIES.map(c => c.tagName))
 
 function normalizeCategory(cat: string): Category {
   // If it's a system category, use it directly
-  if (SYSTEM_TAG_NAMES.has(cat)) return cat as Category
+  if (SYSTEM_TAG_NAMES.has(cat as SystemCategoryName)) return cat as Category
   // If it's a legacy value, map it
   const mapped = LEGACY_CATEGORY_MAP[cat]
   if (mapped) return mapped as Category
