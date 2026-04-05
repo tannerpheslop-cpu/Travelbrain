@@ -104,8 +104,8 @@ HEADLESS_RESPONSE=$(curl -s --max-time 45 -X POST "$SUPABASE_URL/functions/v1/pr
 
 if echo "$HEADLESS_RESPONSE" | grep -q '"success":true'; then
   echo "  Headless fallback: SUCCESS"
-elif echo "$HEADLESS_RESPONSE" | grep -q '"bot_challenge"'; then
-  echo "  Headless fallback: bot_challenge (site blocks data center IPs — expected for Vercel WAF)"
+elif echo "$HEADLESS_RESPONSE" | grep -q '"site_blocked"'; then
+  echo "  Headless fallback: site_blocked (both direct + headless got insufficient content — expected for Vercel WAF)"
 else
   echo "  Headless fallback: UNEXPECTED RESPONSE"
   echo "$HEADLESS_RESPONSE" | head -c 200

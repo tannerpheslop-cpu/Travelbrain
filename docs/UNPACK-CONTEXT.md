@@ -127,10 +127,10 @@ Both `extract-chunk` (Edge Function) and `createRouteFromExtraction` (client) no
 - After deploying any extraction Edge Function (`prepare-extraction`, `extract-chunk`), run `./scripts/test-unpack-deploy.sh` to verify the deployment.
 - NEVER include `article` in boilerplate stripping regex tag lists — `<article>` is the main content container across all major CMSes (Squarespace, WordPress, Ghost, Substack). The canonical `cleanHtmlToText` lives in both `src/lib/cleanHtmlToText.ts` (for tests) and `supabase/functions/prepare-extraction/index.ts` (for Deno runtime).
 
-## Headless Fetch Fallback
+## Headless Fetch Fallback (Content-Quality Architecture)
 
-When `prepare-extraction` encounters a bot-protected website (HTTP 403, 429, or bot challenge page),
-it falls back to a headless Chrome service running on Google Cloud Run.
+The fallback is based on **content quality**, not error codes. No HTTP status checks,
+no bot challenge marker scanning. Just: did we get enough real content?
 
 **Service:** `services/headless-fetch/` — Express + Puppeteer on Cloud Run
 **Endpoint:** POST `/fetch` with `{ url, timeout? }`
@@ -138,13 +138,15 @@ it falls back to a headless Chrome service running on Google Cloud Run.
 **Cost:** Scales to zero — no cost when idle. ~$0.0004 per render.
 
 **Flow:**
-1. prepare-extraction tries direct fetch(url)
-2. If 403/429 or bot challenge detected → calls headless service
-3. Headless Chrome renders the page, returns full HTML
-4. prepare-extraction continues with normal clean → chunk → return flow
+1. Direct fetch(url) → cleanHtmlToText → measure cleaned text length
+2. If cleaned text >= 500 chars → use it, proceed to chunking
+3. If cleaned text < 500 chars → call headless Chrome service
+4. If headless cleaned text > direct cleaned text → use headless result
+5. If both < 500 chars → return `site_blocked` error (triggers paste fallback in UI)
 
-**Bot challenge detection:** Checks for markers like "challenge-platform", "Vercel Security Checkpoint",
-"Just a moment...", "Checking your browser", "Verify you are human" in short (<5000 char) responses.
+This catches every failure mode with one check: bot challenges, JS-rendered SPAs,
+lazy-loaded content, 403/429 responses, and network errors all produce short/empty
+content after cleaning, which triggers headless automatically.
 
 **Environment variables (on prepare-extraction):**
 - `HEADLESS_FETCH_URL` — Cloud Run service URL
@@ -152,7 +154,7 @@ it falls back to a headless Chrome service running on Google Cloud Run.
 
 **Known limitation:** Vercel WAF blocks based on data center IP ranges, not browser fingerprinting.
 Cloud Run IPs are in known Google ranges, so Vercel-protected sites still block headless requests.
-The fallback helps with lighter protections (basic Cloudflare, JS-only challenges, rate limiters).
+When both methods fail, `site_blocked` is returned and the UI offers a paste-text fallback.
 
 ## Cost Controls
 
