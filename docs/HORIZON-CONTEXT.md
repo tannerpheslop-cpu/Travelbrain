@@ -90,7 +90,7 @@ The DraggableSheet header contains a compact toolbar and the FilterBar.
 ### 2.3 Text Card (image_display = 'none')
 - Border-radius: 10px, height: 160px
 - Background: `var(--bg-elevated-1)`, border: `1px solid var(--border-subtle)`, shadow: `var(--shadow-sm)`
-- Content at bottom: source icon + source name, title (`var(--text-primary)`, 12px 600, max 2 lines, lineHeight 1.3)
+- Content at bottom: title (`var(--text-primary)`, 12px 600, max 2 lines, lineHeight 1.3)
 - **Pill row:** location pill + category/Creator Fave pill (see Section 2.4)
 - Trip count pill: top-right, JetBrains Mono 7px 500, `var(--accent-primary)` on `var(--accent-light)`
 
