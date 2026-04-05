@@ -89,7 +89,7 @@ Run this checklist after ANY change, regardless of what area was modified. These
 - [ ] Paste a URL → OG preview appears with image and title
 - [ ] Tap Start → counter increments, places appear with section headers
 - [ ] Extraction completes → Route created with correct name
-- [ ] Route items have `item_tags` rows with valid 12-category values (no legacy values like "entertainment")
+- [ ] Route items have `item_tags` rows with valid system category values (13 categories including creator_fave; no legacy values like "entertainment")
 - [ ] Cancel during extraction → no orphaned save in Horizon
 - [ ] Run post-deploy smoke test: `./scripts/test-unpack-deploy.sh`
 
