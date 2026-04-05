@@ -23,10 +23,14 @@ describe('ItemDetailPage — Tag Editor structure', () => {
     expect(SOURCE).not.toContain('data-testid="custom-tags-list"')
   })
 
-  it('grid uses CSS Grid with two rows and column auto-flow', () => {
-    expect(SOURCE).toContain("gridTemplateRows: 'auto auto'")
-    expect(SOURCE).toContain("gridAutoFlow: 'column'")
-    expect(SOURCE).toContain("gridAutoColumns: 'max-content'")
+  it('uses inline-flex column layout with two flex rows (not CSS Grid)', () => {
+    // Must NOT use CSS Grid
+    expect(SOURCE).not.toContain('gridTemplateRows')
+    expect(SOURCE).not.toContain('gridAutoFlow')
+    expect(SOURCE).not.toContain('gridAutoColumns')
+    // Must use inline-flex column with two flex rows
+    expect(SOURCE).toContain("display: 'inline-flex', flexDirection: 'column'")
+    expect(SOURCE).toContain("display: 'flex', gap: 6")
   })
 
   it('grid scrolls horizontally (overflowX auto, scrollbar hidden)', () => {
@@ -35,10 +39,12 @@ describe('ItemDetailPage — Tag Editor structure', () => {
     expect(SOURCE).toContain('.tag-row::-webkit-scrollbar')
   })
 
-  it('both rows scroll together (single container, not two divs)', () => {
-    // Only one tag-row element should exist for the grid
+  it('both rows scroll together (single scroll container wrapping two flex rows)', () => {
     const gridMatches = SOURCE.match(/data-testid="category-tag-grid"/g)
     expect(gridMatches).toHaveLength(1)
+    // Pills distributed by even/odd index into two rows
+    expect(SOURCE).toContain('i % 2 === 0')
+    expect(SOURCE).toContain('i % 2 === 1')
   })
 
   it('assigned pills sort to the left (sort logic with assigned flag)', () => {
@@ -168,13 +174,12 @@ describe('Tag editor — sorting logic', () => {
     expect(filtered.some(c => c.tagName === 'coffee_cafe')).toBe(true)
   })
 
-  it('grid with 12 categories fills two rows of 6 columns each', () => {
-    // With gridTemplateRows: 'auto auto' and gridAutoFlow: 'column',
-    // 12 items → 6 columns × 2 rows
+  it('12 categories split into two rows of 6 pills each (even/odd distribution)', () => {
     const totalItems = SYSTEM_CATEGORIES.length
     expect(totalItems).toBe(12)
-    const expectedRows = 2
-    const expectedCols = Math.ceil(totalItems / expectedRows)
-    expect(expectedCols).toBe(6)
+    const rowA = totalItems / 2 // even indices: 0,2,4,6,8,10
+    const rowB = totalItems / 2 // odd indices: 1,3,5,7,9,11
+    expect(rowA).toBe(6)
+    expect(rowB).toBe(6)
   })
 })

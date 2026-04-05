@@ -806,62 +806,106 @@ export default function ItemDetailPage() {
             </button>
           )}
 
-          {/* Two-row interleaved grid — scrolls as one unit */}
+          {/* Two-row masonry layout — pills size independently, scroll as one unit */}
           <div
             className="tag-row"
             style={{
-              display: 'grid',
-              gridTemplateRows: 'auto auto',
-              gridAutoFlow: 'column',
-              gridAutoColumns: 'max-content',
               overflowX: 'auto',
-              gap: 6,
               WebkitOverflowScrolling: 'touch',
               scrollbarWidth: 'none',
             }}
             data-testid="category-tag-grid"
           >
-            {sortedPills.map((pill) => {
-              const Icon = pill.icon
-              return (
-                <button
-                  key={pill.id}
-                  type="button"
-                  onClick={() => {
-                    if (pill.type === 'category') {
-                      handleToggleCategoryTag(pill.tagName)
-                    } else {
-                      if (pill.assigned) {
-                        handleRemoveTag(pill.tagName)
-                      } else {
-                        handleAddCustomTag(pill.tagName)
-                      }
-                    }
-                  }}
-                  data-testid={`pill-${pill.id}`}
-                  style={{
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '4px 10px',
-                    borderRadius: 9999,
-                    fontSize: 12,
-                    fontFamily: "'DM Sans', sans-serif",
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    border: `1px solid ${pill.assigned ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                    background: pill.assigned ? 'var(--accent-primary)' : 'var(--bg-elevated-1)',
-                    color: pill.assigned ? '#e8eaed' : 'var(--text-tertiary)',
-                    transition: 'all 0.15s ease-out',
-                  }}
-                >
-                  {pill.type === 'category' && Icon && <Icon size={14} />}
-                  {pill.type === 'custom' && <span style={{ opacity: 0.7 }}>#</span>}
-                  {pill.label}
-                </button>
-              )
-            })}
+            <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6 }}>
+              {/* Row A: items at index 0, 2, 4, 6... */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                {sortedPills.filter((_, i) => i % 2 === 0).map((pill) => {
+                  const Icon = pill.icon
+                  return (
+                    <button
+                      key={pill.id}
+                      type="button"
+                      onClick={() => {
+                        if (pill.type === 'category') {
+                          handleToggleCategoryTag(pill.tagName)
+                        } else {
+                          if (pill.assigned) {
+                            handleRemoveTag(pill.tagName)
+                          } else {
+                            handleAddCustomTag(pill.tagName)
+                          }
+                        }
+                      }}
+                      data-testid={`pill-${pill.id}`}
+                      style={{
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '4px 10px',
+                        borderRadius: 9999,
+                        fontSize: 12,
+                        fontFamily: "'DM Sans', sans-serif",
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        border: `1px solid ${pill.assigned ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                        background: pill.assigned ? 'var(--accent-primary)' : 'var(--bg-elevated-1)',
+                        color: pill.assigned ? '#e8eaed' : 'var(--text-tertiary)',
+                        transition: 'all 0.15s ease-out',
+                      }}
+                    >
+                      {pill.type === 'category' && Icon && <Icon size={14} />}
+                      {pill.type === 'custom' && <span style={{ opacity: 0.7 }}>#</span>}
+                      {pill.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Row B: items at index 1, 3, 5, 7... */}
+              <div style={{ display: 'flex', gap: 6 }}>
+                {sortedPills.filter((_, i) => i % 2 === 1).map((pill) => {
+                  const Icon = pill.icon
+                  return (
+                    <button
+                      key={pill.id}
+                      type="button"
+                      onClick={() => {
+                        if (pill.type === 'category') {
+                          handleToggleCategoryTag(pill.tagName)
+                        } else {
+                          if (pill.assigned) {
+                            handleRemoveTag(pill.tagName)
+                          } else {
+                            handleAddCustomTag(pill.tagName)
+                          }
+                        }
+                      }}
+                      data-testid={`pill-${pill.id}`}
+                      style={{
+                        flexShrink: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        padding: '4px 10px',
+                        borderRadius: 9999,
+                        fontSize: 12,
+                        fontFamily: "'DM Sans', sans-serif",
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        border: `1px solid ${pill.assigned ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                        background: pill.assigned ? 'var(--accent-primary)' : 'var(--bg-elevated-1)',
+                        color: pill.assigned ? '#e8eaed' : 'var(--text-tertiary)',
+                        transition: 'all 0.15s ease-out',
+                      }}
+                    >
+                      {pill.type === 'category' && Icon && <Icon size={14} />}
+                      {pill.type === 'custom' && <span style={{ opacity: 0.7 }}>#</span>}
+                      {pill.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </div>
 
