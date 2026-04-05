@@ -225,12 +225,15 @@ export async function createRouteFromExtraction(
     }
 
     // Write categories to item_tags for each saved item
+    // Normalize and deduplicate: ["park", "outdoors"] both map to "outdoors" → keep one
     const tagRows: Array<{ item_id: string; tag_name: string; tag_type: string; user_id: string }> = []
     for (let i = 0; i < savedItems.length; i++) {
-      const cats = items[i]?.categories ?? (items[i]?.category ? [items[i].category] : [])
-      for (const cat of cats) {
+      const rawCats = items[i]?.categories ?? (items[i]?.category ? [items[i].category] : [])
+      const seen = new Set<string>()
+      for (const cat of rawCats) {
         const normalizedCat = normalizeCategory(cat)
-        if (VALID_CATEGORIES.has(normalizedCat)) {
+        if (VALID_CATEGORIES.has(normalizedCat) && !seen.has(normalizedCat)) {
+          seen.add(normalizedCat)
           tagRows.push({
             item_id: savedItems[i].id,
             tag_name: normalizedCat,
@@ -238,6 +241,15 @@ export async function createRouteFromExtraction(
             user_id: userId,
           })
         }
+      }
+      // Ensure at least one category tag per item
+      if (seen.size === 0) {
+        tagRows.push({
+          item_id: savedItems[i].id,
+          tag_name: 'activity',
+          tag_type: 'category',
+          user_id: userId,
+        })
       }
     }
     if (tagRows.length > 0) {

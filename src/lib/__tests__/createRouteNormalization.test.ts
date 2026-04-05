@@ -20,50 +20,66 @@ function normalizeCategory(cat: string): string {
 
 describe('normalizeCategory for Unpack pipeline', () => {
   it('passes through valid system categories unchanged', () => {
-    expect(normalizeCategory('restaurant')).toBe('restaurant')
-    expect(normalizeCategory('bar_nightlife')).toBe('bar_nightlife')
-    expect(normalizeCategory('coffee_cafe')).toBe('coffee_cafe')
-    expect(normalizeCategory('hotel')).toBe('hotel')
-    expect(normalizeCategory('activity')).toBe('activity')
-    expect(normalizeCategory('attraction')).toBe('attraction')
-    expect(normalizeCategory('shopping')).toBe('shopping')
-    expect(normalizeCategory('outdoors')).toBe('outdoors')
-    expect(normalizeCategory('neighborhood')).toBe('neighborhood')
-    expect(normalizeCategory('transport')).toBe('transport')
-    expect(normalizeCategory('wellness')).toBe('wellness')
-    expect(normalizeCategory('events')).toBe('events')
+    for (const cat of SYSTEM_CATEGORIES) {
+      expect(normalizeCategory(cat.tagName)).toBe(cat.tagName)
+    }
   })
 
-  it('maps legacy "entertainment" to "activity"', () => {
-    expect(normalizeCategory('entertainment')).toBe('activity')
+  it('maps food/dining synonyms to restaurant', () => {
+    expect(normalizeCategory('food')).toBe('restaurant')
+    expect(normalizeCategory('dining')).toBe('restaurant')
   })
 
-  it('maps legacy "museum" to "attraction"', () => {
-    expect(normalizeCategory('museum')).toBe('attraction')
-  })
-
-  it('maps legacy "temple" to "attraction"', () => {
-    expect(normalizeCategory('temple')).toBe('attraction')
-  })
-
-  it('maps legacy "nightlife" to "bar_nightlife"', () => {
+  it('maps bar/nightlife synonyms to bar_nightlife', () => {
+    expect(normalizeCategory('bar')).toBe('bar_nightlife')
     expect(normalizeCategory('nightlife')).toBe('bar_nightlife')
   })
 
-  it('maps legacy "park" and "hike" to "outdoors"', () => {
-    expect(normalizeCategory('park')).toBe('outdoors')
-    expect(normalizeCategory('hike')).toBe('outdoors')
+  it('maps cafe/coffee synonyms to coffee_cafe', () => {
+    expect(normalizeCategory('cafe')).toBe('coffee_cafe')
+    expect(normalizeCategory('coffee')).toBe('coffee_cafe')
   })
 
-  it('maps legacy "spa" to "wellness"', () => {
+  it('maps stay/accommodation synonyms to hotel', () => {
+    expect(normalizeCategory('stay')).toBe('hotel')
+    expect(normalizeCategory('accommodation')).toBe('hotel')
+  })
+
+  it('maps entertainment to activity', () => {
+    expect(normalizeCategory('entertainment')).toBe('activity')
+  })
+
+  it('maps museum/temple/shrine/landmark/historical to attraction', () => {
+    expect(normalizeCategory('museum')).toBe('attraction')
+    expect(normalizeCategory('temple')).toBe('attraction')
+    expect(normalizeCategory('shrine')).toBe('attraction')
+    expect(normalizeCategory('landmark')).toBe('attraction')
+    expect(normalizeCategory('historical')).toBe('attraction')
+  })
+
+  it('maps market/store to shopping', () => {
+    expect(normalizeCategory('market')).toBe('shopping')
+    expect(normalizeCategory('store')).toBe('shopping')
+  })
+
+  it('maps park/hike/hiking/beach/nature to outdoors', () => {
+    expect(normalizeCategory('park')).toBe('outdoors')
+    expect(normalizeCategory('hike')).toBe('outdoors')
+    expect(normalizeCategory('hiking')).toBe('outdoors')
+    expect(normalizeCategory('beach')).toBe('outdoors')
+    expect(normalizeCategory('nature')).toBe('outdoors')
+  })
+
+  it('maps transit/transportation to transport', () => {
+    expect(normalizeCategory('transit')).toBe('transport')
+    expect(normalizeCategory('transportation')).toBe('transport')
+  })
+
+  it('maps spa to wellness', () => {
     expect(normalizeCategory('spa')).toBe('wellness')
   })
 
-  it('maps legacy "transit" to "transport"', () => {
-    expect(normalizeCategory('transit')).toBe('transport')
-  })
-
-  it('defaults unknown categories to "activity"', () => {
+  it('defaults unknown categories to activity', () => {
     expect(normalizeCategory('unknown')).toBe('activity')
     expect(normalizeCategory('other')).toBe('activity')
     expect(normalizeCategory('general')).toBe('activity')
@@ -79,13 +95,68 @@ describe('normalizeCategory for Unpack pipeline', () => {
 })
 
 describe('LEGACY_CATEGORY_MAP completeness', () => {
-  it('maps all known legacy values that Haiku might return', () => {
-    const legacyValues = ['museum', 'temple', 'historical', 'park', 'hike',
-      'beach', 'nightlife', 'entertainment', 'spa', 'transit']
-    for (const val of legacyValues) {
-      const mapped = LEGACY_CATEGORY_MAP[val]
-      expect(mapped).toBeDefined()
-      expect(VALID_CATEGORIES.has(mapped)).toBe(true)
+  it('all 12 system categories have identity mappings', () => {
+    for (const cat of SYSTEM_CATEGORIES) {
+      expect(LEGACY_CATEGORY_MAP[cat.tagName]).toBe(cat.tagName)
     }
+  })
+
+  it('all legacy synonym values map to valid system categories', () => {
+    const synonyms = [
+      'food', 'dining', 'bar', 'nightlife', 'cafe', 'coffee',
+      'stay', 'accommodation', 'entertainment',
+      'museum', 'temple', 'shrine', 'landmark', 'historical',
+      'market', 'store', 'park', 'hike', 'hiking', 'beach', 'nature',
+      'transit', 'transportation', 'spa',
+    ]
+    for (const val of synonyms) {
+      const mapped = LEGACY_CATEGORY_MAP[val]
+      expect(mapped, `Missing mapping for "${val}"`).toBeDefined()
+      expect(VALID_CATEGORIES.has(mapped), `"${val}" maps to invalid "${mapped}"`).toBe(true)
+    }
+  })
+})
+
+describe('deduplication after normalization', () => {
+  it('["park", "outdoors"] normalizes to single "outdoors"', () => {
+    const raw = ['park', 'outdoors']
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const cat of raw) {
+      const n = normalizeCategory(cat)
+      if (VALID_CATEGORIES.has(n) && !seen.has(n)) {
+        seen.add(n)
+        result.push(n)
+      }
+    }
+    expect(result).toEqual(['outdoors'])
+  })
+
+  it('["museum", "temple"] normalizes to single "attraction"', () => {
+    const raw = ['museum', 'temple']
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const cat of raw) {
+      const n = normalizeCategory(cat)
+      if (VALID_CATEGORIES.has(n) && !seen.has(n)) {
+        seen.add(n)
+        result.push(n)
+      }
+    }
+    expect(result).toEqual(['attraction'])
+  })
+
+  it('["restaurant", "bar_nightlife"] stays as two distinct categories', () => {
+    const raw = ['restaurant', 'bar_nightlife']
+    const seen = new Set<string>()
+    const result: string[] = []
+    for (const cat of raw) {
+      const n = normalizeCategory(cat)
+      if (VALID_CATEGORIES.has(n) && !seen.has(n)) {
+        seen.add(n)
+        result.push(n)
+      }
+    }
+    expect(result).toEqual(['restaurant', 'bar_nightlife'])
   })
 })
