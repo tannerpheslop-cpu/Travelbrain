@@ -127,6 +127,33 @@ Both `extract-chunk` (Edge Function) and `createRouteFromExtraction` (client) no
 - After deploying any extraction Edge Function (`prepare-extraction`, `extract-chunk`), run `./scripts/test-unpack-deploy.sh` to verify the deployment.
 - NEVER include `article` in boilerplate stripping regex tag lists — `<article>` is the main content container across all major CMSes (Squarespace, WordPress, Ghost, Substack). The canonical `cleanHtmlToText` lives in both `src/lib/cleanHtmlToText.ts` (for tests) and `supabase/functions/prepare-extraction/index.ts` (for Deno runtime).
 
+## Headless Fetch Fallback
+
+When `prepare-extraction` encounters a bot-protected website (HTTP 403, 429, or bot challenge page),
+it falls back to a headless Chrome service running on Google Cloud Run.
+
+**Service:** `services/headless-fetch/` — Express + Puppeteer on Cloud Run
+**Endpoint:** POST `/fetch` with `{ url, timeout? }`
+**Auth:** `x-api-secret` header (shared secret)
+**Cost:** Scales to zero — no cost when idle. ~$0.0004 per render.
+
+**Flow:**
+1. prepare-extraction tries direct fetch(url)
+2. If 403/429 or bot challenge detected → calls headless service
+3. Headless Chrome renders the page, returns full HTML
+4. prepare-extraction continues with normal clean → chunk → return flow
+
+**Bot challenge detection:** Checks for markers like "challenge-platform", "Vercel Security Checkpoint",
+"Just a moment...", "Checking your browser", "Verify you are human" in short (<5000 char) responses.
+
+**Environment variables (on prepare-extraction):**
+- `HEADLESS_FETCH_URL` — Cloud Run service URL
+- `HEADLESS_API_SECRET` — shared secret for auth
+
+**Known limitation:** Vercel WAF blocks based on data center IP ranges, not browser fingerprinting.
+Cloud Run IPs are in known Google ranges, so Vercel-protected sites still block headless requests.
+The fallback helps with lighter protections (basic Cloudflare, JS-only challenges, rate limiters).
+
 ## Cost Controls
 
 - 100 enrichment calls per day per user

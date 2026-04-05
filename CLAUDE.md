@@ -768,6 +768,13 @@ See: `/src/lib/__tests__/locationDetectionPipeline.test.ts`, `/src/components/__
 - NEVER include `article` in boilerplate stripping regex tag lists — `<article>` is the main content container across all major CMSes (Squarespace, WordPress, Ghost, Substack)
 - The canonical `cleanHtmlToText` implementation lives in both `src/lib/cleanHtmlToText.ts` (for tests) and `supabase/functions/prepare-extraction/index.ts` (for Deno runtime). If you change one, update the other.
 
+### Headless Fetch Service
+- Located at `services/headless-fetch/` — Express + Puppeteer on Google Cloud Run
+- Deployed via `gcloud run deploy` (not Supabase)
+- Used as fallback by `prepare-extraction` when direct fetch fails (403/429/bot challenge)
+- Environment: HEADLESS_FETCH_URL and HEADLESS_API_SECRET set as Supabase secrets on prepare-extraction
+- To redeploy: `cd services/headless-fetch && gcloud run deploy youji-headless-fetch --source . --region us-east1`
+
 ### Builder workflow for tests
 
 1. NEVER write a test that passes against mocks alone — ask yourself "would this test catch a real bug?"
