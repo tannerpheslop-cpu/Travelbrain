@@ -166,7 +166,7 @@ export default function FilterBar({
           WebkitOverflowScrolling: 'touch',
           scrollbarWidth: 'none',
           gap: 6,
-          padding: '8px 16px',
+          padding: '8px 0',
           alignItems: 'center',
           marginBottom: 8,
           touchAction: 'pan-x',
