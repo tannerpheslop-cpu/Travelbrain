@@ -8,7 +8,7 @@ import { useToast } from '../components/Toast'
 import { ConfirmDeleteModal } from '../components/ui'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { enrichRouteItems } from '../lib/enrichPhotoOnly'
-import { ChevronLeft, ChevronRight, MoreHorizontal, Trash2, Unlink, MapPin } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal, MapPin, Check } from 'lucide-react'
 import { getCategoryIcon as getCategoryIconFromLib, getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
 import {
   DndContext,
@@ -49,10 +49,16 @@ function SortableItemRow({
   item,
   onRemove: _onRemove,
   enrichedPhoto,
+  editMode,
+  selected,
+  onToggleSelect,
 }: {
   item: SavedItem
   onRemove: () => void
   enrichedPhoto?: string | null
+  editMode?: boolean
+  selected?: boolean
+  onToggleSelect?: () => void
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
 
@@ -71,20 +77,36 @@ function SortableItemRow({
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, display: 'flex', alignItems: 'center', gap: 12, padding: 12, minHeight: 72, background: 'var(--bg-elevated-1)', borderRadius: 8 }}
+      style={{ ...style, display: 'flex', alignItems: 'center', gap: 12, padding: 12, minHeight: 72, background: 'var(--bg-elevated-1)', borderRadius: 8, cursor: editMode ? 'pointer' : undefined }}
       {...attributes}
+      onClick={editMode ? onToggleSelect : undefined}
     >
-      {/* Drag handle */}
-      <div
-        {...listeners}
-        style={{ cursor: 'grab', padding: '4px 2px', touchAction: 'none', color: 'var(--text-tertiary)' }}
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
-          <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
-          <circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
-        </svg>
-      </div>
+      {/* Drag handle (hidden in edit mode) / Checkbox (shown in edit mode) */}
+      {editMode ? (
+        <div
+          style={{
+            width: 22, height: 22, borderRadius: 6, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: selected ? 'none' : '1.5px solid var(--border-strong, #38414a)',
+            background: selected ? 'var(--accent-primary, #B8441E)' : 'transparent',
+            transition: 'all 0.15s ease-out',
+          }}
+          data-testid={`edit-checkbox-${item.id}`}
+        >
+          {selected && <Check size={14} color="#e8eaed" strokeWidth={2.5} />}
+        </div>
+      ) : (
+        <div
+          {...listeners}
+          style={{ cursor: 'grab', padding: '4px 2px', touchAction: 'none', color: 'var(--text-tertiary)' }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <circle cx="9" cy="6" r="1.5" /><circle cx="15" cy="6" r="1.5" />
+            <circle cx="9" cy="12" r="1.5" /><circle cx="15" cy="12" r="1.5" />
+            <circle cx="9" cy="18" r="1.5" /><circle cx="15" cy="18" r="1.5" />
+          </svg>
+        </div>
+      )}
 
       {/* Thumbnail */}
       {thumbnail ? (
@@ -103,46 +125,66 @@ function SortableItemRow({
         </div>
       )}
 
-      {/* Content — tappable to open item detail */}
-      <Link
-        to={`/item/${item.id}`}
-        style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}
-      >
-        <p style={{
-          fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
-          color: 'var(--text-primary)', margin: 0,
-          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-          overflow: 'hidden',
-        }}>
-          {item.title}
-        </p>
-        {/* Metadata row */}
-        <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
-          {locationShort && (
-            <span style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-              color: 'var(--text-secondary)',
-            }}>
-              {locationShort}
-            </span>
-          )}
-          {locationShort && item.category && item.category !== 'general' && (
-            <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>·</span>
-          )}
-          {item.category && item.category !== 'general' && (
-            <span style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-              color: 'var(--text-secondary)',
-              textTransform: 'capitalize',
-            }}>
-              {categoryLabel}
-            </span>
-          )}
+      {/* Content — tappable to open item detail (disabled in edit mode) */}
+      {editMode ? (
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{
+            fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
+            color: 'var(--text-primary)', margin: 0,
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+            overflow: 'hidden',
+          }}>
+            {item.title}
+          </p>
+          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+            {locationShort && (
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-secondary)' }}>
+                {locationShort}
+              </span>
+            )}
+            {locationShort && item.category && item.category !== 'general' && (
+              <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>·</span>
+            )}
+            {item.category && item.category !== 'general' && (
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+                {categoryLabel}
+              </span>
+            )}
+          </div>
         </div>
-      </Link>
+      ) : (
+        <Link
+          to={`/item/${item.id}`}
+          style={{ flex: 1, minWidth: 0, textDecoration: 'none' }}
+        >
+          <p style={{
+            fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 600,
+            color: 'var(--text-primary)', margin: 0,
+            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
+            overflow: 'hidden',
+          }}>
+            {item.title}
+          </p>
+          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+            {locationShort && (
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-secondary)' }}>
+                {locationShort}
+              </span>
+            )}
+            {locationShort && item.category && item.category !== 'general' && (
+              <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>·</span>
+            )}
+            {item.category && item.category !== 'general' && (
+              <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+                {categoryLabel}
+              </span>
+            )}
+          </div>
+        </Link>
+      )}
 
-      {/* Chevron */}
-      <ChevronRight size={14} color="var(--text-tertiary)" style={{ flexShrink: 0 }} />
+      {/* Chevron (hidden in edit mode) */}
+      {!editMode && <ChevronRight size={14} color="var(--text-tertiary)" style={{ flexShrink: 0 }} />}
     </div>
   )
 }
@@ -160,7 +202,8 @@ export default function RouteDetailPage() {
   const [loading, setLoading] = useState(true)
   const [editingName, setEditingName] = useState(false)
   const [nameDraft, setNameDraft] = useState('')
-  const [showMenu, setShowMenu] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [showUnmergeConfirm, setShowUnmergeConfirm] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [enrichedPhotos, setEnrichedPhotos] = useState<Map<string, string | null>>(new Map())
@@ -311,6 +354,77 @@ export default function RouteDetailPage() {
     queryClient.invalidateQueries({ queryKey: ['routes'] })
   }, [id, route, nameDraft, queryClient])
 
+  // ── Edit mode helpers ──
+
+  const exitEditMode = useCallback(() => {
+    setEditMode(false)
+    setSelectedIds(new Set())
+  }, [])
+
+  const toggleSelect = useCallback((itemId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(itemId)) next.delete(itemId)
+      else next.add(itemId)
+      return next
+    })
+  }, [])
+
+  /** Remove selected items from Route (keep as standalone saves) */
+  const handleBulkRemove = useCallback(async () => {
+    if (!id || !route || selectedIds.size === 0) return
+    const ids = [...selectedIds]
+    // Remove from route_items
+    for (const itemId of ids) {
+      await supabase.from('route_items').delete().eq('route_id', id).eq('saved_item_id', itemId)
+      await supabase.from('saved_items').update({ route_id: null }).eq('id', itemId)
+    }
+    const newCount = (route.item_count ?? routeItems.length) - ids.length
+    if (newCount <= 0) {
+      await supabase.from('routes').delete().eq('id', id)
+      queryClient.invalidateQueries({ queryKey: ['routes'] })
+      queryClient.invalidateQueries({ queryKey: ['saved-items'] })
+      toast('Route deleted — items saved to Horizon')
+      navigate('/inbox')
+      return
+    }
+    await supabase.from('routes').update({ item_count: newCount }).eq('id', id)
+    setRoute({ ...route, item_count: newCount })
+    setOrderedIds(prev => prev.filter(i => !selectedIds.has(i)))
+    queryClient.invalidateQueries({ queryKey: ['route-items', id] })
+    queryClient.invalidateQueries({ queryKey: ['saved-items'] })
+    toast(`Removed ${ids.length} item${ids.length > 1 ? 's' : ''} from group`)
+    exitEditMode()
+  }, [id, route, selectedIds, routeItems.length, queryClient, toast, navigate, exitEditMode])
+
+  /** Permanently delete selected items */
+  const handleBulkDelete = useCallback(async () => {
+    if (!id || !route || selectedIds.size === 0) return
+    const ids = [...selectedIds]
+    // Delete saved_items
+    await supabase.from('saved_items').delete().in('id', ids)
+    // Remove from route_items
+    await supabase.from('route_items').delete().eq('route_id', id).in('saved_item_id', ids)
+    const newCount = (route.item_count ?? routeItems.length) - ids.length
+    if (newCount <= 0) {
+      await supabase.from('routes').delete().eq('id', id)
+      queryClient.invalidateQueries({ queryKey: ['routes'] })
+      queryClient.invalidateQueries({ queryKey: ['saved-items'] })
+      queryClient.invalidateQueries({ queryKey: ['all-saved-items'] })
+      toast(`Deleted ${ids.length} item${ids.length > 1 ? 's' : ''}`)
+      navigate('/inbox')
+      return
+    }
+    await supabase.from('routes').update({ item_count: newCount }).eq('id', id)
+    setRoute({ ...route, item_count: newCount })
+    setOrderedIds(prev => prev.filter(i => !selectedIds.has(i)))
+    queryClient.invalidateQueries({ queryKey: ['route-items', id] })
+    queryClient.invalidateQueries({ queryKey: ['saved-items'] })
+    queryClient.invalidateQueries({ queryKey: ['all-saved-items'] })
+    toast(`Deleted ${ids.length} item${ids.length > 1 ? 's' : ''}`)
+    exitEditMode()
+  }, [id, route, selectedIds, routeItems.length, queryClient, toast, navigate, exitEditMode])
+
   // Sort items by orderedIds
   const sortedItems = orderedIds
     .map(itemId => routeItems.find(i => i.id === itemId))
@@ -387,47 +501,29 @@ export default function RouteDetailPage() {
         >
           <ChevronLeft size={18} /> Horizon
         </button>
-        <div style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {editMode && selectedIds.size > 0 && (
+            <span style={{
+              fontFamily: "'DM Sans', sans-serif", fontSize: 13,
+              color: 'var(--text-secondary)',
+            }}
+            data-testid="edit-selection-count"
+            >
+              {selectedIds.size} selected
+            </span>
+          )}
           <button
             type="button"
-            onClick={() => setShowMenu(!showMenu)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', padding: 4 }}
+            onClick={() => editMode ? exitEditMode() : setEditMode(true)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+              fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
+              color: editMode ? 'var(--accent-primary, #B8441E)' : 'var(--text-tertiary)',
+            }}
+            data-testid="edit-mode-toggle"
           >
-            <MoreHorizontal size={20} />
+            {editMode ? 'Done' : <MoreHorizontal size={20} />}
           </button>
-          {showMenu && (
-            <>
-              <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowMenu(false)} />
-              <div style={{
-                position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
-                background: 'var(--bg-elevated-1)', border: '0.5px solid rgba(118, 130, 142, 0.1)', borderRadius: 10,
-                boxShadow: '0 4px 20px rgba(0,0,0,0.3)', padding: '4px 0', minWidth: 180,
-              }}>
-                <button
-                  type="button"
-                  onClick={() => { setShowMenu(false); setShowUnmergeConfirm(true) }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                    padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: 'var(--text-primary)', textAlign: 'left',
-                  }}
-                >
-                  <Unlink size={15} /> Break apart
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { setShowMenu(false); setShowDeleteConfirm(true) }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-                    padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer',
-                    fontFamily: "'DM Sans', sans-serif", fontSize: 14, color: '#c44a3d', textAlign: 'left',
-                  }}
-                >
-                  <Trash2 size={15} /> Delete group
-                </button>
-              </div>
-            </>
-          )}
         </div>
       </div>
 
@@ -531,6 +627,9 @@ export default function RouteDetailPage() {
                       item={item}
                       onRemove={() => handleRemoveItem(item.id)}
                       enrichedPhoto={enrichedPhotos.get(item.id)}
+                      editMode={editMode}
+                      selected={selectedIds.has(item.id)}
+                      onToggleSelect={() => toggleSelect(item.id)}
                     />
                   ))}
                 </div>
@@ -545,6 +644,9 @@ export default function RouteDetailPage() {
                   item={item}
                   onRemove={() => handleRemoveItem(item.id)}
                   enrichedPhoto={enrichedPhotos.get(item.id)}
+                  editMode={editMode}
+                  selected={selectedIds.has(item.id)}
+                  onToggleSelect={() => toggleSelect(item.id)}
                 />
               ))}
             </div>
@@ -559,11 +661,93 @@ export default function RouteDetailPage() {
         </div>
       )}
 
+      {/* Edit mode action bar */}
+      {editMode && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 64,
+            left: 0,
+            right: 0,
+            zIndex: 30,
+            background: 'var(--bg-elevated-1, #1c2126)',
+            borderTop: '1px solid var(--border-subtle, #242a30)',
+            padding: '12px 16px',
+            display: 'flex',
+            gap: 8,
+            justifyContent: 'center',
+          }}
+          data-testid="edit-action-bar"
+        >
+          {/* Remove from group */}
+          <button
+            type="button"
+            onClick={handleBulkRemove}
+            disabled={selectedIds.size === 0}
+            style={{
+              background: selectedIds.size > 0 ? 'var(--bg-elevated-2, #21262c)' : 'var(--disabled-bg, #1b1f24)',
+              color: selectedIds.size > 0 ? 'var(--text-secondary, #b9c0c7)' : 'var(--disabled-text, #626a74)',
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 13,
+              fontWeight: 500,
+              borderRadius: 9999,
+              padding: '8px 16px',
+              border: 'none',
+              cursor: selectedIds.size > 0 ? 'pointer' : 'default',
+            }}
+            data-testid="edit-remove-btn"
+          >
+            Remove
+          </button>
+
+          {/* Delete selected */}
+          <button
+            type="button"
+            onClick={() => { if (selectedIds.size > 0) setShowDeleteConfirm(true) }}
+            disabled={selectedIds.size === 0}
+            style={{
+              background: selectedIds.size > 0 ? 'var(--color-error, #c44a3d)' : 'var(--disabled-bg, #1b1f24)',
+              color: selectedIds.size > 0 ? '#e8eaed' : 'var(--disabled-text, #626a74)',
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 13,
+              fontWeight: 500,
+              borderRadius: 9999,
+              padding: '8px 16px',
+              border: 'none',
+              cursor: selectedIds.size > 0 ? 'pointer' : 'default',
+            }}
+            data-testid="edit-delete-btn"
+          >
+            Delete
+          </button>
+
+          {/* Break apart */}
+          <button
+            type="button"
+            onClick={() => setShowUnmergeConfirm(true)}
+            style={{
+              background: 'transparent',
+              color: 'var(--text-tertiary, #8d96a0)',
+              fontFamily: "'DM Sans', sans-serif",
+              fontSize: 13,
+              fontWeight: 500,
+              borderRadius: 9999,
+              padding: '8px 16px',
+              border: '1px solid var(--border-default, #2c333a)',
+              cursor: 'pointer',
+            }}
+            data-testid="edit-breakapart-btn"
+          >
+            Break apart
+          </button>
+        </div>
+      )}
+
       {/* Break apart confirmation */}
       {showUnmergeConfirm && (
         <ConfirmDeleteModal
           title="Break apart?"
-          description={`This will separate the ${route?.item_count ?? sortedItems.length} places in this group into individual saves on your Horizon. Nothing will be deleted.`}
+          description={`This will separate all ${route?.item_count ?? sortedItems.length} places into individual saves on your Horizon. Nothing will be deleted.`}
           confirmLabel="Break apart"
           onCancel={() => setShowUnmergeConfirm(false)}
           loading={false}
@@ -571,14 +755,20 @@ export default function RouteDetailPage() {
         />
       )}
 
-      {/* Delete group confirmation */}
+      {/* Delete confirmation (bulk or group) */}
       {showDeleteConfirm && (
         <ConfirmDeleteModal
-          title="Delete group?"
-          description={`This will permanently delete this group and all ${route?.item_count ?? sortedItems.length} items inside it. This cannot be undone.`}
+          title={editMode && selectedIds.size > 0
+            ? `Delete ${selectedIds.size} item${selectedIds.size > 1 ? 's' : ''}?`
+            : 'Delete group?'
+          }
+          description={editMode && selectedIds.size > 0
+            ? 'This cannot be undone.'
+            : `This will permanently delete this group and all ${route?.item_count ?? sortedItems.length} items inside it. This cannot be undone.`
+          }
           onCancel={() => setShowDeleteConfirm(false)}
           loading={false}
-          onConfirm={handleDeleteGroup}
+          onConfirm={editMode && selectedIds.size > 0 ? handleBulkDelete : handleDeleteGroup}
         />
       )}
     </div>
