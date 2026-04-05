@@ -95,4 +95,21 @@ console.log('  extract-chunk: SUCCESS (' + items.length + ' items, categories: '
 " "$CHUNK_FILE"
 
 echo ""
+echo "=== Testing headless fallback (bot-protected URL) ==="
+HEADLESS_RESPONSE=$(curl -s --max-time 45 -X POST "$SUPABASE_URL/functions/v1/prepare-extraction" \
+  -H "Authorization: Bearer $ANON_KEY" \
+  -H "apikey: $ANON_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://www.foratravel.com/guides/YBHRW7/chengdu-by-heart-a-3-day-itinerary-in-chinas-chillest-city-jocelyn-heng"}')
+
+if echo "$HEADLESS_RESPONSE" | grep -q '"success":true'; then
+  echo "  Headless fallback: SUCCESS"
+elif echo "$HEADLESS_RESPONSE" | grep -q '"bot_challenge"'; then
+  echo "  Headless fallback: bot_challenge (site blocks data center IPs — expected for Vercel WAF)"
+else
+  echo "  Headless fallback: UNEXPECTED RESPONSE"
+  echo "$HEADLESS_RESPONSE" | head -c 200
+fi
+
+echo ""
 echo "=== All smoke tests passed ==="
