@@ -188,7 +188,8 @@ export default function FilterSheet({
         {/* Scrollable content */}
         <div
           className="flex-1 overflow-y-auto px-4 pb-4"
-          style={{ overscrollBehavior: 'contain' }}
+          style={{ overscrollBehavior: 'contain', touchAction: 'pan-y' }}
+          onTouchMove={(e) => e.stopPropagation()}
         >
           {/* LOCATIONS */}
           {filteredLocations.length > 0 && (

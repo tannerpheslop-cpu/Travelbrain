@@ -238,6 +238,22 @@ export default function InboxPage() {
   // ── Custom tags data ─────────────────────────────────────────────────────
   const { data: customTags = [] } = useUserCustomTags(user?.id)
 
+  const handleDeleteCustomTag = useCallback(async (tagName: string) => {
+    if (!user) return
+    await supabase
+      .from('item_tags')
+      .delete()
+      .eq('tag_name', tagName)
+      .eq('tag_type', 'custom')
+      .eq('user_id', user.id)
+    // Remove from active filters if selected
+    setSelectedFilters(prev => prev.filter(f => f !== `tag:${tagName}`))
+    // Invalidate custom tags cache
+    queryClient.invalidateQueries({ queryKey: queryKeys.userCustomTags(user.id) })
+    // Invalidate item tags cache so tag counts refresh
+    queryClient.invalidateQueries({ queryKey: ['item-tags'] })
+  }, [user, queryClient])
+
   // ── Extraction shimmer tracking ──
   const [extractingIds, setExtractingIds] = useState<Set<string>>(new Set())
   useEffect(() => {
@@ -1039,6 +1055,7 @@ export default function InboxPage() {
               items={items}
               groupMode={groupMode}
               onGroupModeChange={setGroupMode}
+              onDeleteCustomTag={handleDeleteCustomTag}
             />
           </div>
         }
@@ -1163,7 +1180,7 @@ export default function InboxPage() {
             return (
             <section key={groupKey}>
               {/* Group header — tappable to collapse/expand */}
-              {!(hasCountryFilter && groupMode === 'country') && (
+              {!(hasCountryFilter) && (
                 viewMode === 'list' ? (
                   /* List view: section header style */
                   <button

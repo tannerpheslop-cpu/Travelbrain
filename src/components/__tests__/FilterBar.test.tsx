@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
+import fs from 'fs'
+import path from 'path'
 import FilterBar, { buildAllPills } from '../FilterBar'
 import type { SavedItem } from '../../types'
 
@@ -161,6 +163,22 @@ describe('FilterBar', () => {
     expect(screen.queryByTestId('filter-more-dot')).not.toBeInTheDocument()
   })
 
+  it('tapping "More" opens FilterSheet', () => {
+    render(<FilterBar {...defaultProps} />)
+    fireEvent.click(screen.getByTestId('filter-more-btn'))
+    expect(screen.getByTestId('filter-sheet')).toBeInTheDocument()
+  })
+
+  it('FilterSheet scrollable area has touch containment styles', () => {
+    render(<FilterBar {...defaultProps} />)
+    fireEvent.click(screen.getByTestId('filter-more-btn'))
+    const sheet = screen.getByTestId('filter-sheet')
+    const scrollable = sheet.querySelector('.overflow-y-auto') as HTMLElement
+    expect(scrollable).not.toBeNull()
+    expect(scrollable.style.overscrollBehavior).toBe('contain')
+    expect(scrollable.style.touchAction).toBe('pan-y')
+  })
+
   it('pills sorted by count — highest first', () => {
     const items = [
       makeSave({ category: 'activity', location_country: 'Japan', location_country_code: 'JP' }),
@@ -239,6 +257,11 @@ describe('buildAllPills', () => {
     const bar = pills.find(p => p.id === 'cat:bar_nightlife')
     expect(attraction?.count).toBe(1)
     expect(bar?.count).toBe(1)
+  })
+
+  it('PillSheet component has been removed (replaced by FilterSheet)', () => {
+    const pillSheetPath = path.resolve(__dirname, '..', 'PillSheet.tsx')
+    expect(fs.existsSync(pillSheetPath)).toBe(false)
   })
 
   it('all pill types compete for visibility based on count', () => {
