@@ -253,7 +253,19 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
       if (!prepareRes.ok) {
         setStatus('error')
-        setErrorMessage("Couldn't read the article. Please try again.")
+        // Try to parse error details from response body
+        try {
+          const errData = await prepareRes.json() as { error?: string }
+          if (errData.error === 'fetch_failed') {
+            setErrorMessage("Couldn't reach this website. The site may be blocking access or temporarily down.")
+          } else if (errData.error === 'page_error' || errData.error === 'page_not_found') {
+            setErrorMessage("This page couldn't be loaded. Check the URL and try again.")
+          } else {
+            setErrorMessage("Couldn't read the article. Please try again.")
+          }
+        } catch {
+          setErrorMessage("Couldn't read the article. Please try again.")
+        }
         if (!sourceEntryId) { cleanupSourceEntry(currentEntryId); setEntryId(null) }
         setStarting(false)
         return
@@ -265,7 +277,16 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
       if (!prepareData.success || !prepareData.chunks?.length) {
         setStatus('error')
-        setErrorMessage(prepareData.error === 'content_too_short' ? "This article's content couldn't be read. Try a different URL." : "Couldn't read the article.")
+        const errCode = prepareData.error
+        if (errCode === 'content_too_short') {
+          setErrorMessage("This article doesn't have enough text content to extract places from. Try a different article.")
+        } else if (errCode === 'page_not_found' || errCode === 'page_error') {
+          setErrorMessage("This page couldn't be loaded. Check the URL and try again.")
+        } else if (errCode === 'fetch_failed') {
+          setErrorMessage("Couldn't reach this website. The site may be blocking access or temporarily down.")
+        } else {
+          setErrorMessage("Something went wrong. Please try again.")
+        }
         if (!sourceEntryId) { cleanupSourceEntry(currentEntryId); setEntryId(null) }
         setStarting(false)
         return

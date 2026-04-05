@@ -229,9 +229,21 @@ Deno.serve(async (req: Request) => {
       })
       clearTimeout(timeout)
       html = await response.text()
+      console.log(`[prepare-extraction] Fetched ${url}: HTTP ${response.status}, ${html.length} chars`)
+
+      // Return specific error for HTTP errors (4xx/5xx)
+      if (response.status >= 400) {
+        if (!source_content) {
+          return new Response(JSON.stringify({ success: false, error: "page_error", httpStatus: response.status }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          })
+        }
+      }
+
       title = getTitle(html)
       thumbnail = getImage(html)
     } catch (err) {
+      console.log(`[prepare-extraction] Fetch failed for ${url}: ${(err as Error).message}`)
       // If fetch fails but we have source_content, we can still proceed
       if (!source_content) {
         return new Response(JSON.stringify({ success: false, error: "fetch_failed" }), {
@@ -249,6 +261,16 @@ Deno.serve(async (req: Request) => {
       return new Response(JSON.stringify({ success: false, error: "content_too_short" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       })
+    }
+
+    // Detect soft 404 pages (short content containing "not found" / "404")
+    if (textToChunk.length < 500) {
+      const lower = textToChunk.toLowerCase()
+      if (lower.includes("not found") || lower.includes("404") || lower.includes("page doesn't exist")) {
+        return new Response(JSON.stringify({ success: false, error: "page_not_found" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        })
+      }
     }
 
     const chunks = chunkText(textToChunk)
