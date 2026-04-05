@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Check } from 'lucide-react'
+import { X, Check, AlertTriangle } from 'lucide-react'
 import { supabase, supabaseUrl, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from './Toast'
@@ -51,6 +51,19 @@ function extractCity(locationName: string | null): string | null {
   return locationName.split(',')[0]?.trim() || null
 }
 
+/** Light sanitization for user-pasted text (may contain HTML from copy-paste). */
+function sanitizePastedText(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#\d+;/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 /** Stable unique key for an extracted item (survives array reordering). */
 function itemKey(item: ExtractedDisplayItem): string {
   return `${item.name}::${item.section_label}::${item.item_order}`
@@ -76,6 +89,10 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [starting, setStarting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [inputMode, setInputMode] = useState<'url' | 'text'>(initialUrl ? 'url' : 'url')
+  const [pastedText, setPastedText] = useState('')
+  const [pasteError, setPasteError] = useState<string | null>(null)
+  const [showPasteFallback, setShowPasteFallback] = useState(false)
 
   // Step 2 + 3
   const [items, setItems] = useState<ExtractedDisplayItem[]>([])
@@ -260,11 +277,11 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
         setStatus('error')
         // Try to parse error details from response body
         try {
-          const errData = await prepareRes.json() as { error?: string }
-          if (errData.error === 'bot_challenge') {
-            setErrorMessage("This website has bot protection that we can't bypass yet. Try saving the link manually instead.")
-          } else if (errData.error === 'fetch_failed') {
-            setErrorMessage("Couldn't reach this website. The site may be blocking access or temporarily down.")
+          const errData = await prepareRes.json() as { error?: string; httpStatus?: number }
+          if (errData.error === 'bot_challenge' || errData.error === 'fetch_failed' ||
+              (errData.error === 'page_error' && (errData.httpStatus === 403 || errData.httpStatus === 429))) {
+            setShowPasteFallback(true)
+            setErrorMessage(null)
           } else if (errData.error === 'page_error' || errData.error === 'page_not_found') {
             setErrorMessage("This page couldn't be loaded. Check the URL and try again.")
           } else {
@@ -285,14 +302,13 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
       if (!prepareData.success || !prepareData.chunks?.length) {
         setStatus('error')
         const errCode = prepareData.error
-        if (errCode === 'content_too_short') {
+        if (errCode === 'bot_challenge' || errCode === 'fetch_failed') {
+          setShowPasteFallback(true)
+          setErrorMessage(null)
+        } else if (errCode === 'content_too_short') {
           setErrorMessage("This article doesn't have enough text content to extract places from. Try a different article.")
-        } else if (errCode === 'bot_challenge') {
-          setErrorMessage("This website has bot protection that we can't bypass yet. Try saving the link manually instead.")
         } else if (errCode === 'page_not_found' || errCode === 'page_error') {
           setErrorMessage("This page couldn't be loaded. Check the URL and try again.")
-        } else if (errCode === 'fetch_failed') {
-          setErrorMessage("Couldn't reach this website. The site may be blocking access or temporarily down.")
         } else {
           setErrorMessage("Something went wrong. Please try again.")
         }
@@ -396,6 +412,195 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
     }
   }, [urlInput, user, starting, preview, entryId, toast, itemCount, sourceEntryId, cleanupSourceEntry])
 
+  // ── Extract from pasted text ──
+  const handleExtractFromText = useCallback(async (textContent: string) => {
+    if (!user || starting) return
+
+    const sanitized = sanitizePastedText(textContent)
+    if (sanitized.length < 100) {
+      setPasteError('The pasted text is too short to extract places from. Try copying more of the article.')
+      return
+    }
+    setPasteError(null)
+    setStarting(true)
+    cancelledRef.current = false
+
+    let currentEntryId = entryId
+    try {
+      // Create source entry if we don't have one (direct text mode, no URL)
+      if (!currentEntryId && urlInput) {
+        const { data: entry, error } = await supabase.from('saved_items').insert({
+          user_id: user.id,
+          source_type: 'url',
+          source_url: urlInput,
+          title: preview?.title || urlInput,
+          image_url: preview?.image || null,
+          description: preview?.description || null,
+          site_name: preview?.site_name || null,
+          image_display: preview?.image ? 'thumbnail' : 'none',
+          category: 'general' as Category,
+        }).select('id').single()
+        if (!error && entry) {
+          currentEntryId = entry.id
+          setEntryId(entry.id)
+        }
+      }
+      if (!currentEntryId) {
+        // Text mode with no URL — create a text-based entry
+        const { data: entry, error } = await supabase.from('saved_items').insert({
+          user_id: user.id,
+          source_type: 'manual',
+          title: 'Pasted article',
+          image_display: 'none',
+          category: 'general' as Category,
+        }).select('id').single()
+        if (error || !entry) {
+          toast('Failed to create entry')
+          setStarting(false)
+          return
+        }
+        currentEntryId = entry.id
+        setEntryId(entry.id)
+      }
+
+      // Transition to processing
+      setStep('processing')
+      setStatus('reading')
+      setErrorMessage(null)
+      setShowPasteFallback(false)
+      setDisplayedItems([])
+      setDisplayedCount(0)
+      revealQueueRef.current = []
+      revealingRef.current = false
+
+      const session = (await supabase.auth.getSession()).data.session
+      if (!session) { setStarting(false); return }
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+      const headers = {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': anonKey,
+      }
+
+      // Send pasted text to prepare-extraction with `text` param (skip URL fetch)
+      let prepareRes: Response
+      try {
+        prepareRes = await fetch(`${supabaseUrl}/functions/v1/prepare-extraction`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ url: urlInput || undefined, text: sanitized }),
+          signal: AbortSignal.timeout(20000),
+        })
+      } catch (err) {
+        console.error('[unpack] prepare-extraction (text) failed:', err)
+        setStatus('error')
+        setErrorMessage("Couldn't process the text. Please try again.")
+        if (!sourceEntryId) { cleanupSourceEntry(currentEntryId); setEntryId(null) }
+        setStarting(false)
+        return
+      }
+
+      const prepareData = await prepareRes.json() as {
+        success: boolean; chunks?: string[]; title?: string; thumbnail?: string; domain?: string; error?: string
+      }
+
+      if (!prepareData.success || !prepareData.chunks?.length) {
+        setStatus('error')
+        if (prepareData.error === 'content_too_short') {
+          setErrorMessage("The pasted text doesn't have enough content to extract places from. Try copying more of the article.")
+        } else {
+          setErrorMessage("Couldn't process the text. Please try again.")
+        }
+        if (!sourceEntryId) { cleanupSourceEntry(currentEntryId); setEntryId(null) }
+        setStarting(false)
+        return
+      }
+
+      const { chunks, title: articleTitle } = prepareData
+      if (!preview?.title && articleTitle) {
+        setPreview(prev => prev ? { ...prev, title: articleTitle } : { title: articleTitle, image: null, description: null, site_name: null })
+      }
+
+      setStatus('extracting')
+
+      // Extract each chunk (identical to handleStart)
+      const allItems: ExtractedDisplayItem[] = []
+      const seenNames = new Set<string>()
+
+      for (let i = 0; i < chunks.length; i++) {
+        if (cancelledRef.current) return
+
+        try {
+          const chunkRes = await fetch(`${supabaseUrl}/functions/v1/extract-chunk`, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              chunk: chunks[i],
+              title: articleTitle ?? preview?.title ?? 'Pasted article',
+              chunk_index: i,
+              total_chunks: chunks.length,
+            }),
+            signal: AbortSignal.timeout(45000),
+          })
+
+          if (cancelledRef.current) return
+          if (!chunkRes.ok) { console.error(`[unpack] extract-chunk ${i + 1} failed: HTTP ${chunkRes.status}`); continue }
+
+          const chunkData = await chunkRes.json() as {
+            success: boolean; items?: ExtractedDisplayItem[]; item_count?: number
+          }
+
+          if (cancelledRef.current) return
+
+          if (chunkData.success && chunkData.items?.length) {
+            const newItems: ExtractedDisplayItem[] = []
+            for (const item of chunkData.items) {
+              const key = item.name.toLowerCase().trim()
+              if (!seenNames.has(key)) {
+                seenNames.add(key)
+                newItems.push(item)
+              }
+            }
+            if (newItems.length > 0) {
+              allItems.push(...newItems)
+              setItems([...allItems])
+              revealItems(newItems)
+            }
+          }
+        } catch (err) {
+          if (cancelledRef.current) return
+          console.error(`[unpack] Chunk ${i + 1} error:`, err)
+        }
+
+        if (cancelledRef.current) return
+        if (i < chunks.length - 1) {
+          await new Promise(r => setTimeout(r, 300))
+          if (cancelledRef.current) return
+        }
+      }
+
+      if (cancelledRef.current) return
+
+      if (allItems.length === 0) {
+        setStatus('error')
+        setErrorMessage('No places found in the pasted text.')
+        if (!sourceEntryId) { cleanupSourceEntry(currentEntryId); setEntryId(null) }
+        setStarting(false)
+        return
+      }
+
+      setStatus('complete')
+      setCheckedItems(new Set(allItems.map(item => itemKey(item))))
+      setStep('done')
+    } catch (err) {
+      console.error('[unpack] Text extraction failed:', err)
+      setStatus('error')
+      setErrorMessage('Something went wrong. Please try again.')
+      if (!sourceEntryId) { cleanupSourceEntry(currentEntryId); setEntryId(null) }
+      setStarting(false)
+    }
+  }, [urlInput, user, starting, preview, entryId, toast, sourceEntryId, cleanupSourceEntry, revealItems])
+
   // ── Save to Horizon (user taps button on completion screen) ──
   const handleSave = useCallback(async () => {
     const selectedItems = items.filter(item => checkedItems.has(itemKey(item)))
@@ -469,27 +674,71 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
           </div>
 
           <div style={{ padding: '24px 20px 0' }}>
-            <input
-              ref={inputRef}
-              type="url"
-              value={urlInput}
-              onChange={e => setUrlInput(e.target.value)}
-              placeholder="Paste a link or article text"
-              style={{
-                width: '100%', padding: '14px 16px',
-                background: 'var(--bg-elevated-1)',
-                border: '0.5px solid rgba(118, 130, 142, 0.15)',
-                borderRadius: 10, outline: 'none',
-                fontFamily: "'DM Sans', sans-serif", fontSize: 16,
-                color: 'var(--text-primary)',
-              }}
-            />
-            <div style={{
-              fontFamily: "'DM Sans', sans-serif", fontSize: 12,
-              color: 'var(--text-tertiary)', marginTop: 8, textAlign: 'center',
-            }}>
-              Find restaurants, attractions, and more
-            </div>
+            {inputMode === 'url' ? (
+              <>
+                <input
+                  ref={inputRef}
+                  type="url"
+                  value={urlInput}
+                  onChange={e => setUrlInput(e.target.value)}
+                  placeholder="Paste a link to unpack"
+                  style={{
+                    width: '100%', padding: '14px 16px',
+                    background: 'var(--bg-elevated-1)',
+                    border: '0.5px solid rgba(118, 130, 142, 0.15)',
+                    borderRadius: 10, outline: 'none',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 16,
+                    color: 'var(--text-primary)',
+                  }}
+                />
+                <button type="button" onClick={() => setInputMode('text')} style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                  color: 'var(--text-tertiary)', marginTop: 8, display: 'block',
+                  textAlign: 'center', width: '100%',
+                }}>
+                  Or paste article text
+                </button>
+              </>
+            ) : (
+              <>
+                <div style={{
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500,
+                  color: 'var(--text-secondary)', marginBottom: 8,
+                }}>
+                  Paste article text to unpack
+                </div>
+                <textarea
+                  value={pastedText}
+                  onChange={e => { setPastedText(e.target.value); setPasteError(null) }}
+                  placeholder="Paste article text here..."
+                  style={{
+                    width: '100%', minHeight: 160, maxHeight: 300,
+                    background: 'var(--bg-elevated-1)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 12, padding: 12, outline: 'none',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 16,
+                    color: 'var(--text-primary)', resize: 'vertical',
+                  }}
+                />
+                {pasteError && (
+                  <div style={{
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                    color: '#c44a3d', marginTop: 6,
+                  }}>
+                    {pasteError}
+                  </div>
+                )}
+                <button type="button" onClick={() => setInputMode('url')} style={{
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 12,
+                  color: 'var(--text-tertiary)', marginTop: 8, display: 'block',
+                  textAlign: 'center', width: '100%',
+                }}>
+                  Or paste a link
+                </button>
+              </>
+            )}
           </div>
 
           {loadingPreview && (
@@ -551,7 +800,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             </div>
           )}
 
-          {urlInput.length > 10 && !duplicateRoute && (
+          {inputMode === 'url' && urlInput.length > 10 && !duplicateRoute && (
             <div style={{ padding: '20px', marginTop: 'auto' }}>
               <button type="button" onClick={handleStart} disabled={starting} style={{
                 width: '100%', padding: '14px 0',
@@ -560,6 +809,19 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                 fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600,
               }}>
                 {starting ? 'Starting...' : 'Start'}
+              </button>
+            </div>
+          )}
+          {inputMode === 'text' && (
+            <div style={{ padding: '20px', marginTop: 'auto' }}>
+              <button type="button" onClick={() => handleExtractFromText(pastedText)} disabled={starting || !pastedText.trim()} style={{
+                width: '100%', padding: '14px 0',
+                background: (starting || !pastedText.trim()) ? 'var(--disabled-bg)' : 'var(--accent-primary)',
+                color: (starting || !pastedText.trim()) ? 'var(--disabled-text)' : '#e8eaed',
+                border: 'none', borderRadius: 9999, cursor: (starting || !pastedText.trim()) ? 'default' : 'pointer',
+                fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
+              }}>
+                {starting ? 'Starting...' : 'Extract places'}
               </button>
             </div>
           )}
@@ -584,11 +846,13 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {preview?.title || urlInput}
+                {preview?.title || urlInput || 'Pasted article'}
               </div>
-              <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--text-tertiary)' }}>
-                {extractDomain(urlInput)}
-              </div>
+              {urlInput && (
+                <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--text-tertiary)' }}>
+                  {extractDomain(urlInput)}
+                </div>
+              )}
             </div>
           </div>
 
@@ -721,8 +985,48 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
             borderTop: '0.5px solid rgba(118, 130, 142, 0.06)',
           }}>
-            {status === 'error' ? (
-              /* Error state */
+            {status === 'error' && showPasteFallback ? (
+              /* Paste fallback — shown when bot challenge or fetch fails */
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <AlertTriangle size={20} color="var(--color-warning, #c49a2d)" style={{ flexShrink: 0 }} />
+                  <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+                    This site is blocking automated access
+                  </span>
+                </div>
+                <p style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 12px 0' }}>
+                  You can paste the article content below and we'll extract places from it.
+                </p>
+                <textarea
+                  value={pastedText}
+                  onChange={e => { setPastedText(e.target.value); setPasteError(null) }}
+                  placeholder="Paste article text here..."
+                  style={{
+                    width: '100%', minHeight: 160, maxHeight: 300,
+                    background: 'var(--bg-elevated-1)',
+                    border: '1px solid var(--border-default)',
+                    borderRadius: 12, padding: 12, outline: 'none',
+                    fontFamily: "'DM Sans', sans-serif", fontSize: 16,
+                    color: 'var(--text-primary)', resize: 'vertical',
+                  }}
+                />
+                {pasteError && (
+                  <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: '#c44a3d', marginTop: 6 }}>
+                    {pasteError}
+                  </div>
+                )}
+                <button type="button" onClick={() => handleExtractFromText(pastedText)} disabled={starting || !pastedText.trim()} style={{
+                  width: '100%', padding: 12, marginTop: 12,
+                  background: (starting || !pastedText.trim()) ? 'var(--disabled-bg)' : 'var(--accent-primary)',
+                  color: (starting || !pastedText.trim()) ? 'var(--disabled-text)' : '#e8eaed',
+                  border: 'none', borderRadius: 9999, cursor: (starting || !pastedText.trim()) ? 'default' : 'pointer',
+                  fontFamily: "'DM Sans', sans-serif", fontSize: 14, fontWeight: 500,
+                }}>
+                  {starting ? 'Starting...' : 'Extract places'}
+                </button>
+              </div>
+            ) : status === 'error' ? (
+              /* Regular error state */
               <div style={{ textAlign: 'center' }}>
                 <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: '#c44a3d' }}>
                   {errorMessage ?? 'Something went wrong.'}
@@ -734,7 +1038,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                     borderRadius: 8, cursor: 'pointer',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-secondary)',
                   }}>Cancel</button>
-                  <button type="button" onClick={() => { setStep('input'); setStatus('reading'); setErrorMessage(null); setItems([]); setItemCount(0); setPrevCount(0); setStarting(false); setDisplayedItems([]); setDisplayedCount(0); revealQueueRef.current = []; revealingRef.current = false }} style={{
+                  <button type="button" onClick={() => { setStep('input'); setStatus('reading'); setErrorMessage(null); setItems([]); setItemCount(0); setPrevCount(0); setStarting(false); setDisplayedItems([]); setDisplayedCount(0); revealQueueRef.current = []; revealingRef.current = false; setShowPasteFallback(false) }} style={{
                     padding: '8px 20px', background: 'var(--accent-primary)', color: '#fff',
                     border: 'none', borderRadius: 8, cursor: 'pointer',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,

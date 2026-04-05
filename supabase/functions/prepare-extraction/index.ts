@@ -250,7 +250,30 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { url, source_content } = await req.json() as { url: string; source_content?: string }
+    const { url, source_content, text } = await req.json() as { url?: string; source_content?: string; text?: string }
+
+    // Pre-fetched text mode (paste fallback) — skip URL fetch, go straight to chunking
+    if (text && text.length >= 100) {
+      console.log(`[prepare-extraction] Processing pasted text: ${text.length} chars`)
+      const chunks = chunkText(text)
+      return new Response(JSON.stringify({
+        success: true,
+        chunks,
+        title: url ? getDomain(url) : "Pasted article",
+        thumbnail: null,
+        domain: url ? getDomain(url) : null,
+        totalChars: text.length,
+      }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
+
+    if (text && text.length < 100) {
+      return new Response(JSON.stringify({ success: false, error: "content_too_short" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      })
+    }
+
     if (!url) {
       return new Response(JSON.stringify({ success: false, error: "missing_url" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
