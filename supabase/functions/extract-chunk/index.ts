@@ -9,7 +9,16 @@ const corsHeaders = {
 // ── Extraction prompt ────────────────────────────────────────────────────────
 // do NOT modify without discussion — last updated April 2026 for 12-category system
 
-const STRUCTURED_PROMPT = `You are extracting specific named places from a travel article. Your job is to identify every restaurant, hotel, museum, temple, park, landmark, market, theater, and other named destinations mentioned in the article.
+const STRUCTURED_PROMPT = `You are extracting specific named places from a travel article. Your job is to identify EVERY restaurant, cafe, bar, hotel, museum, temple, park, landmark, market, theater, shop, and other named destination mentioned in the article.
+
+IMPORTANT: Extract EVERY specific named place mentioned in the text. This includes:
+- Restaurants, cafes, bars, hotels mentioned by name
+- Parks, temples, museums, landmarks mentioned by name
+- Shops, markets, malls mentioned by name
+- Neighborhoods or districts mentioned by name
+- Any business or location with a proper name
+
+Do NOT skip places that are only briefly mentioned. Do NOT limit the number of places extracted. If the article mentions 30 cafes, extract all 30. Be exhaustive.
 
 Rules:
 - Only extract SPECIFIC NAMED places (e.g., "Da Dong Roast Duck Restaurant", "Forbidden City", "Temple of Heaven")

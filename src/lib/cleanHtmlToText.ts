@@ -96,6 +96,13 @@ export function cleanHtmlToText(html: string): string {
     if (/^https?:\/\/\S+$/.test(trimmed) && trimmed.length < 200) return false
     // Skip very short lines that look like UI labels
     if (trimmed.length < 4 && !/^day/i.test(trimmed)) return false
+    // Skip video player UI / accessibility settings
+    if (/^(font color|font opacity|font size|font family|text shadow|background color|background opacity|window color|window opacity)/i.test(trimmed)) return false
+    if (/^(none|raised|depressed|uniform|drop shadow)$/i.test(trimmed)) return false
+    if (/^(white|black|red|green|blue|yellow|magenta|cyan)$/i.test(trimmed)) return false
+    if (/^(100%|75%|50%|25%|0%|200%|175%|150%|125%)$/i.test(trimmed)) return false
+    if (/^(arial|georgia|garamond|courier|tahoma|times|trebuchet|verdana)/i.test(trimmed)) return false
+    if (/^(settings off|my latest videos|do not sell or share|terms of content use|information from your device)/i.test(trimmed)) return false
 
     return true
   })
