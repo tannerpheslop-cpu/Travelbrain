@@ -357,31 +357,51 @@ Layer 2 — City glow (REPLACES the sunset curve):
 - Max content per card: title + 1 metadata row + optional secondary info
 
 ### Pills
-- All pills: first letter capitalized ("Historical" not "historical")
-- Border radius: pill (9999px) for card/filter pills; 16px for SaveSheet category pills
-- Pill font size tiers: card metadata pills (~7px), shared CategoryPill (11px), interactive pills in SaveSheet/tag editor (12px), FilterBar/FilterSheet (13px)
-- All category pills (cards): `--bg-elevated-2` fill, `--text-secondary` text, DM Sans 11px
-- ImageCard pills: translucent white variants (`rgba(255,255,255,0.1)` bg, `rgba(255,255,255,0.6)` text) for legibility on photo backgrounds
-- Location pills: `rgba(141, 150, 160, 0.20)` fill, `--text-tertiary` text
-- Selected pills (filter bar): `--accent-primary` fill, `#e8eaed` text (solid orange bg, white text)
-- No category-specific coloring — all categories use the same monochrome treatment
-- Card pills read from `item_tags` table, falling back to legacy `category` column
-- See `/docs/PILL-SYSTEM-CONTEXT.md` for the full pill system spec
 
-### SaveSheet Category Pills
-- Border radius: 16px (not 9999px)
-- Inactive: `1px solid var(--border-subtle)` border, transparent bg
-- Active: `border: none` + `var(--accent-primary)` bg, `#e8eaed` text
-- Text-only (no icons)
-- DM Sans 12px
+All pills: first letter capitalized ("Historical" not "historical"). No category-specific coloring — all categories use the same monochrome treatment. Card pills read from `item_tags` table, falling back to legacy `category` column. See `/docs/PILL-SYSTEM-CONTEXT.md` for the full pill system spec.
+
+**Font size tiers:** 7px on card metadata pills → 10–11px on ListRow/CategoryPill → 12px on SaveSheet/tag editor → 13px on FilterBar/FilterSheet
+
+#### Card Metadata Pills (Gallery Grid — text cards)
+- Category: DM Sans 7px, `--text-secondary` text, `--bg-elevated-2` bg, borderRadius 9999, padding 2px 5px
+- Location: DM Sans 7px medium, `--text-tertiary` text, `rgba(141,150,160,0.20)` bg, borderRadius 9999, padding 2px 5px
+- Creator Fave: DM Sans 7px, `--text-secondary` text, `--bg-elevated-2` bg, borderRadius 9999, Heart icon size 8 filled. **Replaces** category pill (ternary). Heart is the only icon on card pills.
+
+#### Card Metadata Pills (Gallery Grid — image cards / photo overlay)
+- Category: DM Sans 7px, `rgba(255,255,255,0.6)` text, `rgba(255,255,255,0.1)` bg, borderRadius 9999
+- Location: font-mono 7px medium, `rgba(255,255,255,0.85)` text, `rgba(255,255,255,0.18)` bg, borderRadius 3
+- Creator Fave: DM Sans 7px, `rgba(255,255,255,0.85)` text, `rgba(255,255,255,0.15)` bg, borderRadius 9999, Heart icon size 8 filled
+
+#### ListRow Pills
+- Category: `<CategoryPill>` component, DM Sans 11px, `--text-secondary` text, `--bg-elevated-2` bg
+- Location: DM Sans 10px 500, `--text-tertiary` text, `rgba(141,150,160,0.20)` bg, borderRadius 9999, hidden on mobile
+- Creator Fave: DM Sans 10px 500, `--text-secondary` text, `--bg-elevated-2` bg, Heart icon size 9 filled, label "Fave"
+
+#### FilterBar Pills (inline, up to 6 visible)
+- DM Sans 13px, borderRadius 9999, padding 6px 12px, gap 6
+- Icons: category icon / MapPin / Hash prefix, className "w-3.5 h-3.5"
+- Selected: fontWeight 600, `--accent-primary` bg + border, `#e8eaed` text
+- Unselected: fontWeight 400, `--bg-elevated-1` bg, `--border-subtle` border, `--text-secondary` text (or `--text-muted` when count=0)
+- Count badge: fontSize 11, fontWeight 500, opacity 0.7, marginLeft 2
+
+#### FilterSheet Pills (bottom sheet)
+- Same styling as FilterBar pills except: count displays with parentheses `(N)`, transition 0.15s ease-out, `aria-pressed` attribute
+
+#### Save Detail Tag Editor Pills
+- DM Sans 12px, borderRadius 9999, padding 4px 10px
+- Two-row masonry layout (even/odd index interleaving)
+- Assigned: `--accent-primary` bg + border, `#e8eaed` text
+- Unassigned: `--bg-elevated-1` bg, `--border-subtle` border, `--text-tertiary` text
+- Category pills show Lucide icon at size 14; custom tags show `#` prefix with opacity 0.7
+- `creator_fave`: non-interactive (`cursor: default`, `opacity: 0.7`, no onClick). Only shown when assigned to current item.
+
+#### Quick Save Sheet Pills (SaveSheet)
+- DM Sans 12px, borderRadius **16px** (not 9999px), padding 5px 12px
+- Text-only (no icons — unlike FilterBar/tag editor)
 - Shows 12 of 13 categories (excludes `creator_fave`)
-
-### Tag Editor Pills (Item Detail)
-- Assigned: `--accent-primary` bg + `#e8eaed` text
-- Unassigned: `--bg-elevated-1` bg + `--text-tertiary` text
-- DM Sans 12px
-- Two-row masonry layout
-- `creator_fave` is non-interactive: `cursor: default`, `opacity: 0.7`
+- Active: fontWeight 600, `--accent-primary` bg, `#e8eaed` text, no border
+- Inactive: fontWeight 400, `--bg-elevated-1` bg, `--text-secondary` text, `1px solid var(--border-subtle)` border
+- Transition: 0.15s ease
 
 ### Buttons
 - Primary: `--accent-primary` background, white text, 16px radius (or pill)
