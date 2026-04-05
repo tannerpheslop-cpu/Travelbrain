@@ -39,6 +39,13 @@ export default function FilterSheet({
     requestAnimationFrame(() => setVisible(true))
   }, [])
 
+  // Lock body scroll while sheet is open
+  useEffect(() => {
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => { document.body.style.overflow = prev }
+  }, [])
+
   useEffect(() => {
     if (showCreateInput) createInputRef.current?.focus()
   }, [showCreateInput])
@@ -94,6 +101,7 @@ export default function FilterSheet({
         className="fixed inset-0 z-40 transition-opacity duration-250 ease-out"
         style={{ backgroundColor: visible ? 'rgba(0,0,0,0.4)' : 'rgba(0,0,0,0)' }}
         onClick={handleClose}
+        onTouchMove={(e) => e.preventDefault()}
         data-testid="filter-sheet-backdrop"
       />
 
@@ -188,7 +196,7 @@ export default function FilterSheet({
         {/* Scrollable content */}
         <div
           className="flex-1 overflow-y-auto px-4 pb-4"
-          style={{ overscrollBehavior: 'contain', touchAction: 'pan-y' }}
+          style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
           onTouchMove={(e) => e.stopPropagation()}
         >
           {/* LOCATIONS */}
