@@ -10,7 +10,7 @@ import FilterBar, { buildAllPills, getVisiblePills } from '../components/FilterB
 import FilterSheet from '../components/FilterSheet'
 import { getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
 import { optimizedImageUrl } from '../lib/optimizedImage'
-import { LayoutGrid, List, Search, X, ChevronDown, ChevronRight, CheckSquare, SlidersHorizontal } from 'lucide-react'
+import { LayoutGrid, List, Search, X, ChevronDown, ChevronRight, CheckSquare, ListFilter } from 'lucide-react'
 import { CategoryPill, CountryCodeBadge, PrimaryButton, DashedCard, ConfirmDeleteModal } from '../components/ui'
 import ScrollToTop from '../components/ScrollToTop'
 import SunsetBackground from '../components/horizon/SunsetBackground'
@@ -249,10 +249,10 @@ export default function InboxPage() {
       .eq('user_id', user.id)
     // Remove from active filters if selected
     setSelectedFilters(prev => prev.filter(f => f !== `tag:${tagName}`))
-    // Invalidate custom tags cache
+    // Invalidate all relevant caches so tag disappears everywhere instantly
     queryClient.invalidateQueries({ queryKey: queryKeys.userCustomTags(user.id) })
-    // Invalidate item tags cache so tag counts refresh
-    queryClient.invalidateQueries({ queryKey: ['item-tags'] })
+    queryClient.invalidateQueries({ queryKey: queryKeys.allUserTags(user.id) })
+    queryClient.invalidateQueries({ queryKey: queryKeys.savedItems(user.id) })
   }, [user, queryClient])
 
   // ── Extraction shimmer tracking ──
@@ -1015,7 +1015,7 @@ export default function InboxPage() {
                     aria-label="More filters"
                     data-testid="filter-more-btn"
                   >
-                    <SlidersHorizontal size={20} />
+                    <ListFilter size={20} />
                   </button>
                   <button
                     type="button"

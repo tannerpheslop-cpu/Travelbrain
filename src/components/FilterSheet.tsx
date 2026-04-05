@@ -29,8 +29,10 @@ export default function FilterSheet({
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [showCreateInput, setShowCreateInput] = useState(false)
   const [createValue, setCreateValue] = useState('')
+  const [contentMinHeight, setContentMinHeight] = useState<number | undefined>(undefined)
   const createInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
 
   const activeIds = useMemo(() => new Set(selectedFilters), [selectedFilters])
 
@@ -45,6 +47,17 @@ export default function FilterSheet({
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = prev }
   }, [])
+
+  // Capture initial content height to prevent sheet shrinking during search
+  useEffect(() => {
+    if (visible && contentRef.current && contentMinHeight === undefined) {
+      requestAnimationFrame(() => {
+        if (contentRef.current) {
+          setContentMinHeight(contentRef.current.offsetHeight)
+        }
+      })
+    }
+  }, [visible, contentMinHeight])
 
   useEffect(() => {
     if (showCreateInput) createInputRef.current?.focus()
@@ -92,7 +105,17 @@ export default function FilterSheet({
   const filteredCategories = q ? categoryPills.filter(p => p.label.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)) : categoryPills
   const filteredCustom = q ? customPills.filter(p => p.label.toLowerCase().includes(q)) : customPills
 
+  const noMatchesFound = q.length > 0 && filteredLocations.length === 0 && filteredCategories.length === 0 && filteredCustom.length === 0
   const hasFilters = selectedFilters.length > 0
+
+  /** Create a new custom tag from search, activate it as a filter */
+  const handleCreateTagFromSearch = useCallback((name: string) => {
+    const tagId = `tag:${name}`
+    if (!selectedFilters.includes(tagId)) {
+      onSelectionChange([...selectedFilters, tagId])
+    }
+    setSearchQuery('')
+  }, [selectedFilters, onSelectionChange])
 
   return (
     <>
@@ -176,6 +199,12 @@ export default function FilterSheet({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && searchQuery.trim() && noMatchesFound) {
+                  e.preventDefault()
+                  handleCreateTagFromSearch(searchQuery.trim())
+                }
+              }}
               placeholder="Search filters..."
               style={{
                 width: '100%',
@@ -195,10 +224,35 @@ export default function FilterSheet({
 
         {/* Scrollable content */}
         <div
+          ref={contentRef}
           className="flex-1 overflow-y-auto px-4 pb-4"
-          style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y' }}
+          style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'pan-y', minHeight: contentMinHeight }}
           onTouchMove={(e) => e.stopPropagation()}
         >
+          {/* Create tag from search when no matches */}
+          {searchQuery.trim() && noMatchesFound && (
+            <button
+              type="button"
+              onClick={() => handleCreateTagFromSearch(searchQuery.trim())}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                background: 'var(--bg-elevated-1, #1c2126)',
+                border: '1px solid var(--border-subtle, #242a30)',
+                borderRadius: 12,
+                color: 'var(--text-secondary, #b9c0c7)',
+                fontSize: 13,
+                fontFamily: "'DM Sans', sans-serif",
+                cursor: 'pointer',
+                textAlign: 'left',
+                marginBottom: 12,
+              }}
+              data-testid="filter-create-tag"
+            >
+              Create and filter for &ldquo;<strong style={{ color: 'var(--text-primary, #e8eaed)' }}>#{searchQuery.trim()}</strong>&rdquo;
+            </button>
+          )}
+
           {/* LOCATIONS */}
           {filteredLocations.length > 0 && (
             <div className="mb-4">
