@@ -85,6 +85,14 @@ Run this checklist after ANY change, regardless of what area was modified. These
 - [ ] Suggested destinations auto-link nearby saved items
 - [ ] Trip cover image appears (from destination or trip name)
 
+### Unpack Flow
+- [ ] Paste a URL → OG preview appears with image and title
+- [ ] Tap Start → counter increments, places appear with section headers
+- [ ] Extraction completes → Route created with correct name
+- [ ] Route items have `item_tags` rows with valid 12-category values (no legacy values like "entertainment")
+- [ ] Cancel during extraction → no orphaned save in Horizon
+- [ ] Run post-deploy smoke test: `./scripts/test-unpack-deploy.sh`
+
 ### Trip Management
 - [ ] ··· menu: Pin/Unpin, Refresh images, Delete all work
 - [ ] Status pill dropdown works

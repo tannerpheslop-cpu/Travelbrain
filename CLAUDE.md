@@ -760,6 +760,13 @@ See: `/src/lib/__tests__/locationDetectionPipeline.test.ts`, `/src/components/__
 - Images not displaying on Horizon cards (ImageWithFade error/loaded state reset)
 - PillSheet using flex items-end wrapper instead of fixed bottom-0 pattern (mobile touch targets)
 - Suggestion labels showing neighborhood name instead of country name
+- Boilerplate stripping removing `<article>` content (Squarespace `has-comments` regression). See `src/lib/__tests__/cleanHtmlToText.fixtures.test.ts`
+
+### Edge Function Deployment Rules
+- ALL Edge Function deployments MUST use `--no-verify-jwt` flag
+- After deploying any extraction Edge Function (`prepare-extraction`, `extract-chunk`), run `./scripts/test-unpack-deploy.sh` to verify the deployment
+- NEVER include `article` in boilerplate stripping regex tag lists — `<article>` is the main content container across all major CMSes (Squarespace, WordPress, Ghost, Substack)
+- The canonical `cleanHtmlToText` implementation lives in both `src/lib/cleanHtmlToText.ts` (for tests) and `supabase/functions/prepare-extraction/index.ts` (for Deno runtime). If you change one, update the other.
 
 ### Builder workflow for tests
 
