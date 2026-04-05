@@ -10,7 +10,7 @@ import FilterBar, { buildAllPills, getVisiblePills } from '../components/FilterB
 import FilterSheet from '../components/FilterSheet'
 import { getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
 import { optimizedImageUrl } from '../lib/optimizedImage'
-import { LayoutGrid, List, Search, X, ChevronDown, ChevronRight, CheckSquare, ListFilter } from 'lucide-react'
+import { LayoutGrid, List, Search, X, ChevronDown, ChevronRight, CheckSquare, ListFilter, Heart } from 'lucide-react'
 import { CategoryPill, CountryCodeBadge, PrimaryButton, DashedCard, ConfirmDeleteModal } from '../components/ui'
 import ScrollToTop from '../components/ScrollToTop'
 import SunsetBackground from '../components/horizon/SunsetBackground'
@@ -164,6 +164,15 @@ export default function InboxPage() {
       }
     }
     return map
+  }, [allUserTags])
+
+  // Build set of item IDs that have the creator_fave tag
+  const creatorFaveIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const tag of allUserTags) {
+      if (tag.tag_name === 'creator_fave') set.add(tag.item_id)
+    }
+    return set
   }, [allUserTags])
 
   // Build route_id → most common category label from route items' tags
@@ -1163,7 +1172,7 @@ export default function InboxPage() {
                     {entry.type === 'route' ? (
                       <RouteGridCard route={entry.route} categoryLabel={routeCategoryLabel.get(entry.route.id)} />
                     ) : (
-                      <GridCard item={entry.item} tripCount={tripLinkCounts.get(entry.item.id) ?? 0} extractionCount={extractionCounts.get(entry.item.id)} eager showShimmer={!entry.item.location_name && (Date.now() - new Date(entry.item.created_at).getTime()) < 30000} categoryLabel={itemCategoryLabel.get(entry.item.id)} />
+                      <GridCard item={entry.item} tripCount={tripLinkCounts.get(entry.item.id) ?? 0} extractionCount={extractionCounts.get(entry.item.id)} eager showShimmer={!entry.item.location_name && (Date.now() - new Date(entry.item.created_at).getTime()) < 30000} categoryLabel={itemCategoryLabel.get(entry.item.id)} isCreatorFave={creatorFaveIds.has(entry.item.id)} />
                     )}
                     {entry.type === 'save' && extractingIds.has(entry.item.id) && (
                       <div style={{
@@ -1188,7 +1197,7 @@ export default function InboxPage() {
                 const key = entry.type === 'save' ? entry.item.id : entry.route.id
                 return entry.type === 'route'
                   ? <RouteListRow key={key} route={entry.route} categoryLabel={routeCategoryLabel.get(entry.route.id)} />
-                  : <ListRow key={key} item={entry.item} extractionCount={extractionCounts.get(entry.item.id)} categoryLabel={itemCategoryLabel.get(entry.item.id)} />
+                  : <ListRow key={key} item={entry.item} extractionCount={extractionCounts.get(entry.item.id)} categoryLabel={itemCategoryLabel.get(entry.item.id)} isCreatorFave={creatorFaveIds.has(entry.item.id)} />
               })}
             </div>
           )}
@@ -1329,7 +1338,7 @@ export default function InboxPage() {
                             {entry.type === 'route' ? (
                               <RouteGridCard route={entry.route} locationLabelOverride={entry.locationLabelOverride} categoryLabel={routeCategoryLabel.get(entry.route.id)} />
                             ) : (
-                              <GridCard item={entry.item} tripCount={tripLinkCounts.get(entry.item.id) ?? 0} extractionCount={extractionCounts.get(entry.item.id)} eager={idx < 6} categoryLabel={itemCategoryLabel.get(entry.item.id)} />
+                              <GridCard item={entry.item} tripCount={tripLinkCounts.get(entry.item.id) ?? 0} extractionCount={extractionCounts.get(entry.item.id)} eager={idx < 6} categoryLabel={itemCategoryLabel.get(entry.item.id)} isCreatorFave={creatorFaveIds.has(entry.item.id)} />
                             )}
                             {entry.type === 'save' && extractingIds.has(entry.item.id) && (
                               <div style={{
@@ -1383,7 +1392,7 @@ export default function InboxPage() {
                               <RouteListRow route={entry.route} locationLabelOverride={entry.locationLabelOverride} categoryLabel={routeCategoryLabel.get(entry.route.id)} />
                             ) : (
                               <>
-                                <ListRow item={entry.item} extractionCount={extractionCounts.get(entry.item.id)} categoryLabel={itemCategoryLabel.get(entry.item.id)} />
+                                <ListRow item={entry.item} extractionCount={extractionCounts.get(entry.item.id)} categoryLabel={itemCategoryLabel.get(entry.item.id)} isCreatorFave={creatorFaveIds.has(entry.item.id)} />
                                 {extractingIds.has(entry.item.id) && (
                                   <div style={{
                                     position: 'absolute', top: 0, left: 0, right: 0, height: 2,
@@ -1587,6 +1596,7 @@ function GridCard({
   showShimmer,
   extractionCount,
   categoryLabel,
+  isCreatorFave,
 }: {
   item: SavedItem
   tripCount: number
@@ -1594,6 +1604,7 @@ function GridCard({
   showShimmer?: boolean
   extractionCount?: number
   categoryLabel?: string
+  isCreatorFave?: boolean
 }) {
   // Show image card if item has any image source:
   // 1. image_display is 'thumbnail' or 'featured' (backfilled)
@@ -1610,9 +1621,9 @@ function GridCard({
   const showImage = hasDirectImage || (item.image_display !== 'none' && hasImageSource)
 
   if (showImage) {
-    return <ImageCard item={item} tripCount={tripCount} eager={eager} showShimmer={showShimmer} extractionCount={extractionCount} categoryLabel={categoryLabel} />
+    return <ImageCard item={item} tripCount={tripCount} eager={eager} showShimmer={showShimmer} extractionCount={extractionCount} categoryLabel={categoryLabel} isCreatorFave={isCreatorFave} />
   }
-  return <TextCard item={item} tripCount={tripCount} showShimmer={showShimmer} extractionCount={extractionCount} categoryLabel={categoryLabel} />
+  return <TextCard item={item} tripCount={tripCount} showShimmer={showShimmer} extractionCount={extractionCount} categoryLabel={categoryLabel} isCreatorFave={isCreatorFave} />
 }
 
 // ─── Trip Count Pill (shared between card types) ─────────────────────────────
@@ -1927,7 +1938,7 @@ function LocationShimmer({ variant }: { variant: 'image' | 'text' }) {
 
 // ─── Image Card (image_display = 'thumbnail') ────────────────────────────────
 
-function ImageCard({ item, tripCount, eager, showShimmer, extractionCount, categoryLabel }: { item: SavedItem; tripCount: number; eager?: boolean; showShimmer?: boolean; extractionCount?: number; categoryLabel?: string }) {
+function ImageCard({ item, tripCount, eager, showShimmer, extractionCount, categoryLabel, isCreatorFave }: { item: SavedItem; tripCount: number; eager?: boolean; showShimmer?: boolean; extractionCount?: number; categoryLabel?: string; isCreatorFave?: boolean }) {
   const city = item.location_name ? extractCity(item.location_name) : null
   const rawUrl = item.image_url ?? item.places_photo_url ?? null
   const [photoUrl, setPhotoUrl] = useState<string | null>(rawUrl)
@@ -1965,7 +1976,7 @@ function ImageCard({ item, tripCount, eager, showShimmer, extractionCount, categ
         </Link>
       )
     }
-    return <TextCard item={item} tripCount={tripCount} categoryLabel={categoryLabel} />
+    return <TextCard item={item} tripCount={tripCount} categoryLabel={categoryLabel} isCreatorFave={isCreatorFave} />
   }
 
   return (
@@ -2024,7 +2035,21 @@ function ImageCard({ item, tripCount, eager, showShimmer, extractionCount, categ
                 {city}
               </span>
             ) : null}
-            {(categoryLabel || (item.category && item.category !== 'general')) && (
+            {isCreatorFave ? (
+              <span
+                className="flex items-center gap-0.5 text-[7px]"
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  color: 'rgba(255,255,255,0.85)',
+                  background: 'rgba(255,255,255,0.15)',
+                  padding: '2px 5px',
+                  borderRadius: 9999,
+                }}
+              >
+                <Heart size={8} fill="currentColor" />
+                Creator Fave
+              </span>
+            ) : (categoryLabel || (item.category && item.category !== 'general')) && (
               <span
                 className="text-[7px]"
                 style={{
@@ -2046,7 +2071,7 @@ function ImageCard({ item, tripCount, eager, showShimmer, extractionCount, categ
 
 // ─── Text Card (image_display = 'none') ──────────────────────────────────────
 
-function TextCard({ item, tripCount, showShimmer, extractionCount, categoryLabel }: { item: SavedItem; tripCount: number; showShimmer?: boolean; extractionCount?: number; categoryLabel?: string }) {
+function TextCard({ item, tripCount, showShimmer, extractionCount, categoryLabel, isCreatorFave }: { item: SavedItem; tripCount: number; showShimmer?: boolean; extractionCount?: number; categoryLabel?: string; isCreatorFave?: boolean }) {
   const city = item.location_name ? extractCity(item.location_name) : null
 
   return (
@@ -2096,7 +2121,21 @@ function TextCard({ item, tripCount, showShimmer, extractionCount, categoryLabel
                 {city}
               </span>
             ) : null}
-            {(categoryLabel || (item.category && item.category !== 'general')) && (
+            {isCreatorFave ? (
+              <span
+                className="flex items-center gap-0.5 text-[7px]"
+                style={{
+                  fontFamily: "'DM Sans', sans-serif",
+                  color: 'var(--accent-primary, #B8441E)',
+                  background: 'var(--bg-elevated-2)',
+                  padding: '2px 5px',
+                  borderRadius: 9999,
+                }}
+              >
+                <Heart size={8} fill="currentColor" />
+                Creator Fave
+              </span>
+            ) : (categoryLabel || (item.category && item.category !== 'general')) && (
               <span
                 className="text-[7px]"
                 style={{
@@ -2122,10 +2161,12 @@ function ListRow({
   item,
   extractionCount,
   categoryLabel,
+  isCreatorFave,
 }: {
   item: SavedItem
   extractionCount?: number
   categoryLabel?: string
+  isCreatorFave?: boolean
 }) {
   const city = item.location_name ? extractCity(item.location_name) : null
   const catLabel = categoryLabel ?? (item.category && item.category !== 'general' ? getCategoryLabel(LEGACY_CATEGORY_MAP[item.category] ?? item.category) : null)
@@ -2157,7 +2198,20 @@ function ListRow({
               {city}
             </span>
           )}
-          {catLabel && <CategoryPill label={catLabel} />}
+          {isCreatorFave ? (
+            <span
+              className="flex items-center gap-0.5"
+              style={{
+                fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
+                color: 'var(--accent-primary, #B8441E)',
+                background: 'var(--bg-elevated-2)',
+                padding: '1px 6px', borderRadius: 9999, lineHeight: 1,
+              }}
+            >
+              <Heart size={9} fill="currentColor" />
+              Fave
+            </span>
+          ) : catLabel ? <CategoryPill label={catLabel} /> : null}
           {item.has_pending_extraction && extractionCount && extractionCount >= 2 && (
             <span style={{
               background: 'var(--accent-primary)', color: '#fff',

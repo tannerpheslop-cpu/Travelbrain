@@ -286,6 +286,8 @@ export default function ItemDetailPage() {
     ]
 
     return pills
+      // Hide creator_fave unless it's assigned to this item
+      .filter(p => p.tagName !== 'creator_fave' || p.assigned)
       .filter(p => !tagDraft || p.label.toLowerCase().includes(tagDraft.toLowerCase()))
       .sort((a, b) => {
         if (a.assigned !== b.assigned) return b.assigned ? 1 : -1
@@ -801,11 +803,12 @@ export default function ItemDetailPage() {
               <div style={{ display: 'flex', gap: 6 }}>
                 {sortedPills.filter((_, i) => i % 2 === 0).map((pill) => {
                   const Icon = pill.icon
+                  const isCreatorFavePill = pill.tagName === 'creator_fave'
                   return (
                     <button
                       key={pill.id}
                       type="button"
-                      onClick={() => {
+                      onClick={isCreatorFavePill ? undefined : () => {
                         if (pill.type === 'category') {
                           handleToggleCategoryTag(pill.tagName)
                         } else {
@@ -826,11 +829,12 @@ export default function ItemDetailPage() {
                         borderRadius: 9999,
                         fontSize: 12,
                         fontFamily: "'DM Sans', sans-serif",
-                        cursor: 'pointer',
+                        cursor: isCreatorFavePill ? 'default' : 'pointer',
                         whiteSpace: 'nowrap',
                         border: `1px solid ${pill.assigned ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
                         background: pill.assigned ? 'var(--accent-primary)' : 'var(--bg-elevated-1)',
                         color: pill.assigned ? '#e8eaed' : 'var(--text-tertiary)',
+                        opacity: isCreatorFavePill ? 0.7 : 1,
                         transition: 'all 0.15s ease-out',
                       }}
                     >
@@ -845,11 +849,12 @@ export default function ItemDetailPage() {
               <div style={{ display: 'flex', gap: 6 }}>
                 {sortedPills.filter((_, i) => i % 2 === 1).map((pill) => {
                   const Icon = pill.icon
+                  const isCreatorFavePill = pill.tagName === 'creator_fave'
                   return (
                     <button
                       key={pill.id}
                       type="button"
-                      onClick={() => {
+                      onClick={isCreatorFavePill ? undefined : () => {
                         if (pill.type === 'category') {
                           handleToggleCategoryTag(pill.tagName)
                         } else {
@@ -870,11 +875,12 @@ export default function ItemDetailPage() {
                         borderRadius: 9999,
                         fontSize: 12,
                         fontFamily: "'DM Sans', sans-serif",
-                        cursor: 'pointer',
+                        cursor: isCreatorFavePill ? 'default' : 'pointer',
                         whiteSpace: 'nowrap',
                         border: `1px solid ${pill.assigned ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
                         background: pill.assigned ? 'var(--accent-primary)' : 'var(--bg-elevated-1)',
                         color: pill.assigned ? '#e8eaed' : 'var(--text-tertiary)',
+                        opacity: isCreatorFavePill ? 0.7 : 1,
                         transition: 'all 0.15s ease-out',
                       }}
                     >

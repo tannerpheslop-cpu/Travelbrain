@@ -96,8 +96,8 @@ describe('deriveActiveTags — splits categories from custom tags', () => {
 })
 
 describe('category pill toggle behavior', () => {
-  it('all 12 system categories are available as pills', () => {
-    expect(SYSTEM_CATEGORIES).toHaveLength(12)
+  it('all 13 system categories exist (12 visible as pills when creator_fave unassigned)', () => {
+    expect(SYSTEM_CATEGORIES).toHaveLength(13)
     const tagNames = SYSTEM_CATEGORIES.map((c) => c.tagName)
     expect(tagNames).toContain('restaurant')
     expect(tagNames).toContain('bar_nightlife')
@@ -111,6 +111,9 @@ describe('category pill toggle behavior', () => {
     expect(tagNames).toContain('transport')
     expect(tagNames).toContain('wellness')
     expect(tagNames).toContain('events')
+    expect(tagNames).toContain('creator_fave')
+    // Note: creator_fave is filtered out of sortedPills when not assigned,
+    // so only 12 pills are visible for items without creator_fave tag
   })
 
   it('bar_nightlife label is "Bar" and coffee_cafe label is "Cafe"', () => {
@@ -226,8 +229,8 @@ function shouldShowCreateOption(
 }
 
 describe('search input filters categories and tags', () => {
-  it('shows all 12 categories when search is empty', () => {
-    expect(filterCategories('')).toHaveLength(12)
+  it('shows all 13 categories when search is empty', () => {
+    expect(filterCategories('')).toHaveLength(13)
   })
 
   it('filters categories by label', () => {
@@ -299,16 +302,16 @@ describe('assigned-first category sorting', () => {
   it('unassigned categories follow assigned ones', () => {
     const sorted = sortCategories(['restaurant'])
     expect(sorted[0].tagName).toBe('restaurant')
-    // All other 11 should come after
+    // All other 12 should come after
     const rest = sorted.slice(1).map(c => c.tagName)
     expect(rest).not.toContain('restaurant')
-    expect(rest).toHaveLength(11)
+    expect(rest).toHaveLength(12)
   })
 
   it('when no categories assigned, original order is preserved', () => {
     const sorted = sortCategories([])
     // No assigned means all equal — stable sort keeps original order
-    expect(sorted).toHaveLength(12)
+    expect(sorted).toHaveLength(13)
   })
 
   it('multiple assigned categories all sort to front', () => {

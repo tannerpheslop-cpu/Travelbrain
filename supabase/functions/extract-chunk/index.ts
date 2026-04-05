@@ -32,6 +32,12 @@ Rules:
 - If nothing fits, use ["activity"] as the default.
 - NEVER use values outside this list.
 
+For "creator_fave": set to true ONLY when the author gives this place distinctly stronger personal endorsement than other places in the same article. Look for language that breaks from the article's baseline tone — phrases like "my personal favorite," "the highlight of the trip," "I'd return just for this," "the one place you absolutely cannot skip," or dedicating significantly more space and detail to it than other entries.
+
+Do NOT mark places as creator_fave just because the article uses generic superlatives like "best," "amazing," "must-try," or "top pick" — these are standard listicle language applied to everything.
+
+In most articles, 0-2 places should be creator_fave. If every place seems equally recommended, mark NONE. When in doubt, do not mark it.
+
 Return ONLY valid JSON, no other text. No markdown backticks. No preamble.
 
 Return format:
@@ -45,6 +51,7 @@ Return format:
         {
           "name": "Da Dong Roast Duck Restaurant",
           "categories": ["restaurant"],
+          "creator_fave": false,
           "location_name": "Beijing, China",
           "context": "Recommended for Peking duck dinner. The author notes it serves Beijing's best relatively non-fatty duck.",
           "address": "22 Dongsishitiao"
@@ -82,6 +89,7 @@ interface StructuredResponse {
       name?: string
       category?: string         // backward compat: old single-category format
       categories?: string[]     // new array format
+      creator_fave?: boolean    // editorial signal from source creator
       location_name?: string
       context?: string
       address?: string
@@ -92,10 +100,11 @@ interface StructuredResponse {
 // ── Parsing ──────────────────────────────────────────────────────────────────
 
 const VALID_CATEGORIES = new Set([
-  // 12 system categories
+  // 13 system categories (12 place types + creator_fave)
   "restaurant", "bar_nightlife", "coffee_cafe", "hotel",
   "activity", "attraction", "shopping", "outdoors",
   "neighborhood", "transport", "wellness", "events",
+  "creator_fave",
 ])
 
 // Legacy values → system category mapping (for backward compat with old Haiku responses)
@@ -148,6 +157,9 @@ function parseStructuredResponse(responseText: string): ExtractedItem[] {
         .filter((it): it is Record<string, unknown> => !!it && typeof it === "object")
         .map((it, i) => {
           const cats = parseCategories(it as { category?: string; categories?: string[] })
+          if (it.creator_fave === true && !cats.includes("creator_fave")) {
+            cats.push("creator_fave")
+          }
           return {
             name: String(it.name || "").trim(),
             category: cats[0],
@@ -183,6 +195,9 @@ function parseStructuredResponse(responseText: string): ExtractedItem[] {
       seen.add(key)
 
       const cats = parseCategories(item)
+      if (item.creator_fave === true && !cats.includes("creator_fave")) {
+        cats.push("creator_fave")
+      }
 
       items.push({
         name,

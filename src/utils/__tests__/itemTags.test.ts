@@ -14,7 +14,7 @@ import {
 import { SYSTEM_CATEGORIES } from '../../lib/categories'
 
 describe('categoryLabel', () => {
-  it('maps all 12 system categories to their labels', () => {
+  it('maps all 13 system categories to their labels', () => {
     for (const cat of SYSTEM_CATEGORIES) {
       expect(categoryLabel[cat.tagName]).toBe(cat.label)
     }
@@ -100,8 +100,8 @@ describe('categoryFromLabel', () => {
 })
 
 describe('CATEGORY_TAG_LABELS', () => {
-  it('has exactly 12 labels matching system categories', () => {
-    expect(CATEGORY_TAG_LABELS).toHaveLength(12)
+  it('has exactly 13 labels matching system categories', () => {
+    expect(CATEGORY_TAG_LABELS).toHaveLength(13)
     for (const cat of SYSTEM_CATEGORIES) {
       expect(CATEGORY_TAG_LABELS).toContain(cat.label)
     }
@@ -114,8 +114,8 @@ describe('CATEGORY_TAG_LABELS', () => {
 })
 
 describe('CATEGORY_VALUES', () => {
-  it('has exactly 12 values matching system categories', () => {
-    expect(CATEGORY_VALUES).toHaveLength(12)
+  it('has exactly 13 values matching system categories', () => {
+    expect(CATEGORY_VALUES).toHaveLength(13)
     for (const cat of SYSTEM_CATEGORIES) {
       expect(CATEGORY_VALUES).toContain(cat.tagName)
     }

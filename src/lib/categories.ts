@@ -1,6 +1,6 @@
 import {
   Utensils, Wine, Coffee, Bed, Ticket, Landmark,
-  ShoppingBag, Trees, MapPinned, TrainFront, Flower2, CalendarHeart,
+  ShoppingBag, Trees, MapPinned, TrainFront, Flower2, CalendarHeart, Heart,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -17,6 +17,7 @@ export const SYSTEM_CATEGORIES = [
   { tagName: 'transport', label: 'Transport', icon: TrainFront },
   { tagName: 'wellness', label: 'Wellness', icon: Flower2 },
   { tagName: 'events', label: 'Events', icon: CalendarHeart },
+  { tagName: 'creator_fave', label: 'Creator Fave', icon: Heart },
 ] as const
 
 export type SystemCategoryName = typeof SYSTEM_CATEGORIES[number]['tagName']
@@ -51,6 +52,7 @@ export const LEGACY_CATEGORY_MAP: Record<string, SystemCategoryName> = {
   'transport': 'transport',
   'wellness': 'wellness',
   'events': 'events',
+  'creator_fave': 'creator_fave',
   // Legacy / synonym mappings
   'food': 'restaurant',
   'dining': 'restaurant',

@@ -180,10 +180,10 @@ describe('FilterBar', () => {
 })
 
 describe('buildAllPills', () => {
-  it('creates pills for all 12 system categories', () => {
+  it('creates pills for all 13 system categories', () => {
     const pills = buildAllPills([], [], [])
     const catPills = pills.filter(p => p.type === 'category')
-    expect(catPills).toHaveLength(12)
+    expect(catPills).toHaveLength(13)
   })
 
   it('creates location pills for each country', () => {

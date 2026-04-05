@@ -116,8 +116,8 @@ describe('categories.ts — label and icon correctness', () => {
     expect(catSource).toMatch(/wellness.*Flower2/)
   })
 
-  it('all 12 system categories are present', () => {
-    expect(SYSTEM_CATEGORIES).toHaveLength(12)
+  it('all 13 system categories are present', () => {
+    expect(SYSTEM_CATEGORIES).toHaveLength(13)
     const names = SYSTEM_CATEGORIES.map(c => c.tagName)
     expect(names).toContain('restaurant')
     expect(names).toContain('bar_nightlife')
@@ -131,6 +131,7 @@ describe('categories.ts — label and icon correctness', () => {
     expect(names).toContain('transport')
     expect(names).toContain('wellness')
     expect(names).toContain('events')
+    expect(names).toContain('creator_fave')
   })
 })
 
@@ -174,12 +175,12 @@ describe('Tag editor — sorting logic', () => {
     expect(filtered.some(c => c.tagName === 'coffee_cafe')).toBe(true)
   })
 
-  it('12 categories split into two rows of 6 pills each (even/odd distribution)', () => {
+  it('13 categories split into rows of 7 and 6 pills (even/odd distribution)', () => {
     const totalItems = SYSTEM_CATEGORIES.length
-    expect(totalItems).toBe(12)
-    const rowA = totalItems / 2 // even indices: 0,2,4,6,8,10
-    const rowB = totalItems / 2 // odd indices: 1,3,5,7,9,11
-    expect(rowA).toBe(6)
+    expect(totalItems).toBe(13)
+    const rowA = Math.ceil(totalItems / 2) // even indices: 0,2,4,6,8,10,12
+    const rowB = Math.floor(totalItems / 2) // odd indices: 1,3,5,7,9,11
+    expect(rowA).toBe(7)
     expect(rowB).toBe(6)
   })
 })

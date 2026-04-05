@@ -3,12 +3,12 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
-import { useRouteItems } from '../hooks/queries'
+import { useRouteItems, useAllUserTags } from '../hooks/queries'
 import { useToast } from '../components/Toast'
 import { ConfirmDeleteModal } from '../components/ui'
 import { optimizedImageUrl } from '../lib/optimizedImage'
 import { enrichRouteItems } from '../lib/enrichPhotoOnly'
-import { ChevronLeft, ChevronRight, MoreHorizontal, MapPin, Check } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MoreHorizontal, MapPin, Check, Heart } from 'lucide-react'
 import { getCategoryIcon as getCategoryIconFromLib, getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
 import {
   DndContext,
@@ -52,6 +52,7 @@ function SortableItemRow({
   editMode,
   selected,
   onToggleSelect,
+  isCreatorFave,
 }: {
   item: SavedItem
   onRemove: () => void
@@ -59,6 +60,7 @@ function SortableItemRow({
   editMode?: boolean
   selected?: boolean
   onToggleSelect?: () => void
+  isCreatorFave?: boolean
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id })
 
@@ -136,20 +138,24 @@ function SortableItemRow({
           }}>
             {item.title}
           </p>
-          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
             {locationShort && (
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-secondary)' }}>
                 {locationShort}
               </span>
             )}
-            {locationShort && item.category && item.category !== 'general' && (
+            {locationShort && (isCreatorFave || (item.category && item.category !== 'general')) && (
               <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>·</span>
             )}
-            {item.category && item.category !== 'general' && (
+            {isCreatorFave ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--text-secondary)', background: 'var(--bg-elevated-2)', padding: '3px 8px', borderRadius: 9999 }}>
+                <Heart size={12} /> Creator Fave
+              </span>
+            ) : item.category && item.category !== 'general' ? (
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
                 {categoryLabel}
               </span>
-            )}
+            ) : null}
           </div>
         </div>
       ) : (
@@ -165,20 +171,24 @@ function SortableItemRow({
           }}>
             {item.title}
           </p>
-          <div style={{ display: 'flex', gap: 4, marginTop: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
             {locationShort && (
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-secondary)' }}>
                 {locationShort}
               </span>
             )}
-            {locationShort && item.category && item.category !== 'general' && (
+            {locationShort && (isCreatorFave || (item.category && item.category !== 'general')) && (
               <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>·</span>
             )}
-            {item.category && item.category !== 'general' && (
+            {isCreatorFave ? (
+              <span data-testid="creator-fave-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--text-secondary)', background: 'var(--bg-elevated-2)', padding: '3px 8px', borderRadius: 9999 }}>
+                <Heart size={12} /> Creator Fave
+              </span>
+            ) : item.category && item.category !== 'general' ? (
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
                 {categoryLabel}
               </span>
-            )}
+            ) : null}
           </div>
         </Link>
       )}
@@ -212,6 +222,16 @@ export default function RouteDetailPage() {
   const { data: routeItemsData = [] } = useRouteItems(id ?? null)
   const routeItems = routeItemsData.map(ri => ri.saved_items)
   const [orderedIds, setOrderedIds] = useState<string[]>([])
+
+  // Fetch item_tags to detect creator_fave items
+  const { data: allUserTags = [] } = useAllUserTags(user?.id)
+  const creatorFaveIds = useMemo(() => {
+    const set = new Set<string>()
+    for (const tag of allUserTags) {
+      if (tag.tag_name === 'creator_fave') set.add(tag.item_id)
+    }
+    return set
+  }, [allUserTags])
 
   // Sync ordered IDs when route items change
   useEffect(() => {
@@ -630,6 +650,7 @@ export default function RouteDetailPage() {
                       editMode={editMode}
                       selected={selectedIds.has(item.id)}
                       onToggleSelect={() => toggleSelect(item.id)}
+                      isCreatorFave={creatorFaveIds.has(item.id)}
                     />
                   ))}
                 </div>
@@ -647,6 +668,7 @@ export default function RouteDetailPage() {
                   editMode={editMode}
                   selected={selectedIds.has(item.id)}
                   onToggleSelect={() => toggleSelect(item.id)}
+                  isCreatorFave={creatorFaveIds.has(item.id)}
                 />
               ))}
             </div>

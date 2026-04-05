@@ -9,8 +9,8 @@ import {
 } from '../categories'
 
 describe('SYSTEM_CATEGORIES', () => {
-  test('contains exactly 12 categories', () => {
-    expect(SYSTEM_CATEGORIES).toHaveLength(12)
+  test('contains exactly 13 categories', () => {
+    expect(SYSTEM_CATEGORIES).toHaveLength(13)
   })
 
   test('each category has tagName, label, and icon', () => {

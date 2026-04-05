@@ -86,8 +86,8 @@ describe('normalizeCategory for Unpack pipeline', () => {
     expect(normalizeCategory('')).toBe('activity')
   })
 
-  it('all 12 system categories are in the valid set', () => {
-    expect(VALID_CATEGORIES.size).toBe(12)
+  it('all 13 system categories are in the valid set', () => {
+    expect(VALID_CATEGORIES.size).toBe(13)
     for (const cat of SYSTEM_CATEGORIES) {
       expect(VALID_CATEGORIES.has(cat.tagName)).toBe(true)
     }
@@ -95,7 +95,7 @@ describe('normalizeCategory for Unpack pipeline', () => {
 })
 
 describe('LEGACY_CATEGORY_MAP completeness', () => {
-  it('all 12 system categories have identity mappings', () => {
+  it('all 13 system categories have identity mappings', () => {
     for (const cat of SYSTEM_CATEGORIES) {
       expect(LEGACY_CATEGORY_MAP[cat.tagName]).toBe(cat.tagName)
     }
