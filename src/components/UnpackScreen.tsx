@@ -51,6 +51,11 @@ function extractCity(locationName: string | null): string | null {
   return locationName.split(',')[0]?.trim() || null
 }
 
+/** Stable unique key for an extracted item (survives array reordering). */
+function itemKey(item: ExtractedDisplayItem): string {
+  return `${item.name}::${item.section_label}::${item.item_order}`
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 
 type Step = 'input' | 'processing' | 'done'
@@ -82,8 +87,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
   const cancelledRef = useRef(false)
   const [isSaving, setIsSaving] = useState(false)
 
-  // Completion checkboxes — all checked by default
-  const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set())
+  // Completion checkboxes — all checked by default, keyed by stable item key
+  const [checkedItems, setCheckedItems] = useState<Set<string>>(new Set())
   const allChecked = checkedItems.size === items.length && items.length > 0
 
   // Duplicate URL detection
@@ -176,6 +181,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
     setDuplicateRoute(null)
     cancelledRef.current = false
 
+    let currentEntryId = entryId
     try {
       // Check for existing Route from this URL (unless user chose "Unpack again")
       if (!skipDuplicateCheckRef.current) {
@@ -195,7 +201,6 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
       skipDuplicateCheckRef.current = false
 
       // Quick-save the URL if no existing entry
-      let currentEntryId = entryId
       if (!currentEntryId) {
         const { data: entry, error } = await supabase.from('saved_items').insert({
           user_id: user.id,
@@ -375,21 +380,21 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
       // Step 3: Done — show completion screen
       setStatus('complete')
-      setCheckedItems(new Set(allItems.map((_, i) => i))) // All checked by default
+      setCheckedItems(new Set(allItems.map(item => itemKey(item)))) // All checked by default
       setStep('done')
 
     } catch (err) {
       console.error('[unpack] Start failed:', err)
       setStatus('error')
       setErrorMessage('Something went wrong. Please try again.')
-      if (!sourceEntryId) { cleanupSourceEntry(entryId); setEntryId(null) }
+      if (!sourceEntryId) { cleanupSourceEntry(currentEntryId); setEntryId(null) }
       setStarting(false)
     }
   }, [urlInput, user, starting, preview, entryId, toast, itemCount, sourceEntryId, cleanupSourceEntry])
 
   // ── Save to Horizon (user taps button on completion screen) ──
   const handleSave = useCallback(async () => {
-    const selectedItems = items.filter((_, i) => checkedItems.has(i))
+    const selectedItems = items.filter(item => checkedItems.has(itemKey(item)))
     if (!user || !entryId || selectedItems.length === 0 || isSaving) return
     setIsSaving(true)
 
@@ -603,7 +608,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             <div style={{ padding: '0 16px 8px', display: 'flex', justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => {
                 if (allChecked) setCheckedItems(new Set())
-                else setCheckedItems(new Set(items.map((_, i) => i)))
+                else setCheckedItems(new Set(items.map(item => itemKey(item))))
               }} style={{
                 background: 'none', border: 'none', cursor: 'pointer',
                 fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--accent-primary)',
@@ -627,9 +632,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                   {label}
                 </div>
                 {sectionItems.map((item, i) => {
-                  // Find the global index for checkbox state
-                  const globalIdx = items.findIndex(it => it.name === item.name && it.section_label === item.section_label)
-                  const isChecked = step === 'done' ? checkedItems.has(globalIdx) : true
+                  const key = itemKey(item)
+                  const isChecked = step === 'done' ? checkedItems.has(key) : true
                   const showCheckbox = step === 'done'
 
                   return (
@@ -645,8 +649,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                         <button type="button" onClick={() => {
                           setCheckedItems(prev => {
                             const next = new Set(prev)
-                            if (next.has(globalIdx)) next.delete(globalIdx)
-                            else next.add(globalIdx)
+                            if (next.has(key)) next.delete(key)
+                            else next.add(key)
                             return next
                           })
                         }} style={{
@@ -726,7 +730,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                     borderRadius: 8, cursor: 'pointer',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13, color: 'var(--text-secondary)',
                   }}>Cancel</button>
-                  <button type="button" onClick={() => { setStep('input'); setStatus('reading'); setErrorMessage(null); setItems([]); setItemCount(0); setPrevCount(0); setStarting(false) }} style={{
+                  <button type="button" onClick={() => { setStep('input'); setStatus('reading'); setErrorMessage(null); setItems([]); setItemCount(0); setPrevCount(0); setStarting(false); setDisplayedItems([]); setDisplayedCount(0); revealQueueRef.current = []; revealingRef.current = false }} style={{
                     padding: '8px 20px', background: 'var(--accent-primary)', color: '#fff',
                     border: 'none', borderRadius: 8, cursor: 'pointer',
                     fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 600,

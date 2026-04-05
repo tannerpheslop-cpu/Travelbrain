@@ -221,6 +221,9 @@ export async function createRouteFromExtraction(
 
     if (insertErr || !savedItems) {
       console.error('[createRoute] Item creation failed:', insertErr?.message)
+      // Rollback: delete the orphaned Route
+      await supabase.from('routes').delete().eq('id', route.id)
+      console.log('[createRoute] Rolled back orphaned Route:', route.id)
       return null
     }
 
@@ -276,6 +279,13 @@ export async function createRouteFromExtraction(
 
     if (linkErr) {
       console.error('[createRoute] Route items linking failed:', linkErr.message)
+      // Rollback: delete saved_items and the Route to avoid orphaned data
+      const savedItemIds = savedItems.map(si => si.id)
+      await supabase.from('item_tags').delete().in('item_id', savedItemIds)
+      await supabase.from('saved_items').delete().in('id', savedItemIds)
+      await supabase.from('routes').delete().eq('id', route.id)
+      console.log('[createRoute] Rolled back Route + items after route_items failure')
+      return null
     }
 
     // Derive location metadata from the newly created saves
