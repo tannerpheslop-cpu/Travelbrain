@@ -170,7 +170,8 @@ Each step is a small tonal lift (3–5%). No big jumps. Use `bg-subtle` and `bg-
 | FAB | `--accent-primary` | Action — save something new |
 | Active nav icon | `--accent-primary` | Current location |
 | Inactive nav icon | `--text-tertiary` | Quiet — not competing with content |
-| Selected filter pills | `--state-selected` fill + `--accent-primary` text | Active choice |
+| Selected filter pills | `--accent-primary` fill + `#e8eaed` text | Active choice (solid orange bg, white text) |
+| Creator Fave pill | `--text-secondary` text + `--bg-elevated-2` bg (cards) | Monochrome — heart icon is the only visual differentiator |
 | Category pills | `--bg-elevated-2` fill + `--text-secondary` text | Scannable metadata (all categories uniform) |
 | Location pills | `rgba(141,150,160,0.20)` fill + `--text-tertiary` text | Geographic context |
 | Primary CTA buttons | `--accent-primary` | Only one on screen at a time |
@@ -181,7 +182,7 @@ Each step is a small tonal lift (3–5%). No big jumps. Use `bg-subtle` and `bg-
 Orange is meaningful only when it is rare. Enforce strictly:
 
 - **Allowed:** FAB, active nav indicator (small dot or icon only — not full tab), primary CTA button, badges on Route cards, selected state on pills/toggles, star nodes claimed by a trip, map markers and route lines, city glow on Horizon (Stage 4 only, very low opacity).
-- **Not allowed:** Section headers, passive chips, decorative dividers, secondary labels, navigation bars as a whole, any element that is always visible and non-interactive.
+- **Not allowed:** Section headers, passive chips, decorative dividers, secondary labels, navigation bars as a whole, any element that is always visible and non-interactive. Exception: Creator Fave pill uses `--text-secondary` (monochrome), not orange. The heart icon is the differentiator.
 - At any moment, **maximum 1–2 orange elements** should be visible on screen.
 
 ---
@@ -357,13 +358,30 @@ Layer 2 — City glow (REPLACES the sunset curve):
 
 ### Pills
 - All pills: first letter capitalized ("Historical" not "historical")
-- Border radius: pill (9999px)
-- All category pills: `--bg-elevated-2` fill, `--text-secondary` text, DM Sans 11px
+- Border radius: pill (9999px) for card/filter pills; 16px for SaveSheet category pills
+- Pill font size tiers: card metadata pills (~7px), shared CategoryPill (11px), interactive pills in SaveSheet/tag editor (12px), FilterBar/FilterSheet (13px)
+- All category pills (cards): `--bg-elevated-2` fill, `--text-secondary` text, DM Sans 11px
+- ImageCard pills: translucent white variants (`rgba(255,255,255,0.1)` bg, `rgba(255,255,255,0.6)` text) for legibility on photo backgrounds
 - Location pills: `rgba(141, 150, 160, 0.20)` fill, `--text-tertiary` text
-- Selected pills (filter bar): `--state-selected` fill, `--accent-primary` text
+- Selected pills (filter bar): `--accent-primary` fill, `#e8eaed` text (solid orange bg, white text)
 - No category-specific coloring — all categories use the same monochrome treatment
 - Card pills read from `item_tags` table, falling back to legacy `category` column
 - See `/docs/PILL-SYSTEM-CONTEXT.md` for the full pill system spec
+
+### SaveSheet Category Pills
+- Border radius: 16px (not 9999px)
+- Inactive: `1px solid var(--border-subtle)` border, transparent bg
+- Active: `border: none` + `var(--accent-primary)` bg, `#e8eaed` text
+- Text-only (no icons)
+- DM Sans 12px
+- Shows 12 of 13 categories (excludes `creator_fave`)
+
+### Tag Editor Pills (Item Detail)
+- Assigned: `--accent-primary` bg + `#e8eaed` text
+- Unassigned: `--bg-elevated-1` bg + `--text-tertiary` text
+- DM Sans 12px
+- Two-row masonry layout
+- `creator_fave` is non-interactive: `cursor: default`, `opacity: 0.7`
 
 ### Buttons
 - Primary: `--accent-primary` background, white text, 16px radius (or pill)
@@ -383,7 +401,7 @@ Layer 2 — City glow (REPLACES the sunset curve):
 - All modals: `fixed inset-x-0 bottom-0` pattern — never `flex items-end`
 - Sheet background: `--bg-base`
 - Border radius (top corners only): 24px
-- Handle indicator: `--border-strong`, 40px wide, 4px tall, centered
+- Handle indicator: `--border-subtle`, 36px wide, 4px tall, centered
 
 ### Shadows
 - Use `--shadow-sm` for cards on a surface

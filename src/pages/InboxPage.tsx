@@ -647,7 +647,7 @@ export default function InboxPage() {
         if (item.left_recent) return false // Permanently excluded
         if (item.route_id) return false // In a Route — Route card shows instead
         const ageHours = (now - new Date(item.created_at).getTime()) / (1000 * 60 * 60)
-        const isRecent = ageHours <= 24
+        const isRecent = ageHours <= 48
         const notViewed = !item.first_viewed_at
         const notInTrip = (tripLinkCounts.get(item.id) || 0) === 0
         return isRecent && notViewed && notInTrip
@@ -659,7 +659,7 @@ export default function InboxPage() {
       .filter((route) => {
         if (route.left_recent) return false
         const ageHours = (now - new Date(route.created_at).getTime()) / (1000 * 60 * 60)
-        const isRecent = ageHours <= 24
+        const isRecent = ageHours <= 48
         const notViewed = !route.first_viewed_at
         return isRecent && notViewed
       })
@@ -2126,7 +2126,7 @@ function TextCard({ item, tripCount, showShimmer, extractionCount, categoryLabel
                 className="flex items-center gap-0.5 text-[7px]"
                 style={{
                   fontFamily: "'DM Sans', sans-serif",
-                  color: 'var(--accent-primary, #B8441E)',
+                  color: 'var(--text-secondary)',
                   background: 'var(--bg-elevated-2)',
                   padding: '2px 5px',
                   borderRadius: 9999,
@@ -2203,7 +2203,7 @@ function ListRow({
               className="flex items-center gap-0.5"
               style={{
                 fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
-                color: 'var(--accent-primary, #B8441E)',
+                color: 'var(--text-secondary)',
                 background: 'var(--bg-elevated-2)',
                 padding: '1px 6px', borderRadius: 9999, lineHeight: 1,
               }}

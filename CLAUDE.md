@@ -56,7 +56,7 @@ These are the official UI labels. Database enum values may differ — always use
 | Trip-wide items section | **General** | `trip_general_items` | Packing lists, visa guides, etc. |
 | Save sheet title | **Add to your Horizon** | — | |
 | Save sheet CTA | **Save to my Horizon** | — | |
-| Item categories | **Restaurant, Activity, Hotel, Transit, General** | Same as label | |
+| Item categories | **Restaurant, Bar, Cafe, Hotel, Activity, Attraction, Shopping, Outdoors, Neighborhood, Transport, Wellness, Events, Creator Fave** | DB: `restaurant`, `bar_nightlife`, `coffee_cafe`, `hotel`, `activity`, `attraction`, `shopping`, `outdoors`, `neighborhood`, `transport`, `wellness`, `events`, `creator_fave` | See `src/lib/categories.ts` for the full mapping |
 | "Add from inbox" button | **Add from Horizon** | — | On trip/destination pages |
 
 **Important:** The DB enums (`aspirational`, `scheduled`) are NOT user-facing. Always map to the canonical labels above.
@@ -157,7 +157,7 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | location_name_en | TEXT (nullable) | English name for bilingual display |
 | location_name_local | TEXT (nullable) | Local language name |
 | location_locked | BOOLEAN (default false) | True when user manually set/changed location. Prevents Edge Function overwrite. |
-| category | ENUM | 'restaurant', 'activity', 'hotel', 'transit', 'general' (legacy single category) |
+| category | ENUM | 'restaurant', 'activity', 'hotel', 'transit', 'general' — Legacy, backwards-compat only. Active category system uses `item_tags` table + `SYSTEM_CATEGORIES` (13 categories). See `src/lib/categories.ts` for `LEGACY_CATEGORY_MAP`. |
 | notes | TEXT (nullable) | |
 | tags | TEXT[] (nullable) | Simple tag array (legacy — being replaced by item_tags) |
 | is_archived | BOOLEAN | Default false. Hidden from inbox when true. |
@@ -440,7 +440,7 @@ The inbox uses a responsive CSS grid grouped by country (or city, togglable). It
 
 ### Horizon Filters
 
-PillSheet bottom sheet with multi-select pill groups: Category, Country, Status, custom tags. OR within groups, AND across groups. Active filters show as dismissible pills below the search bar with "Clear all" at the right end. Country/City grouping toggle. Filter icon is icon-only (no text), tints copper when active.
+Two-tier filter system: inline FilterBar showing top 6 pills + FilterSheet bottom sheet opened via ListFilter icon. FilterSheet sections: Locations (with Country/City toggle), Categories (13 system categories), My Tags. OR within sections, AND across sections. See `/docs/PILL-SYSTEM-CONTEXT.md` for full spec. Active filters are highlighted in the inline FilterBar. FilterSheet has a 'Clear all filters' button at the bottom. ListFilter icon (no text), tints accent-primary when active. Opens FilterSheet.
 
 ### Recently Added Section
 
@@ -723,7 +723,7 @@ These features are coming post-Phase 0. Architect decisions so they're possible 
 
 - "Renders without crashing" tests (if it renders, integration tests will catch it)
 - Snapshot tests (they break on every change and nobody reads the diffs)
-- Tests that assert internal state shape or specific CSS classes (exception: regression tests for specific CSS bugs like the PillSheet bottom-sheet pattern)
+- Tests that assert internal state shape or specific CSS classes (exception: regression tests for specific CSS bugs like the FilterSheet bottom-sheet pattern)
 - Tests that mock so many dependencies they're testing the mock setup
 - Duplicate tests covering the same behavior from slightly different angles
 - Tests for trivial code (simple mappers, pass-through functions, type conversions)
@@ -758,7 +758,7 @@ See: `/src/lib/__tests__/locationDetectionPipeline.test.ts`, `/src/components/__
 - Recently Added items re-entering the queue after deletion (left_recent flag)
 - Save flow being replaced with a menu (FAB opens unified save sheet directly)
 - Images not displaying on Horizon cards (ImageWithFade error/loaded state reset)
-- PillSheet using flex items-end wrapper instead of fixed bottom-0 pattern (mobile touch targets)
+- FilterSheet (formerly PillSheet) using flex items-end wrapper instead of fixed bottom-0 pattern (mobile touch targets)
 - Suggestion labels showing neighborhood name instead of country name
 - Boilerplate stripping removing `<article>` content (Squarespace `has-comments` regression). See `src/lib/__tests__/cleanHtmlToText.fixtures.test.ts`
 

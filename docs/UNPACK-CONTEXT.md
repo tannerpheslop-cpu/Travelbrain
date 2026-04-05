@@ -55,6 +55,78 @@ Google Places does NOT provide or overwrite:
 - "group" — user-facing term for Route
 - "Scan for places" — action on existing saves to launch Unpack
 
+## Extraction Model
+
+extract-chunk uses `claude-haiku-4-5-20251001` via the Anthropic Messages API (max 4000 tokens, 30s timeout).
+
+## Categories Array Format
+
+Haiku returns a `categories` array per item, not a single category string. The prompt instructs it to assign all applicable categories from the valid list.
+
+Example Haiku response:
+```json
+{ "name": "Chatuchak Weekend Market", "categories": ["shopping", "activity"], "creator_fave": false, ... }
+```
+
+The `extract-chunk` function handles both formats via `parseCategories()`:
+- **New format:** `categories` array present and non-empty — each value is normalized.
+- **Legacy format:** single `category` string — wrapped in a one-element array and normalized.
+- **Missing:** defaults to `["activity"]`.
+
+## Valid Categories
+
+13 system categories (12 place types + creator_fave):
+
+| Category | Label | Icon |
+|----------|-------|------|
+| restaurant | Restaurant | Utensils |
+| bar_nightlife | Bar | Wine |
+| coffee_cafe | Cafe | Coffee |
+| hotel | Hotel | Bed |
+| activity | Activity | Ticket |
+| attraction | Attraction | Landmark |
+| shopping | Shopping | ShoppingBag |
+| outdoors | Outdoors | Trees |
+| neighborhood | Neighborhood | MapPinned |
+| transport | Transport | TrainFront |
+| wellness | Wellness | Flower2 |
+| events | Events | CalendarHeart |
+| creator_fave | Creator Fave | Heart |
+
+Canonical source: `src/lib/categories.ts` (`SYSTEM_CATEGORIES` array).
+
+## Creator Fave
+
+`creator_fave` is a special system category that represents the source creator's personal endorsement.
+
+**Haiku response:** `creator_fave: boolean` field per item. The prompt instructs Haiku to set this to true ONLY when the author gives a place distinctly stronger personal endorsement than other places in the same article (language like "my personal favorite," "the highlight of the trip," "I'd return just for this"). Standard listicle superlatives ("best," "amazing," "must-try") do NOT qualify. Target: 0-2 per article. If every place seems equally recommended, mark none.
+
+**Parsing in extract-chunk:** After `parseCategories()` builds the categories array, `creator_fave` is appended if `item.creator_fave === true` and not already present in the array.
+
+**UI surface:** Creator Fave appears as a monochrome heart-icon pill on Horizon cards and Route item cards. It is read-only in the tag editor (users cannot manually add or remove it). It is hidden from the SaveSheet category pill selector.
+
+## Normalization Logic
+
+Both `extract-chunk` (Edge Function) and `createRouteFromExtraction` (client) normalize categories before writing to the database.
+
+**`normalizeCategory(cat)`** in extract-chunk:
+1. Check `VALID_CATEGORIES` set — if the value is already valid, return as-is.
+2. Check `LEGACY_MAP` — maps old values like `"museum"` to `"attraction"`, `"park"` to `"outdoors"`, etc.
+3. Default: return `"activity"`.
+
+**`normalizeCategory(cat)`** in createRouteFromExtraction (uses `src/lib/categories.ts`):
+1. Check `LEGACY_CATEGORY_MAP` — includes both identity mappings and legacy synonyms (e.g., `"food"` to `"restaurant"`, `"shrine"` to `"attraction"`).
+2. Check `VALID_CATEGORIES` set (derived from `SYSTEM_CATEGORIES`).
+3. Default: return `"activity"`.
+
+**Deduplication:** After normalization, duplicates are removed (e.g., `["park", "outdoors"]` both normalize to `"outdoors"` — only one is kept). Written to `item_tags` via upsert with `onConflict: 'item_id,tag_name', ignoreDuplicates: true`.
+
+## Deployment Rules
+
+- ALL Edge Function deployments MUST use the `--no-verify-jwt` flag.
+- After deploying any extraction Edge Function (`prepare-extraction`, `extract-chunk`), run `./scripts/test-unpack-deploy.sh` to verify the deployment.
+- NEVER include `article` in boilerplate stripping regex tag lists — `<article>` is the main content container across all major CMSes (Squarespace, WordPress, Ghost, Substack). The canonical `cleanHtmlToText` lives in both `src/lib/cleanHtmlToText.ts` (for tests) and `supabase/functions/prepare-extraction/index.ts` (for Deno runtime).
+
 ## Cost Controls
 
 - 100 enrichment calls per day per user

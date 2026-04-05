@@ -73,7 +73,7 @@ Run this checklist after ANY change, regardless of what area was modified. These
 - [ ] Recently Added section shows newest entries at top
 - [ ] Recently Added entries are NOT duplicated in country groups
 - [ ] Shimmer appears on entries with pending location, stops after 30 seconds
-- [ ] Filter icon opens PillSheet, filters work, "Clear all" works
+- [ ] Filter icon opens FilterSheet, filters work, "Clear all" works
 - [ ] Search searches titles only
 - [ ] Country/City toggle works
 
