@@ -261,7 +261,9 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
         // Try to parse error details from response body
         try {
           const errData = await prepareRes.json() as { error?: string }
-          if (errData.error === 'fetch_failed') {
+          if (errData.error === 'bot_challenge') {
+            setErrorMessage("This website has bot protection that we can't bypass yet. Try saving the link manually instead.")
+          } else if (errData.error === 'fetch_failed') {
             setErrorMessage("Couldn't reach this website. The site may be blocking access or temporarily down.")
           } else if (errData.error === 'page_error' || errData.error === 'page_not_found') {
             setErrorMessage("This page couldn't be loaded. Check the URL and try again.")
@@ -285,6 +287,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
         const errCode = prepareData.error
         if (errCode === 'content_too_short') {
           setErrorMessage("This article doesn't have enough text content to extract places from. Try a different article.")
+        } else if (errCode === 'bot_challenge') {
+          setErrorMessage("This website has bot protection that we can't bypass yet. Try saving the link manually instead.")
         } else if (errCode === 'page_not_found' || errCode === 'page_error') {
           setErrorMessage("This page couldn't be loaded. Check the URL and try again.")
         } else if (errCode === 'fetch_failed') {

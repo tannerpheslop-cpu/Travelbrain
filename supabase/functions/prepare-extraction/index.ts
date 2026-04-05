@@ -7,8 +7,12 @@ const corsHeaders = {
 }
 
 const FETCH_TIMEOUT = 10_000
+const HEADLESS_TIMEOUT = 25_000
 const CHUNK_SIZE = 10000
 const MAX_CHUNKS = 5
+
+const HEADLESS_FETCH_URL = Deno.env.get("HEADLESS_FETCH_URL") ?? ""
+const HEADLESS_API_SECRET = Deno.env.get("HEADLESS_API_SECRET") ?? ""
 
 // ── HTML cleaning ────────────────────────────────────────────────────────────
 
@@ -185,6 +189,59 @@ function getDomain(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, "") } catch { return url }
 }
 
+// ── Bot challenge detection ─────────────────────────────────────────────────
+
+const CHALLENGE_SIGNATURES = [
+  "Security Checkpoint",
+  "Just a moment",
+  "Checking your browser",
+  "Attention Required",
+  "cf-browser-verification",
+  "challenge-platform",
+  "_cf_chl_opt",
+  "Verify you are human",
+  "Enable JavaScript and cookies to continue",
+]
+
+function looksLikeBotChallenge(html: string, httpStatus: number): boolean {
+  if (httpStatus === 403 || httpStatus === 429) return true
+  const lower = html.toLowerCase()
+  if (html.length < 5000 && CHALLENGE_SIGNATURES.some(sig => lower.includes(sig.toLowerCase()))) return true
+  return false
+}
+
+async function fetchViaHeadless(url: string): Promise<{ html: string; httpStatus: number; passed: boolean } | null> {
+  if (!HEADLESS_FETCH_URL || !HEADLESS_API_SECRET) {
+    console.log("[prepare] Headless fallback not configured — skipping")
+    return null
+  }
+  try {
+    console.log(`[prepare] Trying headless fallback for ${url}`)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), HEADLESS_TIMEOUT)
+    const resp = await fetch(`${HEADLESS_FETCH_URL}/fetch`, {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-secret": HEADLESS_API_SECRET,
+      },
+      body: JSON.stringify({ url, timeout: 20000 }),
+    })
+    clearTimeout(timeout)
+    const data = await resp.json()
+    if (data.success && data.html) {
+      console.log(`[prepare] Headless returned ${data.contentLength} chars, challenge_passed=${data.passedChallenge}`)
+      return { html: data.html, httpStatus: data.httpStatus, passed: data.passedChallenge }
+    }
+    console.log(`[prepare] Headless failed: ${data.error}`)
+    return null
+  } catch (err) {
+    console.log(`[prepare] Headless error: ${(err as Error).message}`)
+    return null
+  }
+}
+
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -204,6 +261,7 @@ Deno.serve(async (req: Request) => {
     let html = ""
     let title: string | null = null
     let thumbnail: string | null = null
+    let usedHeadless = false
 
     // Fetch the page for OG metadata + text content
     try {
@@ -231,8 +289,24 @@ Deno.serve(async (req: Request) => {
       html = await response.text()
       console.log(`[prepare-extraction] Fetched ${url}: HTTP ${response.status}, ${html.length} chars`)
 
-      // Return specific error for HTTP errors (4xx/5xx)
-      if (response.status >= 400) {
+      // Check for bot challenge — try headless fallback
+      if (looksLikeBotChallenge(html, response.status)) {
+        console.log(`[prepare] Bot challenge detected (HTTP ${response.status}, ${html.length} chars) — trying headless`)
+        const headlessResult = await fetchViaHeadless(url)
+        if (headlessResult && headlessResult.passed && headlessResult.html.length > html.length) {
+          html = headlessResult.html
+          usedHeadless = true
+          console.log(`[prepare] Using headless HTML (${html.length} chars)`)
+        } else if (!source_content) {
+          // Headless also failed — return bot challenge error
+          return new Response(JSON.stringify({ success: false, error: "bot_challenge", httpStatus: response.status }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          })
+        }
+      }
+
+      // Return specific error for HTTP errors (4xx/5xx) that aren't bot challenges
+      if (!usedHeadless && response.status >= 400) {
         if (!source_content) {
           return new Response(JSON.stringify({ success: false, error: "page_error", httpStatus: response.status }), {
             headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -244,8 +318,16 @@ Deno.serve(async (req: Request) => {
       thumbnail = getImage(html)
     } catch (err) {
       console.log(`[prepare-extraction] Fetch failed for ${url}: ${(err as Error).message}`)
-      // If fetch fails but we have source_content, we can still proceed
-      if (!source_content) {
+
+      // Direct fetch failed entirely — try headless as last resort
+      const headlessResult = await fetchViaHeadless(url)
+      if (headlessResult && headlessResult.html.length > 500) {
+        html = headlessResult.html
+        usedHeadless = true
+        title = getTitle(html)
+        thumbnail = getImage(html)
+        console.log(`[prepare] Using headless HTML after direct fetch failure (${html.length} chars)`)
+      } else if (!source_content) {
         return new Response(JSON.stringify({ success: false, error: "fetch_failed" }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         })
