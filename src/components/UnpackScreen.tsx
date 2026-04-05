@@ -246,14 +246,16 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
         console.error('[unpack] prepare-extraction failed:', err)
         setStatus('error')
         setErrorMessage("Couldn't read the article. Please try again.")
-        if (!sourceEntryId) cleanupSourceEntry(currentEntryId)
+        if (!sourceEntryId) { cleanupSourceEntry(currentEntryId); setEntryId(null) }
+        setStarting(false)
         return
       }
 
       if (!prepareRes.ok) {
         setStatus('error')
         setErrorMessage("Couldn't read the article. Please try again.")
-        if (!sourceEntryId) cleanupSourceEntry(currentEntryId)
+        if (!sourceEntryId) { cleanupSourceEntry(currentEntryId); setEntryId(null) }
+        setStarting(false)
         return
       }
 
@@ -264,7 +266,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
       if (!prepareData.success || !prepareData.chunks?.length) {
         setStatus('error')
         setErrorMessage(prepareData.error === 'content_too_short' ? "This article's content couldn't be read. Try a different URL." : "Couldn't read the article.")
-        if (!sourceEntryId) cleanupSourceEntry(currentEntryId)
+        if (!sourceEntryId) { cleanupSourceEntry(currentEntryId); setEntryId(null) }
+        setStarting(false)
         return
       }
 
@@ -344,7 +347,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
       if (allItems.length === 0) {
         setStatus('error')
         setErrorMessage('No places found in this article.')
-        if (!sourceEntryId) cleanupSourceEntry(currentEntryId)
+        if (!sourceEntryId) { cleanupSourceEntry(currentEntryId); setEntryId(null) }
+        setStarting(false)
         return
       }
 
@@ -357,7 +361,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
       console.error('[unpack] Start failed:', err)
       setStatus('error')
       setErrorMessage('Something went wrong. Please try again.')
-      if (!sourceEntryId) cleanupSourceEntry(entryId)
+      if (!sourceEntryId) { cleanupSourceEntry(entryId); setEntryId(null) }
+      setStarting(false)
     }
   }, [urlInput, user, starting, preview, entryId, toast, itemCount, sourceEntryId, cleanupSourceEntry])
 
