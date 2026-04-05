@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 import { deriveRouteLocation } from './deriveRouteLocation'
-import { SYSTEM_CATEGORIES, getCategoryLabel } from './categories'
+import { SYSTEM_CATEGORIES, getCategoryLabel, LEGACY_CATEGORY_MAP } from './categories'
 
 /**
  * Auto-creates a Route from completed extraction results.
@@ -126,12 +126,17 @@ export function parseCountryFromLocationName(locationName: string | null): { cou
   return { country: last, countryCode: code }
 }
 
-const VALID_CATEGORIES = new Set<string>([
-  ...SYSTEM_CATEGORIES.map(c => c.tagName),
-  // Legacy values still accepted from Haiku extraction
-  'museum', 'temple', 'park', 'hike', 'historical', 'nightlife',
-  'entertainment', 'spa', 'beach', 'other', 'transit', 'general',
-])
+const VALID_CATEGORIES = new Set<string>(
+  SYSTEM_CATEGORIES.map(c => c.tagName),
+)
+
+/** Normalize a category from Haiku (which may use legacy values) to a system category. */
+function normalizeCategory(cat: string): string {
+  const mapped = LEGACY_CATEGORY_MAP[cat]
+  if (mapped) return mapped
+  if (VALID_CATEGORIES.has(cat)) return cat
+  return 'activity'
+}
 
 export async function createRouteFromExtraction(
   extractionId: string,
@@ -194,7 +199,7 @@ export async function createRouteFromExtraction(
         source_url: sourceUrl,
         title: item.name, // FROM HAIKU — authoritative
         description: item.context, // FROM HAIKU — authoritative
-        category: VALID_CATEGORIES.has(item.category) ? item.category : 'general',
+        category: normalizeCategory(item.category),
         location_name: item.location_name,
         location_country: parsed?.country ?? null,
         location_country_code: parsed?.countryCode ?? null,
@@ -224,10 +229,11 @@ export async function createRouteFromExtraction(
     for (let i = 0; i < savedItems.length; i++) {
       const cats = items[i]?.categories ?? (items[i]?.category ? [items[i].category] : [])
       for (const cat of cats) {
-        if (VALID_CATEGORIES.has(cat)) {
+        const normalizedCat = normalizeCategory(cat)
+        if (VALID_CATEGORIES.has(normalizedCat)) {
           tagRows.push({
             item_id: savedItems[i].id,
-            tag_name: cat,
+            tag_name: normalizedCat,
             tag_type: 'category',
             user_id: userId,
           })

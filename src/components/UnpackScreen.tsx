@@ -19,6 +19,7 @@ interface OgPreview {
 interface ExtractedDisplayItem {
   name: string
   category: string
+  categories?: string[]
   location_name: string | null
   context: string | null
   section_label: string
@@ -245,12 +246,14 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
         console.error('[unpack] prepare-extraction failed:', err)
         setStatus('error')
         setErrorMessage("Couldn't read the article. Please try again.")
+        if (!sourceEntryId) cleanupSourceEntry(currentEntryId)
         return
       }
 
       if (!prepareRes.ok) {
         setStatus('error')
         setErrorMessage("Couldn't read the article. Please try again.")
+        if (!sourceEntryId) cleanupSourceEntry(currentEntryId)
         return
       }
 
@@ -260,7 +263,8 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
 
       if (!prepareData.success || !prepareData.chunks?.length) {
         setStatus('error')
-        setErrorMessage(prepareData.error === 'content_too_short' ? 'Article is too short to extract places from.' : "Couldn't read the article.")
+        setErrorMessage(prepareData.error === 'content_too_short' ? "This article's content couldn't be read. Try a different URL." : "Couldn't read the article.")
+        if (!sourceEntryId) cleanupSourceEntry(currentEntryId)
         return
       }
 
@@ -340,6 +344,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
       if (allItems.length === 0) {
         setStatus('error')
         setErrorMessage('No places found in this article.')
+        if (!sourceEntryId) cleanupSourceEntry(currentEntryId)
         return
       }
 
@@ -352,8 +357,9 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
       console.error('[unpack] Start failed:', err)
       setStatus('error')
       setErrorMessage('Something went wrong. Please try again.')
+      if (!sourceEntryId) cleanupSourceEntry(entryId)
     }
-  }, [urlInput, user, starting, preview, entryId, toast, itemCount])
+  }, [urlInput, user, starting, preview, entryId, toast, itemCount, sourceEntryId, cleanupSourceEntry])
 
   // ── Save to Horizon (user taps button on completion screen) ──
   const handleSave = useCallback(async () => {

@@ -50,11 +50,13 @@ function cleanHtmlToText(html: string): string {
   h = h.replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
 
   // 2. Remove elements with boilerplate class/id patterns
+  // NOTE: `article` is intentionally EXCLUDED from the tag list below — it's typically
+  // the main content container and should never be stripped by boilerplate removal.
+  // Squarespace, WordPress, and other CMSes put the article body inside <article>.
   for (const pattern of BOILERPLATE_PATTERNS) {
-    // Escape regex metacharacters in pattern to prevent injection
     const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
     const regex = new RegExp(
-      `<(div|section|aside|article|ul|ol|p|span)[^>]*(class|id)="[^"]*${escaped}[^"]*"[^>]*>[\\s\\S]*?<\\/\\1>`,
+      `<(div|section|aside|ul|ol|p|span)[^>]*(class|id)="[^"]*${escaped}[^"]*"[^>]*>[\\s\\S]*?<\\/\\1>`,
       "gi"
     )
     h = h.replace(regex, "")
