@@ -781,7 +781,7 @@ export default function SaveSheet({ onClose, onSaved, initialFile }: Props) {
               paddingBottom: 2,
             }}
           >
-            {SYSTEM_CATEGORIES.map(cat => {
+            {SYSTEM_CATEGORIES.filter(cat => cat.tagName !== 'creator_fave').map(cat => {
               const active = selectedTags.includes(cat.tagName)
               return (
                 <button
