@@ -1,12 +1,9 @@
-import { useCallback, useMemo, useState } from 'react'
-import { MapPin, Hash, SlidersHorizontal } from 'lucide-react'
+import { useCallback, useMemo } from 'react'
+import { MapPin, Hash } from 'lucide-react'
 import { SYSTEM_CATEGORIES, getCategoryIcon, LEGACY_CATEGORY_MAP } from '../lib/categories'
-import FilterSheet from './FilterSheet'
 import type { SavedItem } from '../types'
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-type GroupMode = 'country' | 'city'
 
 export interface FilterPill {
   id: string           // e.g. 'cat:restaurant', 'loc:JP', 'tag:Bucket List'
@@ -22,15 +19,11 @@ interface FilterBarProps {
   countryList: { code: string; name: string }[]
   customTags: string[]
   items: SavedItem[]
-  groupMode: GroupMode
-  onGroupModeChange: (mode: GroupMode) => void
-  /** Called when a custom tag is deleted from the More sheet */
-  onDeleteCustomTag?: (tagName: string) => void
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-const MAX_VISIBLE = 6
+export const MAX_VISIBLE = 6
 
 /** Build the unified pill list from all sources */
 export function buildAllPills(
@@ -98,7 +91,7 @@ export function buildAllPills(
 }
 
 /** Pick the visible pills: active first, then top by count */
-function getVisiblePills(allPills: FilterPill[], activeIds: Set<string>): FilterPill[] {
+export function getVisiblePills(allPills: FilterPill[], activeIds: Set<string>): FilterPill[] {
   const activePills = allPills.filter(p => activeIds.has(p.id))
   const remainingSlots = MAX_VISIBLE - activePills.length
   if (remainingSlots <= 0) return activePills
@@ -119,12 +112,7 @@ export default function FilterBar({
   countryList,
   customTags,
   items,
-  groupMode,
-  onGroupModeChange,
-  onDeleteCustomTag,
 }: FilterBarProps) {
-  const [showSheet, setShowSheet] = useState(false)
-
   const activeIds = useMemo(() => new Set(selectedFilters), [selectedFilters])
 
   const allPills = useMemo(
@@ -144,12 +132,6 @@ export default function FilterBar({
         : [...selectedFilters, pillId],
     )
   }, [selectedFilters, onSelectionChange])
-
-  // Check if any active filter is NOT in the visible bar (hidden in "More" sheet)
-  const hasHiddenActiveFilters = useMemo(() => {
-    const visibleIds = new Set(visiblePills.map(p => p.id))
-    return selectedFilters.some(f => !visibleIds.has(f))
-  }, [selectedFilters, visiblePills])
 
   return (
     <>
@@ -184,57 +166,7 @@ export default function FilterBar({
             />
           )
         })}
-
-        {/* More button — always visible */}
-        <button
-          type="button"
-          onClick={() => setShowSheet(true)}
-          style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-            background: 'var(--bg-elevated-1, #1c2126)',
-            border: '1px solid var(--border-subtle, #242a30)',
-            borderRadius: 9999,
-            padding: '6px 10px',
-            color: 'var(--text-secondary, #b9c0c7)',
-            cursor: 'pointer',
-          }}
-          data-testid="filter-more-btn"
-          aria-label="More filters"
-        >
-          <SlidersHorizontal className="w-4 h-4" />
-          {hasHiddenActiveFilters && (
-            <span
-              style={{
-                position: 'absolute',
-                top: -2,
-                right: -2,
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                background: 'var(--accent-primary, #B8441E)',
-              }}
-              data-testid="filter-more-dot"
-            />
-          )}
-        </button>
       </div>
-
-      {/* More sheet */}
-      {showSheet && (
-        <FilterSheet
-          allPills={allPills}
-          selectedFilters={selectedFilters}
-          onSelectionChange={onSelectionChange}
-          onClose={() => setShowSheet(false)}
-          groupMode={groupMode}
-          onGroupModeChange={onGroupModeChange}
-          onDeleteCustomTag={onDeleteCustomTag}
-        />
-      )}
     </>
   )
 }

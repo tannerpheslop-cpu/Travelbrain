@@ -6,10 +6,11 @@ import { useAuth } from '../lib/auth'
 import { useSavedItems, useAllSavedItems, useRoutes, useTripsQuery, useTripItemMappings, useTripLinkCounts, usePendingExtractionCounts, useUserCustomTags, useAllUserTags, queryKeys, fetchTrips } from '../hooks/queries'
 import SaveSheet from '../components/SaveSheet'
 import { useToast } from '../components/Toast'
-import FilterBar from '../components/FilterBar'
+import FilterBar, { buildAllPills, getVisiblePills } from '../components/FilterBar'
+import FilterSheet from '../components/FilterSheet'
 import { getCategoryLabel, LEGACY_CATEGORY_MAP } from '../lib/categories'
 import { optimizedImageUrl } from '../lib/optimizedImage'
-import { LayoutGrid, List, Search, X, ChevronDown, ChevronRight, CheckSquare } from 'lucide-react'
+import { LayoutGrid, List, Search, X, ChevronDown, ChevronRight, CheckSquare, SlidersHorizontal } from 'lucide-react'
 import { CategoryPill, CountryCodeBadge, PrimaryButton, DashedCard, ConfirmDeleteModal } from '../components/ui'
 import ScrollToTop from '../components/ScrollToTop'
 import SunsetBackground from '../components/horizon/SunsetBackground'
@@ -295,6 +296,7 @@ export default function InboxPage() {
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [showSaveSheet, setShowSaveSheet] = useState(false)
   const [selectedFilters, setSelectedFilters] = useState<string[]>([])
+  const [showFilterSheet, setShowFilterSheet] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   // ── Multi-select state ──
   const [multiSelectMode, setMultiSelectMode] = useState(false)
@@ -544,6 +546,20 @@ export default function InboxPage() {
       .sort((a, b) => a[1].localeCompare(b[1]))
       .map(([code, name]) => ({ code, name }))
   }, [items])
+
+  // All filter pills (used by More button tint + FilterSheet)
+  const allFilterPills = useMemo(
+    () => buildAllPills(items, countryList, customTags),
+    [items, countryList, customTags],
+  )
+
+  // Check if any active filter is NOT in the visible pill bar (hidden in "More" sheet)
+  const hasHiddenActiveFilters = useMemo(() => {
+    const activeIds = new Set(selectedFilters)
+    const visiblePills = getVisiblePills(allFilterPills, activeIds)
+    const visibleIds = new Set(visiblePills.map(p => p.id))
+    return selectedFilters.some(f => !visibleIds.has(f))
+  }, [allFilterPills, selectedFilters])
 
   // Parse selected filters into typed groups for filtering (typed IDs: cat:X, loc:XX, tag:X)
   const parsedFilters = useMemo(() => {
@@ -985,8 +1001,22 @@ export default function InboxPage() {
             ) : (
               /* Collapsed toolbar */
               <div className="flex items-center justify-between mb-3" style={{ height: 36 }}>
-                {/* Left: search + filter icons */}
+                {/* Left: more + search + multi-select icons */}
                 <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowFilterSheet(true)}
+                    className="flex items-center justify-center"
+                    style={{
+                      width: 32, height: 32, padding: 4, borderRadius: 6, border: 'none', cursor: 'pointer',
+                      color: hasHiddenActiveFilters || selectedFilters.length > 0 ? 'var(--accent-primary, #B8441E)' : 'var(--text-secondary, #b9c0c7)',
+                      background: 'none',
+                    }}
+                    aria-label="More filters"
+                    data-testid="filter-more-btn"
+                  >
+                    <SlidersHorizontal size={20} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => { setSearchExpanded(true); setTimeout(() => searchInputRef.current?.focus(), 50) }}
@@ -1053,9 +1083,6 @@ export default function InboxPage() {
               countryList={countryList}
               customTags={customTags}
               items={items}
-              groupMode={groupMode}
-              onGroupModeChange={setGroupMode}
-              onDeleteCustomTag={handleDeleteCustomTag}
             />
           </div>
         }
@@ -1505,6 +1532,19 @@ export default function InboxPage() {
 
     {/* Scroll to top — positioned above the FAB */}
     <ScrollToTop bottom={140} />
+
+    {/* Filter Sheet — triggered by More button in controls row */}
+    {showFilterSheet && (
+      <FilterSheet
+        allPills={allFilterPills}
+        selectedFilters={selectedFilters}
+        onSelectionChange={setSelectedFilters}
+        onClose={() => setShowFilterSheet(false)}
+        groupMode={groupMode}
+        onGroupModeChange={setGroupMode}
+        onDeleteCustomTag={handleDeleteCustomTag}
+      />
+    )}
 
     {/* Save Sheet — triggered by GlobalActions FAB via custom event */}
     {showSaveSheet && (

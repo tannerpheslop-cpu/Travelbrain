@@ -52,14 +52,12 @@ const defaultProps = {
   countryList: [{ code: 'JP', name: 'Japan' }, { code: 'CN', name: 'China' }],
   customTags: [] as string[],
   items: [] as SavedItem[],
-  groupMode: 'country' as const,
-  onGroupModeChange: vi.fn(),
 }
 
 describe('FilterBar', () => {
-  it('renders "More" button always', () => {
+  it('renders filter bar container', () => {
     render(<FilterBar {...defaultProps} />)
-    expect(screen.getByTestId('filter-more-btn')).toBeInTheDocument()
+    expect(screen.getByTestId('filter-bar')).toBeInTheDocument()
   })
 
   it('shows max 6 pills from highest count', () => {
@@ -158,25 +156,10 @@ describe('FilterBar', () => {
     expect(pills.length).toBe(7)
   })
 
-  it('"More" button has no orange dot when all active filters are visible', () => {
-    render(<FilterBar {...defaultProps} selectedFilters={['cat:restaurant']} />)
-    expect(screen.queryByTestId('filter-more-dot')).not.toBeInTheDocument()
-  })
-
-  it('tapping "More" opens FilterSheet', () => {
+  it('"More" button is NOT inside FilterBar (moved to controls row)', () => {
     render(<FilterBar {...defaultProps} />)
-    fireEvent.click(screen.getByTestId('filter-more-btn'))
-    expect(screen.getByTestId('filter-sheet')).toBeInTheDocument()
-  })
-
-  it('FilterSheet scrollable area has touch containment styles', () => {
-    render(<FilterBar {...defaultProps} />)
-    fireEvent.click(screen.getByTestId('filter-more-btn'))
-    const sheet = screen.getByTestId('filter-sheet')
-    const scrollable = sheet.querySelector('.overflow-y-auto') as HTMLElement
-    expect(scrollable).not.toBeNull()
-    expect(scrollable.style.overscrollBehavior).toBe('contain')
-    expect(scrollable.style.touchAction).toBe('pan-y')
+    const bar = screen.getByTestId('filter-bar')
+    expect(bar.querySelector('[data-testid="filter-more-btn"]')).toBeNull()
   })
 
   it('pills sorted by count — highest first', () => {
