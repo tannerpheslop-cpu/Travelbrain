@@ -30,7 +30,7 @@ The unified save flow (single input bottom sheet triggered by the FAB) is a core
 3. "Add a photo" area: dashed-border rectangle (1.5px dashed, 48px height). Tap opens photo picker. When photo attached, shows thumbnail with × to remove.
 4. URL preview area: height 0 by default, smoothly expands when URL detected. Shows loading skeleton, then metadata card.
 5. Location pill area: shows auto-detected location as a copper-tinted pill with × to dismiss. Below the pill: "Wrong? Tap × to change" hint (only for auto-detected, not manual).
-6. Category pills: multi-select, 12 system categories (excludes Creator Fave). Text-only, no icons. See `/docs/PILL-SYSTEM-CONTEXT.md` for full list.
+6. Category pills: 12 system categories (excludes Creator Fave) as horizontally scrollable pills. Multi-select. Text-only, no icons. No custom tag creation in save sheet. See `/docs/PILL-SYSTEM-CONTEXT.md` for full list.
 7. Location autocomplete field: Google Places, broad types (establishments + regions). Placeholder: "Location..." or "Change location..." when pill is showing.
 8. Notes field: "Notes (optional)"
 9. Save button: full width, always visible
