@@ -14,7 +14,7 @@ import SelectionOverlay from '../components/SelectionOverlay'
 import UnpackScreen from '../components/UnpackScreen'
 import { createRouteFromExtraction } from '../lib/createRouteFromExtraction'
 import { useToast } from '../components/Toast'
-import { X, Search, ChevronRight } from 'lucide-react'
+import { Search, ChevronRight } from 'lucide-react'
 import { SYSTEM_CATEGORIES } from '../lib/categories'
 
 
