@@ -207,10 +207,20 @@ Deno.serve(async (req: Request) => {
     if (text && text.length >= 100) {
       console.log(`[prepare-extraction] Processing pasted text: ${text.length} chars`)
       const chunks = chunkText(text)
+      // Derive a title from the first meaningful line of text when no URL
+      let textTitle = url ? getDomain(url) : null
+      if (!textTitle) {
+        const firstLine = text.split('\n').map(l => l.trim()).find(l => l.length >= 10)
+        if (firstLine) {
+          textTitle = firstLine.length <= 60
+            ? firstLine
+            : firstLine.slice(0, 60).replace(/\s+\S*$/, '') + '…'
+        }
+      }
       return new Response(JSON.stringify({
         success: true,
         chunks,
-        title: url ? getDomain(url) : "Pasted article",
+        title: textTitle ?? "Untitled",
         thumbnail: null,
         domain: url ? getDomain(url) : null,
         totalChars: text.length,

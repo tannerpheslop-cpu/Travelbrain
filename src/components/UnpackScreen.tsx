@@ -41,6 +41,19 @@ function extractDomain(url: string): string {
   try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
 }
 
+function deriveTitleFromText(text: string): string {
+  const firstLine = text.split('\n').map(l => l.trim()).find(l => l.length >= 10)
+  if (!firstLine) return 'Untitled Route'
+  return firstLine.length <= 60
+    ? firstLine
+    : firstLine.slice(0, 60).replace(/\s+\S*$/, '') + '\u2026'
+}
+
+function capitalizeDomain(url: string): string {
+  const domain = extractDomain(url)
+  return domain.charAt(0).toUpperCase() + domain.slice(1)
+}
+
 function resolveCategoryLabel(category: string): string {
   const resolved = LEGACY_CATEGORY_MAP[category] ?? category
   return getCategoryLabel(resolved)
@@ -449,7 +462,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
         const { data: entry, error } = await supabase.from('saved_items').insert({
           user_id: user.id,
           source_type: 'manual',
-          title: 'Pasted article',
+          title: deriveTitleFromText(sanitized),
           image_display: 'none',
           category: 'general' as Category,
         }).select('id').single()
@@ -535,7 +548,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             headers,
             body: JSON.stringify({
               chunk: chunks[i],
-              title: articleTitle ?? preview?.title ?? 'Pasted article',
+              title: articleTitle ?? preview?.title ?? (urlInput ? capitalizeDomain(urlInput) : 'Untitled'),
               chunk_index: i,
               total_chunks: chunks.length,
             }),
@@ -845,7 +858,7 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
             )}
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {preview?.title || urlInput || 'Pasted article'}
+                {preview?.title || (urlInput ? capitalizeDomain(urlInput) : 'Untitled')}
               </div>
               {urlInput && (
                 <div style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--text-tertiary)' }}>
