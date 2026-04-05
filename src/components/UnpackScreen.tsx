@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Check, AlertTriangle } from 'lucide-react'
+import { X, Check, AlertTriangle, Heart } from 'lucide-react'
 import { supabase, supabaseUrl, invokeEdgeFunction } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { useToast } from './Toast'
@@ -947,6 +947,17 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                           }}>
                             {resolveCategoryLabel(item.category)}
                           </span>
+                          {item.categories?.includes('creator_fave') && (
+                            <span style={{
+                              fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
+                              background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
+                              padding: '2px 8px', borderRadius: 999,
+                              display: 'inline-flex', alignItems: 'center', gap: 3,
+                            }}>
+                              <Heart size={10} fill="currentColor" />
+                              Creator Fave
+                            </span>
+                          )}
                           {extractCity(item.location_name) && (
                             <span style={{
                               fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
