@@ -148,8 +148,8 @@ function SortableItemRow({
               <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>·</span>
             )}
             {isCreatorFave ? (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--text-secondary)', background: 'var(--bg-elevated-2)', padding: '3px 8px', borderRadius: 9999 }}>
-                <Heart size={12} /> Creator Fave
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500, color: 'var(--text-secondary)', background: 'var(--bg-elevated-2)', padding: '1px 6px', borderRadius: 9999, lineHeight: 1 }}>
+                <Heart size={9} fill="currentColor" /> Fave
               </span>
             ) : item.category && item.category !== 'general' ? (
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
@@ -181,8 +181,8 @@ function SortableItemRow({
               <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>·</span>
             )}
             {isCreatorFave ? (
-              <span data-testid="creator-fave-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: "'DM Sans', sans-serif", fontSize: 11, color: 'var(--text-secondary)', background: 'var(--bg-elevated-2)', padding: '3px 8px', borderRadius: 9999 }}>
-                <Heart size={12} /> Creator Fave
+              <span data-testid="creator-fave-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500, color: 'var(--text-secondary)', background: 'var(--bg-elevated-2)', padding: '1px 6px', borderRadius: 9999, lineHeight: 1 }}>
+                <Heart size={9} fill="currentColor" /> Fave
               </span>
             ) : item.category && item.category !== 'general' ? (
               <span style={{ fontFamily: "'DM Sans', sans-serif", fontSize: 12, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>

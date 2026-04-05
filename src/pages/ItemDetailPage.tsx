@@ -834,7 +834,7 @@ export default function ItemDetailPage() {
                         border: `1px solid ${pill.assigned ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
                         background: pill.assigned ? 'var(--accent-primary)' : 'var(--bg-elevated-1)',
                         color: pill.assigned ? '#e8eaed' : 'var(--text-tertiary)',
-                        opacity: isCreatorFavePill ? 0.7 : 1,
+                        opacity: 1,
                         transition: 'all 0.15s ease-out',
                       }}
                     >
@@ -880,7 +880,7 @@ export default function ItemDetailPage() {
                         border: `1px solid ${pill.assigned ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
                         background: pill.assigned ? 'var(--accent-primary)' : 'var(--bg-elevated-1)',
                         color: pill.assigned ? '#e8eaed' : 'var(--text-tertiary)',
-                        opacity: isCreatorFavePill ? 0.7 : 1,
+                        opacity: 1,
                         transition: 'all 0.15s ease-out',
                       }}
                     >

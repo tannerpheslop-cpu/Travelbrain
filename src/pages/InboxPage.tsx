@@ -1680,10 +1680,10 @@ function RouteGridCard({ route, locationLabelOverride, categoryLabel }: { route:
 
   const locationPillStyle = {
     fontFamily: "'DM Sans', sans-serif",
-    fontSize: 11,
-    padding: '2px 7px',
-    borderRadius: 9999,
-    maxWidth: 120,
+    fontSize: 7,
+    padding: '2px 5px',
+    borderRadius: 9999 as number,
+    maxWidth: 100,
   }
 
   if (thumbnail) {
@@ -1736,11 +1736,14 @@ function RouteGridCard({ route, locationLabelOverride, categoryLabel }: { route:
             <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
               {locationLabel && (
                 <span
-                  className="truncate"
+                  className="font-mono truncate"
                   style={{
                     ...locationPillStyle,
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontWeight: 500,
                     color: 'rgba(255,255,255,0.85)',
-                    background: 'rgba(255,255,255,0.20)',
+                    background: 'rgba(255,255,255,0.18)',
+                    borderRadius: 3,
                   }}
                 >
                   {locationLabel}

@@ -956,27 +956,27 @@ export default function UnpackScreen({ onClose, onComplete, initialUrl, initialP
                           <span style={{
                             fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
                             background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
-                            padding: '2px 8px', borderRadius: 999,
+                            padding: '1px 6px', borderRadius: 9999,
                           }}>
                             {resolveCategoryLabel(item.category)}
                           </span>
                           {item.categories?.includes('creator_fave') && (
                             <span style={{
-                              fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
+                              fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
                               background: 'var(--bg-elevated-2)', color: 'var(--text-secondary)',
-                              padding: '2px 8px', borderRadius: 999,
-                              display: 'inline-flex', alignItems: 'center', gap: 3,
+                              padding: '1px 6px', borderRadius: 9999,
+                              display: 'inline-flex', alignItems: 'center', gap: 3, lineHeight: 1,
                             }}>
-                              <Heart size={10} fill="currentColor" />
-                              Creator Fave
+                              <Heart size={9} fill="currentColor" />
+                              Fave
                             </span>
                           )}
                           {extractCity(item.location_name) && (
                             <span style={{
-                              fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500,
-                              background: 'rgba(118, 130, 142, 0.2)',
+                              fontFamily: "'DM Sans', sans-serif", fontSize: 10, fontWeight: 500,
+                              background: 'rgba(141, 150, 160, 0.20)',
                               color: 'var(--text-tertiary)',
-                              padding: '2px 8px', borderRadius: 999,
+                              padding: '1px 6px', borderRadius: 9999,
                             }}>
                               {extractCity(item.location_name)}
                             </span>
