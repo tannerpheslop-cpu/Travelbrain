@@ -563,7 +563,8 @@ export default function RouteDetailPage() {
       {showUnmergeConfirm && (
         <ConfirmDeleteModal
           title="Break apart?"
-          description={`This will separate all ${route?.item_count ?? sortedItems.length} items into individual saves on your Horizon.`}
+          description={`This will separate the ${route?.item_count ?? sortedItems.length} places in this group into individual saves on your Horizon. Nothing will be deleted.`}
+          confirmLabel="Break apart"
           onCancel={() => setShowUnmergeConfirm(false)}
           loading={false}
           onConfirm={handleUnmerge}

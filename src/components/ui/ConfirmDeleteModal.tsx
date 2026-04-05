@@ -80,7 +80,7 @@ export default function ConfirmDeleteModal({
               opacity: loading ? 0.5 : 1, transition: 'background 150ms',
             }}
           >
-            {loading ? 'Deleting…' : confirmLabel}
+            {loading ? `${confirmLabel}…` : confirmLabel}
           </button>
         </div>
       </div>

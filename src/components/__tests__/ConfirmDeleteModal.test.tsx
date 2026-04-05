@@ -73,9 +73,9 @@ describe('ConfirmDeleteModal', () => {
     expect(onCancel).not.toHaveBeenCalled()
   })
 
-  it('shows "Deleting…" and disables buttons when loading', () => {
+  it('shows loading label with ellipsis and disables buttons when loading', () => {
     render(<ConfirmDeleteModal onConfirm={vi.fn()} onCancel={vi.fn()} loading />)
-    expect(screen.getByText('Deleting…')).toBeInTheDocument()
+    expect(screen.getByText('Delete…')).toBeInTheDocument()
     expect(screen.queryByText('Delete')).not.toBeInTheDocument()
 
     const buttons = screen.getAllByRole('button')
