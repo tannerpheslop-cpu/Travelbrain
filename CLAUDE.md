@@ -157,7 +157,7 @@ We are building a **web-based MVP** to validate core planning loops before inves
 | location_name_en | TEXT (nullable) | English name for bilingual display |
 | location_name_local | TEXT (nullable) | Local language name |
 | location_locked | BOOLEAN (default false) | True when user manually set/changed location. Prevents Edge Function overwrite. |
-| category | ENUM | 'restaurant', 'activity', 'hotel', 'transit', 'general' — Legacy, backwards-compat only. Active category system uses `item_tags` table + `SYSTEM_CATEGORIES` (13 categories). See `src/lib/categories.ts` for `LEGACY_CATEGORY_MAP`. |
+| category | ENUM | 'restaurant', 'activity', 'hotel', 'transit', 'general' — **LEGACY: reads should use `item_tags` table.** Still written as fallback but `item_tags` is canonical. Active category system uses `SYSTEM_CATEGORIES` (13 categories). See `src/lib/categories.ts` for `LEGACY_CATEGORY_MAP`. |
 | notes | TEXT (nullable) | |
 | tags | TEXT[] (nullable) | Simple tag array (legacy — being replaced by item_tags) |
 | is_archived | BOOLEAN | Default false. Hidden from inbox when true. |
@@ -758,7 +758,7 @@ See: `/src/lib/__tests__/locationDetectionPipeline.test.ts`, `/src/components/__
 - Recently Added items re-entering the queue after deletion (left_recent flag)
 - Save flow being replaced with a menu (FAB opens unified save sheet directly)
 - Images not displaying on Horizon cards (ImageWithFade error/loaded state reset)
-- FilterSheet (formerly PillSheet) using flex items-end wrapper instead of fixed bottom-0 pattern (mobile touch targets)
+- FilterSheet using flex items-end wrapper instead of fixed bottom-0 pattern (mobile touch targets)
 - Suggestion labels showing neighborhood name instead of country name
 - Boilerplate stripping removing `<article>` content (Squarespace `has-comments` regression). See `src/lib/__tests__/cleanHtmlToText.fixtures.test.ts`
 
