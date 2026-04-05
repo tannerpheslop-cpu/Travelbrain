@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth'
 import { trackEvent } from '../lib/analytics'
-import { useSavedItem, useDeleteItem, useItemTags, useAddTag, useRemoveTag, useUserCustomTags, queryKeys } from '../hooks/queries'
+import { useSavedItem, useDeleteItem, useItemTags, useAddTag, useRemoveTag, useUserCustomTags, useAllUserTags, queryKeys } from '../hooks/queries'
 import { useQueryClient, useQuery } from '@tanstack/react-query'
 import AddToTripSheet from '../components/AddToTripSheet'
 import SavedItemImage from '../components/SavedItemImage'
@@ -16,6 +16,7 @@ import { createRouteFromExtraction } from '../lib/createRouteFromExtraction'
 import { useToast } from '../components/Toast'
 import { Search, ChevronRight } from 'lucide-react'
 import { SYSTEM_CATEGORIES } from '../lib/categories'
+import type { LucideIcon } from 'lucide-react'
 
 
 export default function ItemDetailPage() {
@@ -229,25 +230,68 @@ export default function ItemDetailPage() {
       .slice(0, 5)
   }, [tagDraft, allCustomTags, activeCustomTags])
 
-  // Filtered categories & custom tags based on search input, with assigned-first sort
-  const filteredCategories = useMemo(() => {
-    const q = tagDraft.trim().toLowerCase()
-    const base = q
-      ? SYSTEM_CATEGORIES.filter(cat => cat.label.toLowerCase().includes(q) || cat.tagName.toLowerCase().includes(q))
-      : [...SYSTEM_CATEGORIES]
-    // Sort: assigned first, then unassigned
-    return base.sort((a, b) => {
-      const aActive = activeCategoryTags.includes(a.tagName) ? 1 : 0
-      const bActive = activeCategoryTags.includes(b.tagName) ? 1 : 0
-      return bActive - aActive
-    })
-  }, [tagDraft, activeCategoryTags])
+  // All user tags with counts for sorting
+  const { data: allUserTagRows = [] } = useAllUserTags(user?.id)
 
-  const filteredCustomTags = useMemo(() => {
-    const q = tagDraft.trim().toLowerCase()
-    if (!q) return [...activeCustomTags].sort()
-    return activeCustomTags.filter(t => t.toLowerCase().includes(q)).sort()
-  }, [tagDraft, activeCustomTags])
+  // Global tag counts (how many items have each tag across this user's saves)
+  const globalCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const row of allUserTagRows) {
+      counts[row.tag_name] = (counts[row.tag_name] || 0) + 1
+    }
+    return counts
+  }, [allUserTagRows])
+
+  // All distinct custom tag names the user has created (with counts)
+  const allUserCustomTagsWithCounts = useMemo(() => {
+    const tagMap = new Map<string, number>()
+    for (const row of allUserTagRows) {
+      if (row.tag_type === 'custom') {
+        tagMap.set(row.tag_name, (tagMap.get(row.tag_name) || 0) + 1)
+      }
+    }
+    return Array.from(tagMap.entries()).map(([tagName, count]) => ({ tagName, count }))
+  }, [allUserTagRows])
+
+  // Unified sorted pill list — system categories + user custom tags interleaved
+  interface PillItem {
+    id: string
+    type: 'category' | 'custom'
+    label: string
+    tagName: string
+    icon?: LucideIcon
+    assigned: boolean
+    globalCount: number
+  }
+
+  const sortedPills = useMemo((): PillItem[] => {
+    const pills: PillItem[] = [
+      ...SYSTEM_CATEGORIES.map(cat => ({
+        id: `cat:${cat.tagName}`,
+        type: 'category' as const,
+        label: cat.label,
+        tagName: cat.tagName,
+        icon: cat.icon,
+        assigned: activeCategoryTags.includes(cat.tagName),
+        globalCount: globalCounts[cat.tagName] || 0,
+      })),
+      ...allUserCustomTagsWithCounts.map(tag => ({
+        id: `tag:${tag.tagName}`,
+        type: 'custom' as const,
+        label: tag.tagName,
+        tagName: tag.tagName,
+        assigned: activeCustomTags.includes(tag.tagName),
+        globalCount: tag.count || 0,
+      })),
+    ]
+
+    return pills
+      .filter(p => !tagDraft || p.label.toLowerCase().includes(tagDraft.toLowerCase()))
+      .sort((a, b) => {
+        if (a.assigned !== b.assigned) return b.assigned ? 1 : -1
+        return b.globalCount - a.globalCount
+      })
+  }, [activeCategoryTags, activeCustomTags, allUserCustomTagsWithCounts, globalCounts, tagDraft])
 
   // Show "Create" option when search doesn't match any existing tag
   const showCreateOption = useMemo(() => {
@@ -762,29 +806,39 @@ export default function ItemDetailPage() {
             </button>
           )}
 
-          {/* Row 1: System categories — single horizontal scroll row */}
+          {/* Two-row interleaved grid — scrolls as one unit */}
           <div
             className="tag-row"
             style={{
-              display: 'flex',
-              flexWrap: 'nowrap',
+              display: 'grid',
+              gridTemplateRows: 'auto auto',
+              gridAutoFlow: 'column',
+              gridAutoColumns: 'max-content',
               overflowX: 'auto',
               gap: 6,
-              marginBottom: 6,
               WebkitOverflowScrolling: 'touch',
               scrollbarWidth: 'none',
             }}
-            data-testid="category-grid"
+            data-testid="category-tag-grid"
           >
-            {filteredCategories.map((cat) => {
-              const active = activeCategoryTags.includes(cat.tagName)
-              const Icon = cat.icon
+            {sortedPills.map((pill) => {
+              const Icon = pill.icon
               return (
                 <button
-                  key={cat.tagName}
+                  key={pill.id}
                   type="button"
-                  onClick={() => handleToggleCategoryTag(cat.tagName)}
-                  data-testid={`category-pill-${cat.tagName}`}
+                  onClick={() => {
+                    if (pill.type === 'category') {
+                      handleToggleCategoryTag(pill.tagName)
+                    } else {
+                      if (pill.assigned) {
+                        handleRemoveTag(pill.tagName)
+                      } else {
+                        handleAddCustomTag(pill.tagName)
+                      }
+                    }
+                  }}
+                  data-testid={`pill-${pill.id}`}
                   style={{
                     flexShrink: 0,
                     display: 'flex',
@@ -795,72 +849,20 @@ export default function ItemDetailPage() {
                     fontSize: 12,
                     fontFamily: "'DM Sans', sans-serif",
                     cursor: 'pointer',
-                    border: `1px solid ${active ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
-                    background: active ? 'var(--accent-primary)' : 'var(--bg-elevated-1)',
-                    color: active ? '#e8eaed' : 'var(--text-tertiary)',
+                    whiteSpace: 'nowrap',
+                    border: `1px solid ${pill.assigned ? 'var(--accent-primary)' : 'var(--border-subtle)'}`,
+                    background: pill.assigned ? 'var(--accent-primary)' : 'var(--bg-elevated-1)',
+                    color: pill.assigned ? '#e8eaed' : 'var(--text-tertiary)',
                     transition: 'all 0.15s ease-out',
                   }}
                 >
-                  <Icon size={14} />
-                  {cat.label}
+                  {pill.type === 'category' && Icon && <Icon size={14} />}
+                  {pill.type === 'custom' && <span style={{ opacity: 0.7 }}>#</span>}
+                  {pill.label}
                 </button>
               )
             })}
           </div>
-
-          {/* Row 2: User tags — single horizontal scroll row (only if user has tags) */}
-          {filteredCustomTags.length > 0 && (
-            <div
-              className="tag-row"
-              style={{
-                display: 'flex',
-                flexWrap: 'nowrap',
-                overflowX: 'auto',
-                gap: 6,
-                WebkitOverflowScrolling: 'touch',
-                scrollbarWidth: 'none',
-              }}
-              data-testid="custom-tags-list"
-            >
-              {filteredCustomTags.map((tag) => (
-                <span
-                  key={tag}
-                  data-testid={`custom-tag-${tag}`}
-                  style={{
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                    padding: '3px 8px',
-                    borderRadius: 9999,
-                    fontSize: 11,
-                    fontFamily: "'DM Sans', sans-serif",
-                    background: 'var(--accent-primary)',
-                    color: '#e8eaed',
-                    border: '1px solid var(--accent-primary)',
-                  }}
-                >
-                  #{tag}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveTag(tag)}
-                    data-testid={`custom-tag-remove-${tag}`}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#e8eaed',
-                      cursor: 'pointer',
-                      padding: 0,
-                      fontSize: 11,
-                      lineHeight: 1,
-                    }}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Location */}

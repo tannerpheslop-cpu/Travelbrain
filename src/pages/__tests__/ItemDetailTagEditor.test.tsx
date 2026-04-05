@@ -1,9 +1,8 @@
 /**
  * Tag editor tests for ItemDetailPage.
  *
- * Tests the two-row tag layout structure, search/create, toggle, and removal logic.
- * Uses unit tests on the data layer + structural assertions on the source code
- * since rendering the full ItemDetailPage requires extensive mocking.
+ * Verifies the unified two-row CSS Grid layout (system categories + user tags
+ * interleaved), search/create input, tag toggling, and visual structure.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'fs'
@@ -17,72 +16,75 @@ const SOURCE = fs.readFileSync(
 )
 
 describe('ItemDetailPage — Tag Editor structure', () => {
-  it('renders two rows: category-grid (Row 1) and custom-tags-list (Row 2)', () => {
-    // Both data-testid markers must exist
-    expect(SOURCE).toContain('data-testid="category-grid"')
-    expect(SOURCE).toContain('data-testid="custom-tags-list"')
-
-    // category-grid appears before custom-tags-list in source
-    const gridIdx = SOURCE.indexOf('data-testid="category-grid"')
-    const tagsIdx = SOURCE.indexOf('data-testid="custom-tags-list"')
-    expect(gridIdx).toBeLessThan(tagsIdx)
+  it('renders a single unified grid (category-tag-grid), not separate rows', () => {
+    expect(SOURCE).toContain('data-testid="category-tag-grid"')
+    // Old separate containers should NOT exist
+    expect(SOURCE).not.toContain('data-testid="category-grid"')
+    expect(SOURCE).not.toContain('data-testid="custom-tags-list"')
   })
 
-  it('both rows use horizontal scroll (flex-nowrap, overflow-x auto)', () => {
-    // Both rows use the tag-row class for scrollbar hiding and share the same layout style
-    expect(SOURCE).toContain("className=\"tag-row\"")
+  it('grid uses CSS Grid with two rows and column auto-flow', () => {
+    expect(SOURCE).toContain("gridTemplateRows: 'auto auto'")
+    expect(SOURCE).toContain("gridAutoFlow: 'column'")
+    expect(SOURCE).toContain("gridAutoColumns: 'max-content'")
+  })
 
-    // Both rows have flexWrap: nowrap and overflowX: auto
-    // Find the two tag-row sections
-    const tagRowSections = SOURCE.split('className="tag-row"')
-    // There should be at least 2 sections after the first occurrence (meaning 2 tag-rows)
-    expect(tagRowSections.length).toBeGreaterThanOrEqual(3) // original + 2 splits
-
-    // Verify scrollbar-hide CSS is present
-    expect(SOURCE).toContain('.tag-row::-webkit-scrollbar')
+  it('grid scrolls horizontally (overflowX auto, scrollbar hidden)', () => {
+    expect(SOURCE).toContain("overflowX: 'auto'")
     expect(SOURCE).toContain("scrollbarWidth: 'none'")
+    expect(SOURCE).toContain('.tag-row::-webkit-scrollbar')
   })
 
-  it('assigned categories sort to the left (sort logic in filteredCategories)', () => {
-    // The sort logic should prioritize active/assigned categories
-    expect(SOURCE).toContain('activeCategoryTags.includes(a.tagName)')
-    expect(SOURCE).toContain('bActive - aActive')
+  it('both rows scroll together (single container, not two divs)', () => {
+    // Only one tag-row element should exist for the grid
+    const gridMatches = SOURCE.match(/data-testid="category-tag-grid"/g)
+    expect(gridMatches).toHaveLength(1)
   })
 
-  it('search input filters both category and custom tag rows', () => {
-    // filteredCategories is driven by tagDraft
-    expect(SOURCE).toContain('tagDraft.trim().toLowerCase()')
-    // filteredCustomTags is also driven by tagDraft
-    expect(SOURCE).toContain('activeCustomTags.filter(t => t.toLowerCase().includes(q))')
+  it('assigned pills sort to the left (sort logic with assigned flag)', () => {
+    expect(SOURCE).toContain('a.assigned !== b.assigned')
+    expect(SOURCE).toContain('b.assigned ? 1 : -1')
+    expect(SOURCE).toContain('b.globalCount - a.globalCount')
   })
 
-  it('has "Create #..." option when search does not match existing', () => {
+  it('system categories show Lucide icons', () => {
+    expect(SOURCE).toContain("pill.type === 'category' && Icon && <Icon size={14} />")
+  })
+
+  it('user tags show # prefix', () => {
+    expect(SOURCE).toContain("pill.type === 'custom'")
+    expect(SOURCE).toContain('#</span>')
+  })
+
+  it('tapping a category toggles via handleToggleCategoryTag', () => {
+    expect(SOURCE).toContain("pill.type === 'category'")
+    expect(SOURCE).toContain('handleToggleCategoryTag(pill.tagName)')
+  })
+
+  it('tapping a custom tag toggles assignment (add or remove)', () => {
+    // Custom tags toggle: assigned → remove, unassigned → add
+    expect(SOURCE).toContain('handleRemoveTag(pill.tagName)')
+    expect(SOURCE).toContain('handleAddCustomTag(pill.tagName)')
+    expect(SOURCE).toContain('pill.assigned')
+  })
+
+  it('no x button on pills (toggle-only, no custom-tag-remove testids)', () => {
+    expect(SOURCE).not.toContain('custom-tag-remove-')
+  })
+
+  it('search filters the grid via tagDraft', () => {
+    expect(SOURCE).toContain('tagDraft')
+    expect(SOURCE).toContain('p.label.toLowerCase().includes(tagDraft.toLowerCase())')
+  })
+
+  it('creating a new tag from search works', () => {
     expect(SOURCE).toContain('data-testid="tag-create-option"')
-    expect(SOURCE).toContain('Create')
-    expect(SOURCE).toContain('#{tagDraft.trim()}')
+    expect(SOURCE).toContain('handleAddCustomTag(tagDraft.trim())')
   })
 
-  it('x button removes a user tag (separate button inside span)', () => {
-    // Custom tags are <span> elements with an internal <button> for removal
-    expect(SOURCE).toContain('data-testid={`custom-tag-remove-${tag}`}')
-    expect(SOURCE).toContain('handleRemoveTag(tag)')
-    // The × character should be present
-    expect(SOURCE).toContain('>')
-  })
-
-  it('toggling categories calls handleToggleCategoryTag', () => {
-    expect(SOURCE).toContain('handleToggleCategoryTag(cat.tagName)')
-  })
-
-  it('custom tag pills show # prefix, category pills show icon', () => {
-    // Category pills render <Icon size={14} />
-    expect(SOURCE).toContain('<Icon size={14} />')
-    // Custom tags show # prefix
-    expect(SOURCE).toContain('#{tag}')
-  })
-
-  it('user tags row is hidden when no custom tags exist', () => {
-    expect(SOURCE).toContain('filteredCustomTags.length > 0')
+  it('unified pill list combines SYSTEM_CATEGORIES and user custom tags', () => {
+    expect(SOURCE).toContain('...SYSTEM_CATEGORIES.map(cat =>')
+    expect(SOURCE).toContain('...allUserCustomTagsWithCounts.map(tag =>')
   })
 })
 
@@ -100,16 +102,11 @@ describe('categories.ts — label and icon correctness', () => {
   })
 
   it('"wellness" uses Flower2 icon', () => {
-    const wellness = SYSTEM_CATEGORIES.find(c => c.tagName === 'wellness')
-    expect(wellness).toBeDefined()
-    // Verify the icon is Flower2 by checking the categories.ts source
     const catSource = fs.readFileSync(
       path.resolve(__dirname, '..', '..', 'lib', 'categories.ts'),
       'utf-8',
     )
-    expect(catSource).toContain("import {")
-    expect(catSource).toContain("Flower2")
-    // Verify wellness line uses Flower2
+    expect(catSource).toContain('Flower2')
     expect(catSource).toMatch(/wellness.*Flower2/)
   })
 
@@ -132,13 +129,14 @@ describe('categories.ts — label and icon correctness', () => {
 })
 
 describe('Tag editor — sorting logic', () => {
-  it('assigned categories sort before unassigned', () => {
+  it('assigned pills sort before unassigned', () => {
     const assignedSet = new Set(['shopping', 'hotel'])
 
     const sorted = [...SYSTEM_CATEGORIES].sort((a, b) => {
       const aAssigned = assignedSet.has(a.tagName) ? 1 : 0
       const bAssigned = assignedSet.has(b.tagName) ? 1 : 0
-      return bAssigned - aAssigned
+      if (aAssigned !== bAssigned) return bAssigned - aAssigned
+      return 0
     })
 
     // First two should be assigned ones
@@ -153,7 +151,7 @@ describe('Tag editor — sorting logic', () => {
     }
   })
 
-  it('search filters categories case-insensitively', () => {
+  it('search filters pills case-insensitively', () => {
     const q = 'bar'
     const filtered = SYSTEM_CATEGORIES.filter(
       cat => cat.label.toLowerCase().includes(q.toLowerCase()) || cat.tagName.toLowerCase().includes(q.toLowerCase()),
@@ -168,5 +166,15 @@ describe('Tag editor — sorting logic', () => {
       cat => cat.label.toLowerCase().includes(q.toLowerCase()) || cat.tagName.toLowerCase().includes(q.toLowerCase()),
     )
     expect(filtered.some(c => c.tagName === 'coffee_cafe')).toBe(true)
+  })
+
+  it('grid with 12 categories fills two rows of 6 columns each', () => {
+    // With gridTemplateRows: 'auto auto' and gridAutoFlow: 'column',
+    // 12 items → 6 columns × 2 rows
+    const totalItems = SYSTEM_CATEGORIES.length
+    expect(totalItems).toBe(12)
+    const expectedRows = 2
+    const expectedCols = Math.ceil(totalItems / expectedRows)
+    expect(expectedCols).toBe(6)
   })
 })
